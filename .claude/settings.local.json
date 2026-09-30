@@ -28,6 +28,11 @@
       "Bash(npm ls:*)",
       "Bash(npx next:*)",
       "Bash(NODE_PATH=__CMDSUB_OUTPUT__/node_modules node -e ' *)",
+      "Bash(npx vitest:*)",
+      "Bash(npx eslint:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
       "Bash(mkdir -p \"D:/nesr_applications/expediting_tool/src/app/soa-consolidation/components/modals\" \"D:/nesr_applications/expediting_tool/src/app/soa-consolidation/components/screens\")",
       "Bash(npx tsc *)"
     ]

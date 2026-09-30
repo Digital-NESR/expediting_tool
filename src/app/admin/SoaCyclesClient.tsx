@@ -6,8 +6,8 @@
    A cycle is a reporting quarter, and it carries its own policy:
    the coverage target, the year-end target, the vendor threshold
    and the lookback are stored ON the cycle rather than read from a
-   constant. That is the whole point of this screen — changing next
-   quarter's target must not rewrite how last quarter was judged —
+   constant. That is the whole point of this screen. Changing next
+   quarter's target must not rewrite how last quarter was judged, 
    so the create form offers the defaults as editable values and the
    list shows what each cycle actually used, not today's numbers.
 
@@ -17,8 +17,8 @@
      · Making a cycle active stands the previous one down. Exactly
        one cycle is active, and every champion's screen follows it.
      · Running the extract REPLACES that cycle's spend snapshot. It
-       leaves chase lists alone — no champion's correspondence is
-       lost — and it is slow, because it aggregates every PO
+       leaves chase lists alone. No champion's correspondence is
+       lost, and it is slow, because it aggregates every PO
        line in the window.
    ───────────────────────────────────────────────────────────── */
 
@@ -26,6 +26,9 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import {
   activateSoaCycle,
   createSoaCycle,
+  extendSoaCycleDeadlines,
+  getSoaDeadlineChanges,
+  type DeadlineChange,
   getSoaCycleSummary,
   getSoaCycles,
   runSoaExtract,
@@ -47,7 +50,7 @@ const DEFAULTS = {
   lookbackMonths: '18',
 };
 
-/** `$250.6M` — the totals here run to hundreds of millions and read badly in full. */
+/** `$250.6M`, the totals here run to hundreds of millions and read badly in full. */
 function fmtCompactUsd(n: number): string {
   const abs = Math.abs(n);
   if (abs >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`;
@@ -56,14 +59,19 @@ function fmtCompactUsd(n: number): string {
   return `$${Math.round(n)}`;
 }
 
-/** `$250,000` — the threshold is a policy number and reads better unrounded. */
+/** `$250,000`. The threshold is a policy number and reads better unrounded. */
 function fmtUsd(n: number): string {
   return `$${Math.round(n).toLocaleString('en-US')}`;
 }
 
 /** A DATE column, rendered without letting the viewer's time zone shift it a day. */
 function dateOnly(iso: string | null): string {
-  return iso ? shortDateUTC(new Date(`${iso.slice(0, 10)}T00:00:00Z`)) : '—';
+  return iso ? shortDateUTC(new Date(`${iso.slice(0, 10)}T00:00:00Z`)) : ', ';
+}
+
+/** The same column as `<input type="date">` wants it, which is not what `dateOnly` renders. */
+function isoDay(iso: string | null): string {
+  return iso ? iso.slice(0, 10) : '';
 }
 
 function Spinner({ className = 'h-5 w-5' }: { className?: string }) {
@@ -119,14 +127,16 @@ export default function SoaCyclesClient() {
   const [label, setLabel] = useState('');
   const [periodStart, setPeriodStart] = useState('');
   const [periodEnd, setPeriodEnd] = useState('');
+  // Two dates, for two different people: the supplier's and the champion's.
   const [deadline, setDeadline] = useState('');
+  const [cycleDeadline, setCycleDeadline] = useState('');
   const [coverage, setCoverage] = useState(DEFAULTS.coverageTargetPct);
   const [yearEnd, setYearEnd] = useState(DEFAULTS.yearEndTargetPct);
   const [threshold, setThreshold] = useState(DEFAULTS.vendorThresholdUsd);
   const [lookback, setLookback] = useState(DEFAULTS.lookbackMonths);
   const [makeActive, setMakeActive] = useState(false);
 
-  // Activation asks first — it stands the current active cycle down.
+  // Activation asks first. It stands the current active cycle down.
   const [confirmActivateId, setConfirmActivateId] = useState<number | null>(null);
   const [activating, setActivating] = useState(false);
 
@@ -208,8 +218,8 @@ export default function SoaCyclesClient() {
       setError('A label is required, e.g. "Q4 2026".');
       return;
     }
-    if (!periodStart || !periodEnd || !deadline) {
-      setError('The period start, period end and submission deadline are all required.');
+    if (!periodStart || !periodEnd || !deadline || !cycleDeadline) {
+      setError('The period, the collection deadline and the cycle deadline are all required.');
       return;
     }
     if (!(new Date(periodStart) < new Date(periodEnd))) {
@@ -223,6 +233,7 @@ export default function SoaCyclesClient() {
       periodStart,
       periodEnd,
       submissionDeadline: deadline,
+      cycleDeadline,
       coverageTargetPct: num(coverage),
       yearEndTargetPct: num(yearEnd),
       vendorThresholdUsd: num(threshold),
@@ -240,6 +251,42 @@ export default function SoaCyclesClient() {
     setFormOpen(false);
     await loadCycles();
     if (opened) setSelectedId(opened.id);
+  }
+
+  /* Moving a live cycle's dates. Kept as its own small form rather than folded into the create
+     form: creating a cycle and changing one people have already been told about are different
+     acts, and only the second needs a reason on the record. */
+  const [editing, setEditing] = useState<number | null>(null);
+  const [editSubmission, setEditSubmission] = useState('');
+  const [editCycle, setEditCycle] = useState('');
+  const [editReason, setEditReason] = useState('');
+  const [savingDates, setSavingDates] = useState(false);
+  const [history, setHistory] = useState<Record<number, DeadlineChange[]>>({});
+
+  function openEditor(c: SoaCycle) {
+    setEditing(c.id);
+    setEditSubmission(isoDay(c.submission_deadline));
+    setEditCycle(isoDay(c.cycle_deadline));
+    setEditReason('');
+    setError('');
+    void getSoaDeadlineChanges(c.id).then((rows) =>
+      setHistory((h) => ({ ...h, [c.id]: rows })),
+    );
+  }
+
+  async function saveDates(cycleId: number) {
+    setSavingDates(true);
+    setError('');
+    const result = await extendSoaCycleDeadlines({
+      cycleId,
+      submissionDeadline: editSubmission,
+      cycleDeadline: editCycle,
+      reason: editReason,
+    });
+    setSavingDates(false);
+    if (!result.success) return setError(result.error ?? 'Could not move the deadlines.');
+    setEditing(null);
+    await loadCycles();
   }
 
   async function activate(cycleId: number) {
@@ -320,7 +367,7 @@ export default function SoaCyclesClient() {
       <p className="text-[12px] text-slate-400">
         A cycle is one reporting quarter, and it carries its own policy. The coverage target, the
         year-end target, the vendor threshold and the lookback are stored{' '}
-        <span className="font-semibold text-slate-600">on the cycle</span> — changing next
+        <span className="font-semibold text-slate-600">on the cycle</span>, changing next
         quarter&apos;s target leaves last quarter&apos;s evidence describing the rule it was
         actually judged against. Exactly one cycle is active at a time, and every champion&apos;s
         screen follows it.
@@ -361,13 +408,27 @@ export default function SoaCyclesClient() {
                 className={INPUT}
               />
             </Field>
-            <Field label="Submission deadline">
+            <Field label="Collection deadline">
               <input
                 type="date"
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
                 className={INPUT}
               />
+              <p className="mt-1 text-[11px] text-slate-500">
+                The date suppliers are given in the request letter.
+              </p>
+            </Field>
+            <Field label="Cycle deadline">
+              <input
+                type="date"
+                value={cycleDeadline}
+                onChange={(e) => setCycleDeadline(e.target.value)}
+                className={INPUT}
+              />
+              <p className="mt-1 text-[11px] text-slate-500">
+                The date every country must be reconciled, closed and handed to Finance.
+              </p>
             </Field>
           </div>
 
@@ -429,7 +490,7 @@ export default function SoaCyclesClient() {
               {activeCycle ? (
                 <>
                   <span className="font-semibold text-slate-800">{activeCycle.label}</span> is
-                  active now and would be stood down — every champion&apos;s screen switches to the
+                  active now and would be stood down, every champion&apos;s screen switches to the
                   new cycle.
                 </>
               ) : (
@@ -480,7 +541,7 @@ export default function SoaCyclesClient() {
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold">Cycle</th>
                   <th className="px-4 py-3 text-left font-semibold">Period</th>
-                  <th className="px-4 py-3 text-left font-semibold">Deadline</th>
+                  <th className="px-4 py-3 text-left font-semibold">Deadlines</th>
                   <th className="px-4 py-3 text-left font-semibold">Policy used</th>
                   <th className="px-4 py-3 text-left font-semibold">Extract</th>
                   <th className="px-4 py-3 text-right font-semibold">Actions</th>
@@ -513,7 +574,100 @@ export default function SoaCyclesClient() {
                         {dateOnly(c.period_end)}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-slate-700">
-                        {dateOnly(c.submission_deadline)}
+                        <div>
+                          {dateOnly(c.submission_deadline)}
+                          <span className="ml-1.5 text-[10px] uppercase tracking-wide text-slate-400">
+                            collection
+                          </span>
+                        </div>
+                        <div className="mt-0.5">
+                          {dateOnly(c.cycle_deadline)}
+                          <span className="ml-1.5 text-[10px] uppercase tracking-wide text-slate-400">
+                            close
+                          </span>
+                        </div>
+
+                        {/* Only the live cycle. A closed quarter's dates are what it was judged
+                            against, and editing them afterwards would rewrite the verdict. */}
+                        {c.is_active && editing !== c.id && (
+                          <button
+                            type="button"
+                            onClick={() => openEditor(c)}
+                            className="mt-1.5 text-[11px] font-semibold text-[#2A7E4F] underline"
+                          >
+                            Change these dates
+                          </button>
+                        )}
+
+                        {editing === c.id && (
+                          <div className="mt-2 w-[250px] space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                            <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                              Collection deadline
+                              <input
+                                type="date"
+                                value={editSubmission}
+                                onChange={(e) => setEditSubmission(e.target.value)}
+                                className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1 text-xs font-normal normal-case tracking-normal text-slate-800"
+                              />
+                            </label>
+                            <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                              Closing deadline
+                              <input
+                                type="date"
+                                value={editCycle}
+                                onChange={(e) => setEditCycle(e.target.value)}
+                                className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1 text-xs font-normal normal-case tracking-normal text-slate-800"
+                              />
+                            </label>
+                            <label className="block text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                              Why
+                              <textarea
+                                rows={2}
+                                value={editReason}
+                                onChange={(e) => setEditReason(e.target.value)}
+                                placeholder="Extended a week, three countries still collecting."
+                                className="mt-1 w-full rounded-md border border-slate-200 px-2 py-1 text-xs font-normal normal-case tracking-normal text-slate-800 placeholder:text-slate-400"
+                              />
+                            </label>
+                            <p className="text-[10px] leading-[1.4] text-slate-500">
+                              Recorded against the cycle and written into every enrolled
+                              country&apos;s evidence pack.
+                            </p>
+                            <div className="flex gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setEditing(null)}
+                                className="flex-1 rounded-md bg-white px-2 py-1.5 text-[11px] font-bold text-slate-500 ring-1 ring-slate-200"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => saveDates(c.id)}
+                                disabled={savingDates || editReason.trim().length < 3}
+                                className="flex-[2] rounded-md bg-[#2A7E4F] px-2 py-1.5 text-[11px] font-bold text-white disabled:opacity-50"
+                              >
+                                {savingDates ? 'Saving' : 'Save the change'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* What has already been done to these dates. A quarter extended twice and
+                            then reported as delivered on schedule is what an auditor looks for. */}
+                        {(history[c.id]?.length ?? 0) > 0 && (
+                          <ul className="mt-2 w-[250px] space-y-1 border-t border-slate-200 pt-1.5">
+                            {history[c.id].map((h) => (
+                              <li key={h.changedAt} className="text-[10px] leading-[1.4] text-slate-500">
+                                <span className="font-semibold text-slate-700">
+                                  {dateOnly(h.oldSubmissionDeadline)} to{' '}
+                                  {dateOnly(h.newSubmissionDeadline)}
+                                </span>{' '}
+                                by {h.changedBy}. {h.reason}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-xs leading-relaxed text-slate-600">
                         <p>
@@ -583,7 +737,7 @@ export default function SoaCyclesClient() {
                                 <>
                                   {' '}
                                   <span className="font-bold">{activeCycle.label}</span> is stood
-                                  down in the same move — only one cycle is ever active, and every
+                                  down in the same move. Only one cycle is ever active, and every
                                   champion&apos;s dashboard, scoping screen and deadline switches to{' '}
                                   {c.label} the moment this lands.
                                 </>
@@ -626,7 +780,7 @@ export default function SoaCyclesClient() {
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="text-sm font-bold text-slate-900">
-              Spend snapshot — {selected.label}
+              Spend snapshot, {selected.label}
               {selected.is_active && (
                 <span className="ml-2 rounded-full bg-[#2A7E4F]/10 px-2 py-0.5 text-[10px] font-bold text-[#2A7E4F]">
                   Active
@@ -639,27 +793,27 @@ export default function SoaCyclesClient() {
           <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-5">
             <Tile
               label="Suppliers"
-              value={summary ? summary.rows.toLocaleString('en-US') : '—'}
+              value={summary ? summary.rows.toLocaleString('en-US') : ', '}
               sub="supplier-country rows"
             />
             <Tile
               label="All PO Transactions"
-              value={summary ? fmtCompactUsd(summary.totalUsd) : '—'}
+              value={summary ? fmtCompactUsd(summary.totalUsd) : ', '}
               sub="the coverage denominator"
             />
             <Tile
               label="Countries"
-              value={summary ? String(summary.countries) : '—'}
+              value={summary ? String(summary.countries) : ', '}
               sub="present in the snapshot"
             />
             <Tile
               label="Scoped"
-              value={summary ? String(summary.scopedCountries) : '—'}
+              value={summary ? String(summary.scopedCountries) : '. '}
               sub="countries a champion has scoped"
             />
             <Tile
               label="In chase"
-              value={summary ? summary.vendorsInChase.toLocaleString('en-US') : '—'}
+              value={summary ? summary.vendorsInChase.toLocaleString('en-US') : ', '}
               sub="vendors on a chase list"
             />
           </div>
@@ -676,7 +830,7 @@ export default function SoaCyclesClient() {
             <p className="text-sm font-semibold text-slate-800">Run the extract</p>
             <p className="mt-1 text-[12px] leading-relaxed text-slate-500">
               Reads all PO transactions in the {selected.lookback_months}-month window ending{' '}
-              {dateOnly(selected.period_end)} and writes this cycle&apos;s snapshot — roughly
+              {dateOnly(selected.period_end)} and writes this cycle&apos;s snapshot, roughly
               413,000 rows aggregated down to about 2,800 written, so it takes several seconds.
             </p>
             <p className="mt-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] leading-relaxed text-slate-600">
@@ -685,7 +839,7 @@ export default function SoaCyclesClient() {
               <span className="font-semibold text-slate-800">
                 Chase lists already drawn are left exactly as they are
               </span>{' '}
-              — no champion&apos;s correspondence, request or reminder is touched.
+ no champion&apos;s correspondence, request or reminder is touched.
             </p>
 
             <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -704,13 +858,13 @@ export default function SoaCyclesClient() {
               </button>
               {extracting && (
                 <span className="text-[12px] font-medium text-slate-500">
-                  Aggregating PO transactions — this takes several seconds. Leave this page open.
+                  Aggregating PO transactions. This takes several seconds. Leave this page open.
                 </span>
               )}
             </div>
 
             {/* Indeterminate: the extract is one server call, so there is no honest
-                percentage to show — only proof that it is still moving. */}
+                percentage to show. Only proof that it is still moving. */}
             {extracting && (
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
                 <div className="h-full w-full animate-pulse rounded-full bg-[#2A7E4F]" />
@@ -750,7 +904,7 @@ export default function SoaCyclesClient() {
                       <span className="font-bold">
                         their spend is missing from every coverage denominator
                       </span>{' '}
-                      — every percentage this cycle produces is measured against a total that does
+ every percentage this cycle produces is measured against a total that does
                       not include them. Add each spelling to the matching country&apos;s spend names
                       and re-run the extract.
                     </p>

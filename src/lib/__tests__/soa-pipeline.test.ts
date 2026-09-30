@@ -5,7 +5,7 @@ import type { Vendor } from '@/app/soa-consolidation/types';
 /**
  * The workflow pipeline is the first thing on the dashboard and is read as a summary of where a
  * country stands. It used to be a lookup from `country_cycles.status` through a table that mapped
- * `in_progress` to step 4 — so a country with no vendors, no requests and no responses rendered
+ * `in_progress` to step 4, so a country with no vendors, no requests and no responses rendered
  * PO Upload, Scope and Requests all ticked with Responses under way.
  *
  * The case that caught it is the first test below, and it is the one that must never come back.
@@ -18,7 +18,7 @@ function vendor(status: Vendor['status']): Vendor {
     no: '0001',
     openPO: 1_000_000,
     status,
-    reqDate: '—',
+    reqDate: ', ',
     remDate: null,
     respDate: null,
     requestedAt: null,
@@ -26,6 +26,7 @@ function vendor(status: Vendor['status']): Vendor {
     respondedAt: null,
     currency: 'USD',
     invCount: 0,
+  resolutionNote: '',
     contactEmails: [],
     submissions: [],
   };

@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import { describeDbError } from './describe-error';
 
 /**
  * One factory for every `pg` pool in the app.
@@ -142,10 +143,14 @@ export function createPool(databaseName: string | undefined, options: CreatePool
 
   const label = options.label;
   if (label) {
-    // An unhandled 'error' on an idle client crashes the process, so every pool
-    // that had a handler keeps one. `db.ts` never had one; passing null preserves
-    // that (see the follow-up note in src/lib/db.ts).
-    pool.on('error', (err) => console.error(`[${label}] unexpected error:`, err));
+    /* An 'error' event with no listener is how Node is told to terminate the
+       process, and `pg` emits one on any idle client whose connection drops. So
+       every pool gets a handler, and the error is described rather than printed:
+       a connection that failed on every resolved address arrives as an
+       AggregateError whose own message is the empty string. */
+    pool.on('error', (err) =>
+      console.error(`[${label}] unexpected error: ${describeDbError(err)}`, err),
+    );
   }
   if (options.onConnect) pool.on('connect', options.onConnect);
 

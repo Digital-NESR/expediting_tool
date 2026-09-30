@@ -5,7 +5,7 @@
 
 import Image from 'next/image';
 import HeaderUser from './HeaderUser';
-import ScaiPanel from './ScaiPanel';
+import HomeSidebar from './HomeSidebar';
 import ToolLauncher from './ToolLauncher';
 
 export default function HomePage() {
@@ -60,7 +60,7 @@ export default function HomePage() {
       {/* ── Main ── */}
       <main className="flex-1 px-8 py-12 relative z-10">
         <div className="max-w-[1400px] mx-auto">
-          <ToolLauncher scaiPanel={<ScaiPanel />} />
+          <ToolLauncher scaiPanel={<HomeSidebar />} />
         </div>
       </main>
     </div>

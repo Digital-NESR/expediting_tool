@@ -1,5 +1,10 @@
 import { shortDateTime, shortDateUTC } from '@/lib/format';
 import { complianceCriteria } from '@/lib/soa/compliance';
+import {
+  countsTowardCoverage,
+  isAwaitingVerification,
+  isResolved,
+} from '@/lib/soa/status';
 import type {
   AppState,
   Country,
@@ -39,7 +44,7 @@ export function fmtM(n: number): string {
   return n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${(n / 1_000).toFixed(0)}K`;
 }
 
-/** `$250,000` — the vendor threshold and the coverage targets read better unrounded. */
+/** `$250,000`, the vendor threshold and the coverage targets read better unrounded. */
 export function fmtUsd(n: number): string {
   return `$${Math.round(n).toLocaleString('en-US')}`;
 }
@@ -60,6 +65,7 @@ function coverageStanding(pct: number, target: number): Standing {
 const VENDOR_STATUS_LABEL: Record<VendorStatus, string> = {
   scoped: 'Not Requested',
   received: 'Received',
+  nil_balance: 'No Pending Invoices',
   requested: 'Requested',
   reminded: 'Reminded',
   non_responder: 'Non-Responder',
@@ -85,8 +91,8 @@ const EVIDENCE_TYPE_LABEL: Record<EvidenceType, string> = {
 
 const ROLE_LABEL: Record<Role, string> = {
   admin: 'SOA Administrator',
-  manager: 'Supply Chain Manager',
   champion: 'SC SOA Champion',
+  ap: 'Accounts Payable',
   viewer: 'Read-only Viewer',
 };
 
@@ -126,7 +132,7 @@ function matchesSearch(v: Vendor, needle: string): boolean {
 
 /** A date-only column out of the database, rendered without letting the viewer's zone shift it. */
 function dateOnlyLabel(iso: string): string {
-  return iso ? shortDateUTC(new Date(`${iso}T00:00:00Z`)) : '—';
+  return iso ? shortDateUTC(new Date(`${iso}T00:00:00Z`)) : ', ';
 }
 
 function tableControls(
@@ -195,9 +201,7 @@ export function pipelineStage(
     (v) => v.status === 'requested' || v.status === 'reminded',
   ).length;
   const notYetRequested = vendors.filter((v) => v.status === 'scoped').length;
-  const settledCount = vendors.filter(
-    (v) => v.status === 'received' || v.status === 'non_responder',
-  ).length;
+  const settledCount = vendors.filter((v) => isResolved(v.status)).length;
 
   const scopeDone = total > 0;
   return {
@@ -216,7 +220,12 @@ export function pipelineStage(
 }
 
 /** The empty answer, so the scoping screen can render its own frame before the list arrives. */
-const NO_CANDIDATES: ScopeCandidates = { thresholdUsd: 0, totalBalance: 0, candidates: [] };
+const NO_CANDIDATES: ScopeCandidates = {
+  thresholdUsd: 0,
+  totalBalance: 0,
+  excludedBalance: 0,
+  candidates: [],
+};
 
 export interface ScopeTotals {
   /** Ticked right now, including the locked rows that are ticked whether or not anyone said so. */
@@ -226,7 +235,7 @@ export interface ScopeTotals {
    *  an excluded supplier is never added, and a locked one is never removed. */
   addCount: number;
   removeCount: number;
-  /** Ticked and removable — what "Clear selection" would actually clear. */
+  /** Ticked and removable. What "Clear selection" would actually clear. */
   clearableCount: number;
   /** The balance reachable if every supplier that *can* be ticked were: the ceiling on coverage. */
   reachableUsd: number;
@@ -234,7 +243,7 @@ export interface ScopeTotals {
   lockedCount: number;
   overThresholdCount: number;
   overThresholdUnticked: number;
-  /** Ticked suppliers with no address on file — selected, but impossible to chase. */
+  /** Ticked suppliers with no address on file, selected, but impossible to chase. */
   unreachableSelected: number;
 }
 
@@ -266,16 +275,18 @@ export function scopeTotals(
     const ticked = selected.has(c.vendorNo);
     if (ticked) {
       t.selectedCount += 1;
-      t.selectedUsd += c.valueUsd;
+      /* Out of the numerator as well as the denominator. An excluded supplier that is somehow
+         already in the cycle would otherwise add balance the divisor does not carry, and the
+         screen would report more than 100% of a country's balance selected. */
+      if (!c.excluded) t.selectedUsd += c.valueUsd;
       if (!c.emails.length) t.unreachableSelected += 1;
       if (!c.locked) t.clearableCount += 1;
       if (!c.selected && !c.excluded) t.addCount += 1;
     } else if (c.selected && !c.locked) {
       t.removeCount += 1;
     }
-    /* An excluded supplier cannot be added, so it is not part of the ceiling — unless it is
-       already in the cycle, in which case its balance is genuinely being chased. */
-    if (!c.excluded || c.selected) t.reachableUsd += c.valueUsd;
+    // The ceiling is every supplier that may be ticked, which is every one not excluded.
+    if (!c.excluded) t.reachableUsd += c.valueUsd;
     if (c.excluded) t.excludedCount += 1;
     if (c.locked) t.lockedCount += 1;
     if (c.overThreshold && !c.excluded) {
@@ -289,9 +300,45 @@ export function scopeTotals(
 /**
  * `payload` is the database's answer for this country and cycle; `state` is only what the screens
  * themselves own. Nothing about a vendor, a country or an evidence entry is held in client state
- * any more — a mutation calls its server action and refreshes, and this function re-runs over the
+ * any more, a mutation calls its server action and refreshes, and this function re-runs over the
  * new payload.
  */
+/**
+ * Which "nothing here" a screen is looking at, in the order the obstacles actually appear.
+ *
+ * Pure and exported because the ORDER is the whole rule and it is invisible once inlined. Each
+ * state has a different person who fixes it, an administrator opens the cycle and runs the
+ * extract, a champion joins and then scopes, so reporting the wrong one sends somebody to wait on
+ * the wrong colleague. The one that caused real confusion was `no-extract`: opening a quarter and
+ * taking its snapshot are two admin steps, and between them the tool looked open for business with
+ * nothing in it.
+ */
+export function emptyKindFor(state: {
+  hasCycle: boolean;
+  hasCountry: boolean;
+  extracted: boolean;
+  enrolled: boolean;
+  scoped: boolean;
+  /** Reads this country only as Accounts Payable. */
+  apOnly: boolean;
+  /** The champion has closed the cycle and handed it over. */
+  handedOff: boolean;
+}): EmptyKind {
+  if (!state.hasCycle) return 'no-cycle';
+  if (!state.hasCountry) return 'no-country';
+  /* Accounts Payable used to be shown nothing at all until the champion closed the cycle. That
+     was wrong in a way the tool could not see: AP is copied on every request and every reminder,
+     so they watched the chase arrive in their inbox all quarter while the portal told them there
+     was nothing to review. They read it now, and act on none of it. */
+  if (!state.extracted) return 'no-extract';
+  // Joining is its own act. A country that has not joined has not decided against taking part, it
+  // simply has not started, and "nothing scoped" would send the champion looking for a list that
+  // does not exist yet.
+  if (!state.enrolled) return 'not-enrolled';
+  if (!state.scoped) return 'not-scoped';
+  return 'none';
+}
+
 export function deriveViewModel(
   payload: SoaPayload,
   state: AppState,
@@ -309,7 +356,9 @@ export function deriveViewModel(
     scopeSearch,
     scopePage,
     busy,
+    sendProgress,
     failures,
+    failuresLoading,
     scopeCandidates,
     scopeLoading,
     scopeError,
@@ -319,9 +368,11 @@ export function deriveViewModel(
   const { cycle, vendors, countries, evidence, countryId, countryName, totalBalance } = payload;
   const role = viewer.role;
 
-  /* The corporate rollup is a manager's screen; the guard is applied twice — the nav item is not
-     offered, and a screen id that somehow says 'rollup' falls back to the dashboard. */
-  const canSeeRollup = role === 'admin' || role === 'manager';
+  /* The cross-country view, for an administrator or a champion granted every country. Which is
+     what the removed `manager` role existed to describe, so the scope answers it rather than a
+     separate rank. Guarded twice: the nav item is not offered, and a screen id that somehow says
+     'rollup' falls back to the dashboard. */
+  const canSeeRollup = role === 'admin' || viewer.champion === 'all';
   const canAct =
     !!countryId &&
     !payload.handedOff &&
@@ -329,24 +380,22 @@ export function deriveViewModel(
 
   /* Which "nothing to show, and here is why". These are all reachable on any given morning: a
      quarter nobody has opened, a grant naming no active country, a country nobody has scoped. */
-  const emptyKind: EmptyKind = !cycle
-    ? 'no-cycle'
-    : !countryId
-      ? 'no-country'
-      : /* A quarter can be open without its spend snapshot having been taken, and until it is
-           there is nothing to scope FROM. That is an admin's job, not the champion's, so it gets
-           its own state rather than looking like a country nobody has got round to. */
-        !cycle.extractedAt
-        ? 'no-extract'
-        : !payload.scoped
-          ? 'not-scoped'
-          : 'none';
+  const emptyKind: EmptyKind = emptyKindFor({
+    hasCycle: Boolean(cycle),
+    hasCountry: Boolean(countryId),
+    extracted: Boolean(cycle?.extractedAt),
+    enrolled: payload.enrolled,
+    scoped: payload.scoped,
+    apOnly: viewer.apOnly,
+    handedOff: payload.handedOff,
+  });
 
   /* Vendor Scoping is where a champion fixes "not scoped", and the rollup does not depend on this
      country at all, so those two screens stay live when the country itself is empty. */
   const emptyBlocks = (id: ScreenId) =>
     emptyKind === 'no-cycle' ||
     emptyKind === 'no-country' ||
+    emptyKind === 'not-enrolled' ||
     (emptyKind === 'not-scoped' && id !== 'scoping' && id !== 'rollup');
 
   const activeScreen: ScreenId = screen === 'rollup' && !canSeeRollup ? 'dashboard' : screen;
@@ -357,14 +406,19 @@ export function deriveViewModel(
 
   const totalCount = vendors.length;
   const receivedCount = vendors.filter((v) => v.status === 'received').length;
+  const nilBalanceCount = vendors.filter((v) => v.status === 'nil_balance').length;
   const requestedCount = vendors.filter((v) => v.status === 'requested').length;
   const remindedCount = vendors.filter((v) => v.status === 'reminded').length;
   const nonResponderCount = vendors.filter((v) => v.status === 'non_responder').length;
   const unrequestedCount = vendors.filter((v) => v.status === 'scoped').length;
   const unreachableCount = vendors.filter((v) => v.contactEmails.length === 0).length;
   const pendingResponseCount = requestedCount + remindedCount;
+  /* Both settled outcomes count. A statement in hand and a balance the champion has established
+     is nil are the same answer to "is this account reconciled"; a supplier with nothing
+     outstanding never had a statement to send, and withholding the credit would measure our
+     paperwork rather than the account. Silence still counts for nothing. */
   const receivedBalance = vendors
-    .filter((v) => v.status === 'received')
+    .filter((v) => countsTowardCoverage(v.status))
     .reduce((s, v) => s + v.openPO, 0);
   const coveragePct = totalBalance > 0 ? Math.round((receivedBalance / totalBalance) * 100) : 0;
   const coverageMet = coveragePct >= coverageTargetPct && totalBalance > 0;
@@ -374,16 +428,28 @@ export function deriveViewModel(
 
   const cycleLabel = cycle?.label ?? 'No active cycle';
   const countryLabel = countryName ? `${countryName} (${countryId})` : 'No country in scope';
-  const deadlineLabel = cycle ? dateOnlyLabel(cycle.submissionDeadline) : '—';
+  /* Two dates for two audiences: `deadlineLabel` is what suppliers were told, and is what the
+     chase is measured against; `cycleDeadlineLabel` is when this country has to be closed. */
+  const deadlineLabel = cycle ? dateOnlyLabel(cycle.submissionDeadline) : ', ';
+  const cycleDeadlineLabel = cycle ? dateOnlyLabel(cycle.cycleDeadline) : ', ';
   const periodLabel = cycle
     ? `${cycleLabel} (${dateOnlyLabel(cycle.periodStart)} – ${dateOnlyLabel(cycle.periodEnd)})`
-    : '—';
+    : ', ';
   const contextLine = `${countryLabel} · ${cycleLabel}`;
+
+  /* The collection deadline as a date, and one reading of "now" for the whole render, so two rows
+     on the same screen cannot land either side of midnight and disagree about it. */
+  const submissionDeadline = cycle ? new Date(cycle.submissionDeadline) : null;
+  const now = new Date();
+  const pastCollectionDeadline =
+    !!submissionDeadline &&
+    !Number.isNaN(submissionDeadline.getTime()) &&
+    now.getTime() > submissionDeadline.getTime();
 
   // Workflow pipeline (6 steps, derived from the active country's status)
   /* The pipeline is derived from what has actually happened, not from the country's status
      column. It used to read a single enum through a lookup table, which mapped `in_progress` to
-     stage 4 — so a country with nothing in it at all showed PO Upload, Scope and Requests ticked
+     stage 4, so a country with nothing in it at all showed PO Upload, Scope and Requests ticked
      and Responses under way. A pipeline that claims work nobody did is worse than no pipeline.
 
      Each step answers its own question from the data, and a step only reports done when the thing
@@ -444,7 +510,7 @@ export function deriveViewModel(
     nodeIcon: p.done ? '✓' : i === activeIdx ? '●' : '○',
   }));
 
-  const thresholdLabel = cycle ? fmtUsd(cycle.vendorThresholdUsd) : '—';
+  const thresholdLabel = cycle ? fmtUsd(cycle.vendorThresholdUsd) : ', ';
 
   const kpiCards: KpiCardVM[] = [
     {
@@ -475,13 +541,13 @@ export function deriveViewModel(
     },
     {
       label: 'Days Remaining',
-      value: cycle ? String(cycle.daysRemaining) : '—',
+      value: cycle ? String(cycle.daysRemaining) : ', ',
       sub: `Until ${deadlineLabel}`,
       accent: cycle && cycle.daysRemaining <= 5 ? 'breach' : 'in-flight',
     },
   ];
 
-  const coverageCheckLabel = `${coverageMet ? '✓ ' : '⚠ '}${coveragePct}% — ${
+  const coverageCheckLabel = `${coverageMet ? '✓ ' : '⚠ '}${coveragePct}%, ${
     coverageMet
       ? `Meets ${coverageTargetPct}% ${cycleLabel} threshold`
       : `Below ${coverageTargetPct}% target`
@@ -490,6 +556,7 @@ export function deriveViewModel(
   const statusBarSegs: StatusBarSegVM[] = (
     [
       { status: 'received', count: receivedCount, label: 'Received' },
+      { status: 'nil_balance', count: nilBalanceCount, label: 'No Pending Invoices' },
       { status: 'requested', count: requestedCount, label: 'Requested' },
       { status: 'reminded', count: remindedCount, label: 'Reminded' },
       { status: 'non_responder', count: nonResponderCount, label: 'Non-Responder' },
@@ -497,24 +564,31 @@ export function deriveViewModel(
     ] as StatusBarSegVM[]
   ).filter((s) => s.count > 0);
 
+  /* Scoping and Outreach are the champion's work, and this is the whole of what AP-only now
+     changes: they read every other screen throughout the chase. An AP reader cannot act on
+     either of these two, since `canAct` is champion-only, so listing them would offer two dead
+     ends rather than two more things to watch. */
   const NAV: { id: ScreenId; label: string; badge: string | null }[] = [
     { id: 'dashboard', label: 'Dashboard', badge: null },
-    {
-      id: 'scoping',
-      label: 'Vendor Scoping',
-      badge: emptyKind === 'not-scoped' ? '!' : null,
-    },
-    {
-      id: 'outreach',
-      label: 'Outreach',
-      badge: unrequestedCount > 0 ? String(unrequestedCount) : null,
-    },
+    ...(viewer.apOnly
+      ? []
+      : [
+          {
+            id: 'scoping' as ScreenId,
+            label: 'Vendor Scoping',
+            badge: emptyKind === 'not-scoped' ? '!' : null,
+          },
+          {
+            id: 'outreach' as ScreenId,
+            label: 'Outreach',
+            badge: unrequestedCount > 0 ? String(unrequestedCount) : null,
+          },
+        ]),
     {
       id: 'tracking',
       label: 'Response Tracking',
       badge: pendingResponseCount > 0 ? String(pendingResponseCount) : null,
     },
-    { id: 'intake', label: 'SOA Intake', badge: null },
     { id: 'consolidation', label: 'Consolidation', badge: null },
     { id: 'evidence', label: 'Evidence Repository', badge: null },
     ...(canSeeRollup ? [{ id: 'rollup' as ScreenId, label: 'Corporate Rollup', badge: null }] : []),
@@ -530,6 +604,7 @@ export function deriveViewModel(
     [
       { label: 'All', status: 'all', count: totalCount },
       { label: 'Received', status: 'received', count: receivedCount },
+      { label: 'No Pending Invoices', status: 'nil_balance', count: nilBalanceCount },
       { label: 'Requested', status: 'requested', count: requestedCount },
       { label: 'Reminded', status: 'reminded', count: remindedCount },
       { label: 'Non-Responder', status: 'non_responder', count: nonResponderCount },
@@ -547,25 +622,67 @@ export function deriveViewModel(
     fmtOpenPO: fmtM(v.openPO),
   });
 
-  // Response Tracking — status filter, then text filter, then one page of rows.
+  // Response Tracking, status filter, then text filter, then one page of rows.
   const trackingMatched = vendors
     .filter((v) => filterStatus === 'all' || v.status === filterStatus)
     .filter((v) => matchesSearch(v, search));
-  const vendorsEnriched: VendorEnrichedVM[] = pageSlice(trackingMatched, page).map((v) => ({
-    ...enrichVendorRow(v),
-    isExpanded: v.id === expandedVendor,
-    isReceived: v.status === 'received',
-    canAccept: canAct && v.status !== 'received',
-    canRemind: canAct && v.status === 'requested',
-    canNR: canAct && (v.status === 'reminded' || v.status === 'requested'),
-    isUnreachable: v.contactEmails.length === 0,
-    contactLabel: v.contactEmails.join(', '),
-    onToggle: () => handlers.toggleExpand(v.id),
-    onAccept: () => handlers.openUploadModal(v.id),
-    onRemind: () => handlers.sendOneReminder(v.id),
-    onNR: () => handlers.markNR(v.id),
-    onSaveContacts: (emails: string[]) => handlers.saveContacts(v.id, emails),
-  }));
+  /* The refused sends, by vendor, so a failure shows on the row it belongs to rather than in a
+     panel above the table listing the same vendors a second time. Retryable ones only: a refusal
+     a later attempt made good is history, and a red badge for it would be a standing alarm about
+     something that is no longer true. */
+  const failedByVendor = new Map<string, string>();
+  for (const f of failures ?? []) {
+    if (f.retryable && !failedByVendor.has(f.vendorNo)) failedByVendor.set(f.vendorNo, f.error);
+  }
+
+  const vendorsEnriched: VendorEnrichedVM[] = pageSlice(trackingMatched, page).map((v) => {
+    /* Chasing one vendor from its row. A supplier who has already been reminded can be reminded
+       again: the SOP's two-request test is a floor, not a ceiling, and a quarter often runs to a
+       third and fourth ask. What the press sends is decided here rather than in the screen,
+       because a vendor nobody has written to yet is owed the first letter and not a reminder.
+
+       Offered only where it would do something. `received` is answered, `non_responder` is a
+       deliberate flag that a reminder would silently undo, and a vendor with no address on file
+       can only be mailed once somebody supplies one. */
+    const isUnreachable = v.contactEmails.length === 0;
+    const chaseKind: 'request' | 'reminder' = v.status === 'scoped' ? 'request' : 'reminder';
+    /* Past the date suppliers were given and still silent. Derived here rather than written by a
+       job: a statement arriving a day late still lands normally, because nothing overwrote the
+       status to say the supplier had gone quiet. The champion still decides which kind of
+       silence it was. */
+    const awaitingVerification = isAwaitingVerification(v.status, submissionDeadline, now);
+    const canChase =
+      canAct &&
+      !isUnreachable &&
+      (v.status === 'scoped' || v.status === 'requested' || v.status === 'reminded');
+    return {
+      ...enrichVendorRow(v),
+      isExpanded: v.id === expandedVendor,
+      isReceived: v.status === 'received',
+      canAccept: canAct && v.status !== 'received',
+      canChase,
+      chaseLabel: chaseKind === 'request' ? 'Send request' : 'Send reminder',
+      canResolve: canAct && (v.status === 'reminded' || v.status === 'requested'),
+      awaitingVerification,
+      resolutionNote: v.resolutionNote,
+      repliedByEmail: v.submissions.some((f) => !f.superseded && f.kind === 'email'),
+      isUnreachable,
+      sendFailed: failedByVendor.has(v.no),
+      sendFailedReason: failedByVendor.get(v.no) ?? '',
+      contactLabel: v.contactEmails.join(', '),
+      onToggle: () => handlers.toggleExpand(v.id),
+      onAccept: () => handlers.openUploadModal(v.id),
+      onChase: () => handlers.sendOne(v.id, chaseKind),
+      onResolve: () => handlers.openResolveModal(v.id),
+      onSaveContacts: (emails: string[]) => handlers.saveContacts(v.id, emails),
+    };
+  });
+  /* One vendor may hold a refused first letter and a refused reminder; it is still one vendor to
+     chase, and the button says how many suppliers would be written to. */
+  const retryFailedCount = new Set(
+    (failures ?? []).filter((f) => f.retryable).map((f) => f.vendorNo),
+  ).size;
+
   const trackingTable = tableControls(
     vendors.length,
     trackingMatched.length,
@@ -589,8 +706,12 @@ export function deriveViewModel(
   /* The screen asks for its list itself the first time it renders; this is the flag it asks on. */
   const scopeNeedsLoad = !!countryId && !!cycle && !scopeLoaded && !scopeLoading && !scopeError;
 
-  /* The country's whole balance, which is the coverage denominator — excluded suppliers included,
-     because excluding one does not reduce what the country owes. */
+  /* The coverage denominator: the country's balance with the excluded suppliers taken out.
+     They are NESR's own intercompany entities, so there is no third party to confirm a balance
+     with and nothing to reconcile. Counting them put a ceiling on coverage that no amount of
+     chasing could reach, and a champion who had ticked every supplier they were allowed to tick
+     still read 96%. `scopeCandidates` computes it; the payload total is only the fallback for
+     before the list has loaded, and it still includes them. */
   const scopeDenominator = scope.totalBalance || totalBalance;
   const scopeThresholdLabel = fmtUsd(scope.thresholdUsd || (cycle?.vendorThresholdUsd ?? 0));
   const totals = scopeTotals(scope.candidates, scopeSelected);
@@ -620,8 +741,8 @@ export function deriveViewModel(
     verdictLabel: scopeMeetsTarget
       ? `✓ Meets the ${coverageTargetPct}% ${cycleLabel} target`
       : scopeTargetUnreachable
-        ? `⚠ Ticking every selectable supplier reaches only ${reachablePct}% — the ${coverageTargetPct}% target cannot be met from this snapshot`
-        : `⚠ ${Math.max(0, coverageTargetPct - scopePct)} points short — another ${fmtM(Math.max(0, scopeTargetUsd - totals.selectedUsd))} needs selecting`,
+        ? `⚠ Ticking every selectable supplier reaches only ${reachablePct}%. The ${coverageTargetPct}% target cannot be met from this snapshot`
+        : `⚠ ${Math.max(0, coverageTargetPct - scopePct)} points short, another ${fmtM(Math.max(0, scopeTargetUsd - totals.selectedUsd))} needs selecting`,
   };
 
   const scopeCards: KpiCardVM[] = [
@@ -660,7 +781,26 @@ export function deriveViewModel(
     return next;
   };
 
+  /* Every supplier that may be ticked at all. Excluded ones are an admin decision about
+     intercompany entities and are never selectable, so they are not in the count either: a
+     shortcut that says "select all" and leaves three rows unticked reads as a bug. */
+  const selectable = scope.candidates.filter((c) => !c.excluded);
+  const selectableUnticked = selectable.filter((c) => !scopeSelected.has(c.vendorNo)).length;
+
   const scopeBulkActions: ScopeBulkVM[] = [
+    {
+      id: 'all',
+      label: 'Select every supplier',
+      hint: selectableUnticked
+        ? `${selectable.length} suppliers · ${selectableUnticked} not yet ticked${
+            scope.candidates.length - selectable.length
+              ? ` · ${scope.candidates.length - selectable.length} excluded stay out`
+              : ''
+          }`
+        : 'Every supplier is already ticked',
+      disabled: !canTick || busy || selectableUnticked === 0,
+      onClick: () => handlers.setScopeSelection(withAdded(selectable)),
+    },
     {
       id: 'threshold',
       label: `Select all above ${scopeThresholdLabel}`,
@@ -707,16 +847,18 @@ export function deriveViewModel(
       rank: c.rank,
       valueLabel: fmtM(c.valueUsd),
       cumPct: c.cumulativePct,
-      cumStanding: coverageStanding(c.cumulativePct, coverageTargetPct),
+      // An excluded row has no share to judge, so it is tinted as neither ahead nor behind.
+      cumStanding:
+        c.cumulativePct === null ? 'neutral' : coverageStanding(c.cumulativePct, coverageTargetPct),
       kind,
       checked: ticked,
       disabled: !canTick || c.excluded || c.locked,
       noteLabel: c.excluded
         ? c.selected
-          ? 'Intercompany — excluded by an administrator, but already in this cycle'
-          : 'Intercompany — excluded by an administrator'
+          ? 'Intercompany, excluded by an administrator, but already in this cycle'
+          : 'Intercompany, excluded by an administrator'
         : c.locked
-          ? 'Already contacted — removing it would delete the correspondence on file'
+          ? 'Already contacted. Removing it would delete the correspondence on file'
           : '',
       isDirty: ticked !== c.selected && !c.excluded && !(c.selected && c.locked),
       overThreshold: c.overThreshold,
@@ -740,11 +882,15 @@ export function deriveViewModel(
     ...(totals.addCount ? [`${totals.addCount} to add`] : []),
     ...(totals.removeCount ? [`${totals.removeCount} to remove`] : []),
   ];
+  /* Named rather than a bare "Saving", so a save of 265 suppliers looks like work being done on
+     265 suppliers. It is two statements now rather than 530, so this is a flash and not a wait,
+     which is why there is no progress bar here: a bar that fills and vanishes is worse than a
+     label that simply says what is happening. */
   const scopeSaveLabel = busy
-    ? 'Saving…'
+    ? `Saving ${totals.addCount + totals.removeCount} changes`
     : scopeDirty
-      ? `Save selection — ${changeParts.join(', ')}`
-      : 'Save selection — no changes';
+      ? `Save selection, ${changeParts.join(', ')}`
+      : 'Save selection, no changes';
 
   const scopeEmptyReason =
     !scopeLoaded || scope.candidates.length > 0
@@ -767,6 +913,8 @@ export function deriveViewModel(
       ? '⚠ Some criteria not met'
       : '? Some criteria unverified';
 
+  /* Statements only. A nil-balance vendor is counted in the coverage figure and has no invoice
+     rows to list, so including it would put an empty line in the file AP works from. */
   const consolidatedRows = vendors
     .filter((v) => v.status === 'received')
     .map((v, i) => ({ ...v, num: i + 1, fmtOpenPO: fmtM(v.openPO) }));
@@ -777,7 +925,7 @@ export function deriveViewModel(
       ...e,
       typeKey,
       typeLabel: EVIDENCE_TYPE_LABEL[typeKey],
-      tsLabel: e.ts ? shortDateTime(new Date(e.ts)) : '—',
+      tsLabel: e.ts ? shortDateTime(new Date(e.ts)) : ', ',
     };
   });
 
@@ -789,6 +937,16 @@ export function deriveViewModel(
       status,
       statusLabel: COUNTRY_STATUS_LABEL[status],
       fmtBalance: fmtM(c.balance),
+      /* Read top to bottom, the gaps say why a country is where it is: a short first bar is a
+         scoping decision, a gap between scoped and requested is a send that has not gone out, and
+         a gap between reminded and answered is suppliers who are simply not replying. Only the
+         last of those is the suppliers' fault, and the rollup used to show only that one. */
+      funnel: [
+        { label: 'In scope', pct: c.scopedPct, standing: 'neutral' as Standing },
+        { label: 'Requested', pct: c.requestedPct, standing: 'in-flight' as Standing },
+        { label: 'Reminded', pct: c.remindedPct, standing: 'in-flight' as Standing },
+        { label: 'Answered', pct: c.pct, standing: coverageStanding(c.pct, coverageTargetPct) },
+      ],
       isAtRisk:
         c.pct < coverageTargetPct &&
         status !== 'handed_off' &&
@@ -836,8 +994,9 @@ export function deriveViewModel(
   ];
 
   const modalVendor =
-    modal && modal.type === 'upload' ? vendors.find((v) => v.id === modal.vendorId) : undefined;
-  const sampleVendor = vendors[0];
+    modal && (modal.type === 'upload' || modal.type === 'resolve')
+      ? vendors.find((v) => v.id === modal.vendorId)
+      : undefined;
 
   const cycleSlug = cycleLabel.replace(/\s+/g, '-');
   const scopeSavedLine = scopeSaved
@@ -853,6 +1012,7 @@ export function deriveViewModel(
     roleLabel: ROLE_LABEL[role] ?? role,
     roleCountry: scopeLabel(payload.available, viewer.countries),
     viewerName: viewer.name,
+    viewerEmail: viewer.email,
     viewerInitials: initials(viewer.name),
     canSeeRollup,
     canAct,
@@ -864,6 +1024,8 @@ export function deriveViewModel(
     contextLine,
     periodLabel,
     deadlineLabel,
+    cycleDeadlineLabel,
+    daysToClose: cycle?.daysToClose ?? 0,
     daysRemaining: cycle?.daysRemaining ?? 0,
     coverageTargetPct,
     yearEndTargetPct,
@@ -885,7 +1047,6 @@ export function deriveViewModel(
     showScoping: activeScreen === 'scoping',
     showOutreach: activeScreen === 'outreach',
     showTracking: activeScreen === 'tracking',
-    showIntake: activeScreen === 'intake',
     showConsolidation: activeScreen === 'consolidation',
     showEvidence: activeScreen === 'evidence',
     showRollup: activeScreen === 'rollup' && canSeeRollup,
@@ -899,8 +1060,10 @@ export function deriveViewModel(
     coveragePct,
     coverageMet,
 
-    hasRemindable: canAct && requestedCount > 0,
-    remindCount: String(requestedCount),
+    /* Everyone still owing a statement, whether or not they have been reminded already, which is
+       the same set the per-row button offers and the same set the batch action writes to. */
+    hasRemindable: canAct && pendingResponseCount > 0,
+    remindCount: String(pendingResponseCount),
     totalCount,
     receivedCount,
     remindedCount,
@@ -908,6 +1071,7 @@ export function deriveViewModel(
     unrequestedCount,
     hasUnrequested: canAct && unrequestedCount > 0,
     unreachableCount,
+    onEnrol: handlers.enrol,
     onSendReminders: handlers.sendReminders,
     onSendRequests: handlers.sendRequests,
     onGoToConsolidation: handlers.goToConsolidation,
@@ -943,13 +1107,25 @@ export function deriveViewModel(
     failures,
     hasFailures: !!failures?.length,
     failuresLoaded: failures !== null,
+    deliveryNeedsLoad: !!countryId && failures === null && !failuresLoading,
+    retryFailedCount,
+    hasRetryable: canAct && retryFailedCount > 0,
     onLoadFailures: handlers.loadFailures,
+    onRetryFailed: handlers.retryFailed,
 
     filterTabs,
     vendorsEnriched,
     trackingTable,
+    sendProgress,
+    sendProgressPct: sendProgress
+      ? Math.round((sendProgress.done / Math.max(sendProgress.total, 1)) * 100)
+      : 0,
+    pastCollectionDeadline,
+    awaitingVerificationCount: vendors.filter((v) =>
+      isAwaitingVerification(v.status, submissionDeadline, now),
+    ).length,
 
-    canSendReminders: canAct && requestedCount > 0,
+    canSendReminders: canAct && pendingResponseCount > 0,
 
     complianceItems: items,
     consolidatedRows,
@@ -974,6 +1150,7 @@ export function deriveViewModel(
 
     hasModal: !!modal,
     isUploadModal: modal?.type === 'upload',
+    isResolveModal: modal?.type === 'resolve',
     isHandoffModal: modal?.type === 'handoff',
     modalVendorName: modalVendor?.name ?? '',
     modalVendorNo: modalVendor?.no ?? '',
@@ -981,13 +1158,10 @@ export function deriveViewModel(
     modalVendorCurrency: modalVendor?.currency ?? '',
     onCloseModal: handlers.closeModal,
     onAcceptSOA: handlers.acceptSOA,
+    onResolveVendor: handlers.resolveVendor,
     onConfirmHandoff: handlers.confirmHandoff,
 
-    sampleVendorName: sampleVendor?.name ?? '—',
-    sampleVendorNo: sampleVendor?.no ?? '—',
-    sampleVendorCurrency: sampleVendor?.currency ?? '—',
-    hasSampleVendor: !!sampleVendor,
-    entityName: countryName ?? '—',
+    entityName: countryName ?? ', ',
     championContact: `${viewer.name} · ${viewer.email}`,
 
     toasts,

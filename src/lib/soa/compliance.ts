@@ -8,15 +8,17 @@
  *
  * All four were once hardcoded to `pass: true`, which made the panel a decoration rather than a
  * control. They are computed now, and a criterion that genuinely cannot be answered reports
- * `unknown` rather than passing — a control that cannot fail proves nothing.
+ * `unknown` rather than passing, a control that cannot fail proves nothing.
  */
+
+import { countsTowardCoverage } from './status';
 
 export type CriterionState = 'pass' | 'fail' | 'unknown';
 
 /** The minimum a vendor row has to carry to be judged. `VendorRow` satisfies this structurally. */
 export interface ComplianceVendor {
   status: string;
-  /** Display form; '—' when no request has been sent. */
+  /** Display form; '. ' when no request has been sent. */
   reqDate: string;
   remDate: string | null;
   requestedAt: string | null;
@@ -61,8 +63,11 @@ export function complianceCriteria(
   targetPct: number,
   yearEndPct: number,
 ): Criterion[] {
-  const outstanding = vendors.filter((v) => v.status !== 'received');
-  const missingSecond = outstanding.filter((v) => v.reqDate === '—' || !v.remDate);
+  /* Not outstanding: a statement in hand, or a balance the champion established is nil. The
+     two-request test asks whether a vendor still owing us a statement was chased twice, and a
+     vendor with nothing to send was never owing one. */
+  const outstanding = vendors.filter((v) => !countsTowardCoverage(v.status));
+  const missingSecond = outstanding.filter((v) => v.reqDate === ', ' || !v.remDate);
   const twoRequest: CriterionState = !vendors.length
     ? 'unknown'
     : missingSecond.length === 0
@@ -70,14 +75,14 @@ export function complianceCriteria(
       : 'fail';
 
   const nonResponders = vendors.filter((v) => v.status === 'non_responder');
-  const undocumented = nonResponders.filter((v) => v.reqDate === '—' || !v.remDate);
+  const undocumented = nonResponders.filter((v) => v.reqDate === ', ' || !v.remDate);
   const nrState: CriterionState = undocumented.length === 0 ? 'pass' : 'fail';
 
   const coverage: CriterionState = coverageMet ? 'pass' : 'fail';
 
   /* The SOP wants a reminder to follow its request by 10 to 14 days: sooner and the vendor was not
      given a fair chance to answer, later and the chase stalled. So the test is a WINDOW, not a
-     floor — an early reminder breaches it exactly as a late one does.
+     floor, an early reminder breaches it exactly as a late one does.
 
      Vendors with no reminder at all are not counted here. That is the 2-Request test's job, and
      failing them twice for one omission would double-count it. */

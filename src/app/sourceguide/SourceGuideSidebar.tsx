@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { LayoutGrid, LayoutDashboard, Layers, ListTree, Grid3x3 } from 'lucide-react';
+import { Building2, Grid3x3, Layers, LayoutDashboard, LayoutGrid, ListTree } from 'lucide-react';
 import { SG_BRAND } from './constants';
 import { useSourceGuideAccess } from './SourceGuideAccessContext';
 import AppSidebar, {
@@ -61,9 +61,8 @@ export default function SourceGuideSidebar({
                 className="flex h-7 w-7 items-center justify-center rounded-lg shrink-0"
                 style={{ background: 'rgba(255,255,255,0.15)' }}
               >
-                <span className="text-white font-extrabold text-[11px] tracking-tight leading-none">
-                  SG
-                </span>
+                {/* The mark from the home page card, not its initials. */}
+                <Building2 className="h-4 w-4 text-white" />
               </div>
               <span className="text-white font-semibold text-sm tracking-tight leading-tight">
                 SourceGuide

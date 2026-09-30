@@ -25,7 +25,7 @@ export const STANDING_BORDER_TOP: Record<Standing, string> = {
   neutral: 'border-t-sns-grey',
 };
 
-/** Text colour for a figure — a KPI value, a cumulative percentage. */
+/** Text colour for a figure, a KPI value, a cumulative percentage. */
 export const STANDING_TEXT: Record<Standing, string> = {
   'on-track': 'text-sns-green',
   behind: 'text-[#E65100]',
@@ -44,30 +44,45 @@ export const STANDING_BG: Record<Standing, string> = {
 };
 
 /** Pill badge (wash background, matching text) for a vendor's response status. */
+/* The badge a vendor wears when its last send was refused and it is still owed that letter.
+   Not a `vendor_cycle_status`: the database is right that nothing has changed about the vendor,
+   and the screen still has to say that the request never left, because "Not Requested" beside a
+   country whose requests were all sent reads as an oversight rather than as a failure. */
+export const VENDOR_SEND_FAILED_BADGE = 'bg-[#FFEBEE] text-[#B71C1C]';
+
 export const VENDOR_STATUS_BADGE: Record<VendorStatus, string> = {
   scoped: 'bg-[#F0F0F0] text-sns-grey',
   received: 'bg-sns-green-wash text-sns-green',
+  /* Green, like `received`, because it counts the same: both are a settled balance. Outlined
+     rather than filled would be the subtler choice and the wrong one, a figure that moves the
+     coverage percentage should not be quieter on screen than one that does not. */
+  nil_balance: 'bg-sns-green-wash text-sns-green',
   requested: 'bg-[#E3F2FD] text-[#1565C0]',
   reminded: 'bg-[#FFF3E0] text-[#E65100]',
   non_responder: 'bg-[#FFEBEE] text-[#B71C1C]',
 };
 
+/** Past the date suppliers were given and still silent, waiting for a champion to say which. */
+export const VENDOR_AWAITING_VERIFICATION_BADGE = 'bg-[#FFF3E0] text-[#8A4B00]';
+
 /** Solid fill of the same status, for the stacked response bar and its legend dots. */
 export const VENDOR_STATUS_FILL: Record<VendorStatus, string> = {
   scoped: 'bg-[#BDBDBD]',
   received: 'bg-sns-green',
+  nil_balance: 'bg-[#7CB693]',
   requested: 'bg-[#1565C0]',
   reminded: 'bg-[#E65100]',
   non_responder: 'bg-[#B71C1C]',
 };
 
-/* The filter tabs tint themselves with their own status colour when selected — the same hue at
+/* The filter tabs tint themselves with their own status colour when selected. The same hue at
    ~9% for the fill (the trailing `18` is the alpha byte) and full strength for the rule and
    text. "All" has no status of its own, so it borrows the portal green. */
 export const FILTER_TAB_SELECTED: Record<'all' | VendorStatus, string> = {
   scoped: 'border-sns-grey bg-[#6B6B6B18] text-sns-grey',
   all: 'border-sns-green bg-[#2A7E4F18] text-sns-green',
   received: 'border-sns-green bg-[#2A7E4F18] text-sns-green',
+  nil_balance: 'border-sns-green bg-[#2A7E4F18] text-sns-green',
   requested: 'border-[#1565C0] bg-[#1565C018] text-[#1565C0]',
   reminded: 'border-[#E65100] bg-[#E6510018] text-[#E65100]',
   non_responder: 'border-[#B71C1C] bg-[#B71C1C18] text-[#B71C1C]',

@@ -1,0 +1,12 @@
+-- migrate:no-transaction
+-- A vendor can be closed without a statement for two quite different reasons.
+--
+-- `non_responder` has been carrying both. A supplier who never answered and a supplier the
+-- champion has established has nothing outstanding are recorded identically, and they are not the
+-- same fact: one is a gap in the reconciliation and the other is a reconciliation that came out at
+-- nil. Only the second can honestly count towards coverage.
+--
+-- Postgres refuses ALTER TYPE ... ADD VALUE inside a transaction block, so this file runs its one
+-- statement standalone and does nothing else. The column that records the justification is 018,
+-- because a value added in one transaction cannot be used by another until the first commits.
+ALTER TYPE vendor_cycle_status ADD VALUE IF NOT EXISTS 'nil_balance' AFTER 'received';

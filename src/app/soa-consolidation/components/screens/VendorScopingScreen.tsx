@@ -42,7 +42,7 @@ function stateLabel(kind: ScopeRowKind, checked: boolean): string {
 }
 
 /**
- * Vendor Scoping — the champion's own list of who this country will chase.
+ * Vendor Scoping. The champion's own list of who this country will chase.
  *
  * It used to be one button. `scopeSoaCountry` swept in every supplier above the cycle's threshold
  * and that was the whole decision, which is a reasonable default and a poor rule: a champion knows
@@ -108,7 +108,7 @@ export default function VendorScopingScreen({ vm }: ScreenProps) {
       {!vm.canScope && (
         <div className="bg-white rounded-lg border-l-4 border-l-[#E65100] px-3.5 py-2.5 mb-3 text-[12px] text-sns-ink shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
           You have read-only access to {vm.countryLabel}, so the selection below cannot be changed.
-          A champion or a manager for this country can change it.
+          A champion for this country can change it.
         </div>
       )}
 
@@ -231,7 +231,7 @@ export default function VendorScopingScreen({ vm }: ScreenProps) {
           {!vm.isScoped && !vm.scopeDirty && (
             <div className="bg-white rounded-lg border-l-4 border-l-sns-grey px-3.5 py-2.5 mb-3 text-[12px] text-sns-grey leading-[1.5] shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
               Nothing has been selected for {vm.countryLabel} yet. Tick the suppliers this country
-              will chase and save — everything above the threshold is a sensible starting point, and
+              will chase and save, everything above the threshold is a sensible starting point, and
               the first shortcut below ticks exactly those.
             </div>
           )}
@@ -311,7 +311,12 @@ export default function VendorScopingScreen({ vm }: ScreenProps) {
                     <span className="text-[10px] font-normal text-sns-grey"> ▲</span>
                   )}
                 </div>
-                <div className={`font-bold ${STANDING_TEXT[row.cumStanding]}`}>{row.cumPct}%</div>
+                {/* An excluded supplier contributes nothing to the running total, so it shows a
+                    dash rather than repeating the row above's figure, which would read as a
+                    supplier worth nothing. */}
+                <div className={`font-bold ${STANDING_TEXT[row.cumStanding]}`}>
+                  {row.cumPct === null ? '–' : `${row.cumPct}%`}
+                </div>
                 <div>
                   <span
                     className={`${stateBadgeClass(row.kind, row.checked)} rounded-xl px-[9px] py-0.5 text-[10px] font-bold inline-block`}

@@ -22,6 +22,11 @@ const PUBLIC_PATHS = [
   '/pending-approval',
   '/access-denied',
   '/supplier-update',
+  /* The SOA statement upload. Public by necessity: the person using it is a supplier with no NESR
+     account. What stands in for a login is the per-vendor token in the path plus a one-time code
+     sent to an address the request itself went to -- both checked inside the page's own actions,
+     which is where the enforcement has to live for a route this gate lets through. */
+  '/soa-upload',
   '/help',
 ];
 
@@ -88,6 +93,10 @@ export async function proxy(req: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api/auth|_next/static|_next/image|favicon.ico|nesr-logo.jpg|nesr-logo-circle.png).*)',
+    /* Everything under public/ is gated except the marks that have to render before anybody has
+       signed in: the login page's own branding, and the tool logos the public help pages carry.
+       A file left off this list does not 404 -- it redirects to /login, and next/image then fails
+       with "isn't a valid image" because what it fetched was an HTML page. */
+    '/((?!api/auth|_next/static|_next/image|favicon.ico|nesr-logo.jpg|nesr-logo-circle.png|rfx-officer-logo.png).*)',
   ],
 };

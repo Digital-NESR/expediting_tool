@@ -1,0 +1,463 @@
+import type { QueryResultRow } from 'pg';
+import expeditingPool from '@/lib/db-expediting';
+import sourceGuidePool from '@/lib/db-sourceguide';
+import { describeDbError } from '@/lib/db/describe-error';
+import { logger } from '@/lib/logger';
+import { ensureSoaSchema, sql } from './db';
+import { parseAvlEmails } from './extract';
+
+/**
+ * Who a statement request actually goes to.
+ *
+ * A plain module, not `'use server'`, see the note in `./db`.
+ *
+ * Addresses are resolved fresh on every read rather than frozen onto the vendor, so a supplier who
+ * updates their AP mailbox upstream is picked up without an import. Only the champion's own edits
+ * persist, as rows in `vendor_contact_overrides`:
+ *
+ *     TO = (directory ∪ added) − suppressed − @nesr.com
+ *
+ * The directory is the Approved Vendor List union the SAP supplier master. Neither covers
+ * everyone, of the vendors in scope for Q3 the AVL had 112 and SAP 111, but together 113, and
+ * they disagree on 25, each holding addresses the other lacks. Using both is the only reading that
+ * does not silently drop a working mailbox.
+ *
+ * Internal addresses are dropped rather than mailed: eight in-scope vendors carry an `@nesr.com`
+ * address in their contact record, which belongs to a colleague and not to the supplier. The
+ * letter opens "Dear Valued Business Partner"; it should not arrive in a NESR inbox.
+ */
+
+const log = logger('soa-recipients');
+
+const INTERNAL = /@nesr\.com$/i;
+
+export interface RecipientAddress {
+  email: string;
+  /** `directory` came from the AVL or the SAP master; `added` a champion typed in and it stuck. */
+  origin: 'directory' | 'added';
+}
+
+export interface VendorRecipient {
+  vendorId: number;
+  vendorNo: string;
+  vendorName: string;
+  amountUsd: number;
+  currency: string;
+  entryId: number;
+  status: string;
+  /** Resolved TO, largest-spend vendor first. */
+  to: RecipientAddress[];
+  /** Removed by a champion. Kept visible so the removal can be undone. */
+  suppressed: string[];
+  /** `@nesr.com` addresses filtered out of TO; shown so the filtering is not invisible. */
+  droppedInternal: string[];
+}
+
+export interface CountryRecipients {
+  countryId: string;
+  countryName: string;
+  /** Every AP mailbox for the country, CC'd on each message. Empty blocks a send: the letter
+   *  tells the vendor where to reply, and there would be nothing to put there. */
+  apEmails: string[];
+  /** The country's champions, also copied, the letter names them as the contact for questions. */
+  championEmails: string[];
+  cycleLabel: string;
+  vendors: VendorRecipient[];
+}
+
+/**
+ * How long either directory lookup may take before it is treated as unavailable.
+ *
+ * Both are enrichment. The tool's own database already says which vendors are in the cycle; these
+ * two only add addresses to them, and a supplier waiting on the page that takes their statement
+ * should not be held while an unreachable server is given every chance. `connectionTimeoutMillis`
+ * bounds the connect, not the wait as a whole, so the wait is bounded here.
+ */
+const DIRECTORY_TIMEOUT_MS = 5000;
+
+/**
+ * Resolve to a fallback rather than wait, and never reject.
+ *
+ * The timer is cleared on both paths: a pending timer would hold the event loop open, which on a
+ * serverless instance is a request that has answered and will not finish.
+ */
+async function boundedRows(
+  work: Promise<{ rows: QueryResultRow[] }>,
+  onFailure: (reason: string) => void,
+): Promise<QueryResultRow[]> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const expiry = new Promise<QueryResultRow[]>((resolve) => {
+    timer = setTimeout(() => {
+      onFailure(`no answer within ${DIRECTORY_TIMEOUT_MS}ms`);
+      resolve([]);
+    }, DIRECTORY_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([
+      work.then(
+        (result) => result.rows,
+        (err) => {
+          onFailure(describeDbError(err));
+          return [];
+        },
+      ),
+      expiry,
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Directory addresses for a batch of supplier codes: the AVL union the SAP supplier master.
+ *
+ * Neither source is allowed to fail the caller. Either can be unavailable without the other being
+ * wrong, and a vendor with no directory address is an ordinary outcome that the Recipients screen
+ * is built to show: barely a third of suppliers have one at all. What must not happen is the
+ * enrichment taking the page down with it.
+ *
+ * A failure is described rather than having its `message` logged. A connection that failed on
+ * every address a host resolved to arrives as an AggregateError with an empty message, so this
+ * used to write `recipients.supplierMasterUnavailable error: ""`, which named the source and
+ * then said nothing whatever about what went wrong with it.
+ */
+async function directoryEmails(codes: string[]): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  if (!codes.length) return out;
+
+  const add = (code: string, emails: string[]) => {
+    const existing = out.get(code) ?? [];
+    out.set(code, [...new Set([...existing, ...emails])]);
+  };
+
+  const avl = await boundedRows(
+    sourceGuidePool.query<QueryResultRow>(
+      `SELECT supplier_code, email FROM supplier_avl WHERE supplier_code = ANY($1)`,
+      [codes],
+    ),
+    (reason) => log.warn('recipients.avlUnavailable', { error: reason }),
+  );
+  for (const r of avl) add(String(r.supplier_code), parseAvlEmails(r.email as string | null));
+
+  const master = await boundedRows(
+    expeditingPool.query<QueryResultRow>(
+      `SELECT supplier_id, supplier_emails, additional_supplier_email
+         FROM supplier_contacts WHERE supplier_id = ANY($1)`,
+      [codes],
+    ),
+    (reason) => log.warn('recipients.supplierMasterUnavailable', { error: reason }),
+  );
+  for (const r of master)
+    add(String(r.supplier_id), [
+      ...parseAvlEmails(r.supplier_emails as string | null),
+      ...parseAvlEmails(r.additional_supplier_email as string | null),
+    ]);
+
+  return out;
+}
+
+/**
+ * The resolution rule, kept pure so it can be tested without a database.
+ *
+ *     TO = (directory + added) - suppressed - @nesr.com
+ *
+ * Order matters in two places. A suppression beats everything, including an address the champion
+ * later re-added, because the `added` row is cleared when they restore it rather than layered on
+ * top. And the internal-address filter applies only to what the directory supplied: a champion who
+ * deliberately typed a colleague's address is making a choice, while the supplier master merely
+ * happens to be carrying one.
+ */
+export function resolveAddresses(
+  directory: string[],
+  added: string[],
+  suppressed: Set<string>,
+): { to: RecipientAddress[]; droppedInternal: string[] } {
+  const seen = new Set<string>();
+  const to: RecipientAddress[] = [];
+  const droppedInternal: string[] = [];
+
+  for (const [list, origin] of [
+    [directory, 'directory'],
+    [added, 'added'],
+  ] as const) {
+    for (const raw of list) {
+      const email = raw.trim().toLowerCase();
+      if (!email || seen.has(email) || suppressed.has(email)) continue;
+      seen.add(email);
+      if (origin === 'directory' && INTERNAL.test(email)) {
+        droppedInternal.push(email);
+        continue;
+      }
+      to.push({ email, origin });
+    }
+  }
+  return { to, droppedInternal };
+}
+
+/**
+ * Every in-scope vendor for a country in the active cycle, with its resolved recipients,
+ * largest amount first, the order a champion reviews them in, because that is the order in
+ * which a missing address costs the most.
+ */
+export async function loadCountryRecipients(countryId: string): Promise<CountryRecipients | null> {
+  await ensureSoaSchema();
+
+  const meta = await sql<QueryResultRow[]>(
+    `SELECT co.id, co.name, cy.label AS cycle_label, cc.id AS country_cycle_id,
+            (SELECT ARRAY_AGG(cu.email ORDER BY cu.name)
+               FROM country_users cu
+              WHERE cu.country_id = co.id AND cu.role = 'ap') AS ap_emails,
+            (SELECT ARRAY_AGG(cu.email ORDER BY cu.name)
+               FROM country_users cu
+              WHERE cu.country_id = co.id AND cu.role = 'champion') AS champion_emails
+       FROM countries co
+       JOIN cycles cy ON cy.is_active
+       LEFT JOIN country_cycles cc ON cc.country_id = co.id AND cc.cycle_id = cy.id
+      WHERE co.id = ?`,
+    [countryId],
+  );
+  if (!meta.length) return null;
+  const m = meta[0];
+
+  const rows = m.country_cycle_id
+    ? await sql<QueryResultRow[]>(
+        `SELECT e.id AS entry_id, e.status::text AS status, e.open_po_amount, e.currency,
+                v.id AS vendor_id, v.vendor_no, v.name
+           FROM vendor_cycle_entries e
+           JOIN vendors v ON v.id = e.vendor_id
+          WHERE e.country_cycle_id = ?
+          ORDER BY e.open_po_amount DESC NULLS LAST, v.name`,
+        [m.country_cycle_id],
+      )
+    : [];
+
+  const codes = rows.map((r) => String(r.vendor_no));
+  const vendorIds = rows.map((r) => Number(r.vendor_id));
+  const directory = await directoryEmails(codes);
+
+  const overrides = vendorIds.length
+    ? await sql<QueryResultRow[]>(
+        `SELECT vendor_id, email, kind FROM vendor_contact_overrides WHERE vendor_id = ANY(?)`,
+        [vendorIds],
+      )
+    : [];
+  const added = new Map<number, Set<string>>();
+  const suppressed = new Map<number, Set<string>>();
+  for (const o of overrides) {
+    const bucket = o.kind === 'added' ? added : suppressed;
+    const id = Number(o.vendor_id);
+    if (!bucket.has(id)) bucket.set(id, new Set());
+    bucket.get(id)!.add(String(o.email).toLowerCase());
+  }
+
+  const vendors: VendorRecipient[] = rows.map((r) => {
+    const vendorId = Number(r.vendor_id);
+    const { to, droppedInternal } = resolveAddresses(
+      directory.get(String(r.vendor_no)) ?? [],
+      [...(added.get(vendorId) ?? [])],
+      suppressed.get(vendorId) ?? new Set<string>(),
+    );
+    const gone = suppressed.get(vendorId) ?? new Set<string>();
+
+    return {
+      vendorId,
+      vendorNo: String(r.vendor_no),
+      vendorName: String(r.name),
+      amountUsd: Number(r.open_po_amount ?? 0),
+      currency: String(r.currency ?? 'USD'),
+      entryId: Number(r.entry_id),
+      status: String(r.status),
+      to,
+      suppressed: [...gone],
+      droppedInternal,
+    };
+  });
+
+  return {
+    countryId: String(m.id),
+    countryName: String(m.name),
+    apEmails: (m.ap_emails as string[] | null) ?? [],
+    championEmails: (m.champion_emails as string[] | null) ?? [],
+    cycleLabel: String(m.cycle_label),
+    vendors,
+  };
+}
+
+/** A bare sanity check, matching `parseAvlEmails`, not RFC 5322 adjudication. */
+export function looksLikeEmail(value: string): boolean {
+  const v = value.trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) && v.length > 3;
+}
+
+/**
+ * Record a champion's edit to a vendor's recipients.
+ *
+ * Adding an address the directory already carries clears a suppression rather than writing an
+ * `added` row. Otherwise unticking and reticking a directory address would quietly promote it to
+ * a manual entry and it would survive being removed upstream.
+ */
+export async function setVendorContact(input: {
+  vendorId: number;
+  email: string;
+  action: 'add' | 'remove' | 'restore';
+  actor: string;
+}): Promise<void> {
+  await ensureSoaSchema();
+  const email = input.email.trim().toLowerCase();
+
+  if (input.action === 'remove') {
+    await sql(
+      `INSERT INTO vendor_contact_overrides (vendor_id, email, kind, created_by)
+       VALUES (?, ?, 'suppressed', ?)
+       ON CONFLICT (vendor_id, email) DO UPDATE SET kind = 'suppressed', created_by = EXCLUDED.created_by`,
+      [input.vendorId, email, input.actor],
+    );
+    return;
+  }
+
+  if (input.action === 'restore') {
+    await sql(`DELETE FROM vendor_contact_overrides WHERE vendor_id = ? AND email = ? AND kind = 'suppressed'`, [
+      input.vendorId,
+      email,
+    ]);
+    return;
+  }
+
+  await sql(
+    `INSERT INTO vendor_contact_overrides (vendor_id, email, kind, created_by)
+     VALUES (?, ?, 'added', ?)
+     ON CONFLICT (vendor_id, email) DO UPDATE SET kind = 'added', created_by = EXCLUDED.created_by`,
+    [input.vendorId, email, input.actor],
+  );
+}
+
+/**
+ * The addresses one vendor will actually be written to.
+ *
+ * The same resolution the Recipients screen shows, exported so the send can use it too. It used to
+ * read `vendors.contact_emails` straight from the column, which no edit ever touches: a champion
+ * could remove an address, watch it disappear, and have the letter go to it anyway. Worse, the
+ * column still holds the `@nesr.com` addresses the screen filters out, so colleagues were being
+ * sent letters addressed to "Dear Valued Business Partner".
+ *
+ * Two answers to "who do we write to" is one too many. This is the answer.
+ */
+export async function resolvedContactsFor(vendorId: number, vendorNo: string): Promise<string[]> {
+  await ensureSoaSchema();
+  const [directory, overrides] = await Promise.all([
+    directoryEmails([vendorNo]),
+    sql<QueryResultRow[]>(
+      `SELECT email, kind FROM vendor_contact_overrides WHERE vendor_id = ?`,
+      [vendorId],
+    ),
+  ]);
+
+  const added = overrides.filter((o) => o.kind === 'added').map((o) => String(o.email));
+  const suppressed = new Set(
+    overrides.filter((o) => o.kind === 'suppressed').map((o) => String(o.email).toLowerCase()),
+  );
+
+  return resolveAddresses(directory.get(vendorNo) ?? [], added, suppressed).to.map((a) => a.email);
+}
+
+/**
+ * Set a vendor's whole recipient list at once.
+ *
+ * The Response Tracking screen edits contacts as a list rather than one address at a time, and it
+ * used to write `vendors.contact_emails` directly, which is a different store from the one the
+ * Recipients screen writes. Two stores meant whichever the send happened to read won, and the
+ * other screen's edits quietly did nothing.
+ *
+ * Expressed as overrides instead, so both screens write the same place: anything in the directory
+ * the caller left out becomes a suppression, anything they added that the directory does not have
+ * becomes an addition, and the rest needs no row at all. `contact_emails` is then refreshed as a
+ * derived copy, because the vendor list and its unreachable count still read it for display.
+ */
+export async function setVendorContactList(input: {
+  vendorId: number;
+  vendorNo: string;
+  desired: string[];
+  actor: string;
+}): Promise<string[]> {
+  await ensureSoaSchema();
+  const desired = new Set(
+    input.desired.map((e) => e.trim().toLowerCase()).filter((e) => e.includes('@') && e.length > 3),
+  );
+  const directory = (await directoryEmails([input.vendorNo])).get(input.vendorNo) ?? [];
+
+  await sql(`DELETE FROM vendor_contact_overrides WHERE vendor_id = ?`, [input.vendorId]);
+
+  for (const email of directory) {
+    // An internal address is filtered out of the letter anyway, so leaving it out of the desired
+    // list is not the champion suppressing anything.
+    if (!desired.has(email) && !INTERNAL.test(email)) {
+      await sql(
+        `INSERT INTO vendor_contact_overrides (vendor_id, email, kind, created_by)
+         VALUES (?, ?, 'suppressed', ?) ON CONFLICT (vendor_id, email) DO UPDATE SET kind = 'suppressed'`,
+        [input.vendorId, email, input.actor],
+      );
+    }
+  }
+
+  const fromDirectory = new Set(directory);
+  for (const email of desired) {
+    if (!fromDirectory.has(email)) {
+      await sql(
+        `INSERT INTO vendor_contact_overrides (vendor_id, email, kind, created_by)
+         VALUES (?, ?, 'added', ?) ON CONFLICT (vendor_id, email) DO UPDATE SET kind = 'added'`,
+        [input.vendorId, email, input.actor],
+      );
+    }
+  }
+
+  const resolved = await resolvedContactsFor(input.vendorId, input.vendorNo);
+  await sql(
+    `UPDATE vendors SET contact_emails = ?, contact_source = 'manual',
+            contact_updated_at = NOW(), contact_updated_by = ?
+      WHERE id = ?`,
+    [resolved, input.actor, input.vendorId],
+  );
+  return resolved;
+}
+
+/**
+ * The resolved address list for many vendors at once.
+ *
+ * Same answer as {@link resolvedContactsFor}, in two queries rather than two per vendor, for the
+ * screens that render a whole country. Keyed by vendor number, which is what the callers already
+ * hold.
+ */
+export async function resolvedContactsForMany(
+  vendors: { id: number; vendorNo: string }[],
+): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  if (!vendors.length) return out;
+  await ensureSoaSchema();
+
+  const [directory, overrides] = await Promise.all([
+    directoryEmails(vendors.map((v) => v.vendorNo)),
+    sql<QueryResultRow[]>(
+      `SELECT vendor_id, email, kind FROM vendor_contact_overrides WHERE vendor_id = ANY(?)`,
+      [vendors.map((v) => v.id)],
+    ),
+  ]);
+
+  const added = new Map<number, string[]>();
+  const suppressed = new Map<number, Set<string>>();
+  for (const o of overrides) {
+    const id = Number(o.vendor_id);
+    const email = String(o.email).toLowerCase();
+    if (o.kind === 'added') added.set(id, [...(added.get(id) ?? []), email]);
+    else suppressed.set(id, (suppressed.get(id) ?? new Set()).add(email));
+  }
+
+  for (const v of vendors) {
+    const { to } = resolveAddresses(
+      directory.get(v.vendorNo) ?? [],
+      added.get(v.id) ?? [],
+      suppressed.get(v.id) ?? new Set(),
+    );
+    out.set(v.vendorNo, to.map((a) => a.email));
+  }
+  return out;
+}

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { countriesFor, getSoaActor } from '@/lib/soa/access';
+import { countriesFor, isApOnlyFor, getSoaActor } from '@/lib/soa/access';
 import { loadSoa } from '@/lib/soa/read';
 import SoaConsolidationClient from './SoaConsolidationClient';
 import type { Viewer } from './types';
@@ -7,12 +7,12 @@ import type { Viewer } from './types';
 /**
  * The tool's one route: say who is looking, then read the database for them.
  *
- * `data.ts` used to supply everything on this screen — 594 lines of invented vendors against a
+ * `data.ts` used to supply everything on this screen, 594 lines of invented vendors against a
  * "today" pinned to 21 July 2026. It is gone; `loadSoa` is the only source now, and every
  * mutation goes back through a server action and a `router.refresh()`, which re-runs this.
  *
  * `layout.tsx` has already turned away anyone without a role, so reaching here with none is a bug
- * rather than a state to render — the redirect is the belt to the layout's braces.
+ * rather than a state to render. The redirect is the belt to the layout's braces.
  */
 export default async function SoaConsolidationPage({
   searchParams,
@@ -35,6 +35,8 @@ export default async function SoaConsolidationPage({
     role: actor.role,
     countries: countriesFor(actor, 'viewer'),
     champion: countriesFor(actor, 'champion'),
+    // Asked about the country actually being shown, not about the person in general.
+    apOnly: payload.countryId ? isApOnlyFor(actor, payload.countryId) : false,
   };
 
   return <SoaConsolidationClient viewer={viewer} payload={payload} />;

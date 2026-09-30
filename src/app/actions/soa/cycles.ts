@@ -23,7 +23,10 @@ export interface SoaCycle {
   label: string;
   period_start: string;
   period_end: string;
+  /** Given to suppliers in the letter: when their statement is due back. */
   submission_deadline: string;
+  /** Given to champions: when the country must be reconciled, closed and handed off. */
+  cycle_deadline: string;
   coverage_target_pct: number;
   year_end_target_pct: number;
   vendor_threshold_usd: number;
@@ -46,6 +49,7 @@ function serialiseCycle(r: QueryResultRow): SoaCycle {
     period_start: asDate(r.period_start),
     period_end: asDate(r.period_end),
     submission_deadline: asDate(r.submission_deadline),
+    cycle_deadline: asDate(r.cycle_deadline),
     coverage_target_pct: Number(r.coverage_target_pct),
     year_end_target_pct: Number(r.year_end_target_pct),
     vendor_threshold_usd: Number(r.vendor_threshold_usd),
@@ -57,7 +61,7 @@ function serialiseCycle(r: QueryResultRow): SoaCycle {
   };
 }
 
-/** Every cycle, newest period first. Any approved user — a champion needs to know the deadline. */
+/** Every cycle, newest period first. Any approved user, a champion needs to know the deadline. */
 export async function getSoaCycles(): Promise<SoaCycle[]> {
   try {
     await requireSoaActor('viewer');
@@ -140,6 +144,7 @@ export async function createSoaCycle(input: {
   periodStart: string;
   periodEnd: string;
   submissionDeadline: string;
+  cycleDeadline: string;
   coverageTargetPct?: number;
   yearEndTargetPct?: number;
   vendorThresholdUsd?: number;
@@ -155,16 +160,26 @@ export async function createSoaCycle(input: {
     if (!(new Date(input.periodStart) < new Date(input.periodEnd))) {
       return { success: false, error: 'The period must start before it ends.' };
     }
+    /* Closing the country means reconciling what came back, so the collection deadline has to come
+       first. The other way round asks a champion to finish before the statements are due. */
+    if (new Date(input.cycleDeadline) < new Date(input.submissionDeadline)) {
+      return {
+        success: false,
+        error:
+          'The cycle deadline cannot fall before the collection deadline. Statements have to be in before a country can be closed.',
+      };
+    }
 
     const rows = await sql<QueryResultRow[]>(
-      `INSERT INTO cycles (label, period_start, period_end, submission_deadline,
+      `INSERT INTO cycles (label, period_start, period_end, submission_deadline, cycle_deadline,
                            coverage_target_pct, year_end_target_pct, vendor_threshold_usd,
                            lookback_months)
-       VALUES (?, ?, ?, ?, COALESCE(?, 70), COALESCE(?, 95), COALESCE(?, 250000), COALESCE(?, 18))
+       VALUES (?, ?, ?, ?, ?, COALESCE(?, 70), COALESCE(?, 95), COALESCE(?, 250000), COALESCE(?, 18))
        ON CONFLICT (label) DO UPDATE SET
          period_start = EXCLUDED.period_start,
          period_end = EXCLUDED.period_end,
          submission_deadline = EXCLUDED.submission_deadline,
+         cycle_deadline = EXCLUDED.cycle_deadline,
          coverage_target_pct = EXCLUDED.coverage_target_pct,
          year_end_target_pct = EXCLUDED.year_end_target_pct,
          vendor_threshold_usd = EXCLUDED.vendor_threshold_usd,
@@ -175,6 +190,7 @@ export async function createSoaCycle(input: {
         input.periodStart,
         input.periodEnd,
         input.submissionDeadline,
+        input.cycleDeadline,
         input.coverageTargetPct ?? null,
         input.yearEndTargetPct ?? null,
         input.vendorThresholdUsd ?? null,
@@ -205,6 +221,169 @@ async function activateCycleRow(cycleId: number): Promise<void> {
   await exec(`UPDATE cycles SET is_active = TRUE WHERE id = ?`, [cycleId]);
 }
 
+/** One recorded change to a cycle's dates. Newest first, as the admin screen lists them. */
+export interface DeadlineChange {
+  changedAt: string;
+  changedBy: string;
+  reason: string;
+  oldSubmissionDeadline: string;
+  newSubmissionDeadline: string;
+  oldCycleDeadline: string;
+  newCycleDeadline: string;
+}
+
+/** What has been done to this cycle's dates since it opened. */
+export async function getSoaDeadlineChanges(cycleId: number): Promise<DeadlineChange[]> {
+  try {
+    await requireSoaActor('viewer');
+    await ensureSoaSchema();
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT changed_at, changed_by, reason,
+              old_submission_deadline, new_submission_deadline,
+              old_cycle_deadline, new_cycle_deadline
+         FROM cycle_deadline_changes
+        WHERE cycle_id = ?
+        ORDER BY changed_at DESC`,
+      [cycleId],
+    );
+    const day = (v: unknown) =>
+      v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? '').slice(0, 10);
+    return rows.map((r) => ({
+      changedAt: r.changed_at instanceof Date ? r.changed_at.toISOString() : String(r.changed_at),
+      changedBy: String(r.changed_by),
+      reason: String(r.reason),
+      oldSubmissionDeadline: day(r.old_submission_deadline),
+      newSubmissionDeadline: day(r.new_submission_deadline),
+      oldCycleDeadline: day(r.old_cycle_deadline),
+      newCycleDeadline: day(r.new_cycle_deadline),
+    }));
+  } catch (err) {
+    log.error('getSoaDeadlineChanges.failed', err);
+    return [];
+  }
+}
+
+/**
+ * Move a live cycle's deadlines.
+ *
+ * Both dates were given to people. The collection one went into the letter every supplier
+ * received; the cycle one is what a country is judged late against. So this is not an edit, it is
+ * a recorded event: the reason is required, the old and new dates are kept beside it, and the
+ * countries already enrolled get an evidence row so the change reaches their packs.
+ *
+ * Bringing the collection deadline forward is refused once anything has been sent. Suppliers were
+ * told a date in writing, and moving it closer afterwards would make a vendor late against a
+ * deadline they were never given. Before the first send there is nobody to mislead, so a
+ * mistyped date can still be corrected.
+ */
+export async function extendSoaCycleDeadlines(input: {
+  cycleId: number;
+  submissionDeadline: string;
+  cycleDeadline: string;
+  reason: string;
+}): Promise<SoaResult<SoaCycle>> {
+  try {
+    const actor = await requireSoaActor('admin');
+    await ensureSoaSchema();
+
+    const reason = input.reason.trim().slice(0, 2000);
+    if (reason.length < 3) {
+      return { success: false, error: 'Say why the deadline is moving. It goes on the record.' };
+    }
+
+    const current = await sql<QueryResultRow[]>(
+      `SELECT id, submission_deadline, cycle_deadline, is_active FROM cycles WHERE id = ?`,
+      [input.cycleId],
+    );
+    if (!current.length) return { success: false, error: 'No such cycle.' };
+    const row = current[0];
+    if (!row.is_active) {
+      return {
+        success: false,
+        error: 'Only the active cycle can have its deadlines moved. Closed quarters stay as they were judged.',
+      };
+    }
+
+    const oldSubmission = new Date(String(row.submission_deadline));
+    const newSubmission = new Date(input.submissionDeadline);
+    const newCycle = new Date(input.cycleDeadline);
+    if (Number.isNaN(newSubmission.getTime()) || Number.isNaN(newCycle.getTime())) {
+      return { success: false, error: 'Both dates have to be real dates.' };
+    }
+    if (newCycle < newSubmission) {
+      return {
+        success: false,
+        error:
+          'The cycle deadline cannot fall before the collection deadline. Statements have to be in before a country can be closed.',
+      };
+    }
+
+    if (newSubmission < oldSubmission) {
+      const sent = await sql<{ n: number }[]>(
+        `SELECT COUNT(*)::int AS n
+           FROM outreach_dispatches d
+           JOIN vendor_cycle_entries vce ON vce.id = d.vendor_cycle_entry_id
+           JOIN country_cycles cc        ON cc.id = vce.country_cycle_id
+          WHERE cc.cycle_id = ? AND d.succeeded = TRUE`,
+        [input.cycleId],
+      );
+      if ((sent[0]?.n ?? 0) > 0) {
+        return {
+          success: false,
+          error:
+            'Requests have already gone out carrying the current date, so the collection deadline cannot be brought forward. It can be moved later.',
+        };
+      }
+    }
+
+    const updated = await sql<QueryResultRow[]>(
+      `UPDATE cycles SET submission_deadline = ?, cycle_deadline = ? WHERE id = ? RETURNING *`,
+      [input.submissionDeadline, input.cycleDeadline, input.cycleId],
+    );
+
+    await sql(
+      `INSERT INTO cycle_deadline_changes
+         (cycle_id, changed_by, reason, old_submission_deadline, new_submission_deadline,
+          old_cycle_deadline, new_cycle_deadline)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        input.cycleId,
+        actor.email,
+        reason,
+        row.submission_deadline,
+        input.submissionDeadline,
+        row.cycle_deadline,
+        input.cycleDeadline,
+      ],
+    );
+
+    /* Also into each enrolled country's own trail, so the change appears in the evidence pack
+       beside the chase it changed the shape of, rather than only in an admin table. */
+    await sql(
+      `INSERT INTO evidence_log (country_cycle_id, vendor_cycle_entry_id, type, action, actor, detail)
+       SELECT cc.id, NULL, 'info', 'Cycle deadlines changed', ?, ?
+         FROM country_cycles cc
+        WHERE cc.cycle_id = ?`,
+      [
+        actor.email,
+        `Collection deadline ${String(row.submission_deadline).slice(0, 10)} to ${input.submissionDeadline}, closing deadline ${String(row.cycle_deadline).slice(0, 10)} to ${input.cycleDeadline}. Reason: ${reason}`,
+        input.cycleId,
+      ],
+    );
+
+    log.info('cycles.deadlinesChanged', { cycleId: input.cycleId, by: actor.email });
+    revalidatePath('/admin/soa');
+    revalidatePath('/soa-consolidation');
+    return { success: true, data: serialiseCycle(updated[0]) };
+  } catch (err) {
+    log.error('extendSoaCycleDeadlines.failed', err);
+    return {
+      success: false,
+      error: err instanceof AccessError ? err.message : 'Could not move the deadlines.',
+    };
+  }
+}
+
 /** Make one cycle the active one; the previous active cycle is stood down. */
 export async function activateSoaCycle(cycleId: number): Promise<SoaResult> {
   try {
@@ -223,7 +402,7 @@ export async function activateSoaCycle(cycleId: number): Promise<SoaResult> {
  * Teach a country to recognise another spelling of itself.
  *
  * `runSoaExtract` reports `spendCountriesUnmapped` when SAP produces a country string no country
- * claims — and that country's spend is then missing from every coverage denominator, which makes
+ * claims, and that country's spend is then missing from every coverage denominator, which makes
  * every percentage it should have contributed to look better than it is. Without this the warning
  * could name the problem but not fix it, and the only remedy was editing the database by hand.
  *
@@ -274,7 +453,7 @@ export async function addSoaSpendCountryAlias(input: {
 /**
  * Take the cycle's spend snapshot from historic_spend.
  *
- * Slow by the standards of a server action — it aggregates every PO transaction in the window — so
+ * Slow by the standards of a server action. It aggregates every PO transaction in the window, so
  * it is deliberately a thing an admin triggers once per cycle rather than something that happens
  * on a page load.
  */

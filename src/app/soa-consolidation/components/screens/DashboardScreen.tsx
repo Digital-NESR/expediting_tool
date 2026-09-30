@@ -8,13 +8,14 @@ export default function DashboardScreen({ vm }: ScreenProps) {
         <div>
           <h1 className="text-[20px] font-bold mb-[3px]">Dashboard</h1>
           <p className="text-[12px] text-sns-grey">
-            {vm.contextLine} · Deadline: {vm.deadlineLabel} ({vm.daysRemaining} days remaining)
+            {vm.contextLine} · Statements due {vm.deadlineLabel} ({vm.daysRemaining} days) · Close by{' '}
+            {vm.cycleDeadlineLabel} ({vm.daysToClose} days)
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
           {vm.hasUnrequested && (
             <button
-              onClick={vm.onSendRequests}
+              onClick={() => vm.onSendRequests()}
               disabled={vm.busy}
               className="bg-sns-green text-white border-none px-3.5 py-2 rounded-[7px] text-[12px] font-bold disabled:opacity-50"
             >
@@ -23,7 +24,7 @@ export default function DashboardScreen({ vm }: ScreenProps) {
           )}
           {vm.hasRemindable && (
             <button
-              onClick={vm.onSendReminders}
+              onClick={() => vm.onSendReminders()}
               disabled={vm.busy}
               className="bg-[#E65100] text-white border-none px-3.5 py-2 rounded-[7px] text-[12px] font-bold disabled:opacity-50"
             >
@@ -59,7 +60,7 @@ export default function DashboardScreen({ vm }: ScreenProps) {
       <div className="grid grid-cols-[3fr_1fr] gap-3 mb-3">
         <div className="bg-white rounded-[10px] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
           <div className="text-[10px] font-bold uppercase tracking-[0.5px] text-sns-grey mb-3">
-            Workflow Pipeline — {vm.contextLine}
+            Workflow Pipeline, {vm.contextLine}
           </div>
           <div className="flex rounded-[7px] overflow-hidden">
             {vm.pipeline.map((step) => (
@@ -114,7 +115,7 @@ export default function DashboardScreen({ vm }: ScreenProps) {
 
       <div className="bg-white rounded-[10px] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
         <div className="text-[10px] font-bold uppercase tracking-[0.5px] text-sns-grey mb-2.5">
-          Vendor Response Status — {vm.totalCount} In-Scope Vendors
+          Vendor Response Status, {vm.totalCount} In-Scope Vendors
         </div>
         <div className="flex rounded-sm overflow-hidden h-[18px] mb-2.5 bg-[#E0E8E3]">
           {vm.statusBarSegs.map((seg) => (

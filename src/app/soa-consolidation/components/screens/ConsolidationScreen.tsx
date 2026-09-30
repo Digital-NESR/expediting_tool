@@ -1,7 +1,7 @@
 import type { ScreenProps } from '../../types';
 import { CRITERION_BORDER, CRITERION_FILL } from '../tones';
 
-const COLUMNS = 'grid-cols-[30px_1fr_110px_65px_85px_55px_80px]';
+const COLUMNS = 'grid-cols-[30px_1fr_110px_65px_85px_55px_80px_60px]';
 
 export default function ConsolidationScreen({ vm }: ScreenProps) {
   return (
@@ -12,17 +12,27 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
           <p className="text-[12px] text-sns-grey">Automated consolidation · {vm.contextLine}</p>
         </div>
         <div className="flex gap-2">
+          {/* The file AP actually works from: every invoice line every supplier returned, in the
+              sixteen-column format they already use. Built from the parsed rows, so it and the
+              coverage figure are the same arithmetic. */}
+          <a
+            href={`/api/soa/consolidated/${vm.activeCountryId}`}
+            className="bg-sns-green text-white px-3.5 py-[9px] rounded-[7px] text-[12px] font-bold hover:opacity-90"
+          >
+            Download Consolidated SOA
+          </a>
+          {/* The vendor list is a progress report. Who was chased, when, and whether they
+              answered. It says nothing about what any of them owe. */}
           <button
             type="button"
             onClick={vm.onGenerateExport}
             disabled={vm.busy}
-            className="bg-[#1565C0] text-white border-none px-3.5 py-[9px] rounded-[7px] text-[12px] font-bold disabled:opacity-50"
+            className="bg-white text-sns-ink border border-sns-line px-3.5 py-[9px] rounded-[7px] text-[12px] font-bold hover:border-sns-green disabled:opacity-50"
           >
-            Download Consolidated CSV
+            Vendor status CSV
           </button>
-          {/* The CSV is what Finance posts from; this is what an auditor reads. Different
-              questions — "what were the balances" against "prove you followed the SOP" — so it
-              is a separate download rather than more columns on the same one. */}
+          {/* And this is what an auditor reads: not "what were the balances" but "prove you
+              followed the SOP". */}
           <a
             href={`/api/soa/evidence-pack/${vm.activeCountryId}`}
             className="bg-white text-sns-ink border border-sns-line px-3.5 py-[9px] rounded-[7px] text-[12px] font-bold hover:border-sns-green"
@@ -91,7 +101,7 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
       <div className="bg-white rounded-[10px] overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
         <div className="px-3.5 py-3 border-b border-b-[#F0F0F0] flex items-center justify-between">
           <div className="text-[12px] font-bold text-sns-ink">
-            Consolidated SOA — {vm.receivedCount} Vendors · {vm.exportFileName}
+            Consolidated SOA, {vm.receivedCount} Vendors · {vm.exportFileName}
           </div>
           <div className="text-[11px] text-sns-grey">Auto-compiled · No manual re-keying</div>
         </div>
@@ -105,6 +115,7 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
           <div>Amount</div>
           <div>Inv.</div>
           <div>Response</div>
+          <div />
         </div>
         {vm.consolidatedRows.map((r, i) => (
           <div
@@ -120,6 +131,17 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
             <div className="font-bold text-sns-green">{r.fmtOpenPO}</div>
             <div className="text-sns-grey">{r.invCount}</div>
             <div className="text-sns-grey text-[10px]">{r.respDate}</div>
+            {/* This supplier's rows alone, in the same sixteen columns as the country file. What
+                AP attaches when they go back to one vendor about one line. */}
+            <div className="text-right">
+              <a
+                href={`/api/soa/vendor-consolidated/${r.id}`}
+                title={`Download ${r.name}'s lines in the consolidated format`}
+                className="text-[10.5px] font-bold text-sns-green hover:underline"
+              >
+                Excel
+              </a>
+            </div>
           </div>
         ))}
       </div>

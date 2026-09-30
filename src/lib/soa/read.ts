@@ -2,13 +2,15 @@ import type { QueryResultRow } from 'pg';
 import { shortDayMonth } from '@/lib/format';
 import { countriesFor, type SoaActor } from './access';
 import { ensureSoaSchema, sql } from './db';
+import { resolvedContactsForMany } from './recipients';
+import { COVERED_STATUS_SQL, type VendorCycleStatus } from './status';
 
 /**
  * Everything a page load of SOA Consolidation needs, read from the database.
  *
  * This replaces `data.ts`, which held 594 lines of invented vendors and a "today" pinned to
  * 21 July 2026. The shapes below are deliberately the ones the eight screens already consume, so
- * the screens did not have to be rewritten to stop being a prototype — only the source of truth
+ * the screens did not have to be rewritten to stop being a prototype, only the source of truth
  * changed.
  *
  * One thing to hold on to while reading: a vendor's amount is what they are being asked to
@@ -24,10 +26,14 @@ export interface ActiveCycle {
   periodStart: string;
   periodEnd: string;
   submissionDeadline: string;
+  /** When the country must be reconciled, closed and handed to Finance. */
+  cycleDeadline: string;
   coverageTargetPct: number;
   yearEndTargetPct: number;
   vendorThresholdUsd: number;
   daysRemaining: number;
+  /** Days until the cycle deadline, the champion's date, not the supplier's. */
+  daysToClose: number;
   extractedAt: string | null;
 }
 
@@ -42,7 +48,9 @@ export interface VendorRow {
   name: string;
   no: string;
   openPO: number;
-  status: 'scoped' | 'requested' | 'reminded' | 'received' | 'non_responder';
+  status: VendorCycleStatus;
+  /** Why this vendor was closed without a statement. Empty unless a champion closed it. */
+  resolutionNote: string;
   reqDate: string;
   remDate: string | null;
   respDate: string | null;
@@ -57,7 +65,14 @@ export interface VendorRow {
   invCount: number;
   contactEmails: string[];
   /** Statements received from this vendor, newest first. Downloadable from /api/soa/submissions. */
-  submissions: { id: string; fileName: string; uploadedAt: string }[];
+  submissions: {
+    id: string;
+    fileName: string;
+    uploadedAt: string;
+    superseded: boolean;
+    /** `email` is filed correspondence: an answer on record that parses into no invoice rows. */
+    kind: 'workbook' | 'email';
+  }[];
 }
 
 export interface CountryRow {
@@ -65,7 +80,14 @@ export interface CountryRow {
   name: string;
   champion: string;
   balance: number;
+  /** Share of the country's balance whose statement is in. The figure the quarter is judged on. */
   pct: number;
+  /** Share drawn into the cycle at all. The ceiling every figure below is measured against. */
+  scopedPct: number;
+  /** Share that has had its first request. From `requested_at`, so replies do not shrink it. */
+  requestedPct: number;
+  /** Share chased a second time. */
+  remindedPct: number;
   status: string;
   responded: number;
   total: number;
@@ -88,7 +110,7 @@ export interface SoaPayload {
   countryName: string | null;
   /** Every country this actor may switch to. One entry means no picker is needed. */
   available: CountryOption[];
-  /** The country's whole PO balance for the cycle — the coverage denominator. */
+  /** The country's whole PO balance for the cycle, the coverage denominator. */
   totalBalance: number;
   vendors: VendorRow[];
   countries: CountryRow[];
@@ -97,6 +119,14 @@ export interface SoaPayload {
   handedOff: boolean;
   /** False when nobody has scoped this country yet, which is a different empty from "no vendors". */
   scoped: boolean;
+  /**
+   * False until a champion joins this country to the open cycle.
+   *
+   * Distinct from `scoped`: joining says the country is taking part this quarter, scoping says
+   * which vendors it will chase. They used to be the same act, which left no way to tell a country
+   * that had decided not to start from one that simply had not been opened yet.
+   */
+  enrolled: boolean;
 }
 
 const EMPTY: SoaPayload = {
@@ -110,6 +140,7 @@ const EMPTY: SoaPayload = {
   evidence: [],
   handedOff: false,
   scoped: false,
+  enrolled: false,
 };
 
 const asIso = (v: unknown): string => (v instanceof Date ? v.toISOString() : v ? String(v) : '');
@@ -126,7 +157,7 @@ function daysBetween(from: Date, to: Date): number {
  *
  * A champion of one country has no choice to make. Someone with an all-countries grant, or several
  * countries, gets a picker, and `requested` is what they chose. An unrecognised or out-of-scope
- * request falls back to the first country in scope rather than erroring — a stale bookmark should
+ * request falls back to the first country in scope rather than erroring, a stale bookmark should
  * land somewhere sensible, not on a wall.
  */
 export async function resolveCountry(
@@ -157,11 +188,13 @@ async function activeCycle(): Promise<ActiveCycle | null> {
     periodStart: asIso(r.period_start).slice(0, 10),
     periodEnd: asIso(r.period_end).slice(0, 10),
     submissionDeadline: asIso(r.submission_deadline).slice(0, 10),
+    cycleDeadline: asIso(r.cycle_deadline).slice(0, 10),
     coverageTargetPct: Number(r.coverage_target_pct),
     yearEndTargetPct: Number(r.year_end_target_pct),
     vendorThresholdUsd: Number(r.vendor_threshold_usd),
     // Real arithmetic against the real clock. The prototype hard-coded "11".
     daysRemaining: Math.max(0, daysBetween(new Date(), deadline)),
+    daysToClose: Math.max(0, daysBetween(new Date(), new Date(asIso(r.cycle_deadline)))),
     extractedAt: r.extracted_at ? asIso(r.extracted_at) : null,
   };
 }
@@ -171,7 +204,7 @@ async function activeCycle(): Promise<ActiveCycle | null> {
  *
  * Coverage is the confirmed balance over the country's whole PO balance for the cycle, which
  * is why the denominator comes from `supplier_po_extract` rather than from the vendors being
- * chased — chasing only the large vendors does not make the small ones stop being money owed.
+ * chased. Chasing only the large vendors does not make the small ones stop being money owed.
  * A country nobody has scoped yet is absent rather than present at 0%: it has not failed, it has
  * not started, and eighteen rows of 0% would read as a wall of failure on day one.
  */
@@ -187,15 +220,27 @@ async function rollup(cycleId: number, deadline: Date): Promise<CountryRow[]> {
      progress AS (
        SELECT cc.id, cc.country_id, cc.status::text AS status,
               COUNT(vce.id)                                          AS total,
-              COUNT(vce.id) FILTER (WHERE vce.status = 'received')    AS responded,
+              COUNT(vce.id)
+                FILTER (WHERE vce.status::text IN (${COVERED_STATUS_SQL}))  AS responded,
+              COALESCE(SUM(vce.open_po_amount), 0)                          AS scoped_balance,
+              /* Read off the timestamps, not the current status. A vendor that has answered was
+                 still requested and probably reminded, and counting by status would make the
+                 requested bar shrink as replies arrive, which is the one direction progress
+                 cannot go. */
               COALESCE(SUM(vce.open_po_amount)
-                       FILTER (WHERE vce.status = 'received'), 0)     AS received_balance
+                       FILTER (WHERE vce.requested_at IS NOT NULL), 0)       AS requested_balance,
+              COALESCE(SUM(vce.open_po_amount)
+                       FILTER (WHERE vce.reminded_at IS NOT NULL), 0)        AS reminded_balance,
+              COALESCE(SUM(vce.open_po_amount)
+                       FILTER (WHERE vce.status::text IN (${COVERED_STATUS_SQL})), 0)
+                                                                            AS received_balance
          FROM country_cycles cc
          LEFT JOIN vendor_cycle_entries vce ON vce.country_cycle_id = cc.id
         WHERE cc.cycle_id = ?
         GROUP BY cc.id, cc.country_id, cc.status
      )
      SELECT p.country_id, c.name, p.status, p.total, p.responded,
+            p.scoped_balance, p.requested_balance, p.reminded_balance,
             p.received_balance, d.total_balance,
             COALESCE(string_agg(DISTINCT cu.name, ', '), '') AS champions
        FROM progress p
@@ -204,6 +249,7 @@ async function rollup(cycleId: number, deadline: Date): Promise<CountryRow[]> {
        LEFT JOIN country_users cu
               ON cu.role = 'champion' AND cu.country_id = p.country_id
       GROUP BY p.country_id, c.name, c.sort_order, p.status, p.total, p.responded,
+               p.scoped_balance, p.requested_balance, p.reminded_balance,
                p.received_balance, d.total_balance
       ORDER BY c.sort_order`,
     [cycleId, cycleId],
@@ -213,12 +259,22 @@ async function rollup(cycleId: number, deadline: Date): Promise<CountryRow[]> {
   return rows.map((r) => {
     const total = Number(r.total_balance);
     const received = Number(r.received_balance);
+    /* All four share the country's whole PO balance as their denominator, so they read as one
+       funnel: what was drawn into scope, what was written to, what was chased again, what came
+       back. Each is a subset of the one before it, which is what makes the gaps diagnostic. A
+       country at 40% coverage is behind for a different reason depending on whether it scoped
+       45% or 95% of its balance. */
+    const share = (value: unknown) =>
+      total > 0 ? Math.round((Number(value) / total) * 100) : 0;
     return {
       id: String(r.country_id),
       name: String(r.name),
       champion: String(r.champions) || 'Unassigned',
       balance: total,
       pct: total > 0 ? Math.round((received / total) * 100) : 0,
+      scopedPct: share(r.scoped_balance),
+      requestedPct: share(r.requested_balance),
+      remindedPct: share(r.reminded_balance),
       status: String(r.status),
       responded: Number(r.responded),
       total: Number(r.total),
@@ -281,7 +337,8 @@ export async function loadSoa(
     sql<QueryResultRow[]>(
       `SELECT vce.id, vce.open_po_amount, vce.currency, vce.status::text AS status,
               vce.requested_at, vce.reminded_at, vce.responded_at, vce.invoice_count,
-              v.name, v.vendor_no, v.contact_emails
+              vce.resolution_note,
+              v.id AS vendor_id, v.name, v.vendor_no
          FROM vendor_cycle_entries vce
          JOIN vendors v ON v.id = vce.vendor_id
         WHERE vce.country_cycle_id = ?
@@ -292,7 +349,7 @@ export async function loadSoa(
        hundred vendors, and a per-row lookup would be a few hundred round trips for a list that is
        usually almost empty. */
     sql<QueryResultRow[]>(
-      `SELECT s.id, s.vendor_cycle_entry_id, s.file_name, s.uploaded_at
+      `SELECT s.id, s.vendor_cycle_entry_id, s.file_name, s.uploaded_at, s.superseded_at, s.kind
          FROM soa_submissions s
          JOIN vendor_cycle_entries vce ON vce.id = s.vendor_cycle_entry_id
         WHERE vce.country_cycle_id = ?
@@ -310,6 +367,12 @@ export async function loadSoa(
     rollup(cycle.id, new Date(cycle.submissionDeadline)),
   ]);
 
+  /* One resolution for the country rather than the stored column, so what the tracking screen
+     shows is what a letter would actually go to. */
+  const resolvedContacts = await resolvedContactsForMany(
+    vendorRows.map((r) => ({ id: Number(r.vendor_id), vendorNo: String(r.vendor_no) })),
+  );
+
   const submissionsByEntry = new Map<string, SoaPayload['vendors'][number]['submissions']>();
   for (const r of submissionRows) {
     const key = String(r.vendor_cycle_entry_id);
@@ -318,6 +381,10 @@ export async function loadSoa(
       id: String(r.id),
       fileName: String(r.file_name),
       uploadedAt: asIso(r.uploaded_at),
+      // Kept and shown, but no figure is computed from it. A champion looking at two files needs
+      // to know which one the coverage number came from.
+      superseded: r.superseded_at !== null,
+      kind: String(r.kind) === 'email' ? 'email' : 'workbook',
     });
     submissionsByEntry.set(key, list);
   }
@@ -330,14 +397,15 @@ export async function loadSoa(
     totalBalance,
     handedOff: String(ccRows[0].status) === 'handed_off',
     scoped: true,
+    enrolled: true,
     vendors: vendorRows.map((r) => ({
       id: String(r.id),
       name: String(r.name),
       no: String(r.vendor_no),
       openPO: Number(r.open_po_amount),
-      status: String(r.status) as VendorRow['status'],
+      status: String(r.status) as VendorCycleStatus,
       // The screens show a request date as a bare string; an unsent request has none.
-      reqDate: asShortDate(r.requested_at) ?? '—',
+      reqDate: asShortDate(r.requested_at) ?? ', ',
       remDate: asShortDate(r.reminded_at),
       respDate: asShortDate(r.responded_at),
       requestedAt: r.requested_at ? asIso(r.requested_at) : null,
@@ -345,7 +413,8 @@ export async function loadSoa(
       respondedAt: r.responded_at ? asIso(r.responded_at) : null,
       currency: String(r.currency),
       invCount: Number(r.invoice_count),
-      contactEmails: ((r.contact_emails ?? []) as string[]).filter(Boolean),
+      resolutionNote: (r.resolution_note as string | null) ?? '',
+      contactEmails: resolvedContacts.get(String(r.vendor_no)) ?? [],
       submissions: submissionsByEntry.get(String(r.id)) ?? [],
     })),
     countries,

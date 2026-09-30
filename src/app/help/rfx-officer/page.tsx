@@ -9,6 +9,7 @@
 'use client';
 
 import { useState } from 'react';
+import { RfxOfficerMark } from '@/components/ToolMarks';
 import {
   FileText,
   Upload,
@@ -853,11 +854,10 @@ export default function RFxOfficerHelpPage() {
     <main className="max-w-[960px] mx-auto px-6 pb-16 pt-6">
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1">
-          <div
-            className="flex h-6 w-6 items-center justify-center rounded-md shrink-0"
-            style={{ background: GREEN }}
-          >
-            <span className="text-white font-extrabold text-[9px] tracking-tight">RFx</span>
+          {/* The artwork carries its own green, so it needs a light ground rather than the solid
+              one the old lettermark sat on. */}
+          <div className="flex h-6 w-6 items-center justify-center rounded-md shrink-0 bg-[#f0f9f4]">
+            <RfxOfficerMark className="h-5 w-5" size={40} />
           </div>
           <p className="text-xs text-slate-400">RFx Officer / Help</p>
         </div>

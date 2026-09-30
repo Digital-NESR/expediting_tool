@@ -5,7 +5,7 @@ import { CRITERION_FILL } from '../tones';
  * The handoff confirmation.
  *
  * It used to list four ticks written into the markup, under a heading that said the criteria were
- * met — beside a coverage figure that might have been 3%. It now shows what the criteria actually
+ * met. Beside a coverage figure that might have been 3%. It now shows what the criteria actually
  * say, including the one that cannot be measured, and the action behind the button refuses a
  * country below the cycle's coverage target regardless of what this dialog shows.
  */
@@ -43,7 +43,7 @@ export default function HandoffModal({ vm }: ScreenProps) {
                   {ci.icon}
                 </span>
                 <span>
-                  <strong className="text-sns-ink">{ci.label}</strong> — {ci.detail}
+                  <strong className="text-sns-ink">{ci.label}</strong>, {ci.detail}
                 </span>
               </div>
             ))}

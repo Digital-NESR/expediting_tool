@@ -3,8 +3,8 @@
 /**
  * The vendors that are never chased.
  *
- * NESR's own entities turn up in the PO transactions like any supplier — EOS JAFZA is the largest
- * "vendor" in Saudi Arabia at $127M — and nobody sends a colleague a statement-of-account request.
+ * NESR's own entities turn up in the PO transactions like any supplier. EOS JAFZA is the largest
+ * "vendor" in Saudi Arabia at $127M, and nobody sends a colleague a statement-of-account request.
  * Excluding them keeps champions off internal balances.
  *
  * They stay in the coverage DENOMINATOR. An excluded vendor is still money that moved; removing it
@@ -92,7 +92,7 @@ export async function getSoaExcludedVendors(): Promise<ExcludedVendorRow[]> {
  * Find suppliers to exclude, from the active cycle's spend snapshot.
  *
  * Searches the snapshot rather than the `vendors` table because most candidates have never been
- * scoped into a chase list — the point is to catch them before they are. Matching on the code as
+ * scoped into a chase list. The point is to catch them before they are. Matching on the code as
  * well as the name matters: NESR's group entities share the `00013` code block, and searching that
  * prefix is the fastest way to review them together.
  */
@@ -152,7 +152,7 @@ export async function addSoaExcludedVendor(input: {
     if (!reason) {
       return {
         success: false,
-        error: 'Give a reason — it is what explains the gap to whoever audits this later.',
+        error: 'Give a reason. It is what explains the gap to whoever audits this later.',
       };
     }
 

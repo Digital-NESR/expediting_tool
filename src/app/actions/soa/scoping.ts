@@ -4,7 +4,7 @@
  * Choosing which suppliers a country will chase.
  *
  * EVERY export of a `'use server'` module is a public POST endpoint, so each one below starts with
- * `requireSoaCountry` — a champion of Oman must not be able to rewrite Saudi Arabia's list.
+ * `requireSoaCountry`, a champion of Oman must not be able to rewrite Saudi Arabia's list.
  */
 
 import { revalidatePath } from 'next/cache';
@@ -43,11 +43,12 @@ export async function getSoaScopeCandidates(input: {
     return {
       thresholdUsd: 0,
       totalBalance: 0,
+      excludedBalance: 0,
       candidates: [],
       error:
         err instanceof AccessError
           ? err.message
-          : 'The supplier list could not be read. This is a fault, not an empty country — try again, and tell an administrator if it persists.',
+          : 'The supplier list could not be read. This is a fault, not an empty country, try again, and tell an administrator if it persists.',
     };
   }
 }
@@ -56,7 +57,7 @@ export async function getSoaScopeCandidates(input: {
  * Make the country's chase list match the champion's selection.
  *
  * Takes the WHOLE desired set rather than a diff, so the screen does not have to track what it has
- * already sent and cannot drift out of step with the database — the last save wins and says so.
+ * already sent and cannot drift out of step with the database. The last save wins and says so.
  *
  * Two things it will not do, both because the evidence trail outranks the tick box:
  *
@@ -97,21 +98,52 @@ export async function applySoaScopeSelection(input: {
     const countryCycleId = await ensureCountryCycle(input.cycleId, input.countryId);
 
     await withTransaction(soaPool, async (client) => {
-      for (const c of toAdd) {
-        const vendor = await client.query<QueryResultRow>(
-          `INSERT INTO vendors (country_id, vendor_no, name, contact_emails, contact_source)
-           VALUES ($1, $2, $3, $4, CASE WHEN COALESCE(array_length($4::text[], 1), 0) > 0
-                                        THEN 'avl' ELSE 'none' END)
-           ON CONFLICT (country_id, vendor_no) DO UPDATE SET name = EXCLUDED.name
-           RETURNING id`,
-          [input.countryId, c.vendorNo, c.name.slice(0, 200), c.emails],
+      if (toAdd.length) {
+        /* Two statements for the whole selection, not two per supplier.
+           This was a loop of two awaited round trips each, so saving 265 suppliers was 530
+           sequential queries against a database on the other side of a network: several seconds
+           of a screen that gives no sign of doing anything, which is long enough for somebody to
+           press the button again.
+           The payload goes over as one JSON array rather than parallel arrays, because
+           `contact_emails` is itself an array per row and UNNEST flattens a two-dimensional one
+           into a single list. */
+        const payload = JSON.stringify(
+          toAdd.map((c) => ({
+            vendor_no: c.vendorNo,
+            name: c.name.slice(0, 200),
+            emails: c.emails,
+            value_usd: c.valueUsd,
+          })),
         );
+
+        await client.query(
+          `INSERT INTO vendors (country_id, vendor_no, name, contact_emails, contact_source)
+           SELECT $1, t.vendor_no, t.name, t.emails,
+                  CASE WHEN COALESCE(array_length(t.emails, 1), 0) > 0 THEN 'avl' ELSE 'none' END
+             FROM (
+               SELECT x->>'vendor_no' AS vendor_no,
+                      x->>'name'      AS name,
+                      COALESCE(
+                        ARRAY(SELECT jsonb_array_elements_text(x->'emails')), '{}'
+                      )::text[]       AS emails
+                 FROM jsonb_array_elements($2::jsonb) AS x
+             ) t
+           ON CONFLICT (country_id, vendor_no) DO UPDATE SET name = EXCLUDED.name`,
+          [input.countryId, payload],
+        );
+
         await client.query(
           `INSERT INTO vendor_cycle_entries (country_cycle_id, vendor_id, open_po_amount)
-           VALUES ($1, $2, $3)
+           SELECT $1, v.id, t.value_usd
+             FROM (
+               SELECT x->>'vendor_no'            AS vendor_no,
+                      (x->>'value_usd')::numeric AS value_usd
+                 FROM jsonb_array_elements($2::jsonb) AS x
+             ) t
+             JOIN vendors v ON v.country_id = $3 AND v.vendor_no = t.vendor_no
            ON CONFLICT (country_cycle_id, vendor_id) DO UPDATE SET
              open_po_amount = EXCLUDED.open_po_amount, updated_at = NOW()`,
-          [countryCycleId, Number(vendor.rows[0].id), c.valueUsd],
+          [countryCycleId, payload, input.countryId],
         );
       }
 
@@ -183,6 +215,62 @@ export async function applySoaScopeSelection(input: {
     return {
       success: false,
       error: err instanceof AccessError ? err.message : 'Could not save the selection.',
+    };
+  }
+}
+
+/**
+ * Join a country to the open cycle.
+ *
+ * Joining used to be a side effect of scoping: the first time a champion saved a vendor list, the
+ * country_cycles row appeared. That left no way to tell a country that had decided not to take
+ * part from one nobody had opened yet, and no moment at which a champion saw the quarter's
+ * deadline and threshold before committing to them. It is now its own act, and it is recorded as
+ * one. The evidence trail should show who signed this country up and when.
+ */
+export async function enrolSoaCountry(countryId: string): Promise<SoaResult> {
+  try {
+    const actor = await requireSoaCountry(countryId, 'champion');
+    await ensureSoaSchema();
+
+    const cycles = await sql<QueryResultRow[]>(
+      `SELECT id, label, extracted_at FROM cycles WHERE is_active LIMIT 1`,
+    );
+    if (!cycles.length) return { success: false, error: 'No cycle is open.' };
+    const cycle = cycles[0];
+
+    /* Without the snapshot there is nothing to scope from, so joining would drop the champion on
+       an empty screen with no way forward. That is an admin's job, and the message should say so
+       rather than leaving them to guess. */
+    if (!cycle.extracted_at) {
+      return {
+        success: false,
+        error: 'The PO snapshot for this cycle has not been taken yet. An administrator runs it from /admin.',
+      };
+    }
+
+    const countryCycleId = await ensureCountryCycle(Number(cycle.id), countryId);
+
+    await withTransaction(soaPool, async (client) => {
+      await client.query(
+        `INSERT INTO evidence_log (country_cycle_id, type, action, actor, detail)
+         VALUES ($1, 'info', 'Joined the cycle', $2, $3)`,
+        [
+          countryCycleId,
+          actor.email,
+          `${actor.name} joined this country to ${String(cycle.label)}.`,
+        ],
+      );
+    });
+
+    log.info('cycle.enrolled', { countryId, cycleId: Number(cycle.id), by: actor.email });
+    revalidatePath('/soa-consolidation');
+    return { success: true };
+  } catch (err) {
+    log.error('enrolSoaCountry.failed', err, { countryId });
+    return {
+      success: false,
+      error: err instanceof AccessError ? err.message : 'Could not join the cycle.',
     };
   }
 }

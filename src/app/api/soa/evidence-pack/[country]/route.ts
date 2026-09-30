@@ -5,13 +5,15 @@ import { attachmentContentDisposition } from '@/lib/contentDisposition';
 import { canAccessCountry, getSoaActor } from '@/lib/soa/access';
 import { complianceCriteria, reminderGapDays, reminderInWindow } from '@/lib/soa/compliance';
 import { ensureSoaSchema, soaPool } from '@/lib/soa/db';
+import { resolvedContactsForMany } from '@/lib/soa/recipients';
+import { countsTowardCoverage } from '@/lib/soa/status';
 
 /**
  * The evidence pack: one workbook that answers an audit of a country's quarter.
  *
  * The consolidation export already produced a vendor list, which is what Finance needs to post the
  * numbers. It is not what an auditor needs. The question there is not "what were the balances" but
- * "prove you did what the SOP says" — that every in-scope vendor was written to, that a reminder
+ * "prove you did what the SOP says". That every in-scope vendor was written to, that a reminder
  * followed inside the 10-14 day window, that non-responders were documented rather than quietly
  * dropped, and that the coverage figure was measured against the target in force at the time.
  *
@@ -75,9 +77,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
 
     const [vendorRes, evidenceRes, submissionRes, denomRes] = await Promise.all([
       soaPool.query<QueryResultRow>(
-        `SELECT v.vendor_no, v.name, v.contact_emails, vce.open_po_amount, vce.currency,
+        `SELECT v.id AS vendor_id, v.vendor_no, v.name, vce.open_po_amount, vce.currency,
                 vce.status::text AS status, vce.requested_at, vce.reminded_at, vce.responded_at,
-                vce.invoice_count
+                vce.invoice_count, vce.resolution_note
            FROM vendor_cycle_entries vce JOIN vendors v ON v.id = vce.vendor_id
           WHERE vce.country_cycle_id = $1
           ORDER BY vce.open_po_amount DESC`,
@@ -90,7 +92,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
       ),
       soaPool.query<QueryResultRow>(
         `SELECT v.vendor_no, v.name AS vendor_name, s.file_name, s.uploaded_at, s.uploaded_by,
-                s.accepted_at, s.accepted_by, s.detected_invoice_count, LENGTH(s.content) AS bytes
+                s.accepted_at, s.accepted_by, s.detected_invoice_count, s.superseded_at,
+                LENGTH(s.content) AS bytes
            FROM soa_submissions s
            JOIN vendor_cycle_entries vce ON vce.id = s.vendor_cycle_entry_id
            JOIN vendors v ON v.id = vce.vendor_id
@@ -107,9 +110,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
     ]);
 
     const vendors = vendorRes.rows;
+    /* The addresses a letter would actually go to, not the stored column, so the pack an auditor
+       reads agrees with what was sent. */
+    const resolvedContacts = await resolvedContactsForMany(
+      vendors.map((v) => ({ id: Number(v.vendor_id), vendorNo: String(v.vendor_no) })),
+    );
     const totalBalance = Number(denomRes.rows[0]?.total ?? 0);
     const receivedBalance = vendors
-      .filter((v) => String(v.status) === 'received')
+      .filter((v) => countsTowardCoverage(String(v.status)))
       .reduce((sum, v) => sum + Number(v.open_po_amount), 0);
     const coveragePct = totalBalance > 0 ? Math.round((receivedBalance / totalBalance) * 100) : 0;
     const targetPct = Number(cycle.coverage_target_pct);
@@ -117,7 +125,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
     const criteria = complianceCriteria(
       vendors.map((v) => ({
         status: String(v.status),
-        reqDate: v.requested_at ? asDate(v.requested_at) : '—',
+        reqDate: v.requested_at ? asDate(v.requested_at) : ', ',
         remDate: v.reminded_at ? asDate(v.reminded_at) : null,
         requestedAt: v.requested_at ? asIso(v.requested_at) : null,
         remindedAt: v.reminded_at ? asIso(v.reminded_at) : null,
@@ -135,7 +143,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
     /* ── 1. Summary: the policy, the outcome, and the verdicts ───────────── */
     const summary = wb.addWorksheet('Summary');
     summary.columns = [{ width: 34 }, { width: 62 }];
-    summary.addRow(['SOA Consolidation — evidence pack']).font = { bold: true, size: 14 };
+    summary.addRow(['SOA Consolidation, evidence pack']).font = { bold: true, size: 14 };
     summary.addRow([]);
     for (const [k, v] of [
       ['Country', `${countryName} (${countryId})`],
@@ -174,12 +182,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
     summary.addRow(['Vendors in scope', vendors.length]);
     summary.addRow([
       'Statements received',
-      vendors.filter((v) => String(v.status) === 'received').length,
+      vendors.filter((v) => countsTowardCoverage(String(v.status))).length,
     ]);
     summary.getColumn(2).numFmt = '#,##0';
 
     summary.addRow([]);
-    summary.addRow([`Control criteria — SOP NESR-SC-01-GR2PAY`]).font = { bold: true };
+    summary.addRow([`Control criteria, SOP NESR-SC-01-GR2PAY`]).font = { bold: true };
     headerRow(summary, ['Criterion', 'Verdict']);
     for (const c of criteria) {
       summary.addRow([c.label, c.state.toUpperCase()]);
@@ -209,12 +217,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
       'Reminder gap (days)',
       'Inside 10-14 day window',
       'Invoices on statement',
+      'Counts towards coverage',
+      // A nil-balance vendor adds its whole balance to the coverage figure without a statement
+      // behind it, so the pack has to carry the champion's stated reason beside the number.
+      'Reason given for closing',
       'Contact addresses used',
     ]);
     for (const v of vendors) {
       const shaped = {
         status: String(v.status),
-        reqDate: v.requested_at ? asDate(v.requested_at) : '—',
+        reqDate: v.requested_at ? asDate(v.requested_at) : ', ',
         remDate: v.reminded_at ? asDate(v.reminded_at) : null,
         requestedAt: v.requested_at ? asIso(v.requested_at) : null,
         remindedAt: v.reminded_at ? asIso(v.reminded_at) : null,
@@ -233,12 +245,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
         gap ?? '',
         inWindow === null ? 'n/a' : inWindow ? 'Yes' : 'No',
         Number(v.invoice_count),
-        ((v.contact_emails ?? []) as string[]).join(', ') || 'None on file',
+        countsTowardCoverage(String(v.status)) ? 'Yes' : 'No',
+        v.resolution_note ? String(v.resolution_note) : '',
+        (resolvedContacts.get(String(v.vendor_no)) ?? []).join(', ') || 'None on file',
       ]);
     }
     vs.getColumn(3).numFmt = '#,##0.00';
     vs.columns.forEach((c, i) => {
-      c.width = i === 1 ? 40 : i === 11 ? 40 : 20;
+      c.width = i === 1 ? 40 : i === 12 || i === 13 ? 40 : 20;
     });
 
     /* ── 3. The append-only trail ────────────────────────────────────────── */
@@ -269,6 +283,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
       'Accepted',
       'Accepted by',
       'Invoices detected',
+      // A vendor may appear twice. An auditor reading a total has to be able to see which of the
+      // two files it was computed from, and that the other was not simply counted as well.
+      'Counted',
     ]);
     for (const s of submissionRes.rows) {
       st.addRow([
@@ -281,6 +298,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
         s.accepted_at ? asIso(s.accepted_at) : 'Not accepted',
         s.accepted_by ? String(s.accepted_by) : '',
         s.detected_invoice_count == null ? '' : Number(s.detected_invoice_count),
+        s.superseded_at ? `Superseded ${asIso(s.superseded_at)}` : 'Yes',
       ]);
     }
     st.columns.forEach((c, i) => {

@@ -6,29 +6,47 @@ import { ensureSoaSchema, sql } from './db';
 /**
  * Who may do what in SOA Consolidation.
  *
- * Four roles, and they do not all come from the same place — which is the thing to understand
+ * Four roles, and they do not all come from the same place. Which is the thing to understand
  * before changing anything here:
  *
  *   admin     ADMIN_EMAILS (or SOA_ADMIN_EMAILS). A property of the platform, not of this tool,
  *             so it is not in the database and cannot be requested.
- *   manager   Appointed in the matrix on /admin, the way ProcureGuard's approvers are. Sees the
- *             corporate rollup. Never self-requested.
  *   champion  Runs a country's chase: scopes vendors, sends requests, accepts statements, hands
- *             off to Finance. Requested and approved.
+ *             off to Finance. Requested and approved. Granted every country, they also see the
+ *             corporate rollup -- which is what a regional lead is here.
+ *   ap        Accounts Payable for a country. Reads the statements and the evidence once the
+ *             champion has closed the cycle, and changes nothing. Requested and approved, or
+ *             appointed for a shared mailbox nobody can sign in as.
  *   viewer    Reads a country's progress and its evidence trail, and changes nothing. Requested
  *             and approved.
  *
- * A grant is (role, country), and `country` may be NULL, meaning every country — one grant for a
+ * A grant is (role, country), and `country` may be NULL, meaning every country, one grant for a
  * regional lead rather than a row per country that a newly added country would silently fall out
  * of. One person may hold several grants: champion of Saudi Arabia and viewer of Oman is a real
  * arrangement, so this module returns the whole set rather than collapsing it to a single "role"
  * that would have to lie about one of them.
  */
 
-export type SoaRole = 'admin' | 'manager' | 'champion' | 'viewer';
+export type SoaRole = 'admin' | 'champion' | 'ap' | 'viewer';
 
-/** Ranked so a caller can ask for "champion or better" without enumerating. */
-const RANK: Record<SoaRole, number> = { viewer: 0, champion: 1, manager: 2, admin: 3 };
+/**
+ * Ranked so a caller can ask for "champion or better" without enumerating.
+ *
+ * `ap` sits level with `viewer` rather than above or below it. Accounts Payable reads and changes
+ * nothing, so it grants no more than a viewer does; but it is not a lesser champion either, and
+ * ranking it anywhere on that ladder would either let an AP user scope a country or stop them
+ * reading one. What actually differs is WHICH cycles they see, and that is a separate question
+ * asked by `isApOnlyFor` rather than a rung on this ladder.
+ *
+ * There used to be a `manager` rung between champion and admin, and it is the reason to be careful
+ * here: because every guard asks for "champion or better", that one line of ordering silently let
+ * a manager scope vendors, send requests and close a country. Nothing anywhere said they may. A
+ * champion granted every country covers the oversight it was meant for.
+ */
+const RANK: Record<SoaRole, number> = { viewer: 0, ap: 0, champion: 1, admin: 2 };
+
+/** Tie-break for `actor.role`, which is a single label for a person who may hold several. */
+const PREFERENCE: SoaRole[] = ['admin', 'champion', 'ap', 'viewer'];
 
 export interface SoaGrant {
   role: Exclude<SoaRole, 'admin'>;
@@ -78,7 +96,7 @@ export function canAccessCountry(actor: SoaActor, countryId: string, role: SoaRo
  * components that each need it share one pair of queries.
  *
  * Returns null only when nobody is signed in. A signed-in employee with no access still gets an
- * actor — with no grants — because the layout needs to tell them how to ask for some.
+ * actor, with no grants, because the layout needs to tell them how to ask for some.
  */
 export const getSoaActor = cache(async (): Promise<SoaActor | null> => {
   const actor = await currentActor();
@@ -103,10 +121,14 @@ export const getSoaActor = cache(async (): Promise<SoaActor | null> => {
     countryId: r.country_id === null ? null : String(r.country_id),
   }));
 
-  const best = grants.reduce<SoaRole | null>(
-    (acc, g) => (acc === null || RANK[g.role] > RANK[acc] ? g.role : acc),
-    null,
-  );
+  /* `ap` and `viewer` share a rank, so a strict `>` comparison would pick whichever the database
+     happened to return first. Ties resolve by PREFERENCE instead, which keeps the label a person
+     sees stable between page loads. */
+  const best = grants.reduce<SoaRole | null>((acc, g) => {
+    if (acc === null) return g.role;
+    if (RANK[g.role] !== RANK[acc]) return RANK[g.role] > RANK[acc] ? g.role : acc;
+    return PREFERENCE.indexOf(g.role) < PREFERENCE.indexOf(acc) ? g.role : acc;
+  }, null);
 
   return {
     email,
@@ -120,7 +142,7 @@ export const getSoaActor = cache(async (): Promise<SoaActor | null> => {
 
 /**
  * Guard for mutations. Throws rather than returning null, so a denied call cannot fall through to
- * a write — every exported server action in this tool starts with one of these.
+ * a write, every exported server action in this tool starts with one of these.
  */
 export async function requireSoaActor(min: SoaRole = 'viewer'): Promise<SoaActor> {
   const actor = await getSoaActor();
@@ -145,4 +167,21 @@ export async function requireSoaCountry(
     throw new AccessError(`You do not have ${min} access to that country.`);
   }
   return actor;
+}
+
+/**
+ * True when this actor reads a country only as Accounts Payable.
+ *
+ * AP picks a cycle up once the champion has closed it; before that there is nothing they are being
+ * asked to review, and a half-finished chase is not something to hand them. Somebody who is also a
+ * champion, admin or viewer of the same country is not AP-only -- they keep the fuller
+ * view they already had, because losing it would be a strange consequence of also being copied on
+ * the letters.
+ */
+export function isApOnlyFor(actor: SoaActor, countryId: string): boolean {
+  if (actor.isAdmin) return false;
+  const covers = (g: SoaGrant) => g.countryId === null || g.countryId === countryId;
+  if (actor.grants.some((g) => covers(g) && RANK[g.role] > RANK.ap)) return false;
+  if (actor.grants.some((g) => covers(g) && g.role === 'viewer')) return false;
+  return actor.grants.some((g) => covers(g) && g.role === 'ap');
 }

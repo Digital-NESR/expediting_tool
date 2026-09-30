@@ -1,3 +1,5 @@
+'use client';
+
 import type { ScreenProps } from '../types';
 
 /**
@@ -24,8 +26,13 @@ const COPY: Record<string, { title: string; lead: string; next: string }> = {
   },
   'no-extract': {
     title: 'The quarter is open, but its PO snapshot has not been taken',
-    lead: 'Opening a cycle and extracting the PO transactions behind it are two steps. Until the second one runs there are no suppliers to scope from, so every figure on these screens reads zero — not because the country is empty, but because nothing has been read yet.',
+    lead: 'Opening a cycle and extracting the PO transactions behind it are two steps. Until the second one runs there are no suppliers to scope from, so every figure on these screens reads zero, not because the country is empty, but because nothing has been read yet.',
     next: 'An administrator runs the extract on /admin, under SOA Consolidation → Cycles. It aggregates all PO transactions in the cycle’s window and takes a few seconds.',
+  },
+  'not-enrolled': {
+    title: 'Join this country to the cycle',
+    lead: 'The quarter is open and its PO snapshot has been taken. Joining says this country is taking part. It is recorded against your name, and it is what creates the evidence trail an auditor reads later.',
+    next: 'Check the deadline and threshold below, then join. You pick which vendors to chase in the next step.',
   },
   'not-scoped': {
     title: 'This country has not been scoped yet',
@@ -52,6 +59,38 @@ export default function EmptyState({ vm }: ScreenProps) {
           </div>
           <div className="text-[12px] text-sns-ink leading-[1.5]">{copy.next}</div>
         </div>
+        {vm.emptyKind === 'not-enrolled' && (
+          <>
+            {/* The two numbers a champion is agreeing to when they join: what counts as in scope,
+                and the date they are working to. */}
+            <div className="mt-3.5 grid grid-cols-2 gap-2.5">
+              <div className="rounded-lg border border-sns-line px-3.5 py-2.5">
+                <div className="text-[10px] font-bold uppercase tracking-[0.5px] text-sns-grey">
+                  Vendor threshold
+                </div>
+                <div className="text-[15px] font-bold text-sns-ink">{vm.thresholdLabel}</div>
+              </div>
+              <div className="rounded-lg border border-sns-line px-3.5 py-2.5">
+                <div className="text-[10px] font-bold uppercase tracking-[0.5px] text-sns-grey">
+                  Statements due
+                </div>
+                <div className="text-[15px] font-bold text-sns-ink">{vm.deadlineLabel}</div>
+                <div className="mt-0.5 text-[10.5px] text-sns-grey">
+                  Close by {vm.cycleDeadlineLabel}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={vm.onEnrol}
+              disabled={vm.busy || !vm.canScope}
+              title={vm.canScope ? undefined : 'Only a champion for this country can join it.'}
+              className="mt-3.5 rounded-[7px] bg-sns-green px-3.5 py-[9px] text-[12px] font-bold text-white disabled:opacity-50"
+            >
+              Join {vm.cycleLabel} →
+            </button>
+          </>
+        )}
         {vm.emptyKind === 'not-scoped' && (
           <button
             type="button"

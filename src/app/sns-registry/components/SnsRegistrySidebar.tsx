@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { ShieldCheck } from 'lucide-react';
 import { signOut, useSession } from 'next-auth/react';
 import AppSidebar, { sidebarInitials } from '@/components/AppSidebar';
 import { ROLE_SHORT } from '../lib/constants';
@@ -103,15 +104,11 @@ export default function SnsRegistrySidebar({
       {({ pinned, togglePin }) => (
         <>
           <div className="flex h-16 items-center gap-3 bg-gradient-to-br from-[#307c4c] to-[#1d4f31] px-5 text-white">
-            {/* eslint-disable-next-line @next/next/no-img-element -- a fixed
-                brand asset; next/image would want its intrinsic size declared
-                for no benefit at this size. */}
-            <img
-              src="/nesr_logo_white.png"
-              alt=""
-              className="h-7 w-auto shrink-0"
-              aria-hidden="true"
-            />
+            {/* The tool's own mark, from its home page card. This used to be the NESR logo,
+                which says which company built it rather than which tool you are in. */}
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15">
+              <ShieldCheck className="h-[18px] w-[18px] text-white" />
+            </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-bold leading-tight tracking-tight">
                 S&amp;S Registry

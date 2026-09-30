@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useMemo, Fragment } from 'react';
-import { useRouter } from 'next/navigation';
 import { ChevronRight } from 'lucide-react';
 import { SG_BRAND, SG_BRAND_SOFT } from '../constants';
+import TaxonomyFinder from './TaxonomyFinder';
 import type { SgTaxonomyRow } from '@/app/actions/sourceguide';
 
 // Fixed hierarchy — the taxonomy always drills in this order.
@@ -16,8 +16,18 @@ const HIER = [
 ];
 const MAX_NODES = 200;
 
-export default function DecompositionClient({ rows }: { rows: SgTaxonomyRow[] }) {
-  const router = useRouter();
+/**
+ * `onSearch` is what differs between the two places this is drawn. Inside SourceGuide it sends the
+ * reader to the guide's search; on the launcher's standalone page it is left out, because that
+ * search needs a grant this reader may not hold and a link that refuses is worse than no link.
+ */
+export default function DecompositionClient({
+  rows,
+  onSearch,
+}: {
+  rows: SgTaxonomyRow[];
+  onSearch?: () => void;
+}) {
   // path[k] = the chosen value at hierarchy level k
   const [path, setPath] = useState<string[]>([]);
 
@@ -66,6 +76,10 @@ export default function DecompositionClient({ rows }: { rows: SgTaxonomyRow[] })
         </div>
         <h1 className="text-[30px] font-bold tracking-tight">Spend Taxonomy</h1>
       </div>
+
+      {/* Search first, drill second. Most readers know a word of what they are buying and nothing
+          about which of the five levels it lives at. */}
+      <TaxonomyFinder rows={rows} onPick={setPath} />
 
       {/* Fixed hierarchy stepper */}
       <div className="mb-5 flex flex-wrap items-center gap-1.5 rounded-2xl border border-slate-200 bg-white px-4 py-3">
@@ -120,17 +134,15 @@ export default function DecompositionClient({ rows }: { rows: SgTaxonomyRow[] })
         ))}
       </div>
 
-      <p className="mt-auto pt-8 text-[13px] text-slate-500">
-        Looking for a supplier for a specific commodity?{' '}
-        <button
-          onClick={() => router.push('/sourceguide/search')}
-          className="font-semibold hover:underline"
-          style={{ color: SG_BRAND }}
-        >
-          Search the guide
-        </button>
-        .
-      </p>
+      {onSearch && (
+        <p className="mt-auto pt-8 text-[13px] text-slate-500">
+          Looking for a supplier for a specific commodity?{' '}
+          <button onClick={onSearch} className="font-semibold hover:underline" style={{ color: SG_BRAND }}>
+            Search the guide
+          </button>
+          .
+        </p>
+      )}
     </div>
   );
 }

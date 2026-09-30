@@ -11,8 +11,7 @@ const WHY_SCAI = [
 
 export default function ScaiPanel() {
   return (
-    <aside className="w-80 shrink-0">
-      <div className="h-[540px] flex flex-col gap-4 bg-[#f0f9f4] border border-[#b6ddc8] rounded-2xl p-6 overflow-hidden">
+    <div className="h-[540px] flex flex-col gap-4 bg-[#f0f9f4] border border-[#b6ddc8] rounded-2xl p-6 overflow-hidden">
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-[#307c4c]" />
           <p className="text-[10px] font-semibold tracking-widest uppercase text-[#307c4c]">
@@ -113,7 +112,6 @@ export default function ScaiPanel() {
         <p className="text-[11px] text-slate-400 leading-relaxed">
           Powered by NESR&apos;s internal data and policy documents.
         </p>
-      </div>
-    </aside>
+    </div>
   );
 }

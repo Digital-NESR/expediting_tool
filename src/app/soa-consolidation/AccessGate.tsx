@@ -8,21 +8,30 @@ import { submitSoaAccessRequest } from '@/app/actions/soa/access';
 /**
  * What a signed-in employee without a grant sees instead of the tool.
  *
- * Three of the five gate states land here — no request yet, a request still pending, and a
- * request that was rejected or revoked — because they are the same page with a different header:
+ * Three of the five gate states land here, no request yet, a request still pending, and a
+ * request that was rejected or revoked, because they are the same page with a different header:
  * the form is what a rejected user needs (they are allowed to ask again), and hiding it behind a
  * second click would only make them hunt for it.
  *
- * Only Champion and Viewer are offerable. A manager is appointed in the matrix on /admin and an
- * admin comes from ADMIN_EMAILS; `submitSoaAccessRequest` rejects anything else outright, so
- * offering them here would just produce an error the requester cannot act on.
+ * Champion, Accounts Payable and Viewer are offerable. An admin comes from ADMIN_EMAILS, and
+ * `submitSoaAccessRequest` rejects anything else outright, so offering it here would just produce
+ * an error the requester cannot act on.
+ *
+ * An approved request lands in the same `country_users` list the Country Team screen maintains, so
+ * somebody approved here is thereafter managed there, and an AP contact added there needs no
+ * request at all, which matters because half of them are shared mailboxes nobody can sign in as.
  */
 
-const ROLES: { id: 'champion' | 'viewer'; label: string; help: string }[] = [
+const ROLES: { id: 'champion' | 'ap' | 'viewer'; label: string; help: string }[] = [
   {
     id: 'champion',
     label: 'SC SOA Champion',
-    help: 'Runs your country’s vendor chase — scopes vendors, sends requests, accepts statements and hands the consolidated file to Finance.',
+    help: 'Runs your country’s vendor chase, scopes vendors, sends requests, accepts statements and hands the consolidated file to Finance.',
+  },
+  {
+    id: 'ap',
+    label: 'Accounts Payable',
+    help: 'Copied on every vendor letter for your country, and reviews the returned statements once the champion closes the cycle.',
   },
   {
     id: 'viewer',
@@ -49,7 +58,7 @@ export default function AccessGate({
   existing?: { role: string; country: string } | null;
 }) {
   const router = useRouter();
-  const [role, setRole] = useState<'champion' | 'viewer'>('champion');
+  const [role, setRole] = useState<'champion' | 'ap' | 'viewer'>('champion');
   const [country, setCountry] = useState<string>(ALL_COUNTRIES);
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -102,7 +111,7 @@ export default function AccessGate({
         <h1 className="text-[20px] font-bold tracking-tight text-slate-900">Request access</h1>
         <p className="mt-1 text-[13px] leading-relaxed text-slate-500">
           SOA Consolidation coordinates each country&rsquo;s vendor statement chase, from scoping
-          through to the consolidated handoff to Finance. Access is granted per country — tell us
+          through to the consolidated handoff to Finance. Access is granted per country. Tell us
           which role you need and where you work, and an SOA administrator reviews it.
         </p>
 
@@ -151,7 +160,7 @@ export default function AccessGate({
             {refused && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] leading-relaxed text-amber-800">
                 Your access was {status === 'Rejected' ? 'rejected' : 'revoked'}. You can ask again
-                — submitting replaces the old request and puts you back in the review queue.
+ submitting replaces the old request and puts you back in the review queue.
               </div>
             )}
 
@@ -198,7 +207,7 @@ export default function AccessGate({
               <p className="mt-1 text-[12px] text-slate-500">
                 Pick the country you run the chase for. Choose{' '}
                 <span className="font-semibold text-slate-600">All countries</span> only if you work
-                across the region — it keeps covering countries added later.
+                across the region. It keeps covering countries added later.
               </p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {[{ id: ALL_COUNTRIES, name: 'All countries' }, ...countries].map((c) => (
@@ -229,7 +238,7 @@ export default function AccessGate({
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 rows={3}
-                placeholder="Anything that helps the review — your team, the entity you cover, what you'll use it for."
+                placeholder="Anything that helps the review, your team, the entity you cover, what you'll use it for."
                 className="mt-2 w-full rounded-lg border border-slate-200 p-3 text-[13px] text-slate-900 outline-none focus:border-sns-green"
               />
             </div>

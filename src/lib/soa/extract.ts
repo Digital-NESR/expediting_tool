@@ -120,7 +120,7 @@ export async function readSpend(window: CycleWindow): Promise<ExtractedSupplier[
  *
  * Keyed on the SAP supplier code, which both sides store as the same zero-padded ten digits.
  * Failure is swallowed: a missing email makes a vendor unreachable, which the tool shows and a
- * champion can fix by typing one in — losing the whole snapshot because a third database was
+ * champion can fix by typing one in. Losing the whole snapshot because a third database was
  * briefly unavailable would be the worse outcome.
  */
 async function readSupplierEmails(codes: string[]): Promise<Map<string, string[]>> {
@@ -166,7 +166,7 @@ export async function spendCountryMap(): Promise<Map<string, string>> {
  * decides who gets chased while the full total is the denominator every coverage percentage is
  * measured against. Dropping the small suppliers here would make coverage look better than it is.
  *
- * A spend country with no mapping is reported rather than dropped silently — its money would
+ * A spend country with no mapping is reported rather than dropped silently, its money would
  * otherwise vanish from the denominator and flatter every number that country contributes to.
  */
 export async function runExtract(window: CycleWindow): Promise<ExtractSummary> {
@@ -195,12 +195,12 @@ export async function runExtract(window: CycleWindow): Promise<ExtractSummary> {
 
     /* Inserted in batches, not one row at a time.
        A row per round trip measured at ~9ms against this server, which is 26 seconds for a
-       typical 2,800-row snapshot — comfortably past the serverless function timeout, so the
+       typical 2,800-row snapshot, comfortably past the serverless function timeout, so the
        extract was being killed mid-write and the admin screen just sat there. The same rows go in
        under a second as multi-row statements.
 
        500 is well inside Postgres' 65,535 bound parameters (six per row here). The rows are
-       unique by construction — `readSpend` groups by (country, supplier) — so no two rows in a
+       unique by construction, `readSpend` groups by (country, supplier), so no two rows in a
        batch can collide on the conflict target, which is the one thing that would turn a
        multi-row upsert into an error. */
     const BATCH = 500;
@@ -271,7 +271,7 @@ export function windowFor(cycle: {
   lookback_months: number;
 }): CycleWindow {
   /*
-   * A DATE column arrives from `pg` as a Date at LOCAL midnight, not UTC midnight — so on a
+   * A DATE column arrives from `pg` as a Date at LOCAL midnight, not UTC midnight, so on a
    * machine east of Greenwich, reading its UTC parts lands on the previous day and the window
    * silently loses its last few hours. Take the calendar date the column actually holds (its
    * local parts, which are the date SAP meant) and rebuild it in UTC.

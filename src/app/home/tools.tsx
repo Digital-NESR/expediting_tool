@@ -8,10 +8,17 @@
 
 import type { CSSProperties, ReactNode } from 'react';
 import {
+  PoExpeditingMark,
+  ProcureGuardMark,
+  RfxOfficerMark,
+  ShipWavesMark,
+  TiteMark,
+} from '@/components/ToolMarks';
+import {
   Laptop,
-  Gavel,
   Building2,
   GraduationCap,
+  ListTree,
   Receipt,
   ShieldCheck,
   BarChart3,
@@ -44,6 +51,8 @@ export type ToolBadge =
   | { kind: 'success'; label: string }
   /** Grey padlock badge (separate portal). */
   | { kind: 'lock'; label: string }
+  /** Padlock for most people, "Full Access" for an administrator, who needs nobody's permission. */
+  | { kind: 'adminOrLock'; label: string }
   /** Grey pill reading "Admin Preview" / "Coming Soon". */
   | { kind: 'preview' };
 
@@ -71,6 +80,14 @@ export interface ToolDef {
   route: string;
   /** Route is on another domain: the card action is a real external link. */
   external?: boolean;
+  /**
+   * Not in the grid, but findable by searching for it.
+   *
+   * Spend Taxonomy lives in the sidebar rather than as a card, and somebody who types "commodity"
+   * into the launcher search should still be told it exists rather than reading "no applications
+   * match". It appears as an ordinary card for as long as the search matches it.
+   */
+  searchOnly?: boolean;
   helpHref?: string;
   access: ToolAccess;
   badge: ToolBadge;
@@ -81,8 +98,11 @@ export interface ToolDef {
 const HOVER_GREEN = 'hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10';
 const HOVER_TITE = 'hover:border-[#006B0C] hover:shadow-md hover:shadow-[#006B0C]/10';
 const HOVER_SOURCE = 'hover:border-[#2A7E4F] hover:shadow-md hover:shadow-[#2A7E4F]/10';
+const HOVER_SHIPWAVES = 'hover:border-[#3AAEAA] hover:shadow-md hover:shadow-[#3AAEAA]/10';
 
 const NESR_GREEN = '#307c4c';
+/** ShipWaves is its own product with its own teal, the way TI-TE keeps its own green. */
+const SHIPWAVES_TEAL = '#3AAEAA';
 const TITE_GREEN = '#006B0C';
 const SOURCE_GREEN = '#2A7E4F';
 /** text-gray-500 — the action label colour on greyed preview cards. */
@@ -117,21 +137,7 @@ export const TOOLS: ToolDef[] = [
     name: 'PO Expediting',
     description:
       'Monitor open purchase orders, expedite delayed lines, and collect supplier delivery updates.',
-    icon: (
-      <svg
-        className="w-6 h-6 text-[#307c4c]"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={1.75}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V11"
-        />
-      </svg>
-    ),
+    icon: <PoExpeditingMark className="h-6 w-6 text-[#307c4c]" />,
     logoClass: 'bg-[#307c4c]/10',
     hoverClass: HOVER_GREEN,
     accent: NESR_GREEN,
@@ -150,26 +156,13 @@ export const TOOLS: ToolDef[] = [
     subtitle: 'Payment Request Approvals',
     description:
       'Submit adhoc PO and advance payment requests and route them through multi-stage approvals, keeping approvers and requesters notified at each step.',
-    icon: (
-      <svg
-        className="w-6 h-6 text-[#307c4c]"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={1.75}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z"
-        />
-      </svg>
-    ),
-    logoClass: 'bg-[#307c4c]/10',
+    icon: <ProcureGuardMark className="h-6 w-6" />,
+    logoClass: 'bg-white border border-[#307c4c]/15',
     hoverClass: HOVER_GREEN,
     accent: NESR_GREEN,
     tone: 'live',
-    // Open-access: no gate, just open. The layout enforces sign-in.
+    // Open-access: no gate, just open. The layout enforces sign-in. The badge reads Full Access
+    // only for an ADMIN_EMAILS administrator; everyone else sees the role they actually hold.
     route: '/procure-guard',
     helpHref: '/help/procureguard',
     access: { kind: 'always' },
@@ -183,7 +176,7 @@ export const TOOLS: ToolDef[] = [
     name: 'RFx Officer',
     description:
       'AI-assisted RFQ lifecycle: create from PRs, auto-classify spend, get AI supplier suggestions, collect vendor quotes, compare with AI analysis, negotiate, and award.',
-    icon: <Gavel className="w-6 h-6 text-[#307c4c]" />,
+    icon: <RfxOfficerMark className="h-6 w-6" />,
     logoClass: 'bg-[#f0f9f4]',
     hoverClass: HOVER_GREEN,
     accent: NESR_GREEN,
@@ -194,6 +187,48 @@ export const TOOLS: ToolDef[] = [
     helpHref: '/help/rfx-officer',
     access: { kind: 'always' },
     badge: { kind: 'lock', label: 'Portal Access' },
+  },
+
+  {
+    id: 'shipwaves',
+    group: 'online',
+    keywords:
+      'shipwaves logistics shipments tracking freight movement country customs import export transport consignment',
+    name: 'ShipWaves',
+    subtitle: 'Logistics Movement Tracking',
+    description:
+      'Track every logistics movement across NESR: follow shipments by country and movement type, and see where a consignment has reached.',
+    icon: <ShipWavesMark className="h-6 w-6" style={{ color: SHIPWAVES_TEAL }} />,
+    logoClass: 'bg-[#3AAEAA]/10',
+    hoverClass: HOVER_SHIPWAVES,
+    accent: SHIPWAVES_TEAL,
+    tone: 'live',
+    // ShipWaves is its own application on its own domain, so the card action is a real link.
+    route: 'https://app.shipwaves.com',
+    external: true,
+    access: { kind: 'always' },
+    badge: { kind: 'lock', label: 'Portal Access' },
+  },
+
+  {
+    id: 'spend-taxonomy',
+    group: 'online',
+    keywords:
+      'spend taxonomy commodity category sub-category family classification catalogue what we buy purchase request code',
+    name: 'Spend Taxonomy',
+    subtitle: 'What NESR Buys',
+    description:
+      'Drill from Spend Type down to Commodity, or search any level, to find the line NESR buys against.',
+    icon: <ListTree className="h-6 w-6 text-[#307c4c]" />,
+    logoClass: 'bg-[#307c4c]/10',
+    hoverClass: HOVER_GREEN,
+    accent: NESR_GREEN,
+    tone: 'live',
+    route: '/spend-taxonomy',
+    access: { kind: 'always' },
+    badge: { kind: 'success', label: 'Full Access' },
+    // Its home is the panel under SCAI; this entry exists so the search can find it.
+    searchOnly: true,
   },
 
   {
@@ -245,22 +280,7 @@ export const TOOLS: ToolDef[] = [
     subtitle: 'Temporary Import / Export',
     description:
       'Track temporary import and export shipments, manage customs deadlines, deposits, and re-export compliance.',
-    icon: (
-      <svg
-        className="w-6 h-6"
-        style={{ color: TITE_GREEN }}
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={1.75}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-        />
-      </svg>
-    ),
+    icon: <TiteMark className="h-6 w-6" style={{ color: TITE_GREEN }} />,
     logoClass: '',
     logoStyle: { background: '#006B0C18' },
     hoverClass: HOVER_TITE,
@@ -325,27 +345,25 @@ export const TOOLS: ToolDef[] = [
 
   {
     id: 'soa-consolidation',
-    group: 'development',
+    group: 'online',
     keywords:
       'soa consolidation statement of account reconciliation vendor balance confirmation finance champion corporate rollup',
     name: 'SOA Consolidation',
     subtitle: 'Vendor Statement Reconciliation',
     description:
       'Coordinate country finance champions through vendor outreach, SOA collection, and consolidated handoff to corporate finance for quarterly account reconciliation.',
-    icon: <Receipt className="w-6 h-6 text-gray-400" />,
-    logoClass: 'bg-gray-100',
+    icon: <Receipt className="h-6 w-6 text-[#307c4c]" />,
+    logoClass: 'bg-[#307c4c]/10',
     hoverClass: HOVER_GREEN,
-    accent: PREVIEW_GREY,
-    tone: 'preview',
+    accent: NESR_GREEN,
+    tone: 'live',
     route: '/soa-consolidation',
-    /* Not `adminPreview` any more: the tool has a real access-request flow, and an
-       adminPreview card is inert for everyone else — an approved champion would pass the
-       tool's own gate and still have no way in from here short of typing the URL. `always`
-       is the right kind because the gate in the tool's layout does the enforcing, showing
-       the request page to anyone without a grant. It stays in the development group while
-       the screens still render fixtures. */
+    /* `always` rather than `adminPreview`: the tool has a real access-request flow, and the
+       gate in its own layout does the enforcing — anyone without a grant is shown the request
+       page. An adminPreview card would be inert for everyone else, so an approved champion
+       would pass the tool's gate and still have no way in short of typing the URL. */
     access: { kind: 'always' },
-    badge: { kind: 'lock', label: 'Access Required' },
+    badge: { kind: 'adminOrLock', label: 'Access Required' },
     openLabel: 'Open →',
   },
 

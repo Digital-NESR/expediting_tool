@@ -4,16 +4,20 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { csvSafe } from '@/lib/catalog-manager-utils';
-import { applySoaScopeSelection, getSoaScopeCandidates } from '@/app/actions/soa/scoping';
+import {
+  applySoaScopeSelection,
+  enrolSoaCountry,
+  getSoaScopeCandidates,
+} from '@/app/actions/soa/scoping';
 import {
   acceptSoaSubmission,
   getSoaExportRows,
   getSoaOutreachFailures,
   handOffSoaCountry,
-  markSoaNonResponder,
+  resolveSoaVendor,
   recordSoaExport,
+  getSoaOutreachDue,
   sendSoaOutreach,
-  sendSoaOutreachBatch,
   setSoaVendorContacts,
 } from '@/app/actions/soa/workflow';
 import { deriveViewModel, fmtM } from './lib';
@@ -24,11 +28,11 @@ import ToastStack from './components/ToastStack';
 import EmptyState from './components/EmptyState';
 import UploadModal from './components/modals/UploadModal';
 import HandoffModal from './components/modals/HandoffModal';
+import ResolveModal from './components/modals/ResolveModal';
 import DashboardScreen from './components/screens/DashboardScreen';
 import VendorScopingScreen from './components/screens/VendorScopingScreen';
 import OutreachScreen from './components/screens/OutreachScreen';
 import ResponseTrackingScreen from './components/screens/ResponseTrackingScreen';
-import SoaIntakeScreen from './components/screens/SoaIntakeScreen';
 import ConsolidationScreen from './components/screens/ConsolidationScreen';
 import EvidenceScreen from './components/screens/EvidenceScreen';
 import CorporateRollupScreen from './components/screens/CorporateRollupScreen';
@@ -51,7 +55,9 @@ const INITIAL: AppState = {
   scopeSearch: '',
   scopePage: 0,
   busy: false,
+  sendProgress: null,
   failures: null,
+  failuresLoading: false,
   scopeCandidates: null,
   scopeLoading: false,
   scopeError: null,
@@ -59,7 +65,7 @@ const INITIAL: AppState = {
   scopeSaved: null,
 };
 
-/** The vendor numbers a country is already chasing — where a fresh draft starts from. */
+/** The vendor numbers a country is already chasing, where a fresh draft starts from. */
 function seedSelection(candidates: { vendorNo: string; selected: boolean }[]): ReadonlySet<string> {
   return new Set(candidates.filter((c) => c.selected).map((c) => c.vendorNo));
 }
@@ -112,7 +118,7 @@ export default function SoaConsolidationClient({
    * Run one server action.
    *
    * A failed action's `error` is written to be read by the person who clicked, so it is shown
-   * verbatim rather than replaced with a generic apology — `handOffSoaCountry` in particular
+   * verbatim rather than replaced with a generic apology. `handOffSoaCountry` in particular
    * refuses below the coverage target and explains exactly how short the country is.
    */
   async function run<T>(
@@ -142,7 +148,7 @@ export default function SoaConsolidationClient({
    * Fetched here rather than in the page payload: it is 525 rows for Saudi Arabia, it is wanted on
    * exactly one of the eight screens, and it would otherwise be serialised into every page load.
    * A successful read also reseeds the draft, so what is ticked always starts from what the
-   * database actually holds — including after a save.
+   * database actually holds, including after a save.
    */
   function loadScopeCandidates() {
     const cycle = payload.cycle;
@@ -174,6 +180,113 @@ export default function SoaConsolidationClient({
       .finally(() => {
         scopeFetching.current = false;
       });
+  }
+
+  /**
+   * Read the delivery log.
+   *
+   * Hoisted out of `handlers` because the retry calls it too, and a method reached through the
+   * view model as a bare function has no `this` to find its neighbour on.
+   *
+   * It carries its own in-flight flag rather than the shared `busy`: Response Tracking reads this
+   * by itself when it opens, and routing that through `busy` would grey out every button on the
+   * screen to do it.
+   */
+  function readDeliveryLog() {
+    if (!countryId) return;
+    patch({ failuresLoading: true });
+    void getSoaOutreachFailures(countryId)
+      .then((rows) => patch({ failures: rows, failuresLoading: false }))
+      .catch(() => {
+        patch({ failures: [], failuresLoading: false });
+        addToast('warning', 'Could not load failures', 'The delivery log could not be read.');
+      });
+  }
+
+  /**
+   * Send to a whole country, one vendor at a time, counting them off.
+   *
+   * The server has a batch action that does the same loop in one call, and it cannot say anything
+   * until it is finished: for 120 suppliers at roughly a second each that is a button sitting
+   * still for two minutes, which reads as a hang. The list of who is due is fetched first and then
+   * each one is sent on its own, so the screen can show 23 of 120 and name the vendor in flight.
+   *
+   * The cost is a rendered letter per vendor rather than per country. Against a webhook call that
+   * takes about a second, three extra queries are noise, and a champion who can see it working is
+   * worth more than the milliseconds.
+   *
+   * Failures do not stop it. One vendor with no address must not cost the other 119 their letter,
+   * which is the same reasoning the batch action was written with.
+   */
+  async function runBulkSend(
+    kind: 'request' | 'reminder' | 'retry',
+    cc?: string[],
+    ccRemoved?: string[],
+  ) {
+    if (!countryId) return;
+    patch({ busy: true, sendProgress: { kind, done: 0, total: 0, failed: 0, current: '' } });
+
+    const due = await getSoaOutreachDue({ countryId, kind });
+    if (!due.success || !due.data) {
+      patch({ busy: false, sendProgress: null });
+      return addToast('warning', 'Could not start', due.error ?? 'Nobody could be read as due.');
+    }
+    const list = due.data;
+    if (!list.length) {
+      patch({ busy: false, sendProgress: null });
+      return addToast(
+        'info',
+        kind === 'retry' ? 'Nothing to retry' : 'Nothing to send',
+        kind === 'request'
+          ? 'Every in-scope vendor has already been asked.'
+          : kind === 'reminder'
+            ? 'No vendor is currently owing a statement.'
+            : 'Every refused send has since been made good.',
+      );
+    }
+
+    let sent = 0;
+    let failed = 0;
+    let firstError: string | null = null;
+    for (const [i, item] of list.entries()) {
+      patch({
+        sendProgress: {
+          kind,
+          done: i,
+          total: list.length,
+          failed,
+          current: item.vendorName,
+        },
+      });
+      const result = await sendSoaOutreach({
+        entryId: item.entryId,
+        kind: item.kind,
+        cc,
+        ccRemoved,
+      });
+      if (result.success) sent += 1;
+      else {
+        failed += 1;
+        firstError ??= result.error ?? null;
+      }
+    }
+
+    patch({
+      busy: false,
+      sendProgress: null,
+      // The delivery log the retry button counts from has just changed under it.
+      failures: null,
+    });
+    router.refresh();
+
+    const noun = kind === 'request' ? 'requests' : 'reminders';
+    addToast(
+      failed > 0 ? 'warning' : 'success',
+      failed > 0 ? `${sent} sent, ${failed} failed` : `${sent} ${noun} sent`,
+      failed > 0
+        ? (firstError ?? 'Some vendors could not be reached.')
+        : 'Evidence logged against every one.',
+    );
   }
 
   const handlers: Handlers = {
@@ -215,74 +328,63 @@ export default function SoaConsolidationClient({
       patch({ modal: null });
     },
 
-    sendRequests() {
+    enrol() {
       if (!countryId) return;
       void run(
-        () => sendSoaOutreachBatch({ countryId, kind: 'request' }),
-        (data) => {
-          const sent = data?.sent ?? 0;
-          const failed = data?.failed ?? 0;
-          // Report what happened, including the failures. The prototype claimed every send
-          // succeeded because it never sent anything.
+        () => enrolSoaCountry(countryId),
+        () =>
           addToast(
-            failed > 0 ? 'warning' : sent > 0 ? 'success' : 'info',
-            failed > 0
-              ? `${sent} requests sent, ${failed} failed`
-              : sent > 0
-                ? `${sent} requests sent`
-                : 'No requests were due',
-            failed > 0
-              ? (data?.firstError ?? 'Some vendors could not be reached.')
-              : sent > 0
-                ? 'Initial statement requests dispatched. Evidence logged.'
-                : 'Every in-scope vendor has already been asked.',
-          );
-        },
-        'Requests not sent',
+            'success',
+            'Joined the cycle',
+            'Next, open Vendor Scoping and choose which suppliers to chase.',
+          ),
+        'Could not join the cycle',
       );
     },
-    sendReminders() {
-      if (!countryId) return;
-      void run(
-        () => sendSoaOutreachBatch({ countryId, kind: 'reminder' }),
-        (data) => {
-          const sent = data?.sent ?? 0;
-          const failed = data?.failed ?? 0;
-          addToast(
-            failed > 0 ? 'warning' : sent > 0 ? 'success' : 'info',
-            failed > 0
-              ? `${sent} reminders sent, ${failed} failed`
-              : sent > 0
-                ? `${sent} reminders sent`
-                : 'No reminders were due',
-            failed > 0
-              ? (data?.firstError ?? 'Some vendors could not be reached.')
-              : sent > 0
-                ? 'Reminder emails dispatched. Evidence logged.'
-                : 'No vendor is currently awaiting a second request.',
-          );
-        },
-        'Reminders not sent',
-      );
+    sendRequests(cc, ccRemoved) {
+      void runBulkSend('request', cc, ccRemoved);
     },
-    sendOneReminder(id) {
+    sendReminders(cc, ccRemoved) {
+      void runBulkSend('reminder', cc, ccRemoved);
+    },
+    sendOne(id, kind) {
       void run(
-        () => sendSoaOutreach({ entryId: Number(id), kind: 'reminder' }),
+        () => sendSoaOutreach({ entryId: Number(id), kind }),
         () => {
           patch({ expandedVendor: null });
-          addToast('success', 'Reminder sent', 'Second request dispatched and logged.');
+          addToast(
+            'success',
+            kind === 'request' ? 'Request sent' : 'Reminder sent',
+            kind === 'request'
+              ? 'Statement request dispatched and logged.'
+              : 'Another request dispatched and logged.',
+          );
         },
-        'Reminder not sent',
+        kind === 'request' ? 'Request not sent' : 'Reminder not sent',
       );
     },
-    markNR(id) {
+    retryFailed: () => {
+      void runBulkSend('retry');
+    },
+    openResolveModal(vendorId) {
+      patch({ modal: { type: 'resolve', vendorId } });
+    },
+    resolveVendor(outcome, note) {
+      const modal = state.modal;
+      if (!modal || modal.type !== 'resolve') return;
       void run(
-        () => markSoaNonResponder(Number(id)),
+        () => resolveSoaVendor({ entryId: Number(modal.vendorId), outcome, note }),
         () => {
-          patch({ expandedVendor: null });
-          addToast('warning', 'Non-responder flagged', 'Correspondence retained as evidence.');
+          patch({ modal: null, expandedVendor: null });
+          addToast(
+            outcome === 'nil_balance' ? 'success' : 'warning',
+            outcome === 'nil_balance' ? 'Closed, no pending invoices' : 'Non-responder flagged',
+            outcome === 'nil_balance'
+              ? 'This vendor now counts towards coverage. Your reason is on the evidence trail.'
+              : 'The balance stays unconfirmed and does not count towards coverage. Correspondence retained as evidence.',
+          );
         },
-        'Could not flag the vendor',
+        'Could not close that vendor',
       );
     },
     saveContacts(id, emails) {
@@ -292,17 +394,29 @@ export default function SoaConsolidationClient({
         'Contacts not saved',
       );
     },
-    acceptSOA(file, invoiceCount) {
+    acceptSOA(file) {
       const modal = state.modal;
       if (!modal || modal.type !== 'upload') return;
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('invoiceCount', String(invoiceCount));
       void run(
         () => acceptSoaSubmission(Number(modal.vendorId), formData),
-        () => {
+        (data) => {
           patch({ modal: null, expandedVendor: null });
-          addToast('success', 'SOA accepted', `${file.name} validated and stored.`);
+          const lines = data?.lines ?? 0;
+          const flagged = data?.needingReview ?? 0;
+          const filed = /\.(eml|msg)$/i.test(file.name);
+          // The count comes from the file. It used to be typed in beside the picker and then
+          // thrown away unread, so the figure on the row was whatever somebody had counted by eye
+          // while the tool had already read the rows and knew.
+          addToast(
+            'success',
+            filed ? 'Reply filed as evidence' : 'SOA accepted',
+            filed
+              ? `${file.name} is on file. This vendor counts towards coverage, and the consolidated workbook will refer AP to the attachment.`
+              : `${lines} invoice ${lines === 1 ? 'line' : 'lines'} read from ${file.name}` +
+                (flagged > 0 ? `, ${flagged} needing review.` : '.'),
+          );
         },
         'SOA not accepted',
       );
@@ -358,16 +472,7 @@ export default function SoaConsolidationClient({
         'Selection not saved',
       );
     },
-    loadFailures() {
-      if (!countryId) return;
-      patch({ busy: true });
-      void getSoaOutreachFailures(countryId)
-        .then((rows) => patch({ failures: rows, busy: false }))
-        .catch(() => {
-          patch({ failures: [], busy: false });
-          addToast('warning', 'Could not load failures', 'The delivery log could not be read.');
-        });
-    },
+    loadFailures: readDeliveryLog,
     generateExport() {
       if (!countryId) return;
       patch({ busy: true });
@@ -450,13 +555,26 @@ export default function SoaConsolidationClient({
       if (!countryId) return;
       void run(
         () => handOffSoaCountry(countryId),
-        () => {
+        (data) => {
           patch({ modal: null });
-          addToast(
-            'success',
-            'Handed off to Finance',
-            `${payload.countryName} ${payload.cycle?.label ?? ''} delivered to the AP Country Group inbox.`,
-          );
+          const where = `${payload.countryName} ${payload.cycle?.label ?? ''}`.trim();
+          /* Say which of the two actually happened. The close is committed either way, and a
+             champion who is told "AP notified" when no mail went will not chase it. */
+          if (data?.notified) {
+            addToast(
+              'success',
+              'Closed and Accounts Payable notified',
+              `${where} is closed. ${data.apContacts === 1 ? 'The AP contact has' : `All ${data.apContacts} AP contacts have`} been emailed and can now review it.`,
+            );
+          } else {
+            addToast(
+              'warning',
+              'Closed, but Accounts Payable was not emailed',
+              data?.apContacts === 0
+                ? `${where} is closed. No AP contact is set for this country, so nobody was told, add one in /admin.`
+                : `${where} is closed and is readable by Accounts Payable in the portal, but the notification could not be sent.`,
+            );
+          }
         },
         // handOffSoaCountry refuses below the coverage target and says by how much; that message
         // is the whole point of the refusal, so it is surfaced rather than swallowed.
@@ -486,7 +604,6 @@ export default function SoaConsolidationClient({
               {vm.showScoping && <VendorScopingScreen vm={vm} />}
               {vm.showOutreach && <OutreachScreen vm={vm} />}
               {vm.showTracking && <ResponseTrackingScreen vm={vm} />}
-              {vm.showIntake && <SoaIntakeScreen vm={vm} />}
               {vm.showConsolidation && <ConsolidationScreen vm={vm} />}
               {vm.showEvidence && <EvidenceScreen vm={vm} />}
               {vm.showRollup && <CorporateRollupScreen vm={vm} />}
@@ -508,6 +625,7 @@ export default function SoaConsolidationClient({
           >
             <div className="bg-white rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.2)] w-[480px] overflow-x-hidden max-h-[90vh] overflow-y-auto">
               {vm.isUploadModal && <UploadModal vm={vm} />}
+              {vm.isResolveModal && <ResolveModal vm={vm} />}
               {vm.isHandoffModal && <HandoffModal vm={vm} />}
             </div>
           </div>,
