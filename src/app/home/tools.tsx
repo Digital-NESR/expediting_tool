@@ -325,10 +325,9 @@ export const TOOLS: ToolDef[] = [
 
   {
     id: 'learning-hub',
-    group: 'development',
+    group: 'online',
     keywords: 'learning hub training courses sap supply chain academy lms',
     name: 'Learning Hub',
-    pill: 'Under Development',
     subtitle: <>SAP, Supply Chain &amp; NESR Training</>,
     description:
       'Self-paced courses across three tracks: SAP, general Supply Chain fundamentals, and NESR-specific supply chain practice.',

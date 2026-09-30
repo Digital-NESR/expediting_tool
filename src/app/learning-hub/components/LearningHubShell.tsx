@@ -46,8 +46,11 @@ export default function LearningHubShell({
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        {backHref && <LearningHubBackButton href={backHref} />}
+        {/* Home first, then Back: the two read left to right as widening then narrowing scope,
+            and Back keeps its place beside the page it belongs to rather than sitting a button away
+            from it. */}
         <LearningHubHomeButton />
+        {backHref && <LearningHubBackButton href={backHref} />}
         <LearningHubLogo size="sm" />
         {title}
       </header>

@@ -27,6 +27,13 @@ const PendingModal = dynamic(() => import('./access-modals').then((m) => m.Pendi
    to know which tool it is for. */
 type ModalState = { kind: 'request'; tool: ModalTool } | { kind: 'pending' } | null;
 
+/* Both grids are captioned "alphabetical", and until this sorted them they were only alphabetical
+   for as long as everybody remembered to insert new cards in the right place. Two had already been
+   appended to the end of the list instead. Sorting here means the caption stays true on its own. */
+function byName(tools: ToolDef[], group: ToolDef['group']): ToolDef[] {
+  return tools.filter((t) => t.group === group).sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export default function ToolLauncher({ scaiPanel }: { scaiPanel: ReactNode }) {
   const { data: session, status: sessionStatus, update } = useSession();
 
@@ -187,12 +194,12 @@ export default function ToolLauncher({ scaiPanel }: { scaiPanel: ReactNode }) {
 
           {/* ── Available (launched) — alphabetical ── */}
           <div className="grid grid-cols-3 gap-6 content-start">
-            {visible.filter((t) => t.group === 'online').map(renderCard)}
+            {byName(visible, 'online').map(renderCard)}
           </div>
 
           {/* ── Coming Soon / under development — alphabetical ── */}
           <div className="grid grid-cols-3 gap-6 content-start">
-            {visible.filter((t) => t.group === 'development').map(renderCard)}
+            {byName(visible, 'development').map(renderCard)}
           </div>
 
           {q && visible.length === 0 && (

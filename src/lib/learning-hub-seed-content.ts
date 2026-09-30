@@ -63,7 +63,7 @@ export const SEED_TRACKS: SeedTrack[] = [
       {
         title: 'SAP MM Overview',
         description:
-          'Start here. A six-part introduction from the Digital Studio: how SAP’s structure maps onto NESR’s, how it is coded, the master data underneath it, and the procure-to-pay cycle that runs on top. Watch in order — each one builds on the last.',
+          'Start here. A nine-part introduction from the Digital Studio: how SAP’s structure maps onto NESR’s, how it is coded, the master data underneath it, and the procure-to-pay cycle that runs on top, then order types, inventory versus consumable, and asset purchase orders. Watch in order, each one builds on the last.',
         status: 'published',
         modules: [
           {
@@ -73,7 +73,7 @@ export const SEED_TRACKS: SeedTrack[] = [
                 title: '1. SAP vs NESR Structure',
                 videoUrl:
                   'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=160b20f2-4984-468f-b189-5afa8f6e0c2a&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
-                body: `How SAP’s own organisational structure maps onto NESR’s — the starting point for everything else in this track.`,
+                body: `How SAP’s own organisational structure maps onto NESR’s, the starting point for everything else in this track.`,
               },
               {
                 title: '2. NESR Structure Coding',
@@ -103,7 +103,7 @@ export const SEED_TRACKS: SeedTrack[] = [
                 title: '6. Purchase Requisition Overview',
                 videoUrl:
                   'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=56581a66-8f10-45e1-b4b7-1fe40fc15541&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create',
-                body: `The purchase requisition in detail — where the cycle actually begins for most people using SAP.`,
+                body: `The purchase requisition in detail, where the cycle actually begins for most people using SAP.`,
               },
               {
                 title: '7. Purchase Order Types',
@@ -260,7 +260,7 @@ export const SEED_TRACKS: SeedTrack[] = [
       {
         title: 'Inventory',
         description:
-          'What happens to stock once it has arrived — goods issues against cost centres and maintenance orders.',
+          'What happens to stock once it has arrived: goods issues against cost centres and maintenance orders.',
         status: 'published',
         modules: [
           {
