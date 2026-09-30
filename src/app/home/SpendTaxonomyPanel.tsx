@@ -21,22 +21,24 @@ export default async function SpendTaxonomyPanel() {
   return (
     <a
       href="/spend-taxonomy"
-      className="group flex flex-1 flex-col justify-between rounded-2xl border border-[#b6ddc8] bg-[#f0f9f4] p-6 transition-all duration-200 hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10"
+      className="group flex flex-col gap-2 rounded-2xl border border-[#b6ddc8] bg-[#f0f9f4] p-5 transition-all duration-200 hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10"
     >
-      <div>
-        <span className="grid h-11 w-11 place-items-center rounded-xl bg-white">
-          <ListTree className="h-5 w-5 text-[#307c4c]" />
+      {/* Icon and name on one line. Stacked, this panel took height the SCAI panel above it needed
+          more than it did: SCAI carries four agents and this carries one link. */}
+      <div className="flex items-center gap-2.5">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white">
+          <ListTree className="h-[18px] w-[18px] text-[#307c4c]" />
         </span>
-        <h2 className="mt-3 text-[17px] font-bold leading-tight text-slate-900 group-hover:underline">
+        <h2 className="text-[15px] font-bold leading-tight text-slate-900 group-hover:underline">
           Spend Taxonomy
         </h2>
-        <p className="mt-1 text-[13px] leading-relaxed text-slate-500">
-          {commodities > 0
-            ? `Look up any commodity across ${categories} categories and ${commodities.toLocaleString('en-US')} lines.`
-            : 'Look up any commodity in the four-level hierarchy NESR buys against.'}
-        </p>
       </div>
-      <span className="mt-4 text-sm font-semibold text-[#307c4c]">Open →</span>
+      <p className="text-[12.5px] leading-relaxed text-slate-500">
+        {commodities > 0
+          ? `Any commodity across ${categories} categories and ${commodities.toLocaleString('en-US')} lines.`
+          : 'Any commodity in the four-level hierarchy NESR buys against.'}
+      </p>
+      <span className="text-[13px] font-semibold text-[#307c4c]">Open →</span>
     </a>
   );
 }
