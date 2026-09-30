@@ -628,6 +628,8 @@ interface RecordContext {
   supplierId: string;
   supplierName: string;
   scope: string;
+  /** `YYYY-MM-DD`, or '' on a draft that has not been given one yet. */
+  expiry: string;
   categories: string[];
   requestorEmail: string;
   /** Everyone who has touched the record: the requestor and each validator. */
@@ -649,7 +651,7 @@ interface RecordContext {
 async function loadRecordContext(client: PoolClient, rid: number): Promise<RecordContext | null> {
   const { rows } = await client.query(
     `SELECT r.rid, r.registry_id, r.classification, r.country, r.supplier_id, r.supplier_name,
-            r.created_by, COALESCE(r.country_code, c.code) AS resolved_country_code
+            r.expiry_date, r.created_by, COALESCE(r.country_code, c.code) AS resolved_country_code
        FROM sns_record r
        LEFT JOIN sns_country c ON c.name = r.country
       WHERE r.rid = $1`,
@@ -702,6 +704,7 @@ async function loadRecordContext(client: PoolClient, rid: number): Promise<Recor
     supplierId: String(r.supplier_id ?? ''),
     supplierName: String(r.supplier_name ?? ''),
     scope: nodes.rows.map((n) => String(n.commodity || n.family)).join(', ') || '—',
+    expiry: isoOrNull(r.expiry_date) ?? '',
     categories: [...new Set(nodes.rows.map((n) => String(n.category)))],
     requestorEmail,
     stakeholders: [...stakeholders],
@@ -771,6 +774,7 @@ async function notifyWorkflow(
     supplierName: ctx.supplierName,
     supplierId: ctx.supplierId,
     scope: ctx.scope,
+    expiry: ctx.expiry,
     actor,
     note,
     recordUrl: snsRecordUrl(ctx.rid),
@@ -789,6 +793,7 @@ async function notifyWorkflow(
       supplier_id: ctx.supplierId,
       supplier_name: ctx.supplierName,
       scope: ctx.scope,
+      expiry_date: ctx.expiry || null,
       categories: ctx.categories,
       url: snsRecordUrl(ctx.rid),
     },
@@ -1172,9 +1177,10 @@ export async function advanceSnsRecord(rid: number, comment = ''): Promise<Actio
       if (rec.registry_id) {
         // Periodic review: keep the existing Registry ID, extend 12 months.
         const from = rec.expiry_date ? parseISODate(isoOrNull(rec.expiry_date) as string) : now;
+        const extendedExpiry = toISODate(addDays(from, 365));
         await client.query(
           `UPDATE sns_record SET base_status = 'Extended', expiry_date = $2, updated_at = CURRENT_TIMESTAMP WHERE rid = $1`,
-          [rid, toISODate(addDays(from, 365))],
+          [rid, extendedExpiry],
         );
         await addHistory(
           client,
@@ -1192,10 +1198,14 @@ export async function advanceSnsRecord(rid: number, comment = ''): Promise<Actio
         );
         notify = async () => {
           if (!ctxForGate) return;
+          /* The context was read before the extension, so its expiry is the one
+             the review was triggered by. The mail is announcing the new window,
+             so it has to carry the new date. */
+          const extended = { ...ctxForGate, expiry: extendedExpiry };
           await notifyWorkflow(
             'renewed',
-            ctxForGate,
-            await stakeholderRecipients(ctxForGate),
+            extended,
+            await stakeholderRecipients(extended),
             actorFor(viewer, 'l2', country),
           );
         };

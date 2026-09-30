@@ -1,5 +1,6 @@
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
+import { formatDate } from '@/app/sns-registry/lib/date';
 import { logger } from '@/lib/logger';
 
 /**
@@ -143,6 +144,16 @@ export interface WorkflowEmailInput {
   supplierName: string;
   supplierId: string;
   scope: string;
+  /**
+   * The record's own expiry, `YYYY-MM-DD`, or '' when it has none yet.
+   *
+   * Stated rather than described. The copy used to say the ID was "valid for
+   * twelve months from today", which is only ever true by coincidence: twelve
+   * months is the ceiling the requestor may choose, not the window they get,
+   * and sign-off happens some days after submission. A record given a
+   * three-month expiry was announced as a twelve-month one.
+   */
+  expiry: string;
   actor: string;
   note: string;
   recordUrl: string;
@@ -164,7 +175,7 @@ const WORKFLOW_COPY: Record<
   },
   published: {
     headline: 'Published to Active',
-    body: 'The record has been signed off and issued a Registry ID, valid for twelve months from today.',
+    body: 'The record has been signed off and issued a Registry ID. It is valid until the date below.',
     tone: '#2A7E4F',
   },
   rejected: {
@@ -174,7 +185,7 @@ const WORKFLOW_COPY: Record<
   },
   renewed: {
     headline: 'Renewed for a further twelve months',
-    body: 'The periodic review is complete. The original Registry ID is retained and expiry has moved out twelve months.',
+    body: 'The periodic review is complete. The original Registry ID is retained and the expiry has moved out to the date below.',
     tone: '#2A7E4F',
   },
   closed: {
@@ -191,8 +202,13 @@ export function buildWorkflowEmail(input: WorkflowEmailInput): {
   const copy = WORKFLOW_COPY[input.event];
   const subject = `[S&S Registry] ${input.registryId} — ${copy.headline} — ${input.supplierName}`;
 
+  /* Suppressed on a closure: the record is retired, and a validity date in the
+     future reads as a contradiction of the headline. */
+  const showExpiry = input.event !== 'closed' && Boolean(input.expiry);
+
   const rows: [string, string][] = [
     ['Registry ID', input.registryId],
+    ...(showExpiry ? ([['Valid until', formatDate(input.expiry)]] as [string, string][]) : []),
     ['Classification', input.classification],
     ['Country', input.country],
     ['Supplier', `${input.supplierId} — ${input.supplierName}`],
