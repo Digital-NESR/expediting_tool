@@ -11,3 +11,6 @@
  * the literal.
  */
 export const TITE_BRAND = '#006B0C';
+
+/** The Travel Portal's blue, shared by its home card and its help page. */
+export const TRAVEL_BRAND = '#1E6FB8';

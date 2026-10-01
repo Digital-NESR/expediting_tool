@@ -13,6 +13,7 @@ import {
   RfxOfficerMark,
   ShipWavesMark,
   TiteMark,
+  TravelPortalMark,
 } from '@/components/ToolMarks';
 import {
   Laptop,
@@ -66,6 +67,13 @@ export interface ToolDef {
   subtitle?: ReactNode;
   /** Small pill rendered beside the title (Learning Hub's "Under Development"). */
   pill?: string;
+  /**
+   * Where the tool has actually been rolled out, as small pills under the description.
+   *
+   * Only for a tool that is live in some of NESR's countries and not others. Leaving it off means
+   * "everywhere", which is true of every other card, so an empty row is never drawn.
+   */
+  regions?: string[];
   description: ReactNode;
   icon: ReactNode;
   /** Logo tile classes / inline background. */
@@ -99,10 +107,13 @@ const HOVER_GREEN = 'hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4
 const HOVER_TITE = 'hover:border-[#006B0C] hover:shadow-md hover:shadow-[#006B0C]/10';
 const HOVER_SOURCE = 'hover:border-[#2A7E4F] hover:shadow-md hover:shadow-[#2A7E4F]/10';
 const HOVER_SHIPWAVES = 'hover:border-[#3AAEAA] hover:shadow-md hover:shadow-[#3AAEAA]/10';
+const HOVER_TRAVEL = 'hover:border-[#1E6FB8] hover:shadow-md hover:shadow-[#1E6FB8]/10';
 
 const NESR_GREEN = '#307c4c';
 /** ShipWaves is its own product with its own teal, the way TI-TE keeps its own green. */
 const SHIPWAVES_TEAL = '#3AAEAA';
+/** The Travel Portal, likewise its own product. The one blue among the cards. */
+const TRAVEL_BLUE = '#1E6FB8';
 const TITE_GREEN = '#006B0C';
 const SOURCE_GREEN = '#2A7E4F';
 /** text-gray-500 — the action label colour on greyed preview cards. */
@@ -206,6 +217,31 @@ export const TOOLS: ToolDef[] = [
     // ShipWaves is its own application on its own domain, so the card action is a real link.
     route: 'https://app.shipwaves.com',
     external: true,
+    access: { kind: 'always' },
+    badge: { kind: 'lock', label: 'Portal Access' },
+  },
+
+  {
+    id: 'travel-portal',
+    group: 'online',
+    keywords:
+      'travel portal trip flight booking hotel ticket vacation business rotation leave itinerary approval per diem visa',
+    name: 'Travel Portal',
+    subtitle: 'Book and Approve Travel',
+    description:
+      'Book every kind of NESR travel in one place, business, vacation or rotation, with the travel policy and the approval chain built in.',
+    icon: <TravelPortalMark className="h-6 w-6" style={{ color: TRAVEL_BLUE }} />,
+    logoClass: 'bg-[#1E6FB8]/10',
+    hoverClass: HOVER_TRAVEL,
+    accent: TRAVEL_BLUE,
+    tone: 'live',
+    // Its own application on its own domain, so the card action is a real link.
+    route: 'https://travel.nesr.com',
+    external: true,
+    // Rolled out country by country, so the card says where it works rather than
+    // letting somebody in Oman click through and find nothing for them.
+    regions: ['UAE - Dubai', 'UAE - Abu Dhabi', 'Kuwait'],
+    helpHref: '/help/travel-portal',
     access: { kind: 'always' },
     badge: { kind: 'lock', label: 'Portal Access' },
   },

@@ -146,3 +146,33 @@ export function ShipWavesMark({ className = 'h-6 w-6', style }: MarkProps) {
     </svg>
   );
 }
+
+/**
+ * Travel Portal - a globe with a plane leaving it.
+ *
+ * The two halves are kept apart rather than overlapped: at 24px a plane crossing the globe's
+ * meridians turns into a smudge, and there is no background colour a halo could be punched in,
+ * because the same glyph sits on a tinted square and on a solid one. So the globe takes the
+ * lower-left and the plane the upper-right corner the globe does not reach, and nothing overlaps.
+ *
+ * The plane is an aircraft silhouette rather than the obvious paper-plane triangle: rendered at the
+ * size the card actually uses, a filled triangle reads as a cursor arrow, and wings are what makes
+ * it an aeroplane.
+ */
+export function TravelPortalMark({ className = 'h-6 w-6', style }: MarkProps) {
+  return (
+    <svg className={className} style={style} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <g stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
+        <circle cx="10" cy="14" r="6.8" />
+        {/* Meridian and equator: the two lines that make a circle read as a globe. */}
+        <ellipse cx="10" cy="14" rx="2.92" ry="6.8" />
+        <line x1="3.2" y1="14" x2="16.8" y2="14" />
+      </g>
+      <path
+        d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"
+        fill="currentColor"
+        transform="translate(12.4 0.1) scale(0.46)"
+      />
+    </svg>
+  );
+}

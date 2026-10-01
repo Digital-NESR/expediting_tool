@@ -296,6 +296,25 @@ export function ToolCard({
           <p className="mt-0.5 text-[13px] font-medium text-slate-400">{tool.subtitle}</p>
         )}
         <p className="mt-2 text-sm leading-relaxed text-gray-500">{tool.description}</p>
+        {/* Where it is actually switched on. A tool that is live in three places and not the
+            other eight has to say so on the card, or somebody in a ninth clicks Portal Access and
+            finds a product that has nothing for them yet. Absent on every other card, which is
+            how "everywhere" is said. */}
+        {tool.regions && tool.regions.length > 0 && (
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              Live in
+            </span>
+            {tool.regions.map((region) => (
+              <span
+                key={region}
+                className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 ring-1 ring-slate-200"
+              >
+                {region}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="relative z-10 mt-auto flex items-center justify-between pointer-events-none">
