@@ -106,14 +106,8 @@ export interface ToolDef {
 const HOVER_GREEN = 'hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10';
 const HOVER_TITE = 'hover:border-[#006B0C] hover:shadow-md hover:shadow-[#006B0C]/10';
 const HOVER_SOURCE = 'hover:border-[#2A7E4F] hover:shadow-md hover:shadow-[#2A7E4F]/10';
-const HOVER_SHIPWAVES = 'hover:border-[#3AAEAA] hover:shadow-md hover:shadow-[#3AAEAA]/10';
-const HOVER_TRAVEL = 'hover:border-[#1E6FB8] hover:shadow-md hover:shadow-[#1E6FB8]/10';
 
 const NESR_GREEN = '#307c4c';
-/** ShipWaves is its own product with its own teal, the way TI-TE keeps its own green. */
-const SHIPWAVES_TEAL = '#3AAEAA';
-/** The Travel Portal, likewise its own product. The one blue among the cards. */
-const TRAVEL_BLUE = '#1E6FB8';
 const TITE_GREEN = '#006B0C';
 const SOURCE_GREEN = '#2A7E4F';
 /** text-gray-500 — the action label colour on greyed preview cards. */
@@ -209,10 +203,10 @@ export const TOOLS: ToolDef[] = [
     subtitle: 'Logistics Movement Tracking',
     description:
       'Track every logistics movement across NESR: follow shipments by country and movement type, and see where a consignment has reached.',
-    icon: <ShipWavesMark className="h-6 w-6" style={{ color: SHIPWAVES_TEAL }} />,
-    logoClass: 'bg-[#3AAEAA]/10',
-    hoverClass: HOVER_SHIPWAVES,
-    accent: SHIPWAVES_TEAL,
+    icon: <ShipWavesMark className="h-6 w-6 text-[#307c4c]" />,
+    logoClass: 'bg-[#307c4c]/10',
+    hoverClass: HOVER_GREEN,
+    accent: NESR_GREEN,
     tone: 'live',
     // ShipWaves is its own application on its own domain, so the card action is a real link.
     route: 'https://app.shipwaves.com',
@@ -230,10 +224,10 @@ export const TOOLS: ToolDef[] = [
     subtitle: 'Book and Approve Travel',
     description:
       'Book every kind of NESR travel in one place, business, vacation or rotation, with the travel policy and the approval chain built in.',
-    icon: <TravelPortalMark className="h-6 w-6" style={{ color: TRAVEL_BLUE }} />,
-    logoClass: 'bg-[#1E6FB8]/10',
-    hoverClass: HOVER_TRAVEL,
-    accent: TRAVEL_BLUE,
+    icon: <TravelPortalMark className="h-6 w-6 text-[#307c4c]" />,
+    logoClass: 'bg-[#307c4c]/10',
+    hoverClass: HOVER_GREEN,
+    accent: NESR_GREEN,
     tone: 'live',
     // Its own application on its own domain, so the card action is a real link.
     route: 'https://travel.nesr.com',

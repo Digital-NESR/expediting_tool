@@ -12,5 +12,8 @@
  */
 export const TITE_BRAND = '#006B0C';
 
-/** The Travel Portal's blue, shared by its home card and its help page. */
-export const TRAVEL_BRAND = '#1E6FB8';
+/**
+ * The Travel Portal's accent on its help page, which is the NESR green rather than a colour of its
+ * own: it is an outside product, but it is reached from here and badged like everything else here.
+ */
+export const TRAVEL_BRAND = '#307c4c';
