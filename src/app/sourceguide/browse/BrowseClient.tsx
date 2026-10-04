@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Download } from 'lucide-react';
 import { SG_BRAND } from '../constants';
 import type { SgTaxonomyCategory } from '@/app/actions/sourceguide';
 
@@ -15,18 +15,31 @@ export default function BrowseClient({
 }) {
   return (
     <div className="mx-auto max-w-[980px] px-6 py-8 lg:px-8">
-      <div className="mb-6">
-        <div
-          className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-[0.14em]"
-          style={{ color: SG_BRAND }}
-        >
-          Taxonomy
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div
+            className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-[0.14em]"
+            style={{ color: SG_BRAND }}
+          >
+            Taxonomy
+          </div>
+          <h1 className="text-[30px] font-bold tracking-tight">Browse the sourcing catalogue</h1>
+          <p className="mt-2 max-w-[580px] text-[15px] leading-relaxed text-slate-500">
+            Drill through the four-level hierarchy (Category → Sub-Category → Family → Commodity) to
+            discover sourcing options across all {countryCount} country guides.
+          </p>
         </div>
-        <h1 className="text-[30px] font-bold tracking-tight">Browse the sourcing catalogue</h1>
-        <p className="mt-2 max-w-[580px] text-[15px] leading-relaxed text-slate-500">
-          Drill through the four-level hierarchy (Category → Sub-Category → Family → Commodity) to
-          discover sourcing options across all {countryCount} country guides.
-        </p>
+
+        {/* The same workbook the drill-down page offers. This accordion and that page are two
+            readings of one taxonomy, so there is one export rather than two that would drift. */}
+        <a
+          href="/api/spend-taxonomy/export"
+          className="inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+          style={{ background: SG_BRAND }}
+        >
+          <Download className="h-4 w-4" />
+          Export to Excel
+        </a>
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-3">
