@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, Fragment } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Download } from 'lucide-react';
 import { SG_BRAND, SG_BRAND_SOFT } from '../constants';
 import TaxonomyFinder from './TaxonomyFinder';
 import type { SgTaxonomyRow } from '@/app/actions/sourceguide';
@@ -67,14 +67,27 @@ export default function DecompositionClient({
 
   return (
     <div className="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-[1760px] flex-col px-6 py-8 lg:px-10">
-      <div className="mb-4">
-        <div
-          className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-[0.14em]"
-          style={{ color: SG_BRAND }}
-        >
-          Explore
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div
+            className="mb-2 font-mono text-[11px] font-semibold uppercase tracking-[0.14em]"
+            style={{ color: SG_BRAND }}
+          >
+            Explore
+          </div>
+          <h1 className="text-[30px] font-bold tracking-tight">Spend Taxonomy</h1>
         </div>
-        <h1 className="text-[30px] font-bold tracking-tight">Spend Taxonomy</h1>
+
+        {/* A plain link, not a fetch-and-blob: the browser's own download does the waiting, the
+            file keeps the name the server gives it, and it still works with scripting off. */}
+        <a
+          href="/api/spend-taxonomy/export"
+          className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13px] font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+          style={{ background: SG_BRAND }}
+        >
+          <Download className="h-4 w-4" />
+          Export to Excel
+        </a>
       </div>
 
       {/* Search first, drill second. Most readers know a word of what they are buying and nothing
@@ -137,7 +150,11 @@ export default function DecompositionClient({
       {onSearch && (
         <p className="mt-auto pt-8 text-[13px] text-slate-500">
           Looking for a supplier for a specific commodity?{' '}
-          <button onClick={onSearch} className="font-semibold hover:underline" style={{ color: SG_BRAND }}>
+          <button
+            onClick={onSearch}
+            className="font-semibold hover:underline"
+            style={{ color: SG_BRAND }}
+          >
             Search the guide
           </button>
           .

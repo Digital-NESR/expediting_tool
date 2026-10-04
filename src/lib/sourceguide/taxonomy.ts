@@ -2,6 +2,7 @@ import type { QueryResultRow } from 'pg';
 import sourceGuidePool from '@/lib/db-sourceguide';
 import { logger } from '@/lib/logger';
 import type { SgTaxonomyRow } from './types';
+import type { TaxonomyExportRow } from './taxonomy-export';
 
 /**
  * The spend taxonomy, without SourceGuide's access gate.
@@ -57,4 +58,30 @@ export function summariseTaxonomy(rows: SgTaxonomyRow[]): {
     if (category) categories.add(category);
   }
   return { categories: categories.size, commodities: rows.length };
+}
+
+/**
+ * The same taxonomy, with the two fields the drill-down screen has no room for.
+ *
+ * The export is the only reader. The screen's five-tuple stays as it is: it is loaded on every
+ * page view by every employee, and a description column nobody renders would be paid for on all
+ * of them. Here the cost is paid once, by somebody who asked for the file.
+ */
+export async function readSpendTaxonomyForExport(): Promise<TaxonomyExportRow[]> {
+  const { rows } = await sourceGuidePool.query<QueryResultRow>(`
+    SELECT spend_type, category,
+           COALESCE(NULLIF(TRIM(sub_category), ''), 'General') AS sub,
+           COALESCE(NULLIF(TRIM(family), ''), 'General')       AS fam,
+           name, COALESCE(code, '') AS code, COALESCE(description, '') AS description
+      FROM sg_commodities
+  `);
+  return rows.map((r) => ({
+    spendType: String(r.spend_type ?? ''),
+    category: String(r.category ?? ''),
+    subCategory: String(r.sub ?? ''),
+    family: String(r.fam ?? ''),
+    commodity: String(r.name ?? ''),
+    code: String(r.code ?? ''),
+    description: String(r.description ?? ''),
+  }));
 }

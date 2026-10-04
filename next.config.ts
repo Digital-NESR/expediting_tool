@@ -5,7 +5,9 @@ const nextConfig: NextConfig = {
      stamped per vendor. Nothing imports it, so tracing cannot infer it, and without this the file
      is absent from the deployed bundle and every send fails at the point of attaching it. */
   outputFileTracingIncludes: {
-    '/api/**': ['./assets/soa/**'],
+    /* The brand wordmark stamped into the green masthead of the spend-taxonomy workbook is read
+       from disk for the same reason and needs the same help. */
+    '/api/**': ['./assets/soa/**', './assets/brand/**'],
     '/soa-consolidation/**': ['./assets/soa/**'],
   },
   experimental: {
