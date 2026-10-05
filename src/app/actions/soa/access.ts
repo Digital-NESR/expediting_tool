@@ -15,7 +15,7 @@ import { AccessError, currentActor, normalizeEmail } from '@/lib/require-access'
 import { logger } from '@/lib/logger';
 import { exec, ensureSoaSchema, sql } from '@/lib/soa/db';
 import { requireSoaActor } from '@/lib/soa/access';
-import { notifySoaAccessRequest } from '@/lib/soa/notify';
+import { notifyAccessRequest } from '@/lib/access-request-notify';
 
 const log = logger('soa-access');
 
@@ -85,6 +85,13 @@ export async function getSoaCountries(): Promise<SoaCountryOption[]> {
  * appointed in the /admin matrix, and admin comes from ADMIN_EMAILS. Neither is self-servable,
  * and this action rejects an attempt to request one rather than silently downgrading it.
  */
+/** Stored role codes, as a reviewer would read them. Mirrors the labels in `@/lib/soa/notify`. */
+const ROLE_LABEL: Record<string, string> = {
+  champion: 'SC SOA Champion',
+  ap: 'Accounts Payable',
+  viewer: 'Read-only Viewer',
+};
+
 export async function submitSoaAccessRequest(input: {
   role: string;
   countryId: string | null;
@@ -135,11 +142,13 @@ export async function submitSoaAccessRequest(input: {
           await sql<QueryResultRow[]>(`SELECT name FROM countries WHERE id = ?`, [input.countryId])
         )[0]?.name ?? input.countryId)
       : null;
-    await notifySoaAccessRequest({
+    await notifyAccessRequest({
+      tool: 'SOA Consolidation',
       name: actor.name,
       email: normalizeEmail(actor.email),
-      role: input.role,
-      countryName: country ? String(country) : null,
+      // The only tool that captures both; a blank country means every country.
+      country: country ? String(country) : 'All countries',
+      role: ROLE_LABEL[input.role] ?? input.role,
       reason: (input.reason ?? '').trim() || null,
     });
 
@@ -259,7 +268,10 @@ export async function approveSoaAccessRequest(input: {
   try {
     const admin = await requireSoaActor('admin');
     if (!REQUESTABLE.has(input.role)) {
-      return { success: false, error: 'A request can only be approved as Champion, Accounts Payable or Viewer.' };
+      return {
+        success: false,
+        error: 'A request can only be approved as Champion, Accounts Payable or Viewer.',
+      };
     }
     const email = normalizeEmail(input.email);
     if (!email) return { success: false, error: 'Email is required.' };
@@ -394,8 +406,13 @@ export async function setSoaCountryUser(input: {
 
     const email = normalizeEmail(input.email);
     const name = input.name.trim();
-    if (!email || !email.includes('@')) return { success: false, error: 'That is not an email address.' };
-    if (!name) return { success: false, error: 'A name is required. It appears in the letter and the audit trail.' };
+    if (!email || !email.includes('@'))
+      return { success: false, error: 'That is not an email address.' };
+    if (!name)
+      return {
+        success: false,
+        error: 'A name is required. It appears in the letter and the audit trail.',
+      };
 
     const known = await sql<QueryResultRow[]>(`SELECT 1 FROM countries WHERE id = ? AND active`, [
       input.countryId,

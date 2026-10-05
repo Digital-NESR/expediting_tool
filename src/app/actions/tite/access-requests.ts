@@ -7,6 +7,7 @@ import { forbidden, isAdminActor, normalizeEmail, requireAdmin } from '@/lib/req
 import { currentTiteUser } from '@/lib/tite-auth';
 import { log } from '@/lib/tite/internals';
 import type { TiteAccessRequestRow } from '@/lib/tite/types';
+import { NOT_CAPTURED, notifyAccessRequest } from '@/lib/access-request-notify';
 
 /* ─── getTiteUserAccess ───────────────────────────────────────── */
 
@@ -90,6 +91,20 @@ export async function submitTiteAccessRequest(params: {
          approved_countries  = NULL`,
       [userEmail, displayName, jobTitle, department, requestedCountries],
     );
+
+    /* Announced after the write and not awaited into the result, so a webhook that is down
+       delays the reviewers rather than failing a request that is already recorded. */
+    notifyAccessRequest({
+      tool: 'TI-TE',
+      name: displayName,
+      email: userEmail,
+      // Several countries at once, and no role to choose.
+      country: requestedCountries.join(', '),
+      role: NOT_CAPTURED,
+      jobTitle,
+      department,
+    }).catch(() => {});
+
     return { success: true };
   } catch (err) {
     log.error('submitTiteAccessRequest.failed', err);

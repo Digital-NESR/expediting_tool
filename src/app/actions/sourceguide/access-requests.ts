@@ -9,6 +9,7 @@ import { canReadAdmin, denyAccess, getSgUser } from '@/lib/sourceguide/access';
 import { logSafe } from '@/lib/sourceguide/activity';
 import { isoOf, log } from '@/lib/sourceguide/internals';
 import type { SgAccessRequest } from '@/lib/sourceguide/types';
+import { notifyAccessRequest } from '@/lib/access-request-notify';
 
 export async function getSourceGuideAccessRequest(
   userEmail: string,
@@ -69,6 +70,21 @@ export async function submitSourceGuideAccessRequest(input: {
          reviewed_at = NULL, reviewed_by = NULL, notes = NULL, approved_countries = NULL`,
       [requesterEmail, input.displayName, input.jobTitle ?? null, input.department ?? null],
     );
+
+    /* Announced after the write and not awaited into the result, so a webhook that is down
+       delays the reviewers rather than failing a request that is already recorded. */
+    notifyAccessRequest({
+      tool: 'SourceGuide',
+      name: input.displayName,
+      email: requesterEmail,
+      /* Nothing is chosen here: approval grants every country, read-only. Saying so beats two
+         empty rows, which would read as a request that arrived half filled in. */
+      country: 'All countries',
+      role: 'Read-only viewer',
+      jobTitle: input.jobTitle ?? null,
+      department: input.department ?? null,
+    }).catch(() => {});
+
     return { success: true };
   } catch (err) {
     log.error('submitSourceGuideAccessRequest.failed', err);
