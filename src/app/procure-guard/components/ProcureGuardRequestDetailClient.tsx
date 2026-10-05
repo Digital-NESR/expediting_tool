@@ -4,8 +4,10 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { Check, X } from 'lucide-react';
 import {
   formatProcureGuardStatusLabel,
+  fmtDate,
   fmtDateTime,
   getWorkflowSteps,
   getPriorityBadge,
@@ -14,9 +16,16 @@ import {
   usdEquivalentFmt,
   usdFmt,
 } from '@/lib/procureGuard-utils';
+import {
+  daysWaiting,
+  resolveChainProgress,
+  waitingSince,
+  type StepOutcome,
+} from '@/lib/procure-guard/chain-progress';
 import type {
   AdhocPaymentRequest,
   AdvancePaymentRequest,
+  ProcureGuardActivityRow,
   ProcureGuardDelegation,
   ProcureGuardNotificationContact,
   ProcureGuardRequestDetailData,
@@ -136,6 +145,18 @@ function PriorityPill({ priority }: { priority: string }) {
   );
 }
 
+/**
+ * The approval chain: one block per step, each showing what happened at it.
+ *
+ * Every block used to show the same three fixed lines whatever its state, and the fixed line was
+ * written about the status the step is keyed to rather than about the step. So the first block
+ * read "new request submitted; awaiting country finance controller approval" from submission
+ * until the day the request was archived, which is false for all but the first of those days and
+ * actively confusing beside a panel showing that the controller had approved.
+ *
+ * The outcomes come from the activity log, which the page already loads for the list at the
+ * bottom. Nothing new is stored and nothing new is queried.
+ */
 function WorkflowChain({
   requestType,
   status,
@@ -143,6 +164,8 @@ function WorkflowChain({
   currency,
   contacts,
   delegations,
+  activity,
+  createdAt,
 }: {
   requestType: 'adhoc' | 'advance';
   status: AdhocPaymentRequest['status'];
@@ -150,6 +173,8 @@ function WorkflowChain({
   currency: string;
   contacts: ProcureGuardNotificationContact[];
   delegations: ProcureGuardDelegation[];
+  activity: ProcureGuardActivityRow[];
+  createdAt: string | null;
 }) {
   // Active delegates for each approver email, so the chain can show who may act on their behalf.
   const delegatesByDelegator = delegations.reduce<Record<string, ProcureGuardDelegation[]>>(
@@ -167,8 +192,11 @@ function WorkflowChain({
   const steps = getWorkflowSteps(requestType, amount, currency).filter(
     (step) => step.status !== 'Under Review' || status === 'Under Review',
   );
-  const currentIndex = steps.findIndex((step) => step.status === status);
-  const completedIndex = status === 'Approved' ? steps.length - 1 : Math.max(0, currentIndex - 1);
+  const outcomes = resolveChainProgress(steps, activity);
+
+  const isSettled = status === 'Rejected' || status === 'Cancelled';
+  const currentIndex = isSettled ? -1 : steps.findIndex((step) => step.status === status);
+  const waitingFrom = currentIndex >= 0 ? waitingSince(outcomes, currentIndex, createdAt) : null;
 
   // Notification recipients grouped by the approval stage they are contacted at, so each chain
   // step can show exactly who gets notified there (merges the old separate "contacted" panel).
@@ -199,56 +227,99 @@ function WorkflowChain({
     <Section title="Approval Chain & Notifications">
       <div className="space-y-2.5">
         {steps.map((step, index) => {
-          const isCurrent = index === currentIndex && status !== 'Approved';
-          const isComplete = index <= completedIndex || status === 'Approved';
+          const outcome = outcomes.get(index);
+          const isCurrent = index === currentIndex;
+          const isFinal = index === steps.length - 1;
+          // Nothing reached it: either the chain has not got there, or it stopped short.
+          const notReached = !outcome && !isCurrent;
           const stepContacts = contactsByStatus[step.status] ?? [];
+          const tone =
+            outcome?.kind === 'rejected' || outcome?.kind === 'cancelled'
+              ? 'border-red-200 bg-red-50'
+              : outcome
+                ? 'border-slate-200 bg-slate-50'
+                : isCurrent
+                  ? 'border-[#307c4c]/30 bg-[#307c4c]/10'
+                  : 'border-slate-200 bg-white';
+
           return (
-            <div
-              key={step.status}
-              className={`rounded-md border p-3 ${isCurrent ? 'border-[#307c4c]/30 bg-[#307c4c]/10' : isComplete ? 'border-slate-200 bg-slate-50' : 'border-slate-200 bg-white'}`}
-            >
+            <div key={`${step.status}-${index}`} className={`rounded-md border p-3 ${tone}`}>
               <div className="flex items-start gap-3">
-                <div
-                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${isCurrent ? 'bg-[#307c4c] text-white' : isComplete ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-500'}`}
-                >
-                  {index + 1}
-                </div>
+                <StepMarker index={index} outcome={outcome} isCurrent={isCurrent} />
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-bold text-slate-900">{step.label}</p>
-                    {isCurrent && (
-                      <span className="shrink-0 rounded-full bg-[#307c4c]/10 px-2 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-[#307c4c]">
-                        Current step
-                      </span>
-                    )}
+                  <div className="flex items-start justify-between gap-2">
+                    <p
+                      className={`text-sm font-bold ${notReached ? 'text-slate-500' : 'text-slate-900'}`}
+                    >
+                      {step.label}
+                    </p>
+                    <StepBadge outcome={outcome} isCurrent={isCurrent} />
                   </div>
-                  <p className="mt-0.5 text-xs font-semibold text-slate-500">{step.owner}</p>
-                  <p className="mt-1 text-xs text-slate-500">{step.description}</p>
-                  {stepContacts.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {stepContacts.map((contact) => (
-                        <span key={`${contact.email}-${contact.id}`} className="contents">
-                          <span
-                            title={contact.email}
-                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[0.6875rem] font-semibold text-slate-700"
-                          >
-                            {contact.display_name || contact.email}
-                            <span className="text-slate-400">· {contact.notification_role}</span>
-                          </span>
-                          {delegatesFor(contact.email).map((d) => (
-                            <span
-                              key={`del-${contact.id}-${d.id}`}
-                              title={`${d.delegate_email} on behalf of ${contact.display_name || contact.email}`}
-                              className="inline-flex items-center gap-1 rounded-md border border-[#307c4c]/30 bg-[#307c4c]/5 px-2 py-1 text-[0.6875rem] font-semibold text-[#307c4c]"
-                            >
-                              {d.delegate_name || d.delegate_email}
-                              <span className="font-normal text-[#307c4c]/70">
-                                · on behalf of {contact.display_name || contact.email}
-                              </span>
-                            </span>
-                          ))}
+
+                  {/* The last block is a milestone, not a review: there is nobody to name at it. */}
+                  {!isFinal && (
+                    <p
+                      className={`mt-0.5 text-xs font-semibold ${notReached ? 'text-slate-400' : 'text-slate-500'}`}
+                    >
+                      {outcome ? `${outcome.actor} · ${step.owner}` : step.owner}
+                      {outcome?.onBehalfOf && (
+                        <span className="font-normal text-slate-400">
+                          {' '}
+                          · on behalf of {outcome.onBehalfOf}
                         </span>
-                      ))}
+                      )}
+                    </p>
+                  )}
+
+                  <StepState
+                    outcome={outcome}
+                    isCurrent={isCurrent}
+                    isFinal={isFinal}
+                    previousOwner={steps[index - 1]?.owner ?? null}
+                    waitingFrom={isCurrent ? waitingFrom : null}
+                    settledStatus={isSettled ? status : null}
+                  />
+
+                  {outcome?.comment && (
+                    <p className="mt-2 rounded-md bg-white/70 p-2 text-xs italic text-slate-600">
+                      {outcome.comment}
+                    </p>
+                  )}
+
+                  {step.note && <p className="mt-1 text-xs text-slate-500">{step.note}</p>}
+
+                  {stepContacts.length > 0 && (
+                    <div className="mt-2">
+                      {/* Said plainly, because the same chip used to read as "who approved" on a
+                          finished step and "who we are waiting for" on the live one. */}
+                      <p className="text-[0.625rem] font-bold uppercase tracking-wide text-slate-400">
+                        {outcome ? 'Was notified' : 'Notified'}
+                      </p>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        {stepContacts.map((contact) => (
+                          <span key={`${contact.email}-${contact.id}`} className="contents">
+                            <span
+                              title={contact.email}
+                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[0.6875rem] font-semibold text-slate-700"
+                            >
+                              {contact.display_name || contact.email}
+                              <span className="text-slate-400">· {contact.notification_role}</span>
+                            </span>
+                            {delegatesFor(contact.email).map((d) => (
+                              <span
+                                key={`del-${contact.id}-${d.id}`}
+                                title={`${d.delegate_email} on behalf of ${contact.display_name || contact.email}`}
+                                className="inline-flex items-center gap-1 rounded-md border border-[#307c4c]/30 bg-[#307c4c]/5 px-2 py-1 text-[0.6875rem] font-semibold text-[#307c4c]"
+                              >
+                                {d.delegate_name || d.delegate_email}
+                                <span className="font-normal text-[#307c4c]/70">
+                                  · on behalf of {contact.display_name || contact.email}
+                                </span>
+                              </span>
+                            ))}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -277,6 +348,122 @@ function WorkflowChain({
         ))}
       </div>
     </Section>
+  );
+}
+
+/** The numbered disc, which becomes a tick or a cross once the step has an answer. */
+function StepMarker({
+  index,
+  outcome,
+  isCurrent,
+}: {
+  index: number;
+  outcome: StepOutcome | undefined;
+  isCurrent: boolean;
+}) {
+  const base = 'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold';
+  if (outcome?.kind === 'approved') {
+    return (
+      <div className={`${base} bg-slate-700 text-white`}>
+        <Check className="h-3.5 w-3.5" strokeWidth={3} />
+      </div>
+    );
+  }
+  if (outcome) {
+    return (
+      <div className={`${base} bg-red-600 text-white`}>
+        <X className="h-3.5 w-3.5" strokeWidth={3} />
+      </div>
+    );
+  }
+  return (
+    <div
+      className={`${base} ${isCurrent ? 'bg-[#307c4c] text-white' : 'bg-slate-100 text-slate-500'}`}
+    >
+      {index + 1}
+    </div>
+  );
+}
+
+function StepBadge({
+  outcome,
+  isCurrent,
+}: {
+  outcome: StepOutcome | undefined;
+  isCurrent: boolean;
+}) {
+  const pill =
+    'shrink-0 rounded-full px-2 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide';
+  if (outcome?.kind === 'approved')
+    return <span className={`${pill} bg-slate-200 text-slate-600`}>Approved</span>;
+  if (outcome?.kind === 'rejected')
+    return <span className={`${pill} bg-red-100 text-red-700`}>Rejected</span>;
+  if (outcome?.kind === 'cancelled')
+    return <span className={`${pill} bg-red-100 text-red-700`}>Cancelled</span>;
+  if (isCurrent)
+    return <span className={`${pill} bg-[#307c4c]/10 text-[#307c4c]`}>Waiting now</span>;
+  return null;
+}
+
+/** The one line that changes with the step's state, in place of the old fixed sentence. */
+function StepState({
+  outcome,
+  isCurrent,
+  isFinal,
+  previousOwner,
+  waitingFrom,
+  settledStatus,
+}: {
+  outcome: StepOutcome | undefined;
+  isCurrent: boolean;
+  isFinal: boolean;
+  previousOwner: string | null;
+  waitingFrom: string | null;
+  settledStatus: AdhocPaymentRequest['status'] | null;
+}) {
+  if (outcome) {
+    const verb =
+      outcome.kind === 'approved'
+        ? isFinal
+          ? 'Fully approved'
+          : 'Approved'
+        : outcome.kind === 'rejected'
+          ? 'Rejected'
+          : 'Cancelled';
+    return (
+      <p className="mt-1 text-xs text-slate-500">
+        {verb} {fmtDateTime(outcome.at)}
+      </p>
+    );
+  }
+
+  if (isCurrent) {
+    const days = waitingFrom ? daysWaiting(waitingFrom) : null;
+    return (
+      <p className="mt-1 text-xs text-slate-500">
+        {days === null
+          ? 'Waiting for a decision.'
+          : `Waiting ${days === 0 ? 'since today' : `${days} day${days === 1 ? '' : 's'}, since ${fmtDate(waitingFrom!)}`}.`}
+      </p>
+    );
+  }
+
+  // Not reached. Either the chain stopped short of it, or it has not got there yet.
+  if (settledStatus) {
+    return (
+      <p className="mt-1 text-xs text-slate-400">
+        Not reached, the request was {settledStatus.toLowerCase()}.
+      </p>
+    );
+  }
+  return (
+    <p className="mt-1 text-xs text-slate-400">
+      {isFinal
+        ? `Fully approved once the ${(previousOwner ?? 'last approver').toLowerCase()} signs off.`
+        : previousOwner
+          ? `Starts once the ${previousOwner.toLowerCase()} approves.`
+          : 'Starts once the request is submitted.'}
+    </p>
   );
 }
 
@@ -361,90 +548,77 @@ export default function ProcureGuardRequestDetailClient({
   const selectedPdfSectionCount = PDF_SECTION_OPTIONS.filter(
     (option) => pdfSections[option.key],
   ).length;
-  const reviewDecisionSection = (
-    <Section title="Review And Decision">
-      <div className="space-y-4">
-        {notice && (
-          <div className="rounded-md border border-[#307c4c]/20 bg-[#307c4c]/10 px-3 py-2 text-sm font-semibold text-[#307c4c]">
-            {notice}
-          </div>
-        )}
-        {error && (
-          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
-            {error}
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field
-            label="Current Owner"
-            value={actions.nextStatus ? actions.ownerLabel : 'Workflow complete'}
-          />
-          <Field
-            label="Next Action"
-            value={
-              actions.nextStatus
-                ? formatProcureGuardStatusLabel(actions.nextStatus)
-                : 'No active decision'
-            }
-          />
-          <Field
-            label="Reviewed By"
-            value={request.reviewed_by_name || request.reviewed_by_email}
-          />
-          <Field label="Reviewed At" value={fmtDateTime(request.reviewed_at)} />
-          <Field label="Rejection Reason" value={request.rejection_reason} />
-          <Field label="Latest Review Comment" value={request.review_comments} />
-        </div>
-
-        {hasDecisionActions && (
-          <div
-            ref={decisionRef}
-            className={`rounded-lg border bg-slate-50 p-4 transition-all duration-300 ${highlightDecision ? 'border-[#307c4c] ring-4 ring-[#307c4c]/20' : 'border-slate-200'}`}
-          >
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Action Comment{' '}
-              <span className="font-normal text-slate-400">(required for rejection only)</span>
-            </label>
-            <textarea
-              className="mt-2 min-h-28 w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20"
-              value={reviewComment}
-              onChange={(e) => setReviewComment(e.target.value)}
-            />
-            <div className="mt-3 flex flex-wrap gap-2">
-              {actions.canApprove && actions.nextStatus && (
-                <button
-                  disabled={isPending}
-                  onClick={() => submitStatus(actions.nextStatus!)}
-                  className="rounded-md bg-[#307c4c] px-3 py-2 text-xs font-bold text-white hover:bg-[#307c4c]/80 disabled:opacity-60"
-                >
-                  Approve
-                </button>
-              )}
-              {actions.canReject && (
-                <button
-                  disabled={isPending}
-                  onClick={() => submitStatus('Rejected')}
-                  className="rounded-md border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-60"
-                >
-                  Reject
-                </button>
-              )}
-              {canCancel && (
-                <button
-                  disabled={isPending}
-                  onClick={() => setIsCancelDialogOpen(true)}
-                  className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
-                >
-                  Cancel Request
-                </button>
-              )}
+  /* Null rather than an empty panel. With the six duplicated fields gone there is nothing left to
+     show a reader who cannot act and has nothing to be told, and a titled box with no content in
+     it reads as something that failed to load. */
+  const reviewDecisionSection =
+    !hasDecisionActions && !notice && !error ? null : (
+      <Section title="Decision">
+        <div className="space-y-4">
+          {notice && (
+            <div className="rounded-md border border-[#307c4c]/20 bg-[#307c4c]/10 px-3 py-2 text-sm font-semibold text-[#307c4c]">
+              {notice}
             </div>
-          </div>
-        )}
-      </div>
-    </Section>
-  );
+          )}
+          {error && (
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+              {error}
+            </div>
+          )}
+
+          {/* The six fields that stood here (current owner, next action, latest reviewer, date,
+            rejection reason, latest comment) all now sit on the chain beside the step they belong
+            to, where they say WHOSE decision they were. Shown twice they disagreed in practice:
+            this panel only ever held the LATEST review, so the moment a second approver acted the
+            first one's decision vanished from the page. What is left is the decision itself. */}
+          {hasDecisionActions && (
+            <div
+              ref={decisionRef}
+              className={`rounded-lg border bg-slate-50 p-4 transition-all duration-300 ${highlightDecision ? 'border-[#307c4c] ring-4 ring-[#307c4c]/20' : 'border-slate-200'}`}
+            >
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Action Comment{' '}
+                <span className="font-normal text-slate-400">(required for rejection only)</span>
+              </label>
+              <textarea
+                className="mt-2 min-h-28 w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20"
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+              />
+              <div className="mt-3 flex flex-wrap gap-2">
+                {actions.canApprove && actions.nextStatus && (
+                  <button
+                    disabled={isPending}
+                    onClick={() => submitStatus(actions.nextStatus!)}
+                    className="rounded-md bg-[#307c4c] px-3 py-2 text-xs font-bold text-white hover:bg-[#307c4c]/80 disabled:opacity-60"
+                  >
+                    Approve
+                  </button>
+                )}
+                {actions.canReject && (
+                  <button
+                    disabled={isPending}
+                    onClick={() => submitStatus('Rejected')}
+                    className="rounded-md border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-60"
+                  >
+                    Reject
+                  </button>
+                )}
+                {canCancel && (
+                  <button
+                    disabled={isPending}
+                    onClick={() => setIsCancelDialogOpen(true)}
+                    className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                  >
+                    Cancel Request
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </Section>
+    );
   const activitySection = (
     <Section title="Activity">
       {activity.length === 0 ? (
@@ -1231,6 +1405,8 @@ export default function ProcureGuardRequestDetailClient({
               currency={workflowCurrency}
               contacts={notificationContacts}
               delegations={activeDelegations}
+              activity={activity}
+              createdAt={request.created_at}
             />
             {activitySection}
           </div>

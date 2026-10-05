@@ -588,7 +588,17 @@ export type ProcureGuardWorkflowStep = {
   status: ProcureGuardStatus;
   label: string;
   owner: string;
-  description: string;
+  /**
+   * A condition that governs this step, shown under it on the chain.
+   *
+   * This replaces a `description` every step used to carry. Those were written about the STATUS a
+   * step is keyed to rather than about the step itself, so the first one read "new request
+   * submitted; awaiting country finance controller approval" for the whole life of the request,
+   * including long after that controller had approved it. The chain shows each step's real
+   * outcome now, and the only sentences left are the two that say something a label cannot: the
+   * gate that put the step there.
+   */
+  note?: string;
 };
 
 export const APPROVAL_ACTIVE_STATUSES: ProcureGuardStatus[] = [
@@ -627,25 +637,21 @@ export function getWorkflowSteps(
         status: 'Submitted',
         label: 'Country SCM Review',
         owner: 'Country Supply Chain Manager',
-        description: 'New request submitted; awaiting country supply chain manager approval.',
       },
       {
         status: 'Under Review',
         label: 'Country SCM Review',
         owner: 'Country Supply Chain Manager',
-        description: 'Country supply chain manager reviews the exception.',
       },
       {
         status: 'Approved by SCM',
         label: 'Supply Chain Director Review',
         owner: 'Supply Chain Director',
-        description: 'Supply chain director reviews after SCM approval.',
       },
       {
         status: 'Approved',
         label: 'Approved',
         owner: 'Workflow Complete',
-        description: 'Request is fully approved.',
       },
     ];
   }
@@ -659,20 +665,17 @@ export function getWorkflowSteps(
         status: 'Submitted',
         label: 'Country Finance Review',
         owner: 'Country Finance Controller',
-        description: 'New request submitted; awaiting country finance controller approval.',
       },
       {
         status: 'Under Review',
         label: 'Country Finance Review',
         owner: 'Country Finance Controller',
-        description: 'Country finance controller reviews the advance request.',
       },
       {
         status: 'Approved',
         label: 'Approved',
         owner: 'Workflow Complete',
-        description:
-          'Fully approved by the country finance controller (advances of 50,000 USD or less).',
+        note: 'The country finance controller has the final say on advances of 50,000 USD or less.',
       },
     ];
   }
@@ -682,31 +685,26 @@ export function getWorkflowSteps(
       status: 'Submitted',
       label: 'Country Finance Review',
       owner: 'Country Finance Controller',
-      description: 'New request submitted; awaiting country finance controller approval.',
     },
     {
       status: 'Under Review',
       label: 'Country Finance Review',
       owner: 'Country Finance Controller',
-      description: 'Country finance controller reviews the advance request.',
     },
     {
       status: 'Approved by Country Controller',
       label: 'Supply Chain Director Review',
       owner: 'Supply Chain Director',
-      description: 'Supply chain director reviews after country controller approval.',
     },
     {
       status: 'Approved by Supply Chain Director',
       label: 'Treasury Director Review',
       owner: 'Treasury Director',
-      description: 'Treasury director reviews funding and timing.',
     },
     {
       status: 'Approved by Treasury Director',
       label: 'Corporate Controller Review',
       owner: 'Corporate Controller',
-      description: 'Corporate controller reviews and checks the CFO threshold.',
     },
   ];
 
@@ -715,7 +713,7 @@ export function getWorkflowSteps(
       status: 'Approved by Corporate Controller',
       label: 'CFO Review',
       owner: 'CFO',
-      description: 'Required when spend value is 500k USD or more.',
+      note: 'Required because the advance is 500,000 USD or more.',
     });
   }
 
@@ -723,7 +721,6 @@ export function getWorkflowSteps(
     status: 'Approved',
     label: 'Approved',
     owner: 'Workflow Complete',
-    description: 'Request is fully approved.',
   });
 
   return steps;
