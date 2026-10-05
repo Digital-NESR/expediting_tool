@@ -135,6 +135,38 @@ function buildLineConditions(filters: TeamAnalyticsFilters, paramOffset = 0, ali
 }
 
 /**
+ * The three filters that exist only on a line: country, segment and supplier.
+ *
+ * `expediting_sessions` has no column for any of them, which is why a session-level query cannot
+ * answer them directly and has to reach into `active_expediting` through session_ref. Date and
+ * buyer are deliberately left out: a session row carries both and has already been filtered on
+ * them, so repeating them inside the subquery would only cost another index lookup.
+ */
+function buildLineOnlyConditions(filters: TeamAnalyticsFilters, paramOffset = 0, alias = 'ae') {
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+  let idx = paramOffset + 1;
+
+  if (filters.countries?.length) {
+    conditions.push(`${alias}.country = ANY($${idx})`);
+    params.push(filters.countries);
+    idx++;
+  }
+  if (filters.segments?.length) {
+    conditions.push(`${alias}.p_group = ANY($${idx})`);
+    params.push(filters.segments);
+    idx++;
+  }
+  if (filters.supplierNames?.length) {
+    conditions.push(`${alias}.supplier_name = ANY($${idx})`);
+    params.push(filters.supplierNames);
+    idx++;
+  }
+
+  return { conditions, params, nextIdx: idx };
+}
+
+/**
  * Conditions for session-level queries (`expediting_sessions`). Only dateFrom,
  * dateTo and buyerEmails apply: a session row carries no line attributes.
  */
@@ -209,6 +241,56 @@ export async function getTeamAnalyticsData(
     const line = buildLineConditions(filters);
     const session = buildSessionConditions(filters);
 
+    /* The charts and the buyer table used to read `expediting_sessions`, whose rows carry no
+       country, segment or supplier. Three of the six filters were therefore dropped on the floor:
+       filtering the page to KSA moved the KPI cards and the supplier charts from 15,672 lines to
+       3,906 while the weekly trend beside them did not change by a single line.
+
+       They come from `active_expediting` now, so every filter reaches every visual. That also
+       settles a disagreement the page used to show without comment: unfiltered, the KPI card
+       counted 15,672 lines while the trend chart summed the session table's 23,377, because a
+       session's totals are frozen at dispatch and lines are closed out of the line table
+       afterwards. One source, one answer.
+
+       Emails are the exception and cannot be fixed the same way: they are recorded per session and
+       never per line, so they cannot be attributed to a country at all. Those two reads stay on
+       the session table and are narrowed to sessions that touched a line the filter selects, which
+       over-counts a session that spanned two countries and is the closest honest answer available.
+
+       Every builder below is given an explicit parameter offset. They each number from $1 by
+       default, so a query splicing two of them together without offsetting would bind $1 twice. */
+    const sessionLineOnly = buildLineOnlyConditions(filters, session.params.length);
+    const sessionScoped = [
+      ...session.conditions,
+      ...(sessionLineOnly.conditions.length
+        ? [
+            `EXISTS (SELECT 1 FROM active_expediting ae
+                      WHERE ae.session_ref = es.session_ref
+                        AND ${sessionLineOnly.conditions.join(' AND ')})`,
+          ]
+        : []),
+    ];
+    const sessionScopedParams = [...session.params, ...sessionLineOnly.params];
+
+    /* The buyer query splices the session set in AFTER the line set, so its builders start
+       numbering where the line params stop. */
+    const buyerSession = buildSessionConditions(filters, line.params.length);
+    const buyerLineOnly = buildLineOnlyConditions(
+      filters,
+      line.params.length + buyerSession.params.length,
+    );
+    const buyerScoped = [
+      ...buyerSession.conditions,
+      ...(buyerLineOnly.conditions.length
+        ? [
+            `EXISTS (SELECT 1 FROM active_expediting ae
+                      WHERE ae.session_ref = es.session_ref
+                        AND ${buyerLineOnly.conditions.join(' AND ')})`,
+          ]
+        : []),
+    ];
+    const buyerScopedParams = [...buyerSession.params, ...buyerLineOnly.params];
+
     /* Response-time query: the shared filters plus its own guards, appended as
        conditions rather than patched into a finished WHERE string. Note the
        guard is on responded_at — a line can be 'Submitted' with a NULL
@@ -241,25 +323,46 @@ export async function getTeamAnalyticsData(
           line.params,
         ),
 
-        /* ── Buyer breakdown ── */
+        /* ── Buyer breakdown ──
+           Counted from the lines, so a country or supplier filter reaches it. The one column that
+           cannot come from a line is the email count, joined in from the sessions that buyer ran
+           which touched a matching line. A buyer whose lines the filter excludes drops out of the
+           list entirely rather than sitting in it as a row of zeroes. */
         pool.query(
-          `SELECT
-             up.email,
-             up.display_name,
-             up.job_title,
-             up.last_active_at,
-             COUNT(DISTINCT es.id)                    AS total_sessions,
-             COALESCE(SUM(es.total_po_lines), 0)      AS total_lines,
-             COALESCE(SUM(es.total_suppliers), 0)     AS total_suppliers,
-             COALESCE(SUM(es.total_emails_sent), 0)   AS total_emails,
-             ROUND(AVG(es.response_rate_pct), 1)      AS avg_response_rate
-           FROM user_profiles up
-           LEFT JOIN expediting_sessions es ON es.dispatched_by = up.email
-             ${session.conditions.length ? 'AND ' + session.conditions.join(' AND ') : ''}
-           GROUP BY up.email, up.display_name, up.job_title, up.last_active_at
-           HAVING COUNT(es.id) > 0
-           ORDER BY total_lines DESC`,
-          session.params,
+          `WITH buyer_lines AS (
+             SELECT ae.dispatched_by                   AS email,
+                    COUNT(DISTINCT ae.session_ref)     AS total_sessions,
+                    COUNT(ae.id)                       AS total_lines,
+                    COUNT(DISTINCT ae.supplier_name)   AS total_suppliers,
+                    ROUND(
+                      COUNT(*) FILTER (WHERE ae.workflow_state = 'Submitted') * 100.0
+                        / NULLIF(COUNT(ae.id), 0), 1
+                    )                                  AS avg_response_rate
+               FROM active_expediting ae
+               ${whereOf(line.conditions)}
+              GROUP BY ae.dispatched_by
+           ),
+           buyer_emails AS (
+             SELECT es.dispatched_by                   AS email,
+                    COALESCE(SUM(es.total_emails_sent), 0) AS total_emails
+               FROM expediting_sessions es
+               ${whereOf(buyerScoped)}
+              GROUP BY es.dispatched_by
+           )
+           SELECT bl.email,
+                  up.display_name,
+                  up.job_title,
+                  up.last_active_at,
+                  bl.total_sessions,
+                  bl.total_lines,
+                  bl.total_suppliers,
+                  COALESCE(be.total_emails, 0)         AS total_emails,
+                  bl.avg_response_rate
+             FROM buyer_lines bl
+             LEFT JOIN user_profiles up ON up.email = bl.email
+             LEFT JOIN buyer_emails be ON be.email = bl.email
+            ORDER BY bl.total_lines DESC`,
+          [...line.params, ...buyerScopedParams],
         ),
 
         /* ── Supplier breakdown ── */
@@ -296,25 +399,31 @@ export async function getTeamAnalyticsData(
              up.display_name
            FROM expediting_sessions es
            LEFT JOIN user_profiles up ON up.email = es.dispatched_by
-           ${whereOf(session.conditions)}
+           ${whereOf(sessionScoped)}
            ORDER BY es.dispatched_at DESC
            LIMIT 20`,
-          session.params,
+          sessionScopedParams,
         ),
 
-        /* ── Weekly expediting vs responses trend ── */
+        /* ── Weekly expediting vs responses trend ──
+           The chart the filters most obviously failed to move. Counted from the lines now, which
+           also changes the rate from an average of per-session rates to the pooled rate: a session
+           of 2 lines used to weigh as heavily in a week's average as one of 469. */
         pool.query(
           `SELECT
-             DATE_TRUNC('week', es.dispatched_at)   AS week,
-             SUM(es.total_po_lines)                 AS lines_expedited,
-             SUM(es.lines_responded)                AS lines_responded,
-             ROUND(AVG(es.response_rate_pct), 1)    AS avg_response_rate,
-             COUNT(*)                               AS sessions_count
-           FROM expediting_sessions es
-           ${whereOf(session.conditions)}
-           GROUP BY DATE_TRUNC('week', es.dispatched_at)
+             DATE_TRUNC('week', ae.dispatched_at)                       AS week,
+             COUNT(ae.id)                                               AS lines_expedited,
+             COUNT(*) FILTER (WHERE ae.workflow_state = 'Submitted')    AS lines_responded,
+             ROUND(
+               COUNT(*) FILTER (WHERE ae.workflow_state = 'Submitted') * 100.0
+                 / NULLIF(COUNT(ae.id), 0), 1
+             )                                                          AS avg_response_rate,
+             COUNT(DISTINCT ae.session_ref)                             AS sessions_count
+           FROM active_expediting ae
+           ${whereOf([...line.conditions, 'ae.dispatched_at IS NOT NULL'])}
+           GROUP BY DATE_TRUNC('week', ae.dispatched_at)
            ORDER BY week ASC`,
-          session.params,
+          line.params,
         ),
 
         /* ── Avg response time by supplier ──
@@ -339,8 +448,8 @@ export async function getTeamAnalyticsData(
         pool.query(
           `SELECT COALESCE(SUM(es.total_emails_sent), 0) AS total_emails
            FROM expediting_sessions es
-           ${whereOf(session.conditions)}`,
-          session.params,
+           ${whereOf(sessionScoped)}`,
+          sessionScopedParams,
         ),
       ]);
 
