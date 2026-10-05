@@ -96,7 +96,12 @@ export const config = {
     /* Everything under public/ is gated except the marks that have to render before anybody has
        signed in: the login page's own branding, and the tool logos the public help pages carry.
        A file left off this list does not 404 -- it redirects to /login, and next/image then fails
-       with "isn't a valid image" because what it fetched was an HTML page. */
-    '/((?!api/auth|_next/static|_next/image|favicon.ico|nesr-logo.jpg|nesr-logo-circle.png|rfx-officer-logo.png).*)',
+       with "isn't a valid image" because what it fetched was an HTML page.
+
+       procureguard-logo.jpg was left off and had been broken for every signed-out reader of
+       /help/procureguard. A test now walks the help pages and fails if one of them references an
+       image that is not named here, because a broken logo on a public page is invisible to
+       everybody who is signed in, which is everybody who would notice. */
+    '/((?!api/auth|_next/static|_next/image|favicon.ico|nesr-logo.jpg|nesr-logo-circle.png|rfx-officer-logo.png|procureguard-logo.jpg).*)',
   ],
 };
