@@ -12,6 +12,7 @@ import {
   ProcureGuardMark,
   RfxOfficerMark,
   ShipWavesMark,
+  SirionMark,
   TiteMark,
   TravelPortalMark,
 } from '@/components/ToolMarks';
@@ -370,6 +371,28 @@ export const TOOLS: ToolDef[] = [
     route: '/learning-hub',
     access: { kind: 'always' },
     badge: { kind: 'success', label: 'Open Access' },
+  },
+
+  {
+    id: 'sirion',
+    group: 'online',
+    keywords:
+      'sirion sirionlabs clm contract lifecycle management agreements legal obligations renewals clauses ai contracts',
+    name: 'Sirion',
+    subtitle: 'AI Contracts',
+    description:
+      'NESR’s contract lifecycle management platform: author, negotiate, sign and track agreements, with AI reading the clauses and obligations inside them.',
+    icon: <SirionMark className="h-7 w-7" />,
+    // White ground: the mark carries its own petrol teal, which muddies on a green tint.
+    logoClass: 'bg-white border border-[#307c4c]/15',
+    hoverClass: HOVER_GREEN,
+    accent: NESR_GREEN,
+    tone: 'live',
+    // Its own product on its own domain, so the card action is a real link.
+    route: 'https://nesr.sirionone.eu',
+    external: true,
+    access: { kind: 'always' },
+    badge: { kind: 'lock', label: 'Portal Access' },
   },
 
   {

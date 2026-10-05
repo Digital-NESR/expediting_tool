@@ -148,6 +148,27 @@ export function ShipWavesMark({ className = 'h-6 w-6', style }: MarkProps) {
 }
 
 /**
+ * Sirion - its own artwork, like RFx Officer's and ProcureGuard's.
+ *
+ * Sirion is a third-party product and the interlocking S is its mark, not something to redraw: the
+ * nested loops are what make it recognisable and a hand-cut approximation at 24px would be both
+ * wrong and unrecognisable. The PNG keeps the product's own petrol teal; only the card around it
+ * is NESR green.
+ */
+export function SirionMark({ className = 'h-6 w-6', size = 96 }: MarkProps & { size?: number }) {
+  return (
+    <Image
+      src="/sirion-logo.png"
+      alt=""
+      width={size}
+      height={size}
+      className={`${className} object-contain`}
+      aria-hidden
+    />
+  );
+}
+
+/**
  * Travel Portal - a globe with a plane leaving it.
  *
  * The two halves are kept apart rather than overlapped: at 24px a plane crossing the globe's
