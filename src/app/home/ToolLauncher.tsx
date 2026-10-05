@@ -6,12 +6,13 @@
    the page (background, header chrome, SCAI panel) is server-rendered
    and passed in as `scaiPanel`. */
 
-import { useState, type ReactNode } from 'react';
+import { useOptimistic, useState, useTransition, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { useSession } from 'next-auth/react';
-import { Search } from 'lucide-react';
+import { Search, Star } from 'lucide-react';
 import { TOOLS, type ModalTool, type ToolDef, type ToolStatus } from './tools';
 import { ToolCard, type ProcureGuardAccessType } from './ToolCard';
+import { toggleFavourite } from '@/app/actions/home-favourites';
 
 /* The modals are only ever needed after a click, so they are code-split
    out of the initial page bundle. */
@@ -34,10 +35,45 @@ function byName(tools: ToolDef[], group: ToolDef['group']): ToolDef[] {
   return tools.filter((t) => t.group === group).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export default function ToolLauncher({ scaiPanel }: { scaiPanel: ReactNode }) {
+export default function ToolLauncher({
+  scaiPanel,
+  initialFavourites,
+}: {
+  scaiPanel: ReactNode;
+  /** Pinned tool ids, newest first, read on the server so the section renders filled. */
+  initialFavourites: string[];
+}) {
   const { data: session, status: sessionStatus, update } = useSession();
 
   const [modal, setModal] = useState<ModalState>(null);
+
+  /* Pinning is one row in one table, so the star moves immediately and the write catches up.
+     `useOptimistic` rather than plain state because the action returns the truth: if the write
+     failed, or lost a race with another tab, React drops back to `favourites` and the star
+     returns to where it really is rather than lying until the next reload. */
+  const [favourites, setFavourites] = useState<string[]>(initialFavourites);
+  const [shownFavourites, showFavourite] = useOptimistic(
+    favourites,
+    (current: string[], toolId: string) =>
+      current.includes(toolId) ? current.filter((id) => id !== toolId) : [toolId, ...current],
+  );
+  const [, startFavouriteTransition] = useTransition();
+
+  function onToggleFavourite(toolId: string) {
+    const pinned = !favourites.includes(toolId);
+    startFavouriteTransition(async () => {
+      showFavourite(toolId);
+      const result = await toggleFavourite(toolId, pinned);
+      if (!result.success) return;
+      setFavourites((current) =>
+        result.pinned
+          ? current.includes(toolId)
+            ? current
+            : [toolId, ...current]
+          : current.filter((id) => id !== toolId),
+      );
+    });
+  }
   const [appSearch, setAppSearch] = useState('');
 
   const rawName = session?.user?.name ?? '';
@@ -105,9 +141,7 @@ export default function ToolLauncher({ scaiPanel }: { scaiPanel: ReactNode }) {
   /* A `searchOnly` tool is not in the grid until somebody looks for it: Spend Taxonomy lives in
      the sidebar, and a search for "commodity" that answered "no applications match" would be
      telling them something untrue. */
-  const visible = TOOLS.filter((t) =>
-    q ? t.keywords.toLowerCase().includes(q) : !t.searchOnly,
-  );
+  const visible = TOOLS.filter((t) => (q ? t.keywords.toLowerCase().includes(q) : !t.searchOnly));
 
   const renderCard = (tool: ToolDef) => (
     <ToolCard
@@ -117,8 +151,18 @@ export default function ToolLauncher({ scaiPanel }: { scaiPanel: ReactNode }) {
       isAdmin={isAdmin}
       procureGuardAccessType={procureGuardAccessType}
       onOpen={(newTab) => handleOpen(tool, newTab)}
+      isFavourite={shownFavourites.includes(tool.id)}
+      onToggleFavourite={() => onToggleFavourite(tool.id)}
     />
   );
+
+  /* In the order they were pinned, not alphabetically: the section is short, and somebody who
+     just pinned something should find it where they expect rather than hunt for it. A pin for a
+     card the search has filtered out is left out too, so the section tracks the search like the
+     grids below it do. */
+  const favouriteCards = shownFavourites
+    .map((id) => visible.find((t) => t.id === id))
+    .filter((t): t is ToolDef => Boolean(t));
 
   return (
     <>
@@ -189,6 +233,24 @@ export default function ToolLauncher({ scaiPanel }: { scaiPanel: ReactNode }) {
                 </svg>
                 Checking your access...
               </div>
+            </div>
+          )}
+
+          {/* ── Favourites — in the order they were pinned ── */}
+          {favouriteCards.length > 0 && (
+            <div>
+              <div className="mb-3 flex items-center gap-2">
+                <Star className="h-4 w-4 text-amber-500" fill="currentColor" />
+                <h2 className="text-[13px] font-semibold uppercase tracking-wide text-slate-500">
+                  Favourites
+                </h2>
+              </div>
+              <div className="grid grid-cols-3 gap-6 content-start">
+                {favouriteCards.map(renderCard)}
+              </div>
+              {/* The same cards stay in the lists below, so the grids keep their full set and a
+                  reader is never left wondering where a tool went when they pinned it. */}
+              <hr className="mt-6 border-slate-200" />
             </div>
           )}
 

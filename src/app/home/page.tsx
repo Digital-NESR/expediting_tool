@@ -4,11 +4,19 @@
    The interactive half lives in <ToolLauncher> (client). */
 
 import Image from 'next/image';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { listFavourites } from '@/lib/home-favourites';
 import HeaderUser from './HeaderUser';
 import HomeSidebar from './HomeSidebar';
 import ToolLauncher from './ToolLauncher';
 
-export default function HomePage() {
+export default async function HomePage() {
+  /* Read here rather than fetched by the launcher after mount, so the favourites section is
+     already filled in the first frame. Pinned tools are the ones somebody came to click. */
+  const session = await getServerSession(authOptions);
+  const favourites = await listFavourites(session?.user?.email ?? '');
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 font-sans text-slate-900 relative overflow-hidden">
       {/* ── Decorative background graphics ── */}
@@ -60,7 +68,7 @@ export default function HomePage() {
       {/* ── Main ── */}
       <main className="flex-1 px-8 py-12 relative z-10">
         <div className="max-w-[1400px] mx-auto">
-          <ToolLauncher scaiPanel={<HomeSidebar />} />
+          <ToolLauncher scaiPanel={<HomeSidebar />} initialFavourites={favourites} />
         </div>
       </main>
     </div>

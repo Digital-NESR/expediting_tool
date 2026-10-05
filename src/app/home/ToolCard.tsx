@@ -22,7 +22,7 @@
    Tab order inside a card is: card action → logo → help link. */
 
 import type { CSSProperties } from 'react';
-import { HelpCircle } from 'lucide-react';
+import { HelpCircle, Star } from 'lucide-react';
 import type { ToolDef, ToolStatus } from './tools';
 
 export type ProcureGuardAccessType = 'requester' | 'approver' | 'viewer' | 'admin';
@@ -165,6 +165,8 @@ export function ToolCard({
   isAdmin,
   procureGuardAccessType,
   onOpen,
+  isFavourite,
+  onToggleFavourite,
 }: {
   tool: ToolDef;
   /** Access-request status; only meaningful for `access.kind === 'status'` cards. */
@@ -173,6 +175,8 @@ export function ToolCard({
   procureGuardAccessType: ProcureGuardAccessType;
   /** newTab=true → card body, newTab=false → logo tile. */
   onOpen: (newTab: boolean) => void;
+  isFavourite: boolean;
+  onToggleFavourite: () => void;
 }) {
   const canOpen =
     tool.access.kind === 'status'
@@ -347,15 +351,36 @@ export function ToolCard({
         )}
       </div>
 
-      {tool.helpHref && (
-        <a
-          href={tool.helpHref}
-          title="View Help & Training"
-          className="absolute top-3 right-3 z-20 rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+      {/* The corner controls. A row rather than two absolutely-placed buttons, so adding the
+          star did not have to push the help link to a hand-picked offset that the next control
+          would break again. */}
+      <div className="absolute top-3 right-3 z-20 flex items-center gap-0.5">
+        <button
+          type="button"
+          onClick={onToggleFavourite}
+          aria-pressed={isFavourite}
+          title={isFavourite ? 'Remove from favourites' : 'Add to favourites'}
+          aria-label={
+            isFavourite ? `Remove ${tool.name} from favourites` : `Add ${tool.name} to favourites`
+          }
+          className={`rounded-md p-1.5 transition-colors hover:bg-gray-100 ${
+            isFavourite
+              ? 'text-amber-500 hover:text-amber-600'
+              : 'text-gray-300 hover:text-gray-500'
+          }`}
         >
-          <HelpCircle className="w-4 h-4" />
-        </a>
-      )}
+          <Star className="h-4 w-4" fill={isFavourite ? 'currentColor' : 'none'} />
+        </button>
+        {tool.helpHref && (
+          <a
+            href={tool.helpHref}
+            title="View Help & Training"
+            className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+          >
+            <HelpCircle className="w-4 h-4" />
+          </a>
+        )}
+      </div>
     </div>
   );
 }
