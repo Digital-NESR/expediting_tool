@@ -6,7 +6,7 @@
    the page (background, header chrome, SCAI panel) is server-rendered
    and passed in as `scaiPanel`. */
 
-import { useOptimistic, useState, useTransition, type ReactNode } from 'react';
+import { useEffect, useOptimistic, useRef, useState, useTransition, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import { useSession } from 'next-auth/react';
 import { Search, Star } from 'lucide-react';
@@ -35,6 +35,49 @@ function byName(tools: ToolDef[], group: ToolDef['group']): ToolDef[] {
   return tools.filter((t) => t.group === group).sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/**
+ * One titled group of cards.
+ *
+ * "Available" and "Coming Soon" existed only as code comments, so the two grids ran together as
+ * one undifferentiated block: a screen reader met fifteen cards with no grouping, and a sighted
+ * reader had to infer the second group from the badges on its cards. A group with nothing in it
+ * renders nothing rather than a heading over empty space, which starts to matter as soon as the
+ * search filters.
+ *
+ * At module scope, not inside the launcher. Declared in the render body it would be a fresh
+ * component type on every keystroke, and React would remount every card underneath it.
+ */
+function ToolSection({
+  title,
+  icon,
+  tools,
+  render,
+  divider,
+}: {
+  title: string;
+  icon?: ReactNode;
+  tools: ToolDef[];
+  render: (tool: ToolDef) => ReactNode;
+  divider?: boolean;
+}) {
+  if (tools.length === 0) return null;
+  return (
+    <section aria-label={title}>
+      <div className="mb-3 flex items-center gap-2">
+        {icon}
+        <h2 className="text-[13px] font-semibold uppercase tracking-wide text-slate-500">
+          {title}
+        </h2>
+        <span className="text-[12px] font-medium text-slate-400">{tools.length}</span>
+      </div>
+      <div className="grid grid-cols-1 gap-6 content-start md:grid-cols-2 xl:grid-cols-3">
+        {tools.map(render)}
+      </div>
+      {divider && <hr className="mt-6 border-slate-200" />}
+    </section>
+  );
+}
+
 export default function ToolLauncher({
   scaiPanel,
   initialFavourites,
@@ -46,6 +89,34 @@ export default function ToolLauncher({
   const { data: session, status: sessionStatus, update } = useSession();
 
   const [modal, setModal] = useState<ModalState>(null);
+
+  /* The search is the fastest route to any of fifteen tools and the only way to reach the two
+     that are not cards, and it could only be started with the mouse. "/" is the convention a
+     reader is most likely to already have in their fingers; Ctrl/Cmd-K is there for the ones who
+     expect a command palette. Escape hands the page back.
+
+     Guarded on the event target so that typing "/" into any other field still types a slash. */
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const el = e.target as HTMLElement | null;
+      const typing =
+        el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA' || el?.isContentEditable === true;
+
+      if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+        return;
+      }
+      if (e.key === '/' && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   /* Pinning is one row in one table, so the star moves immediately and the write catches up.
      `useOptimistic` rather than plain state because the action returns the truth: if the write
@@ -182,19 +253,41 @@ export default function ToolLauncher({
           })}
         </p>
 
-        {/* Search bar */}
+        {/* Search bar. The placeholder is not a label: it disappears the moment somebody types,
+            and a screen reader announces an unlabelled text box. */}
         <div className="relative mt-5 max-w-md">
+          <label htmlFor="app-search" className="sr-only">
+            Search applications
+          </label>
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
+            id="app-search"
+            ref={searchRef}
             type="text"
             placeholder="Search applications..."
             value={appSearch}
             onChange={(e) => setAppSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors placeholder-slate-400 shadow-sm"
+            onKeyDown={(e) => {
+              if (e.key !== 'Escape') return;
+              // First Escape clears a search, a second gives the page back.
+              if (appSearch) setAppSearch('');
+              else e.currentTarget.blur();
+            }}
+            className="w-full pl-10 pr-16 py-2.5 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors placeholder-slate-400 shadow-sm"
           />
+          {/* The hint stands down once there is something to clear, so the two never collide. */}
+          {!appSearch && (
+            <kbd
+              aria-hidden
+              className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-sans text-[11px] font-medium text-slate-400 sm:block"
+            >
+              /
+            </kbd>
+          )}
           {appSearch && (
             <button
               onClick={() => setAppSearch('')}
+              aria-label="Clear the search"
               className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-300 transition-colors"
             >
               <svg
@@ -211,8 +304,11 @@ export default function ToolLauncher({
         </div>
       </div>
 
-      {/* Flex row: tool cards (flex-1, 3-col grid) + SCAI panel (fixed width) */}
-      <div className="flex gap-6 items-stretch">
+      {/* Cards beside the SCAI panel on a wide screen, stacked under it below xl.
+          The grid was a fixed three columns next to a fixed 320px panel with no breakpoints at
+          all, so the cards kept dividing whatever was left: measured, a card's text area went
+          from 272px at 1600 to 125px at 1024 and 40px at 768, where the layout is unusable. */}
+      <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch">
         {/* ── Tool cards ── */}
         <div className="relative flex-1 flex flex-col gap-6">
           {/* While the session (and per-tool access) is still loading, cover the cards so nobody
@@ -240,33 +336,23 @@ export default function ToolLauncher({
             </div>
           )}
 
-          {/* ── Favourites — in the order they were pinned ── */}
-          {favouriteCards.length > 0 && (
-            <div>
-              <div className="mb-3 flex items-center gap-2">
-                <Star className="h-4 w-4 text-amber-500" fill="currentColor" />
-                <h2 className="text-[13px] font-semibold uppercase tracking-wide text-slate-500">
-                  Favourites
-                </h2>
-              </div>
-              <div className="grid grid-cols-3 gap-6 content-start">
-                {favouriteCards.map(renderFavourite)}
-              </div>
-              {/* The same cards stay in the lists below, so the grids keep their full set and a
-                  reader is never left wondering where a tool went when they pinned it. */}
-              <hr className="mt-6 border-slate-200" />
-            </div>
-          )}
+          {/* Favourites keep their cards in the lists below as well, so the grids stay complete
+              and nobody wonders where a tool went when they pinned it. */}
+          <ToolSection
+            title="Favourites"
+            icon={<Star className="h-4 w-4 text-amber-500" fill="currentColor" />}
+            tools={favouriteCards}
+            render={renderFavourite}
+            divider
+          />
 
-          {/* ── Available (launched) — alphabetical ── */}
-          <div className="grid grid-cols-3 gap-6 content-start">
-            {byName(visible, 'online').map(renderCard)}
-          </div>
+          <ToolSection title="Available" tools={byName(visible, 'online')} render={renderCard} />
 
-          {/* ── Coming Soon / under development — alphabetical ── */}
-          <div className="grid grid-cols-3 gap-6 content-start">
-            {byName(visible, 'development').map(renderCard)}
-          </div>
+          <ToolSection
+            title="Coming Soon"
+            tools={byName(visible, 'development')}
+            render={renderCard}
+          />
 
           {q && visible.length === 0 && (
             <div className="py-12 text-center">

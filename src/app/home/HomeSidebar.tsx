@@ -11,10 +11,13 @@ import SpendTaxonomyPanel from './SpendTaxonomyPanel';
  *
  * `h-fit` stops the column stretching to the full height of the card grid beside it, which is what
  * `items-stretch` on the row would otherwise do.
+ *
+ * Full width below xl, where the launcher stacks this under the cards instead of beside them: at
+ * 320px wide in a column of its own it left the grid too little to divide three ways.
  */
 export default function HomeSidebar() {
   return (
-    <aside className="flex h-fit w-80 shrink-0 flex-col gap-6">
+    <aside className="flex h-fit w-full flex-col gap-6 xl:w-80 xl:shrink-0">
       <ScaiPanel />
       <SpendTaxonomyPanel />
     </aside>
