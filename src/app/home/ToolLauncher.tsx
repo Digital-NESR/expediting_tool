@@ -143,7 +143,10 @@ export default function ToolLauncher({
      telling them something untrue. */
   const visible = TOOLS.filter((t) => (q ? t.keywords.toLowerCase().includes(q) : !t.searchOnly));
 
-  const renderCard = (tool: ToolDef) => (
+  const renderCard = (tool: ToolDef) => renderToolCard(tool, false);
+  const renderFavourite = (tool: ToolDef) => renderToolCard(tool, true);
+
+  const renderToolCard = (tool: ToolDef, compact: boolean) => (
     <ToolCard
       key={tool.id}
       tool={tool}
@@ -153,6 +156,7 @@ export default function ToolLauncher({
       onOpen={(newTab) => handleOpen(tool, newTab)}
       isFavourite={shownFavourites.includes(tool.id)}
       onToggleFavourite={() => onToggleFavourite(tool.id)}
+      compact={compact}
     />
   );
 
@@ -246,7 +250,7 @@ export default function ToolLauncher({
                 </h2>
               </div>
               <div className="grid grid-cols-3 gap-6 content-start">
-                {favouriteCards.map(renderCard)}
+                {favouriteCards.map(renderFavourite)}
               </div>
               {/* The same cards stay in the lists below, so the grids keep their full set and a
                   reader is never left wondering where a tool went when they pinned it. */}

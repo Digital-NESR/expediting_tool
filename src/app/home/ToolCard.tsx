@@ -9,17 +9,25 @@
    is invalid HTML: the inner controls were unreachable by keyboard and
    only "worked" because of stopPropagation on mouse clicks.
 
-   Now the container is a plain <div> and the three controls are siblings
+   Now the container is a plain <div> and the controls are siblings
    layered on top of it:
 
      <div class="group relative …">          ← non-interactive container
        <button|a class="absolute inset-0">   ← card action (opens a new tab)
        <button|a class="relative z-10">      ← logo (opens in the SAME tab)
        …title / description / footer…
-       <a class="absolute top-3 right-3 z-20">?</a>   ← help & training
+       <div class="absolute top-3 right-3 z-20">   ← corner controls
+         <a>?</a>        ← help & training, only on cards that have a page
+         <button>★</button>  ← favourite, on every card
+       </div>
      </div>
 
-   Tab order inside a card is: card action → logo → help link. */
+   Tab order inside a card is: card action → logo → help → favourite.
+
+   `compact` drops the subtitle, description, region pills and footer, leaving
+   the logo, the name and the corner controls. That is what the favourites
+   section renders: a shortcut to something the reader has already chosen does
+   not need to re-explain itself. */
 
 import type { CSSProperties } from 'react';
 import { HelpCircle, Star } from 'lucide-react';
@@ -157,6 +165,12 @@ interface Action {
 
 const CARD_BASE =
   'group relative flex w-full flex-col gap-4 rounded-xl border border-gray-200 bg-white p-8 text-left transition-all duration-200';
+/* The favourites row: logo and name only, laid out across rather than down. Somebody who pinned
+   a tool already knows what it does, so the description, the subtitle and the access badge are
+   all answering a question they are no longer asking, and three of them stacked make a shortcut
+   the same size as the thing it is a shortcut to. */
+const CARD_COMPACT =
+  'group relative flex w-full flex-row items-center gap-4 rounded-xl border border-gray-200 bg-white p-5 pr-[68px] text-left transition-all duration-200';
 const LINK_CLASS = 'text-sm font-semibold group-hover:underline';
 
 export function ToolCard({
@@ -167,6 +181,7 @@ export function ToolCard({
   onOpen,
   isFavourite,
   onToggleFavourite,
+  compact = false,
 }: {
   tool: ToolDef;
   /** Access-request status; only meaningful for `access.kind === 'status'` cards. */
@@ -177,6 +192,8 @@ export function ToolCard({
   onOpen: (newTab: boolean) => void;
   isFavourite: boolean;
   onToggleFavourite: () => void;
+  /** The favourites row: logo, name and the corner controls, nothing else. */
+  compact?: boolean;
 }) {
   const canOpen =
     tool.access.kind === 'status'
@@ -216,7 +233,7 @@ export function ToolCard({
   const cardLabel = action ? `${tool.name} — ${action.label.replace(' →', '')}` : tool.name;
 
   return (
-    <div className={`${CARD_BASE} ${toneClass}`}>
+    <div className={`${compact ? CARD_COMPACT : CARD_BASE} ${toneClass}`}>
       {/* Card action — a stretched, transparent control covering the whole card.
           It sits behind the logo (z-10) and the help link (z-20). */}
       {interactive &&
@@ -296,15 +313,17 @@ export function ToolCard({
             {tool.name}
           </h3>
         )}
-        {tool.subtitle && (
+        {!compact && tool.subtitle && (
           <p className="mt-0.5 text-[13px] font-medium text-slate-400">{tool.subtitle}</p>
         )}
-        <p className="mt-2 text-sm leading-relaxed text-gray-500">{tool.description}</p>
+        {!compact && (
+          <p className="mt-2 text-sm leading-relaxed text-gray-500">{tool.description}</p>
+        )}
         {/* Where it is actually switched on. A tool that is live in three places and not the
             other eight has to say so on the card, or somebody in a ninth clicks Portal Access and
             finds a product that has nothing for them yet. Absent on every other card, which is
             how "everywhere" is said. */}
-        {tool.regions && tool.regions.length > 0 && (
+        {!compact && tool.regions && tool.regions.length > 0 && (
           <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
               Live in
@@ -321,40 +340,55 @@ export function ToolCard({
         )}
       </div>
 
-      <div className="relative z-10 mt-auto flex items-center justify-between pointer-events-none">
-        {tool.badge.kind === 'status' ? (
-          <AccessBadge status={status} isAdmin={isAdmin} />
-        ) : tool.badge.kind === 'procureGuard' ? (
-          <ProcureGuardBadge accessType={procureGuardAccessType} isAdmin={isAdmin} />
-        ) : tool.badge.kind === 'success' ? (
-          <TickBadge label={tool.badge.label} />
-        ) : tool.badge.kind === 'adminOrLock' ? (
-          /* An administrator opens the tool without asking anybody, so telling them access is
+      {!compact && (
+        <div className="relative z-10 mt-auto flex items-center justify-between pointer-events-none">
+          {tool.badge.kind === 'status' ? (
+            <AccessBadge status={status} isAdmin={isAdmin} />
+          ) : tool.badge.kind === 'procureGuard' ? (
+            <ProcureGuardBadge accessType={procureGuardAccessType} isAdmin={isAdmin} />
+          ) : tool.badge.kind === 'success' ? (
+            <TickBadge label={tool.badge.label} />
+          ) : tool.badge.kind === 'adminOrLock' ? (
+            /* An administrator opens the tool without asking anybody, so telling them access is
              required is simply false. Everyone else still sees the padlock, because for them it
              is true. */
-          isAdmin ? (
-            <TickBadge label="Full Access" />
-          ) : (
+            isAdmin ? (
+              <TickBadge label="Full Access" />
+            ) : (
+              <LockBadge label={tool.badge.label} />
+            )
+          ) : tool.badge.kind === 'lock' ? (
             <LockBadge label={tool.badge.label} />
-          )
-        ) : tool.badge.kind === 'lock' ? (
-          <LockBadge label={tool.badge.label} />
-        ) : (
-          <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-400">
-            {canOpen ? 'Admin Preview' : 'Coming Soon'}
-          </span>
-        )}
-        {action && (
-          <span className={action.className} style={action.style}>
-            {action.label}
-          </span>
-        )}
-      </div>
+          ) : (
+            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-400">
+              {canOpen ? 'Admin Preview' : 'Coming Soon'}
+            </span>
+          )}
+          {action && (
+            <span className={action.className} style={action.style}>
+              {action.label}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* The corner controls. A row rather than two absolutely-placed buttons, so adding the
           star did not have to push the help link to a hand-picked offset that the next control
-          would break again. */}
+          would break again.
+
+          The star sits at the edge and help to its left: the star is on every card and help is
+          not, so putting help last would shift the star left on some cards and not others, and
+          the one control a reader reaches for repeatedly would never be in the same place. */}
       <div className="absolute top-3 right-3 z-20 flex items-center gap-0.5">
+        {tool.helpHref && (
+          <a
+            href={tool.helpHref}
+            title="View Help & Training"
+            className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+          >
+            <HelpCircle className="w-4 h-4" />
+          </a>
+        )}
         <button
           type="button"
           onClick={onToggleFavourite}
@@ -371,15 +405,6 @@ export function ToolCard({
         >
           <Star className="h-4 w-4" fill={isFavourite ? 'currentColor' : 'none'} />
         </button>
-        {tool.helpHref && (
-          <a
-            href={tool.helpHref}
-            title="View Help & Training"
-            className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-          >
-            <HelpCircle className="w-4 h-4" />
-          </a>
-        )}
       </div>
     </div>
   );
