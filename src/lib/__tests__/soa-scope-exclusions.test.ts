@@ -21,6 +21,7 @@ const candidate = (over: Partial<ScopeCandidate> = {}): ScopeCandidate => ({
   overThreshold: true,
   rank: 1,
   cumulativePct: 10,
+  sharePct: 10,
   ...over,
 });
 

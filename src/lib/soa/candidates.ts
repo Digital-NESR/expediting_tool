@@ -42,6 +42,15 @@ export interface ScopeCandidate {
    * total and has no share of its own to report.
    */
   cumulativePct: number | null;
+  /**
+   * This supplier's own share of that balance, as distinct from the running total above.
+   *
+   * The cumulative figure answers "where do I stop drawing the line"; this answers "is chasing
+   * this one worth anything". Reading only the cumulative column, a supplier sitting at 94% could
+   * be carrying six percent of the country or a rounding error, and the two are a different
+   * decision. Null for an excluded supplier, for the same reason the cumulative figure is.
+   */
+  sharePct: number | null;
 }
 
 export interface ScopeCandidates {
@@ -134,7 +143,13 @@ export async function scopeCandidates(
       rank: i + 1,
       // Null, not zero and not the row above's figure: this supplier adds nothing to the running
       // total, and a repeated percentage would read as a supplier worth nothing.
-      cumulativePct: excluded || totalBalance <= 0 ? null : Math.round((running / totalBalance) * 100),
+      cumulativePct:
+        excluded || totalBalance <= 0 ? null : Math.round((running / totalBalance) * 100),
+      /* One decimal, where the cumulative figure is whole: most suppliers in a country of six
+         hundred are under one per cent, and rounding them to whole percent prints a column of
+         zeroes against suppliers who are really there. */
+      sharePct:
+        excluded || totalBalance <= 0 ? null : Math.round((valueUsd / totalBalance) * 1000) / 10,
     };
   });
 

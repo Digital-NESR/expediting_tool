@@ -5,7 +5,7 @@ import type { ScopeRowKind, ScreenProps } from '../../types';
 import TableToolbar from '../TableToolbar';
 import { STANDING_BORDER_TOP, STANDING_TEXT } from '../tones';
 
-const COLUMNS = 'grid-cols-[34px_44px_1fr_110px_104px_128px]';
+const COLUMNS = 'grid-cols-[34px_44px_1fr_110px_84px_104px_128px]';
 
 /* The three row states. Two of them are not free choices, so they are coloured differently from
    an ordinary row rather than only being disabled: a champion has to be able to see, at a glance
@@ -263,6 +263,7 @@ export default function VendorScopingScreen({ vm }: ScreenProps) {
               <div>#</div>
               <div>Supplier</div>
               <div>PO Amount</div>
+              <div>Share %</div>
               <div>Cumulative %</div>
               <div>State</div>
             </div>
@@ -314,6 +315,10 @@ export default function VendorScopingScreen({ vm }: ScreenProps) {
                 {/* An excluded supplier contributes nothing to the running total, so it shows a
                     dash rather than repeating the row above's figure, which would read as a
                     supplier worth nothing. */}
+                {/* This supplier alone, beside the running total. Read on its own the
+                    cumulative column cannot tell a supplier carrying six per cent of the country
+                    from one carrying a rounding error, and those are a different decision. */}
+                <div className="text-sns-grey">{row.sharePctLabel || '–'}</div>
                 <div className={`font-bold ${STANDING_TEXT[row.cumStanding]}`}>
                   {row.cumPct === null ? '–' : `${row.cumPct}%`}
                 </div>

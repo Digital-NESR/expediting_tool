@@ -1,7 +1,7 @@
 import type { ScreenProps } from '../../types';
 import { CRITERION_BORDER, CRITERION_FILL } from '../tones';
 
-const COLUMNS = 'grid-cols-[30px_1fr_110px_65px_85px_55px_80px_60px]';
+const COLUMNS = 'grid-cols-[30px_1fr_110px_65px_85px_68px_78px_55px_80px_60px]';
 
 export default function ConsolidationScreen({ vm }: ScreenProps) {
   return (
@@ -113,6 +113,8 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
           <div>Vendor No.</div>
           <div>Curr.</div>
           <div>Amount</div>
+          <div>Share %</div>
+          <div>Cum. %</div>
           <div>Inv.</div>
           <div>Response</div>
           <div />
@@ -129,6 +131,10 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
             <div className="text-sns-grey font-[family-name:monospace] text-[10px]">{r.no}</div>
             <div className="text-sns-grey">{r.currency}</div>
             <div className="font-bold text-sns-green">{r.fmtOpenPO}</div>
+            {/* The same two figures as the scoping and tracking screens, from one computation, so
+                a supplier does not read 12% on one screen and 11% on another. */}
+            <div className="text-sns-grey">{r.sharePctLabel}</div>
+            <div className="font-bold text-sns-ink">{r.cumPctLabel}</div>
             <div className="text-sns-grey">{r.invCount}</div>
             <div className="text-sns-grey text-[10px]">{r.respDate}</div>
             {/* This supplier's rows alone, in the same sixteen columns as the country file. What

@@ -1,5 +1,6 @@
 import { shortDateTime, shortDateUTC } from '@/lib/format';
 import { complianceCriteria } from '@/lib/soa/compliance';
+import { formatSharePct, spendShares } from '@/lib/soa/spend-share';
 import { countsTowardCoverage, isAwaitingVerification, isResolved } from '@/lib/soa/status';
 import type {
   AppState,
@@ -26,6 +27,7 @@ import type {
   StatusBarSegVM,
   TableControlsVM,
   Vendor,
+  SpendShareVM,
   VendorEnrichedVM,
   VendorRowVM,
   VendorStatus,
@@ -638,6 +640,22 @@ export function deriveViewModel(
     onClick: () => handlers.setFilterStatus(t.status),
   }));
 
+  /* Each supplier's weight in the country, computed once for every screen that shows it, against
+     the same denominator the coverage figure divides by. Computed here rather than per screen
+     because a supplier reading 12% on Response Tracking and 11% on Consolidation is a bug nobody
+     would report, they would simply stop trusting the column. */
+  const shares = spendShares(
+    vendors.map((v) => ({ key: v.id, value: v.openPO })),
+    totalBalance,
+  );
+  const shareLabels = (v: Vendor): SpendShareVM => {
+    const s = shares.get(v.id);
+    return {
+      sharePctLabel: formatSharePct(s?.sharePct ?? null) || '–',
+      cumPctLabel: s?.cumulativePct == null ? '–' : `${s.cumulativePct}%`,
+    };
+  };
+
   const enrichVendorRow = (v: Vendor): VendorRowVM => ({
     ...v,
     statusLabel: VENDOR_STATUS_LABEL[v.status] ?? v.status,
@@ -678,6 +696,7 @@ export function deriveViewModel(
       !isUnreachable &&
       (v.status === 'scoped' || v.status === 'requested' || v.status === 'reminded');
     return {
+      ...shareLabels(v),
       ...enrichVendorRow(v),
       isExpanded: v.id === expandedVendor,
       isReceived: v.status === 'received',
@@ -868,6 +887,7 @@ export function deriveViewModel(
       name: c.name,
       rank: c.rank,
       valueLabel: fmtM(c.valueUsd),
+      sharePctLabel: formatSharePct(c.sharePct),
       cumPct: c.cumulativePct,
       // An excluded row has no share to judge, so it is tinted as neither ahead nor behind.
       cumStanding:
@@ -939,7 +959,7 @@ export function deriveViewModel(
      rows to list, so including it would put an empty line in the file AP works from. */
   const consolidatedRows = vendors
     .filter((v) => v.status === 'received')
-    .map((v, i) => ({ ...v, num: i + 1, fmtOpenPO: fmtM(v.openPO) }));
+    .map((v, i) => ({ ...v, num: i + 1, fmtOpenPO: fmtM(v.openPO), ...shareLabels(v) }));
 
   const evidenceEnriched: EvidenceRowVM[] = evidence.map((e) => {
     const typeKey: EvidenceType = e.type in EVIDENCE_TYPE_LABEL ? (e.type as EvidenceType) : 'info';

@@ -212,7 +212,19 @@ export interface VendorRowVM extends Vendor {
   fmtOpenPO: string;
 }
 
-export interface VendorEnrichedVM extends VendorRowVM {
+/**
+ * A supplier's weight in the country, already written.
+ *
+ * Both figures, because they answer different questions: the share says whether this one supplier
+ * is worth chasing, the cumulative says how much of the country is covered by them and everyone
+ * larger. Shared by the tracking and consolidation rows so the two screens cannot drift.
+ */
+export interface SpendShareVM {
+  sharePctLabel: string;
+  cumPctLabel: string;
+}
+
+export interface VendorEnrichedVM extends VendorRowVM, SpendShareVM {
   isExpanded: boolean;
   isReceived: boolean;
   canAccept: boolean;
@@ -257,6 +269,8 @@ export interface ScopeRowVM {
   /** Position by value in the WHOLE country, from the server. Never the position on this page. */
   rank: number;
   valueLabel: string;
+  /** This supplier alone, already written. Empty for an excluded supplier. */
+  sharePctLabel: string;
   /** Running share at this row. Null for an excluded supplier, which is out of the denominator. */
   cumPct: number | null;
   cumStanding: Standing;
@@ -325,7 +339,7 @@ export interface ComplianceItemVM {
   state: CriterionState;
 }
 
-export interface ConsolidatedRowVM extends Vendor {
+export interface ConsolidatedRowVM extends Vendor, SpendShareVM {
   num: number;
   fmtOpenPO: string;
 }

@@ -13,7 +13,7 @@ import {
   VENDOR_STATUS_BADGE,
 } from '../tones';
 
-const COLUMNS = 'grid-cols-[1fr_100px_90px_80px_80px_80px_150px]';
+const COLUMNS = 'grid-cols-[1fr_100px_90px_72px_82px_80px_80px_80px_150px]';
 
 /**
  * The expanded row for one vendor.
@@ -329,6 +329,8 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
           <div>Vendor</div>
           <div>Status</div>
           <div>PO Amount</div>
+          <div>Share %</div>
+          <div>Cumulative %</div>
           <div>Requested</div>
           <div>Reminded</div>
           <div>Responded</div>
@@ -376,6 +378,11 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
                     : v.statusLabel}
               </div>
               <div className="font-bold">{v.fmtOpenPO}</div>
+              {/* How much of the country this supplier is, and how much is covered by them and
+                  everyone larger. The same two figures the scoping screen decided on, carried
+                  forward so the chase can be prioritised by weight rather than by row order. */}
+              <div className="text-sns-grey">{v.sharePctLabel}</div>
+              <div className="font-bold text-sns-ink">{v.cumPctLabel}</div>
               <div className="text-[11px] text-sns-grey">{v.reqDate}</div>
               <div className="text-[11px] text-sns-grey">{v.remDate ?? ', '}</div>
               <div className="text-[11px] text-sns-grey">{v.respDate ?? ', '}</div>
