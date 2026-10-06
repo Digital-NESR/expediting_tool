@@ -1237,6 +1237,7 @@ export function deriveViewModel(
     modalVendorCurrency: modalVendor?.currency ?? '',
     onCloseModal: handlers.closeModal,
     onAcceptSOA: handlers.acceptSOA,
+    onRemoveSubmission: handlers.removeSubmission,
     onResolveVendor: handlers.resolveVendor,
     onConfirmHandoff: handlers.confirmHandoff,
 

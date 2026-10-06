@@ -26,10 +26,12 @@ function VendorDetail({
   v,
   busy,
   canEdit,
+  onRemoveSubmission,
 }: {
   v: VendorEnrichedVM;
   busy: boolean;
   canEdit: boolean;
+  onRemoveSubmission: ScreenProps['vm']['onRemoveSubmission'];
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(v.contactLabel);
@@ -111,21 +113,40 @@ function VendorDetail({
           {/* A vendor who re-sent a corrected file has both on record. Only the newest is counted,
               and the older one says so rather than sitting there looking equally current. */}
           {v.submissions.map((file) => (
-            <a
+            <span
               key={file.id}
-              href={`/api/soa/submissions/${file.id}`}
-              download={file.fileName}
               className={`inline-flex items-center gap-1.5 rounded-md border bg-white px-2.5 py-[5px] text-[11px] font-bold ${
-                file.superseded
-                  ? 'border-sns-line text-sns-grey line-through decoration-1'
-                  : 'border-sns-line text-sns-green hover:border-sns-green'
+                file.superseded ? 'border-sns-line' : 'border-sns-line hover:border-sns-green'
               }`}
             >
-              {file.fileName}
-              {file.superseded && (
-                <span className="no-underline font-bold text-[10px] text-sns-grey">replaced</span>
+              <a
+                href={`/api/soa/submissions/${file.id}`}
+                download={file.fileName}
+                className={
+                  file.superseded ? 'text-sns-grey line-through decoration-1' : 'text-sns-green'
+                }
+              >
+                {file.fileName}
+              </a>
+              {file.superseded ? (
+                <span className="font-bold text-[10px] text-sns-grey">replaced</span>
+              ) : (
+                /* Only the current file can be taken off. A replaced one is already out of the
+                   arithmetic, and removing it would be deleting the record of what was first
+                   claimed, which is the opposite of what this evidence is for. */
+                v.canAccept && (
+                  <button
+                    type="button"
+                    title={`Remove ${file.fileName}`}
+                    aria-label={`Remove ${file.fileName} from ${v.name}`}
+                    onClick={() => onRemoveSubmission(v.id, file.kind, file.fileName)}
+                    className="text-[13px] leading-none text-sns-grey hover:text-[#B71C1C]"
+                  >
+                    ×
+                  </button>
+                )
               )}
-            </a>
+            </span>
           ))}
         </div>
       )}
@@ -406,7 +427,14 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
                 <span className="text-[11px] text-sns-grey">{v.isExpanded ? '▲' : '▼'}</span>
               </div>
             </div>
-            {v.isExpanded && <VendorDetail v={v} busy={vm.busy} canEdit={vm.canAct} />}
+            {v.isExpanded && (
+              <VendorDetail
+                v={v}
+                busy={vm.busy}
+                canEdit={vm.canAct}
+                onRemoveSubmission={vm.onRemoveSubmission}
+              />
+            )}
           </Fragment>
         ))}
       </div>

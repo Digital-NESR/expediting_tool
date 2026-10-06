@@ -17,7 +17,7 @@
 import { revalidatePath } from 'next/cache';
 import type { PoolClient, QueryResultRow } from 'pg';
 import { AccessError } from '@/lib/require-access';
-import { withTransaction } from '@/lib/db/tx';
+import { lockForTransaction, withTransaction } from '@/lib/db/tx';
 import { logger } from '@/lib/logger';
 import { validateUploadSignature, uploadMimeTypeFor } from '@/lib/documents';
 import { ensureSoaSchema, soaPool, sql } from '@/lib/soa/db';
@@ -548,6 +548,25 @@ export async function acceptSoaSubmission(
           error: `${file.name} is a saved email. Put it in the email box.`,
         };
       }
+      /* `.msg` is signature-checked above, because Outlook message format is an OLE container
+         with bytes to recognise. `.eml` has no signature at all, so anything renamed to .eml was
+         accepted on its name and filed as a supplier's reply. Every RFC 822 message opens with
+         headers, so that is what is looked for: enough to tell a saved mail from a PDF somebody
+         renamed, and not so strict that an unusual client's export is refused. */
+      if (field === 'email' && /\.eml$/i.test(file.name)) {
+        const head = content.subarray(0, 4096).toString('latin1');
+        const looksLikeMail =
+          /^(From|To|Subject|Date|Received|Message-ID|MIME-Version|Return-Path|Delivered-To|Content-Type):/im.test(
+            head,
+          );
+        if (!looksLikeMail) {
+          return {
+            success: false,
+            error: `${file.name} does not look like a saved email. It has no mail headers in it, so it is probably a renamed file rather than a message exported from Outlook.`,
+          };
+        }
+      }
+
       prepared.push({ kind: field, file, content });
     }
 
@@ -584,9 +603,132 @@ export async function acceptSoaSubmission(
   } catch (err) {
     if (err instanceof StatementRejected) return { success: false, error: err.message };
     log.error('acceptSoaSubmission.failed', err, { entryId });
+    /* Named, not a bare failure. Everything a champion can get wrong about a file is answered
+       above with a message about that file; reaching here means something else went wrong, and
+       the one useful thing to say is that nothing was filed, so they do not go looking for a
+       statement that is not there or upload it twice. */
     return {
       success: false,
-      error: err instanceof AccessError ? err.message : 'Could not record that statement.',
+      error:
+        err instanceof AccessError
+          ? err.message
+          : 'Something went wrong storing that file, so nothing was filed against this vendor. Try again, and if it keeps happening the file itself is likely the problem.',
+    };
+  }
+}
+
+/**
+ * Take a filed statement back off a vendor.
+ *
+ * A champion who files the wrong supplier's spreadsheet, or the covering email of the wrong
+ * quarter, had no way to undo it: uploading again replaced the file of that kind, but there was no
+ * way to end up with none. Coverage moves on the back of these files, so a wrong one is not a
+ * cosmetic mistake, it is a vendor counted as reconciled that is not.
+ *
+ * Superseded, never deleted. The row is what was claimed and when, the same reason a replaced
+ * statement stays on record, and an auditor asking why a vendor stopped counting is asking about
+ * exactly this moment. Its parsed lines go with it: they are joined through the submission, so
+ * retiring the parent takes them out of the consolidated workbook and out of the arithmetic
+ * without removing the evidence that they were once read.
+ *
+ * Removing the LAST current file puts the vendor back where it was before the statement arrived.
+ * Leaving it at `received` with nothing behind it would hold the coverage figure up on a file
+ * that is no longer there, which is the failure this is here to prevent.
+ */
+export async function removeSoaSubmission(
+  entryId: number,
+  kind: 'workbook' | 'email',
+): Promise<SoaResult<{ remaining: number; status: string }>> {
+  try {
+    const { actor, context } = await loadEntry(entryId);
+    if (kind !== 'workbook' && kind !== 'email') {
+      return { success: false, error: 'Unknown kind of statement.' };
+    }
+
+    const result = await withTransaction(soaPool, async (client) => {
+      /* Locked for the length of the decision: what the vendor's status becomes depends on what
+         is left after this removal, and two champions removing the two kinds at once would each
+         see the other's file still there and leave the vendor counted. */
+      await lockForTransaction(client, `soa_entry_${entryId}`);
+
+      const retired = await client.query<{ id: number; file_name: string }>(
+        `UPDATE soa_submissions
+            SET superseded_at = NOW()
+          WHERE vendor_cycle_entry_id = $1 AND kind = $2 AND superseded_at IS NULL
+        RETURNING id, file_name`,
+        [entryId, kind],
+      );
+      if (!retired.rowCount) return { removed: null, remaining: -1, status: '' };
+
+      const left = await client.query<{ n: string }>(
+        `SELECT COUNT(*) AS n FROM soa_submissions
+          WHERE vendor_cycle_entry_id = $1 AND superseded_at IS NULL`,
+        [entryId],
+      );
+      const remaining = Number(left.rows[0].n);
+
+      /* `nil_balance` is a champion's finding about the account, not a thing a file proves, so it
+         survives its paperwork being taken away. Only a status that rests on a submission is
+         rolled back. */
+      let status = context.status;
+      if (remaining === 0 && context.status === 'received') {
+        const back = await client.query<{ status: string }>(
+          `UPDATE vendor_cycle_entries
+              SET status = CASE
+                             WHEN reminded_at  IS NOT NULL THEN 'reminded'
+                             WHEN requested_at IS NOT NULL THEN 'requested'
+                             ELSE 'scoped'
+                           END::vendor_cycle_status,
+                  responded_at = NULL,
+                  invoice_count = 0,
+                  updated_at = NOW()
+            WHERE id = $1
+          RETURNING status::text AS status`,
+          [entryId],
+        );
+        status = back.rows[0].status;
+      } else if (remaining > 0) {
+        /* A workbook removed while the email stays: the vendor has still answered, but nobody has
+           read any invoices for them, so the count has to stop claiming otherwise. */
+        await client.query(
+          `UPDATE vendor_cycle_entries
+              SET invoice_count = COALESCE((
+                    SELECT SUM(s.parsed_line_count) FROM soa_submissions s
+                     WHERE s.vendor_cycle_entry_id = $1 AND s.superseded_at IS NULL
+                  ), 0),
+                  updated_at = NOW()
+            WHERE id = $1`,
+          [entryId],
+        );
+      }
+
+      const name = retired.rows[0].file_name;
+      await writeEvidence(
+        client,
+        context.countryCycleId,
+        entryId,
+        'upload',
+        kind === 'email' ? 'Filed reply removed' : 'Statement removed',
+        actor.email,
+        remaining === 0
+          ? `${name} was removed from ${context.vendorName} (${context.vendorNo}). Nothing is now on file for this vendor, so it no longer counts towards coverage and is back at ${status}.`
+          : `${name} was removed from ${context.vendorName} (${context.vendorNo}). ${remaining} file(s) remain, so the vendor still counts towards coverage.`,
+      );
+
+      return { removed: name, remaining, status };
+    });
+
+    if (result.remaining < 0) {
+      return { success: false, error: 'There is no current file of that kind to remove.' };
+    }
+
+    revalidatePath('/soa-consolidation');
+    return { success: true, data: { remaining: result.remaining, status: result.status } };
+  } catch (err) {
+    log.error('removeSoaSubmission.failed', err, { entryId, kind });
+    return {
+      success: false,
+      error: err instanceof AccessError ? err.message : 'Could not remove that file.',
     };
   }
 }

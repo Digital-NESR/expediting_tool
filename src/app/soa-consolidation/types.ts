@@ -561,6 +561,7 @@ export interface ViewModel {
   modalVendorCurrency: string;
   onCloseModal: () => void;
   onAcceptSOA: (files: AcceptSoaFiles) => void;
+  onRemoveSubmission: (entryId: string, kind: 'workbook' | 'email', fileName: string) => void;
   /** Close a vendor that never sent a statement, saying which kind of silence it was. */
   onResolveVendor: (outcome: ResolveOutcome, note: string) => void;
   onConfirmHandoff: () => void;
@@ -625,5 +626,7 @@ export interface Handlers {
   openHandoffModal: () => void;
   closeModal: () => void;
   acceptSOA: (files: AcceptSoaFiles) => void;
+  /** Take the current spreadsheet or email back off a vendor. */
+  removeSubmission: (entryId: string, kind: 'workbook' | 'email', fileName: string) => void;
   confirmHandoff: () => void;
 }

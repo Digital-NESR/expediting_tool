@@ -11,6 +11,7 @@ import {
 } from '@/app/actions/soa/scoping';
 import {
   acceptSoaSubmission,
+  removeSoaSubmission,
   getSoaExportRows,
   getSoaOutreachFailures,
   handOffSoaCountry,
@@ -421,6 +422,25 @@ export default function SoaConsolidationClient({
           );
         },
         'SOA not accepted',
+      );
+    },
+    removeSubmission(entryId, kind, fileName) {
+      void run(
+        () => removeSoaSubmission(Number(entryId), kind),
+        (data) => {
+          patch({ expandedVendor: null });
+          /* What it cost them is the point: removing the last file takes the vendor out of the
+             coverage figure, and a champion who does not realise that will wonder later why the
+             percentage moved. */
+          addToast(
+            'success',
+            'File removed',
+            data && data.remaining === 0
+              ? `${fileName} is off this vendor. Nothing is on file now, so they no longer count towards coverage and are back at ${data.status}.`
+              : `${fileName} is off this vendor. The other file stays, so they still count towards coverage.`,
+          );
+        },
+        'File not removed',
       );
     },
     loadCandidates() {
