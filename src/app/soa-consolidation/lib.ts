@@ -1,6 +1,6 @@
 import { shortDateTime, shortDateUTC } from '@/lib/format';
 import { complianceCriteria } from '@/lib/soa/compliance';
-import { formatSharePct, spendShares } from '@/lib/soa/spend-share';
+import { formatPct, spendShares } from '@/lib/soa/spend-share';
 import { countsTowardCoverage, isAwaitingVerification, isResolved } from '@/lib/soa/status';
 import type {
   AppState,
@@ -664,8 +664,8 @@ export function deriveViewModel(
     (v: Vendor): SpendShareVM => {
       const s = shares.get(v.id);
       return {
-        sharePctLabel: formatSharePct(s?.sharePct ?? null) || '–',
-        cumPctLabel: s?.cumulativePct == null ? '–' : `${s.cumulativePct}%`,
+        sharePctLabel: formatPct(s?.sharePct ?? null) || '–',
+        cumPctLabel: formatPct(s?.cumulativePct ?? null) || '–',
       };
     };
 
@@ -904,8 +904,9 @@ export function deriveViewModel(
       name: c.name,
       rank: c.rank,
       valueLabel: fmtM(c.valueUsd),
-      sharePctLabel: formatSharePct(c.sharePct),
+      sharePctLabel: formatPct(c.sharePct),
       cumPct: c.cumulativePct,
+      cumPctLabel: formatPct(c.cumulativePct),
       // An excluded row has no share to judge, so it is tinted as neither ahead nor behind.
       cumStanding:
         c.cumulativePct === null ? 'neutral' : coverageStanding(c.cumulativePct, coverageTargetPct),
@@ -1208,6 +1209,11 @@ export function deriveViewModel(
     consolidatedRows,
     consolidatedCount,
     fmtConsolidatedBalance: fmtM(consolidatedBalance),
+    /* Written to the same precision as the Cumulative column beneath it. At whole percent beside
+       a two-decimal column, the header and the last row would read as two different numbers. */
+    fmtCoveragePct: formatPct(
+      totalBalance > 0 ? Math.round((receivedBalance / totalBalance) * 10000) / 100 : 0,
+    ),
     allPass,
     allPassLabel,
     handedOff: payload.handedOff,

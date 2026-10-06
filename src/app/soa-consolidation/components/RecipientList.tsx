@@ -63,9 +63,7 @@ function Chip({
     <span
       title={title}
       className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-[5px] text-[11.5px] font-medium ${
-        system
-          ? 'bg-sns-green text-white'
-          : 'border border-sns-green bg-white text-sns-green'
+        system ? 'bg-sns-green text-white' : 'border border-sns-green bg-white text-sns-green'
       }`}
     >
       {locked && <span aria-hidden>🔒</span>}
@@ -178,7 +176,9 @@ export default function RecipientList({
           <div className="text-[11px] text-sns-grey mt-0.5">
             {vendors.length} vendors · {totalAddresses} addresses ·{' '}
             {unreachable > 0 ? (
-              <span className="text-[#B71C1C] font-bold">{unreachable} with nobody to write to</span>
+              <span className="text-[#B71C1C] font-bold">
+                {unreachable} with nobody to write to
+              </span>
             ) : (
               'every vendor reachable'
             )}
@@ -277,7 +277,9 @@ export default function RecipientList({
                 ...extraCc.map((e) => e.mail),
               ]}
               onSelect={(emp) =>
-                setExtraCc((list) => (list.some((x) => x.mail === emp.mail) ? list : [...list, emp]))
+                setExtraCc((list) =>
+                  list.some((x) => x.mail === emp.mail) ? list : [...list, emp],
+                )
               }
             />
             <div className="text-[10.5px] text-sns-grey mt-1">

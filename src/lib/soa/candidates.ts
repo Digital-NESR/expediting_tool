@@ -143,13 +143,14 @@ export async function scopeCandidates(
       rank: i + 1,
       // Null, not zero and not the row above's figure: this supplier adds nothing to the running
       // total, and a repeated percentage would read as a supplier worth nothing.
+      /* Two decimals on both. Most suppliers in a country of six hundred are under one per cent,
+         so whole percent prints a column of zeroes against suppliers who are really there, and a
+         running total written to the same precision can be read against the coverage figure
+         without wondering whether a gap is real or rounding. */
       cumulativePct:
-        excluded || totalBalance <= 0 ? null : Math.round((running / totalBalance) * 100),
-      /* One decimal, where the cumulative figure is whole: most suppliers in a country of six
-         hundred are under one per cent, and rounding them to whole percent prints a column of
-         zeroes against suppliers who are really there. */
+        excluded || totalBalance <= 0 ? null : Math.round((running / totalBalance) * 10000) / 100,
       sharePct:
-        excluded || totalBalance <= 0 ? null : Math.round((valueUsd / totalBalance) * 1000) / 10,
+        excluded || totalBalance <= 0 ? null : Math.round((valueUsd / totalBalance) * 10000) / 100,
     };
   });
 

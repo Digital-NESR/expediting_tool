@@ -111,7 +111,10 @@ export default function ResolveModal({ vm }: ScreenProps) {
 
         {outcome && (
           <div className="mt-3.5">
-            <label htmlFor="soa-resolve-note" className="mb-1 block text-[11px] font-bold text-sns-ink">
+            <label
+              htmlFor="soa-resolve-note"
+              className="mb-1 block text-[11px] font-bold text-sns-ink"
+            >
               {needsNote ? 'How did you establish this?' : 'Note (optional)'}
             </label>
             <textarea

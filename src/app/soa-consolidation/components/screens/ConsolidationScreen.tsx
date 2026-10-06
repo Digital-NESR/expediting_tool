@@ -110,7 +110,7 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
                 beside the rows it is made of is how the two are checked against each other. */}
             <div className="mt-0.5 text-[11px] text-sns-grey">
               {vm.fmtConsolidatedBalance} collected ·{' '}
-              <span className="font-bold text-sns-ink">{vm.coveragePct}%</span> of the country’s
+              <span className="font-bold text-sns-ink">{vm.fmtCoveragePct}</span> of the country’s
               balance
             </div>
           </div>

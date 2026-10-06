@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatSharePct, spendShares } from '@/lib/soa/spend-share';
+import { formatPct, spendShares } from '@/lib/soa/spend-share';
 
 const ROWS = [
   { key: 'c', value: 100 },
@@ -30,13 +30,27 @@ describe('spendShares', () => {
   });
 
   /*
-   * The reason share carries a decimal and cumulative does not. A country of 600 suppliers has
-   * most of them under 1%, and rounding those to whole percent prints a column of zeroes against
-   * suppliers who are really there.
+   * Why both carry decimals. A country of 600 suppliers has most of them under 1%, and rounding
+   * those to whole percent prints a column of zeroes against suppliers who are really there.
    */
-  it('keeps a decimal, so a small supplier is not rounded to nothing', () => {
+  it('keeps two decimals, so a small supplier is not rounded to nothing', () => {
     const shares = spendShares([{ key: 'tiny', value: 4 }], 1000);
     expect(shares.get('tiny')?.sharePct).toBe(0.4);
+    expect(spendShares([{ key: 'tinier', value: 1 }], 12_345)?.get('tinier')?.sharePct).toBe(0.01);
+  });
+
+  /* Both columns at the same precision, so the running total can be read against the coverage
+     figure without wondering whether a gap is real or rounding. */
+  it('writes the cumulative to two decimals as well', () => {
+    const shares = spendShares(
+      [
+        { key: 'a', value: 1 },
+        { key: 'b', value: 2 },
+      ],
+      7,
+    );
+    expect(shares.get('b')?.cumulativePct).toBe(28.57);
+    expect(shares.get('a')?.cumulativePct).toBe(42.86);
   });
 
   it('reports nothing rather than dividing by a denominator it does not have', () => {
@@ -60,21 +74,21 @@ describe('spendShares', () => {
   });
 });
 
-describe('formatSharePct', () => {
+describe('formatPct', () => {
   it.each([
     [null, ''],
     [0, '0%'],
-    [0.04, '<0.1%'],
-    [0.4, '0.4%'],
-    [12.35, '12.3%'],
-    [100, '100.0%'],
+    [0.004, '<0.01%'],
+    [0.4, '0.40%'],
+    [12.345, '12.35%'],
+    [100, '100.00%'],
   ])('writes %s as %s', (pct, expected) => {
-    expect(formatSharePct(pct)).toBe(expected);
+    expect(formatPct(pct)).toBe(expected);
   });
 
-  /* A supplier with a real balance that rounds below a tenth would otherwise read "0.0%", which
-     is indistinguishable from nothing at all. */
+  /* A supplier with a real balance that rounds below a hundredth would otherwise read "0.00%",
+     which is indistinguishable from nothing at all. */
   it('separates a very small share from no share', () => {
-    expect(formatSharePct(0.04)).not.toBe('0%');
+    expect(formatPct(0.004)).not.toBe('0%');
   });
 });

@@ -18,11 +18,14 @@
 export interface SpendShare {
   /** 1 = largest by value. */
   rank: number;
-  /** This supplier alone, as a percentage of the total. One decimal: most are under 1%. */
+  /** This supplier alone, as a percentage of the total. */
   sharePct: number | null;
-  /** This supplier and everyone above them. Whole percent, as the scoping screen has always read. */
+  /** This supplier and everyone above them. */
   cumulativePct: number | null;
 }
+
+/** Two decimals, which is the precision both figures are written at. */
+const round2 = (pct: number): number => Math.round(pct * 100) / 100;
 
 /**
  * @param rows one entry per supplier; `value` is their balance in the denominator's currency
@@ -43,22 +46,26 @@ export function spendShares(
     running += row.value;
     out.set(row.key, {
       rank: i + 1,
-      sharePct: usable ? Math.round((row.value / totalBalance) * 1000) / 10 : null,
-      cumulativePct: usable ? Math.round((running / totalBalance) * 100) : null,
+      sharePct: usable ? round2((row.value / totalBalance) * 100) : null,
+      cumulativePct: usable ? round2((running / totalBalance) * 100) : null,
     });
   });
   return out;
 }
 
 /**
- * A share as it is written on screen.
+ * A percentage as it is written on screen, for both of these columns.
  *
- * Anything above zero but below 0.05 rounds to "0.0%", which reads as nothing at all for a
+ * Two decimals on both, so the running total can be read against the coverage figure without
+ * wondering whether a gap is real or rounding, and so a supplier worth a fraction of a per cent
+ * is still a number rather than a zero.
+ *
+ * Anything above zero but below 0.005 rounds to "0.00%", which reads as nothing at all for a
  * supplier who is really there, so it is given its own form. A true zero stays "0%".
  */
-export function formatSharePct(pct: number | null): string {
+export function formatPct(pct: number | null): string {
   if (pct === null) return '';
   if (pct === 0) return '0%';
-  if (pct < 0.1) return '<0.1%';
-  return `${pct.toFixed(1)}%`;
+  if (pct < 0.01) return '<0.01%';
+  return `${pct.toFixed(2)}%`;
 }

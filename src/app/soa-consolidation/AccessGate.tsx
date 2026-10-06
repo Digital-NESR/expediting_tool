@@ -160,7 +160,7 @@ export default function AccessGate({
             {refused && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] leading-relaxed text-amber-800">
                 Your access was {status === 'Rejected' ? 'rejected' : 'revoked'}. You can ask again
- submitting replaces the old request and puts you back in the review queue.
+                submitting replaces the old request and puts you back in the review queue.
               </div>
             )}
 

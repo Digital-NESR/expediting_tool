@@ -77,7 +77,8 @@ export default function EmailTemplateCard({ countryId, canEdit, onNext }: Props)
   }
 
   async function reset() {
-    if (!window.confirm('Discard this country’s wording and go back to the standard letter?')) return;
+    if (!window.confirm('Discard this country’s wording and go back to the standard letter?'))
+      return;
     setBusy(true);
     const res = await resetSoaTemplate(countryId);
     setBusy(false);
@@ -154,7 +155,7 @@ export default function EmailTemplateCard({ countryId, canEdit, onNext }: Props)
           <span className="font-[family-name:monospace]">
             {view.unknown.map((t) => `{{${t}}}`).join(', ')}
           </span>{' '}
- these will go out to the vendor exactly as written.
+          these will go out to the vendor exactly as written.
         </div>
       )}
       {note && (
@@ -225,7 +226,12 @@ export default function EmailTemplateCard({ countryId, canEdit, onNext }: Props)
             ))}
           </div>
           <div className="mt-2.5 border-t border-t-[#EDEDED] pt-2 text-[11px] text-sns-grey">
-            Anything in <span style={{ background: '#FDECEA', color: '#B71C1C', padding: '0 3px', borderRadius: 3 }}>red</span>{' '}
+            Anything in{' '}
+            <span
+              style={{ background: '#FDECEA', color: '#B71C1C', padding: '0 3px', borderRadius: 3 }}
+            >
+              red
+            </span>{' '}
             is not a field the tool knows, and will reach the supplier exactly as written.
           </div>
         </div>

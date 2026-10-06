@@ -273,6 +273,8 @@ export interface ScopeRowVM {
   sharePctLabel: string;
   /** Running share at this row. Null for an excluded supplier, which is out of the denominator. */
   cumPct: number | null;
+  /** The same figure already written, so the screen does not format a percentage of its own. */
+  cumPctLabel: string;
   cumStanding: Standing;
   kind: ScopeRowKind;
   checked: boolean;
@@ -532,6 +534,8 @@ export interface ViewModel {
   consolidatedCount: number;
   /** Their balance, already written, so the page can state what the coverage figure is made of. */
   fmtConsolidatedBalance: string;
+  /** Coverage, at the same precision as the Cumulative column. */
+  fmtCoveragePct: string;
   allPass: boolean;
   allPassLabel: string;
   handedOff: boolean;

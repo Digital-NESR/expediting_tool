@@ -320,7 +320,7 @@ export default function VendorScopingScreen({ vm }: ScreenProps) {
                     from one carrying a rounding error, and those are a different decision. */}
                 <div className="text-sns-grey">{row.sharePctLabel || '–'}</div>
                 <div className={`font-bold ${STANDING_TEXT[row.cumStanding]}`}>
-                  {row.cumPct === null ? '–' : `${row.cumPct}%`}
+                  {row.cumPctLabel || '–'}
                 </div>
                 <div>
                   <span

@@ -33,6 +33,11 @@ const vendors = [
   })),
 ];
 
+/* Both sides to the same two decimals the screens write. Comparing a two-decimal running total
+   against a whole-percent coverage figure is the precision mismatch the header had, and it would
+   fail here for a reason that has nothing to do with what this file is pinning. */
+const pct2 = (n: number) => Math.round(n * 100) / 100;
+
 const lastCumulative = (subset: { id: string; openPO: number }[]) => {
   const shares = spendShares(
     subset.map((v) => ({ key: v.id, value: v.openPO })),
@@ -42,14 +47,14 @@ const lastCumulative = (subset: { id: string; openPO: number }[]) => {
 };
 
 describe('consolidation cumulative against coverage', () => {
-  const coverage = Math.round(
+  const coverage = pct2(
     (vendors.filter((v) => countsTowardCoverage(v.status)).reduce((s, v) => s + v.openPO, 0) /
       COUNTRY_BALANCE) *
       100,
   );
 
   it('the rollup figure is the one being matched', () => {
-    expect(coverage).toBe(20);
+    expect(Math.round(coverage)).toBe(20);
   });
 
   it('accumulating over the rows the page shows lands on it', () => {
@@ -59,7 +64,7 @@ describe('consolidation cumulative against coverage', () => {
 
   /* The shape of the original bug, kept so the fix cannot be quietly undone. */
   it('accumulating over every scoped vendor does not', () => {
-    expect(lastCumulative(vendors)).toBe(76);
+    expect(Math.round(lastCumulative(vendors))).toBe(76);
     expect(lastCumulative(vendors)).not.toBe(coverage);
   });
 
@@ -78,7 +83,7 @@ describe('consolidation cumulative against coverage', () => {
       total,
     );
     const last = Math.max(...[...shares.values()].map((s) => s.cumulativePct ?? 0));
-    const coverageHere = Math.round(((83_247_621 + 18_300_000) / total) * 100);
+    const coverageHere = pct2(((83_247_621 + 18_300_000) / total) * 100);
     expect(last).toBe(coverageHere);
 
     // Dropping it, as the page used to, leaves the last row short.

@@ -16,15 +16,13 @@ import type { SendProgress as Progress } from '../types';
  * It takes the place of the button rather than sitting beside it, so there is nothing left to
  * press while the send runs.
  */
-export default function SendProgressBar({
-  progress,
-  pct,
-}: {
-  progress: Progress;
-  pct: number;
-}) {
+export default function SendProgressBar({ progress, pct }: { progress: Progress; pct: number }) {
   const verb =
-    progress.kind === 'request' ? 'Sending' : progress.kind === 'reminder' ? 'Reminding' : 'Retrying';
+    progress.kind === 'request'
+      ? 'Sending'
+      : progress.kind === 'reminder'
+        ? 'Reminding'
+        : 'Retrying';
 
   return (
     <div
@@ -37,9 +35,7 @@ export default function SendProgressBar({
           {verb} {progress.done} of {progress.total}
         </span>
         {progress.failed > 0 && (
-          <span className="text-[10.5px] font-bold text-[#B71C1C]">
-            {progress.failed} failed
-          </span>
+          <span className="text-[10.5px] font-bold text-[#B71C1C]">{progress.failed} failed</span>
         )}
       </div>
 

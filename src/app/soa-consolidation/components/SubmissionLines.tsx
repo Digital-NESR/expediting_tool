@@ -62,9 +62,13 @@ export default function SubmissionLines({ entryId, vendorName }: Props) {
           {loading && <div className="text-[11px] text-sns-grey">Reading the statement…</div>}
           {error && <div className="text-[11px] font-bold text-[#B71C1C]">{error}</div>}
           {submissions?.length === 0 && (
-            <div className="text-[11px] text-sns-grey">Nothing has been uploaded for {vendorName}.</div>
+            <div className="text-[11px] text-sns-grey">
+              Nothing has been uploaded for {vendorName}.
+            </div>
           )}
-          {submissions?.map((s) => <OneSubmission key={s.submissionId} submission={s} />)}
+          {submissions?.map((s) => (
+            <OneSubmission key={s.submissionId} submission={s} />
+          ))}
         </div>
       )}
     </div>
@@ -75,7 +79,9 @@ function OneSubmission({ submission }: { submission: SubmissionView }) {
   const { lines, totalsByCurrency, linesNeedingReview, parseError } = submission;
 
   return (
-    <div className={`rounded-lg border bg-white ${submission.superseded ? 'border-sns-line opacity-70' : 'border-sns-line'}`}>
+    <div
+      className={`rounded-lg border bg-white ${submission.superseded ? 'border-sns-line opacity-70' : 'border-sns-line'}`}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-b-[#F0F0F0] px-3 py-2">
         <div className="flex items-center gap-2">
           <div
