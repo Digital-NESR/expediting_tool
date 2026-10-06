@@ -1,10 +1,6 @@
 import { shortDateTime, shortDateUTC } from '@/lib/format';
 import { complianceCriteria } from '@/lib/soa/compliance';
-import {
-  countsTowardCoverage,
-  isAwaitingVerification,
-  isResolved,
-} from '@/lib/soa/status';
+import { countsTowardCoverage, isAwaitingVerification, isResolved } from '@/lib/soa/status';
 import type {
   AppState,
   Country,
@@ -313,6 +309,25 @@ export function scopeTotals(
  * taking its snapshot are two admin steps, and between them the tool looked open for business with
  * nothing in it.
  */
+/** The screens AP-only readers do not get: the champion's three, which they cannot act on. */
+export const AP_HIDDEN_SCREENS = ['scoping', 'outreach', 'tracking'] as const;
+
+/**
+ * Whether a screen is off-limits to this reader.
+ *
+ * Exported and pure so the nav strip and the active-screen fallback read one rule. They were two
+ * expressions in different parts of the same function, which is how a tab comes back after being
+ * hidden: somebody adds a screen to one list and not the other, and the only symptom is a reader
+ * reaching a page they have no tab for.
+ */
+export function screenHiddenFrom(
+  screen: ScreenId,
+  viewer: { apOnly: boolean; canSeeRollup: boolean },
+): boolean {
+  if (screen === 'rollup') return !viewer.canSeeRollup;
+  return viewer.apOnly && (AP_HIDDEN_SCREENS as readonly string[]).includes(screen);
+}
+
 export function emptyKindFor(state: {
   hasCycle: boolean;
   hasCountry: boolean;
@@ -398,7 +413,11 @@ export function deriveViewModel(
     emptyKind === 'not-enrolled' ||
     (emptyKind === 'not-scoped' && id !== 'scoping' && id !== 'rollup');
 
-  const activeScreen: ScreenId = screen === 'rollup' && !canSeeRollup ? 'dashboard' : screen;
+  /* Guarded twice over: the nav item is not offered, and a screen id that reaches here anyway
+     falls back to the dashboard rather than rendering a screen its reader has no tab for. */
+  const activeScreen: ScreenId = screenHiddenFrom(screen, { apOnly: viewer.apOnly, canSeeRollup })
+    ? 'dashboard'
+    : screen;
   const showEmptyState = emptyBlocks(activeScreen);
 
   const coverageTargetPct = cycle?.coverageTargetPct ?? 0;
@@ -564,35 +583,38 @@ export function deriveViewModel(
     ] as StatusBarSegVM[]
   ).filter((s) => s.count > 0);
 
-  /* Scoping and Outreach are the champion's work, and this is the whole of what AP-only now
-     changes: they read every other screen throughout the chase. An AP reader cannot act on
-     either of these two, since `canAct` is champion-only, so listing them would offer two dead
-     ends rather than two more things to watch. */
-  const NAV: { id: ScreenId; label: string; badge: string | null }[] = [
-    { id: 'dashboard', label: 'Dashboard', badge: null },
-    ...(viewer.apOnly
-      ? []
-      : [
-          {
-            id: 'scoping' as ScreenId,
-            label: 'Vendor Scoping',
-            badge: emptyKind === 'not-scoped' ? '!' : null,
-          },
-          {
-            id: 'outreach' as ScreenId,
-            label: 'Outreach',
-            badge: unrequestedCount > 0 ? String(unrequestedCount) : null,
-          },
-        ]),
-    {
-      id: 'tracking',
-      label: 'Response Tracking',
-      badge: pendingResponseCount > 0 ? String(pendingResponseCount) : null,
-    },
-    { id: 'consolidation', label: 'Consolidation', badge: null },
-    { id: 'evidence', label: 'Evidence Repository', badge: null },
-    ...(canSeeRollup ? [{ id: 'rollup' as ScreenId, label: 'Corporate Rollup', badge: null }] : []),
-  ];
+  /* Every screen, listed once, then filtered by the same rule the active-screen fallback uses.
+     The two were separate expressions in different parts of this function, which is how a hidden
+     tab comes back: somebody adds a screen to one and not the other, and the only symptom is a
+     reader reaching a page they have no tab for.
+
+     Scoping, Outreach and Response Tracking are the champion's work, and `canAct` is
+     champion-only, so to an AP reader they would be dead ends rather than things to watch. What
+     AP keeps is the Dashboard, the Consolidation they are being handed, and the evidence behind
+     it. */
+  const NAV: { id: ScreenId; label: string; badge: string | null }[] = (
+    [
+      { id: 'dashboard', label: 'Dashboard', badge: null },
+      {
+        id: 'scoping',
+        label: 'Vendor Scoping',
+        badge: emptyKind === 'not-scoped' ? '!' : null,
+      },
+      {
+        id: 'outreach',
+        label: 'Outreach',
+        badge: unrequestedCount > 0 ? String(unrequestedCount) : null,
+      },
+      {
+        id: 'tracking',
+        label: 'Response Tracking',
+        badge: pendingResponseCount > 0 ? String(pendingResponseCount) : null,
+      },
+      { id: 'consolidation', label: 'Consolidation', badge: null },
+      { id: 'evidence', label: 'Evidence Repository', badge: null },
+      { id: 'rollup', label: 'Corporate Rollup', badge: null },
+    ] satisfies { id: ScreenId; label: string; badge: string | null }[]
+  ).filter((n) => !screenHiddenFrom(n.id, { apOnly: viewer.apOnly, canSeeRollup }));
   const navItems: NavItemVM[] = NAV.map((n) => ({
     ...n,
     hasBadge: !!n.badge,
