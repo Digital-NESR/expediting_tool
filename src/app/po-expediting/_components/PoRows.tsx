@@ -22,6 +22,15 @@ export function formatMatId(
   return <span className="text-gray-400 italic text-xs">{accountType?.trim() || 'N/A'}</span>;
 }
 
+/** "Expedited 3 times, last on 05 Oct 2026" — the count matters as much as the date when
+ *  deciding whether to chase a supplier again. */
+function expeditedTitle(line: PurchaseOrder): string {
+  const times = Number(line['Times Expedited'] ?? 0);
+  const when = formatDate(line['Last Expedited']);
+  if (!times) return 'Never expedited';
+  return `Expedited ${times} ${times === 1 ? 'time' : 'times'}, last on ${when}`;
+}
+
 export const PoLineItemRow = memo(
   function PoLineItemRow({
     line,
@@ -97,6 +106,18 @@ export const PoLineItemRow = memo(
         </td>
         <td className="py-3 px-4 text-[13px] text-gray-500 whitespace-nowrap">
           {formatDate(line['PO Release Date'])}
+        </td>
+        {/* This line's own last dispatch, not the PO's. A PO of ten lines is rarely chased whole,
+            and the PO's date against a line nobody wrote about would claim work never done for
+            it. "Never" rather than a dash, so it cannot be read as missing data. */}
+        <td className="py-3 px-4 text-[13px] whitespace-nowrap">
+          {line['Last Expedited'] ? (
+            <span className="text-slate-600" title={expeditedTitle(line)}>
+              {formatDate(line['Last Expedited'])}
+            </span>
+          ) : (
+            <span className="text-slate-400">Never</span>
+          )}
         </td>
         <td className="py-3 px-4 whitespace-nowrap">
           {line['Delivery Code'] ? (
@@ -180,6 +201,22 @@ export const PoParentRow = memo(
           {group.supplierName}
         </td>
         <td className="p-4 pl-6 text-sm text-slate-600 whitespace-nowrap">{group.country}</td>
+        <td className="p-4 pl-6 text-sm text-slate-600 whitespace-nowrap">
+          {group.releaseDate ? (
+            formatDate(group.releaseDate)
+          ) : (
+            <span className="text-slate-400">—</span>
+          )}
+        </td>
+        {/* The newest across this PO's lines. "Never" rather than a dash, so it reads as a fact
+            about the PO and not as data we failed to load. */}
+        <td className="p-4 pl-6 text-sm whitespace-nowrap">
+          {group.lastExpedited ? (
+            <span className="text-slate-600">{formatDate(group.lastExpedited)}</span>
+          ) : (
+            <span className="text-slate-400">Never</span>
+          )}
+        </td>
         <td className="p-4 pl-6 whitespace-nowrap">
           {majorityDSCode ? (
             <DSTooltipBadge code={majorityDSCode} />
@@ -236,6 +273,7 @@ export function PoSubTable({
           <th className="py-2.5 px-4 font-semibold text-right">Open PO Value (USD)</th>
           <th className="py-2.5 px-4 font-semibold">Delivery Date</th>
           <th className="py-2.5 px-4 font-semibold">PO Release Date</th>
+          <th className="py-2.5 px-4 font-semibold">Last Expedited</th>
           <th className="py-2.5 px-4 font-semibold">Delivery Status</th>
           <th className="py-2.5 px-4 font-semibold">Status</th>
         </tr>

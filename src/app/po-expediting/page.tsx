@@ -297,6 +297,8 @@ export default function Dashboard() {
           totalQty: 0,
           totalValue: 0,
           earliestDate: row['Delivery Date'],
+          releaseDate: row['PO Release Date'] ?? null,
+          lastExpedited: null,
           lines: [],
         });
       }
@@ -311,6 +313,17 @@ export default function Dashboard() {
       } else if (row['Delivery Date']) {
         g.earliestDate = row['Delivery Date'];
       }
+      /* The latest across the PO's lines. A PO is chased a line at a time, so the newest of them
+         is what answers "when did anybody last write to this supplier about this PO". */
+      const lineExpedited = row['Last Expedited'];
+      if (
+        lineExpedited &&
+        (!g.lastExpedited || new Date(lineExpedited) > new Date(g.lastExpedited))
+      ) {
+        g.lastExpedited = lineExpedited;
+      }
+      // A PO's release date is one date; the first line that carries one settles it.
+      if (!g.releaseDate && row['PO Release Date']) g.releaseDate = row['PO Release Date'];
     });
     return Array.from(map.values());
   }, [filtered]);
@@ -727,6 +740,8 @@ export default function Dashboard() {
 
                     <th className="p-4 pl-6 font-medium whitespace-nowrap">Supplier Name</th>
                     <th className="p-4 pl-6 font-medium whitespace-nowrap">Country</th>
+                    <th className="p-4 pl-6 font-medium whitespace-nowrap">PO Release Date</th>
+                    <th className="p-4 pl-6 font-medium whitespace-nowrap">Last Expedited</th>
                     <th className="p-4 pl-6 font-medium whitespace-nowrap">Delivery Status</th>
                     <th className="p-4 pl-6 font-medium whitespace-nowrap text-right">Lines</th>
                     <th className="p-4 pl-6 font-medium whitespace-nowrap">Status</th>
@@ -734,7 +749,7 @@ export default function Dashboard() {
                 </thead>
 
                 <tbody>
-                  {loading && <SkeletonRows cols={9} />}
+                  {loading && <SkeletonRows cols={11} />}
 
                   {!loading && error && (
                     <tr>
