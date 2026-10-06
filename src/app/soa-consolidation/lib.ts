@@ -644,17 +644,30 @@ export function deriveViewModel(
      the same denominator the coverage figure divides by. Computed here rather than per screen
      because a supplier reading 12% on Response Tracking and 11% on Consolidation is a bug nobody
      would report, they would simply stop trusting the column. */
-  const shares = spendShares(
-    vendors.map((v) => ({ key: v.id, value: v.openPO })),
-    totalBalance,
-  );
-  const shareLabels = (v: Vendor): SpendShareVM => {
-    const s = shares.get(v.id);
-    return {
-      sharePctLabel: formatSharePct(s?.sharePct ?? null) || '–',
-      cumPctLabel: s?.cumulativePct == null ? '–' : `${s.cumulativePct}%`,
+  /* A supplier's own share is always of the whole country, so it means the same wherever it is
+     read. The cumulative figure is a running total DOWN THE ROWS THE SCREEN IS SHOWING, which is
+     the only reading that is not a lie on a filtered table.
+
+     Accumulating over every scoped vendor instead was wrong in a way that showed: the
+     Consolidation page lists only the suppliers who have answered, and for Saudi Arabia the last
+     of its 29 rows read 76%, because the running total had climbed through 66 suppliers that
+     page does not display. The Corporate Rollup said 20% for the same country on the same day.
+     Counted over the rows actually shown, the last one reads 20% and the two agree, because the
+     denominator was never the problem: both divide by the country's whole balance. */
+  const sharesOver = (subset: Vendor[]) =>
+    spendShares(
+      subset.map((v) => ({ key: v.id, value: v.openPO })),
+      totalBalance,
+    );
+  const labelsFrom =
+    (shares: ReturnType<typeof sharesOver>) =>
+    (v: Vendor): SpendShareVM => {
+      const s = shares.get(v.id);
+      return {
+        sharePctLabel: formatSharePct(s?.sharePct ?? null) || '–',
+        cumPctLabel: s?.cumulativePct == null ? '–' : `${s.cumulativePct}%`,
+      };
     };
-  };
 
   const enrichVendorRow = (v: Vendor): VendorRowVM => ({
     ...v,
@@ -674,6 +687,10 @@ export function deriveViewModel(
   for (const f of failures ?? []) {
     if (f.retryable && !failedByVendor.has(f.vendorNo)) failedByVendor.set(f.vendorNo, f.error);
   }
+
+  /* The whole filtered set, not the page: a running total that restarted at the top of page two
+     would be worse than no column at all. */
+  const trackingShareLabels = labelsFrom(sharesOver(trackingMatched));
 
   const vendorsEnriched: VendorEnrichedVM[] = pageSlice(trackingMatched, page).map((v) => {
     /* Chasing one vendor from its row. A supplier who has already been reminded can be reminded
@@ -696,7 +713,7 @@ export function deriveViewModel(
       !isUnreachable &&
       (v.status === 'scoped' || v.status === 'requested' || v.status === 'reminded');
     return {
-      ...shareLabels(v),
+      ...trackingShareLabels(v),
       ...enrichVendorRow(v),
       isExpanded: v.id === expandedVendor,
       isReceived: v.status === 'received',
@@ -957,9 +974,20 @@ export function deriveViewModel(
 
   /* Statements only. A nil-balance vendor is counted in the coverage figure and has no invoice
      rows to list, so including it would put an empty line in the file AP works from. */
-  const consolidatedRows = vendors
-    .filter((v) => v.status === 'received')
-    .map((v, i) => ({ ...v, num: i + 1, fmtOpenPO: fmtM(v.openPO), ...shareLabels(v) }));
+  /* Everything the consolidated file contains, which is every vendor that counts towards coverage
+     and not only the ones who sent a spreadsheet. A nil-balance vendor is in the workbook as a
+     marker row saying so, and leaving it off this page meant the screen described a file it did
+     not match: EOS Jafza's last row read 37% against the rollup's 45%, and Iraq's 72% against 74%,
+     entirely because of the suppliers this filter dropped. The other ten countries have no
+     nil-balance vendors, which is why the gap looked like a Saudi problem rather than a rule. */
+  const consolidatedVendors = vendors.filter((v) => countsTowardCoverage(v.status));
+  const consolidatedShareLabels = labelsFrom(sharesOver(consolidatedVendors));
+  const consolidatedRows = consolidatedVendors.map((v, i) => ({
+    ...v,
+    num: i + 1,
+    fmtOpenPO: fmtM(v.openPO),
+    ...consolidatedShareLabels(v),
+  }));
 
   const evidenceEnriched: EvidenceRowVM[] = evidence.map((e) => {
     const typeKey: EvidenceType = e.type in EVIDENCE_TYPE_LABEL ? (e.type as EvidenceType) : 'info';
