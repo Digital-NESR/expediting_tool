@@ -285,6 +285,16 @@ export default function Dashboard() {
     segmentSet,
   ]);
 
+  /* What is in the queue, counted once. The supplier set was rebuilt on every render, twice:
+     once for the figure and once to decide whether it needed an "s". */
+  const cartCounts = useMemo(
+    () => ({
+      pos: new Set(selectedItems.map((i) => i['PO Number'])).size,
+      suppliers: new Set(selectedItems.map((i) => i['Supplier Name'])).size,
+    }),
+    [selectedItems],
+  );
+
   /* PO grouping -------------------------------------------- */
   const groupedPOs = useMemo((): PoGroup[] => {
     const map = new Map<string, PoGroup>();
@@ -895,9 +905,12 @@ export default function Dashboard() {
                   {selectedItems.length} item{selectedItems.length !== 1 ? 's' : ''} in Expedite
                   Queue
                 </p>
+                {/* POs as well as suppliers. A queue of forty lines across three POs and one
+                    across forty are the same number of lines and completely different amounts of
+                    chasing, and the line count alone could not tell them apart. */}
                 <p className="text-xs text-slate-400 leading-tight">
-                  {new Set(selectedItems.map((i) => i['Supplier Name'])).size} supplier
-                  {new Set(selectedItems.map((i) => i['Supplier Name'])).size !== 1 ? 's' : ''}
+                  {cartCounts.pos} PO{cartCounts.pos !== 1 ? 's' : ''} · {cartCounts.suppliers}{' '}
+                  supplier{cartCounts.suppliers !== 1 ? 's' : ''}
                 </p>
               </div>
             </div>

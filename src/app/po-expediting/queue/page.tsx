@@ -640,6 +640,11 @@ export default function ExpediteReviewPage() {
   }, [supplierEmails]);
 
   /* ─── Grouping Logic ────────────────────────────────────── */
+  const distinctPos = useMemo(
+    () => new Set(selectedItems.map((i) => i['PO Number'])).size,
+    [selectedItems],
+  );
+
   const groupedBySupplier = useMemo(() => {
     const map = new Map<string, PurchaseOrder[]>();
     for (const item of selectedItems) {
@@ -800,10 +805,12 @@ export default function ExpediteReviewPage() {
             <h1 className="text-3xl font-bold tracking-tight text-slate-900">
               Review Expedite Request
             </h1>
+            {/* The same three counts the dashboard's queue bar shows, so the two screens do not
+                describe one selection differently. */}
             <p className="text-slate-500 mt-1">
               {selectedItems.length} line item{selectedItems.length !== 1 ? 's' : ''} across{' '}
-              {groupedBySupplier.length} distinct supplier
-              {groupedBySupplier.length !== 1 ? 's' : ''}.
+              {distinctPos} PO{distinctPos !== 1 ? 's' : ''} and {groupedBySupplier.length} distinct
+              supplier{groupedBySupplier.length !== 1 ? 's' : ''}.
             </p>
           </div>
         </header>
