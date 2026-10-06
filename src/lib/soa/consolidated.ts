@@ -3,6 +3,7 @@ import path from 'node:path';
 import ExcelJS from 'exceljs';
 import type { QueryResultRow } from 'pg';
 import { ensureSoaSchema, sql } from './db';
+import { appBaseUrl } from './links';
 import { COVERED_STATUS_SQL } from './status';
 
 /**
@@ -42,6 +43,19 @@ const COLUMNS = [
   'Invoice Outstanding Days',
   'Remarks',
 ] as const;
+
+/**
+ * The two columns added after the template's sixteen.
+ *
+ * How a statement arrived is one fact per VENDOR, and this sheet is one row per invoice line, so
+ * it repeats down every line of the same supplier. That repetition is the point: AP queries a
+ * single line with the vendor, and having to cross-reference another tab to find out whether the
+ * supplier sent it themselves is the lookup this saves. The per-vendor summary is on the
+ * Submissions sheet for reading, and this is here for tracing.
+ */
+const PROVENANCE_COLUMNS = ['Received Via', 'Evidence'] as const;
+const FIRST_PROVENANCE_COL = COLUMNS.length + 1;
+const TOTAL_COLUMNS = COLUMNS.length + PROVENANCE_COLUMNS.length;
 
 export interface ConsolidatedSummary {
   countryName: string;
@@ -160,6 +174,94 @@ async function markersFor(countryId: string) {
   );
 }
 
+/**
+ * How each vendor's current answer reached us.
+ *
+ * Three routes, and `source` plus `kind` describe all of them: the supplier filling the template
+ * in the portal themselves, a champion filing the spreadsheet for them, and a champion filing the
+ * correspondence instead. A vendor can hold one of each kind at once, so a champion who files both
+ * is the fourth shape rather than a fifth route.
+ *
+ * `source` is read from the row rather than inferred from who uploaded it. The distinction existed
+ * in the code before it existed in the database, and inferring it afterwards meant asking whether
+ * an address looked like a supplier's.
+ */
+export interface VendorProvenance {
+  vendorNo: string;
+  vendorName: string;
+  workbook: { id: number; fileName: string; source: string } | null;
+  email: { id: number; fileName: string; source: string } | null;
+  filedBy: string | null;
+  filedAt: Date | null;
+  invoiceLines: number;
+}
+
+async function provenanceFor(countryId: string): Promise<VendorProvenance[]> {
+  await ensureSoaSchema();
+  const rows = await sql<QueryResultRow[]>(
+    `SELECT v.vendor_no, v.name AS vendor_name,
+            MAX(s.id)        FILTER (WHERE s.kind = 'workbook') AS workbook_id,
+            MAX(s.file_name) FILTER (WHERE s.kind = 'workbook') AS workbook_name,
+            MAX(s.source)    FILTER (WHERE s.kind = 'workbook') AS workbook_source,
+            MAX(s.id)        FILTER (WHERE s.kind = 'email')    AS email_id,
+            MAX(s.file_name) FILTER (WHERE s.kind = 'email')    AS email_name,
+            MAX(s.source)    FILTER (WHERE s.kind = 'email')    AS email_source,
+            MAX(s.uploaded_by)                                  AS filed_by,
+            MAX(s.accepted_at)                                  AS filed_at,
+            COALESCE(SUM(s.parsed_line_count), 0)               AS invoice_lines
+       FROM vendor_cycle_entries vce
+       JOIN vendors v         ON v.id = vce.vendor_id
+       JOIN country_cycles cc ON cc.id = vce.country_cycle_id
+       JOIN cycles cy         ON cy.id = cc.cycle_id AND cy.is_active
+       LEFT JOIN soa_submissions s
+              ON s.vendor_cycle_entry_id = vce.id AND s.superseded_at IS NULL
+      WHERE cc.country_id = ?
+        AND s.id IS NOT NULL
+      GROUP BY v.vendor_no, v.name`,
+    [countryId],
+  );
+
+  return rows.map((r) => ({
+    vendorNo: String(r.vendor_no),
+    vendorName: String(r.vendor_name),
+    workbook: r.workbook_id
+      ? {
+          id: Number(r.workbook_id),
+          fileName: String(r.workbook_name ?? ''),
+          source: String(r.workbook_source ?? 'champion'),
+        }
+      : null,
+    email: r.email_id
+      ? {
+          id: Number(r.email_id),
+          fileName: String(r.email_name ?? ''),
+          source: String(r.email_source ?? 'champion'),
+        }
+      : null,
+    filedBy: r.filed_by ? String(r.filed_by) : null,
+    filedAt: r.filed_at ? new Date(String(r.filed_at)) : null,
+    invoiceLines: Number(r.invoice_lines ?? 0),
+  }));
+}
+
+/** Who provided it, in the words a reader uses. */
+export function routeLabel(p: VendorProvenance | undefined): string {
+  if (!p) return 'Not received';
+  const sources = new Set([p.workbook?.source, p.email?.source].filter(Boolean) as string[]);
+  if (!sources.size) return 'Not received';
+  if (sources.size > 1) return 'Supplier portal + Champion';
+  return sources.has('supplier_portal') ? 'Supplier portal' : 'Champion';
+}
+
+/** Which files are behind it. */
+export function providedLabel(p: VendorProvenance | undefined): string {
+  if (!p) return '';
+  if (p.workbook && p.email) return 'Excel + Email';
+  if (p.workbook) return 'Excel';
+  if (p.email) return 'Email';
+  return '';
+}
+
 function markerRow(r: QueryResultRow): ConsolidatedRow {
   const note = String(r.resolution_note ?? '').trim();
   const marker = r.has_email
@@ -199,7 +301,11 @@ export async function buildVendorConsolidatedWorkbook(
   countryId: string,
   vendorNo: string,
 ): Promise<{ file: Buffer; summary: ConsolidatedSummary; vendorName: string }> {
-  const [lines, markers] = await Promise.all([linesFor(countryId), markersFor(countryId)]);
+  const [lines, markers, provenance] = await Promise.all([
+    linesFor(countryId),
+    markersFor(countryId),
+    provenanceFor(countryId),
+  ]);
   const all = [
     ...(lines as unknown as ConsolidatedRow[]).map((r) => ({ ...r, marker: null })),
     ...markers.map(markerRow),
@@ -210,7 +316,10 @@ export async function buildVendorConsolidatedWorkbook(
       'Nothing has been read for this supplier yet, so there is nothing to consolidate.',
     );
   }
-  const built = await writeConsolidated(rows);
+  const built = await writeConsolidated(
+    rows,
+    provenance.filter((p) => p.vendorNo === vendorNo),
+  );
   return { ...built, vendorName: rows[0].vendor_name };
 }
 
@@ -218,7 +327,11 @@ export async function buildVendorConsolidatedWorkbook(
 export async function buildConsolidatedWorkbook(
   countryId: string,
 ): Promise<{ file: Buffer; summary: ConsolidatedSummary }> {
-  const [lines, markers] = await Promise.all([linesFor(countryId), markersFor(countryId)]);
+  const [lines, markers, provenance] = await Promise.all([
+    linesFor(countryId),
+    markersFor(countryId),
+    provenanceFor(countryId),
+  ]);
   const rows = [
     ...(lines as unknown as ConsolidatedRow[]).map((r) => ({ ...r, marker: null })),
     ...markers.map(markerRow),
@@ -228,7 +341,7 @@ export async function buildConsolidatedWorkbook(
       'No statements have been read for this country yet, so there is nothing to consolidate.',
     );
   }
-  return writeConsolidated(rows);
+  return writeConsolidated(rows, provenance);
 }
 
 /**
@@ -240,7 +353,9 @@ export async function buildConsolidatedWorkbook(
  */
 export async function writeConsolidated(
   rows: ConsolidatedRow[],
+  provenance: VendorProvenance[] = [],
 ): Promise<{ file: Buffer; summary: ConsolidatedSummary }> {
+  const byVendor = new Map(provenance.map((p) => [p.vendorNo, p]));
   templateCache ??= await readFile(TEMPLATE);
   const wb = new ExcelJS.Workbook();
   /* exceljs ships its own, older `Buffer` declaration. Take the parameter type from the method
@@ -250,6 +365,16 @@ export async function writeConsolidated(
   const sheet = wb.getWorksheet('SOA');
   if (!sheet) throw new Error('The SOA Format template has no "SOA" sheet.');
 
+  /* The template's own styling, lifted off its first data row before that row is emptied.
+     Rows 2 to 39 carry it; row 40 onwards does not exist in the template at all, so a country
+     with more than 38 lines used to produce a file that was bordered and filled down to row 39
+     and bare text from 40 on. That is not a cosmetic complaint: the banding is what makes the
+     grid readable, and the file stopped looking like a table exactly where the data got long. */
+  const templateStyle: Partial<ExcelJS.Style>[] = [];
+  for (let c = 1; c <= COLUMNS.length; c++) {
+    templateStyle[c] = { ...sheet.getRow(2).getCell(c).style };
+  }
+
   // The template ships with 38 rows of leftover sample data; they are not this country's.
   const previous = sheet.rowCount;
   for (let r = previous; r >= 2; r--) {
@@ -257,8 +382,24 @@ export async function writeConsolidated(
     for (let c = 1; c <= COLUMNS.length; c++) row.getCell(c).value = null;
   }
 
+  /* The two added columns, headed to match. The header style comes from the last template column
+     so they sit in the same green band rather than announcing themselves as an afterthought. */
+  const headerStyle = { ...sheet.getRow(1).getCell(COLUMNS.length).style };
+  PROVENANCE_COLUMNS.forEach((label, i) => {
+    const cell = sheet.getRow(1).getCell(FIRST_PROVENANCE_COL + i);
+    cell.value = label;
+    cell.style = { ...headerStyle };
+  });
+  sheet.getColumn(FIRST_PROVENANCE_COL).width = 26;
+  sheet.getColumn(FIRST_PROVENANCE_COL + 1).width = 24;
+
   rows.forEach((r, i) => {
     const row = sheet.getRow(2 + i);
+    /* Stamped on every row, not only the ones the template happened to pre-style. */
+    for (let c = 1; c <= COLUMNS.length; c++) row.getCell(c).style = { ...templateStyle[c] };
+    for (let c = FIRST_PROVENANCE_COL; c <= TOTAL_COLUMNS; c++) {
+      row.getCell(c).style = { ...templateStyle[COLUMNS.length] };
+    }
     const put = (n: number, v: ExcelJS.CellValue) => (row.getCell(n).value = v);
     put(1, i + 1);
     put(2, r.month_year ?? '');
@@ -287,6 +428,31 @@ export async function writeConsolidated(
       : [r.remarks ?? '', issues.length ? `[${issues.join('; ')}]` : ''].filter(Boolean).join(' ');
     put(16, remark);
 
+    /* Who provided this vendor's answer and what is behind it, repeated on each of their lines so
+       a single line can be traced without changing tab. The evidence cell is a real hyperlink: a
+       submission id is useless to AP, and the alternative was asking them to find the attachment
+       in the portal while holding the workbook open. */
+    const p = byVendor.get(String(r.vendor_no));
+    const provided = providedLabel(p);
+    put(17, provided ? `${routeLabel(p)} · ${provided}` : routeLabel(p));
+
+    /* The email first when there is one: it is the thing a champion filed because the figures
+       were not in a spreadsheet, so it is the document AP has to open to see them. */
+    const evidence = p?.email ?? p?.workbook ?? null;
+    const base = appBaseUrl();
+    if (evidence && base) {
+      const cell = row.getCell(18);
+      cell.value = {
+        text: p?.email ? 'Open email' : 'Open spreadsheet',
+        hyperlink: `${base}/api/soa/submissions/${evidence.id}`,
+        tooltip: evidence.fileName,
+      };
+      cell.font = { ...cell.font, color: { argb: 'FF0563C1' }, underline: true };
+    } else if (evidence) {
+      // No base URL configured, so a link would go nowhere; name the file instead.
+      put(18, evidence.fileName);
+    }
+
     /* A placeholder is tinted, and greyed rather than amber: it is not a line that needs querying
        with the vendor, it is a vendor whose answer is not in this file. Reading down the amount
        columns, the blanks then have a visible reason beside them. */
@@ -307,6 +473,8 @@ export async function writeConsolidated(
     totals.set(ccy, (totals.get(ccy) ?? 0) + Number(r.outstanding_amount));
   }
 
+  writeSubmissionsSheet(wb, rows, provenance);
+
   const out = Buffer.from(await wb.xlsx.writeBuffer());
   return {
     file: out,
@@ -322,6 +490,124 @@ export async function writeConsolidated(
         .map(([currency, outstanding]) => ({ currency, outstanding }))
         .sort((a, b) => b.outstanding - a.outstanding),
     },
+  };
+}
+
+/**
+ * One row per vendor: how their answer arrived, and the files behind it.
+ *
+ * The SOA sheet is one row per invoice line and repeats this down every line of a supplier, which
+ * is right for tracing a single line and wrong for reading. Here it is said once per vendor, which
+ * is the grain the fact actually has, and the question AP opens the file with — which of these
+ * suppliers answered us themselves, and which did a champion chase down — is one sort away.
+ *
+ * Vendors with no current submission are listed too, with the reason. A supplier missing from this
+ * tab would look like one nobody asked.
+ */
+function writeSubmissionsSheet(
+  wb: ExcelJS.Workbook,
+  rows: ConsolidatedRow[],
+  provenance: VendorProvenance[],
+): void {
+  const HEADERS = [
+    'Vendor Name',
+    'Vendor No.',
+    'Received Via',
+    'Provided',
+    'Spreadsheet',
+    'Email',
+    'Filed By',
+    'Filed At',
+    'Invoice Lines',
+  ];
+  const WIDTHS = [42, 18, 24, 16, 26, 26, 30, 20, 14];
+
+  /* Replaced rather than appended to, so rebuilding the workbook for a second country does not
+     leave the first one's suppliers on the tab. */
+  if (wb.getWorksheet('Submissions')) wb.removeWorksheet(wb.getWorksheet('Submissions')!.id);
+  const ws = wb.addWorksheet('Submissions');
+
+  const header = ws.getRow(1);
+  HEADERS.forEach((label, i) => {
+    const cell = header.getCell(i + 1);
+    cell.value = label;
+    cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF4EA72E' } };
+    cell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' },
+    };
+  });
+  header.commit();
+  WIDTHS.forEach((w, i) => {
+    ws.getColumn(i + 1).width = w;
+  });
+
+  const base = appBaseUrl();
+  const link = (
+    cell: ExcelJS.Cell,
+    file: { id: number; fileName: string } | null,
+    absent: string,
+  ) => {
+    if (!file) {
+      cell.value = absent;
+      cell.font = { name: 'Calibri', size: 11, color: { argb: 'FF9A9A9A' }, italic: true };
+      return;
+    }
+    if (!base) {
+      cell.value = file.fileName;
+      return;
+    }
+    cell.value = {
+      text: file.fileName,
+      hyperlink: `${base}/api/soa/submissions/${file.id}`,
+      tooltip: 'Opens the stored file. You will be asked to sign in if you are not already.',
+    };
+    cell.font = { name: 'Calibri', size: 11, color: { argb: 'FF0563C1' }, underline: true };
+  };
+
+  /* Every vendor in the workbook, whether or not anything was filed for them, ordered the way the
+     SOA sheet is so the two tabs read in the same order. */
+  const seen = new Set<string>();
+  const order: { vendorNo: string; vendorName: string }[] = [];
+  for (const r of rows) {
+    const no = String(r.vendor_no);
+    if (seen.has(no)) continue;
+    seen.add(no);
+    order.push({ vendorNo: no, vendorName: r.vendor_name });
+  }
+
+  const byVendor = new Map(provenance.map((p) => [p.vendorNo, p]));
+  order.forEach(({ vendorNo, vendorName }, i) => {
+    const p = byVendor.get(vendorNo);
+    const row = ws.getRow(2 + i);
+    row.getCell(1).value = vendorName;
+    row.getCell(2).value = vendorNo;
+    row.getCell(3).value = routeLabel(p);
+    row.getCell(4).value = providedLabel(p);
+    link(row.getCell(5), p?.workbook ?? null, 'None');
+    link(row.getCell(6), p?.email ?? null, 'None');
+    row.getCell(7).value = p?.filedBy ?? '';
+    row.getCell(8).value = p?.filedAt ?? '';
+    if (p?.filedAt) row.getCell(8).numFmt = 'yyyy-mm-dd hh:mm';
+    row.getCell(9).value = p?.invoiceLines ?? 0;
+
+    /* The happy path tinted green and the rest left plain: the question this tab answers is which
+       suppliers answered for themselves, and that reads faster as a colour than as a column. */
+    if (routeLabel(p) === 'Supplier portal') {
+      for (let c = 1; c <= HEADERS.length; c++) {
+        row.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEAF4EA' } };
+      }
+    }
+    row.commit();
+  });
+
+  ws.views = [{ state: 'frozen', ySplit: 1 }];
+  ws.autoFilter = {
+    from: { row: 1, column: 1 },
+    to: { row: 1 + order.length, column: HEADERS.length },
   };
 }
 
@@ -343,6 +629,10 @@ export function vendorConsolidatedFileName(
   cycleLabel: string,
 ): string {
   const safe = (v: string, max = 40) =>
-    v.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, max).replace(/-$/, '');
+    v
+      .replace(/[^A-Za-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, max)
+      .replace(/-$/, '');
   return `NESR-SOA-${safe(vendorName)}-${safe(vendorNo, 20)}-${safe(cycleLabel)}.xlsx`;
 }

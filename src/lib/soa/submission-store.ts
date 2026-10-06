@@ -34,7 +34,14 @@ export interface StoreInput {
   uploadedBy: string;
   /** How the evidence entry names the uploader. */
   actorLabel: string;
-  /** True when the supplier uploaded it themselves, which the evidence trail should say. */
+  /**
+   * True when the supplier uploaded it themselves.
+   *
+   * This has always shaped the evidence-log wording and is now stored on the row as `source` as
+   * well. It was the only record of how a statement arrived, and it was being spent on a sentence
+   * and then dropped, so the consolidated workbook could not tell AP whether a supplier answered
+   * or a champion chased it up and filed it for them.
+   */
   selfService: boolean;
   /**
    * `workbook` is the template, read into invoice rows. `email` is filed correspondence: a saved
@@ -70,20 +77,32 @@ export class StatementRejected extends Error {
  */
 async function storeCorrespondence(input: StoreInput): Promise<StoreResult> {
   const submissionId = await withTransaction(soaPool, async (client: PoolClient) => {
+    /* Only the previous EMAIL is retired, not the vendor's workbook.
+       Superseding everything meant a champion who filed the covering email and then the
+       spreadsheet was left holding only the spreadsheet, and the reverse order lost the
+       spreadsheet: the two pieces of evidence for one answer could never be held at once. They
+       are different kinds of thing and each supersedes only its own kind. */
     await client.query(
       `UPDATE soa_submissions
           SET superseded_at = NOW()
-        WHERE vendor_cycle_entry_id = $1 AND superseded_at IS NULL`,
+        WHERE vendor_cycle_entry_id = $1 AND kind = 'email' AND superseded_at IS NULL`,
       [input.entryId],
     );
     const inserted = await client.query<{ id: number }>(
       `INSERT INTO soa_submissions
          (vendor_cycle_entry_id, file_name, content, content_type, uploaded_by,
           validated, detected_invoice_count, accepted_at, accepted_by,
-          parsed_line_count, parse_error, kind)
-       VALUES ($1, $2, $3, $4, $5, TRUE, 0, NOW(), $5, 0, NULL, 'email')
+          parsed_line_count, parse_error, kind, source)
+       VALUES ($1, $2, $3, $4, $5, TRUE, 0, NOW(), $5, 0, NULL, 'email', $6)
        RETURNING id`,
-      [input.entryId, input.fileName, input.content, input.contentType, input.uploadedBy],
+      [
+        input.entryId,
+        input.fileName,
+        input.content,
+        input.contentType,
+        input.uploadedBy,
+        input.selfService ? 'supplier_portal' : 'champion',
+      ],
     );
 
     await client.query(
@@ -152,14 +171,17 @@ export async function storeStatement(input: StoreInput): Promise<StoreResult> {
   const needingReview = lines.filter((l) => l.issues.length > 0).length;
 
   const submissionId = await withTransaction(soaPool, async (client: PoolClient) => {
-    /* Retire whatever this vendor sent before, in the same transaction that files the new one.
+    /* Retire the vendor's previous WORKBOOK, in the same transaction that files the new one.
        A supplier correcting a mistake and sending the file again is ordinary, and until this
        every one of their invoices went into the consolidated workbook a second time. The old
-       rows stay: they are evidence of what was first claimed, and only leave the arithmetic. */
+       rows stay: they are evidence of what was first claimed, and only leave the arithmetic.
+
+       Scoped to the kind, so filing a workbook no longer retires the covering email filed beside
+       it. Each kind supersedes its own. */
     await client.query(
       `UPDATE soa_submissions
           SET superseded_at = NOW()
-        WHERE vendor_cycle_entry_id = $1 AND superseded_at IS NULL`,
+        WHERE vendor_cycle_entry_id = $1 AND kind = 'workbook' AND superseded_at IS NULL`,
       [input.entryId],
     );
 
@@ -167,8 +189,8 @@ export async function storeStatement(input: StoreInput): Promise<StoreResult> {
       `INSERT INTO soa_submissions
          (vendor_cycle_entry_id, file_name, content, content_type, uploaded_by,
           validated, detected_invoice_count, accepted_at, accepted_by,
-          parsed_line_count, parse_error, kind)
-       VALUES ($1, $2, $3, $4, $5, TRUE, $6, NOW(), $5, $6, NULL, 'workbook')
+          parsed_line_count, parse_error, kind, source)
+       VALUES ($1, $2, $3, $4, $5, TRUE, $6, NOW(), $5, $6, NULL, 'workbook', $7)
        RETURNING id`,
       [
         input.entryId,
@@ -177,6 +199,7 @@ export async function storeStatement(input: StoreInput): Promise<StoreResult> {
         input.contentType,
         input.uploadedBy,
         lines.length,
+        input.selfService ? 'supplier_portal' : 'champion',
       ],
     );
     const id = inserted.rows[0].id;

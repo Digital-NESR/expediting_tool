@@ -1,27 +1,30 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useId, useRef, useState } from 'react';
 import type { ScreenProps } from '../../types';
 
 /**
  * Accepting a vendor's statement on their behalf.
  *
- * The same act as the supplier's own upload, done by the champion a supplier replied to with the
- * file attached, so it behaves the same way: the same drop zone, the same file test, and the same
- * answer afterwards saying how many invoice lines were read.
+ * Two boxes rather than one, because a champion usually holds two things: the supplier's reply and
+ * the spreadsheet attached to it. One box took whichever was dropped on it and, worse, filing the
+ * second retired the first — the two pieces of evidence for a single answer could never be held at
+ * once. Each box now takes its own kind and each supersedes only its own kind.
+ *
+ * Either one on its own is enough. A supplier who only ever sent a spreadsheet, and one who wrote
+ * the figures in the body of a mail, are both ordinary, and demanding the pair would block the
+ * champion over evidence that does not exist.
  *
  * It used to ask the champion to count the invoices and type the number in, explaining that
- * nothing in the tool parsed the file. That stopped being true when the parser landed. The typed
- * figure was posted and never read: `storeStatement` had already counted the rows, and the number
- * on the vendor's row came from the file while the box asked somebody to count by eye. It is gone.
- *
- * It also offered `.pdf` and `.csv`. `storeStatement` refuses both, so choosing one meant filling
- * the form, waiting for the upload, and being told it was the wrong kind of file.
+ * nothing in the tool parsed the file. That stopped being true when the parser landed: the typed
+ * figure was posted and never read, while `storeStatement` had already counted the rows. It is
+ * gone. It also offered `.pdf` and `.csv`, which `storeStatement` refuses, so choosing one meant
+ * filling the form, waiting for the upload, and being told it was the wrong kind of file.
  */
 
 const MAX_BYTES = 10 * 1024 * 1024;
+const WORKBOOK = /\.(xlsx|xlsm|xls)$/i;
 const CORRESPONDENCE = /\.(eml|msg)$/i;
-const ACCEPTED = /\.(xlsx|xlsm|xls|eml|msg)$/i;
 
 /* Saving a mail out of Outlook is not something most people have had reason to do, and the
    alternative is a champion pasting the supplier's figures in by hand. */
@@ -32,34 +35,137 @@ const OUTLOOK_STEPS = [
   'Save it somewhere you can find, then drag it onto this box.',
 ];
 
-export default function UploadModal({ vm }: ScreenProps) {
-  const [file, setFile] = useState<File | null>(null);
+/** One labelled drop zone. Both boxes behave identically; only what they accept differs. */
+function DropZone({
+  label,
+  hint,
+  accepted,
+  acceptAttr,
+  file,
+  onFile,
+  onError,
+}: {
+  label: string;
+  hint: string;
+  accepted: RegExp;
+  acceptAttr: string;
+  file: File | null;
+  onFile: (file: File | null) => void;
+  onError: (message: string) => void;
+}) {
   const [dragging, setDragging] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const isCorrespondence = !!file && CORRESPONDENCE.test(file.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const inputId = useId();
 
-  /** Shared by the picker and the drop zone, so a dropped file is judged exactly like a chosen one. */
-  const accept = useCallback((chosen: File | null) => {
-    if (!chosen) return;
-    if (!ACCEPTED.test(chosen.name)) {
-      setFile(null);
-      return setError(
-        'Upload either the Excel template the supplier filled in, or their reply saved as a .msg or .eml file. A PDF is neither.',
-      );
-    }
-    if (chosen.size > MAX_BYTES) {
-      setFile(null);
-      return setError('That file is larger than 10 MB.');
-    }
+  /* Shared by the picker and the drop zone, so a dropped file is judged exactly like a chosen one,
+     and judged by THIS box's rule: dropping a spreadsheet on the email box is a mistake worth
+     naming rather than quietly filing under the wrong kind. */
+  const take = useCallback(
+    (chosen: File | null) => {
+      if (!chosen) return;
+      if (!accepted.test(chosen.name)) {
+        return onError(`${chosen.name} does not belong in "${label}". ${hint}`);
+      }
+      if (chosen.size > MAX_BYTES) return onError('That file is larger than 10 MB.');
+      onFile(chosen);
+    },
+    [accepted, hint, label, onError, onFile],
+  );
+
+  return (
+    <div className="mb-3">
+      <div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-sns-grey">
+        {label} <span className="font-normal normal-case">(optional)</span>
+      </div>
+      <div
+        onDragEnter={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragOver={(e) => {
+          // Without this the browser navigates away to the dropped file.
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={(e) => {
+          // Crossing onto a child fires leave on the parent; only a real exit counts.
+          if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+          setDragging(false);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          take(e.dataTransfer.files?.[0] ?? null);
+        }}
+        className={`rounded-lg border-2 border-dashed p-4 text-center transition-colors ${
+          dragging
+            ? 'border-sns-green bg-sns-green-wash'
+            : file
+              ? 'border-sns-green/40 bg-sns-green-wash/40'
+              : 'border-sns-line bg-[#FAFAFA]'
+        }`}
+      >
+        {file ? (
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[12px]">
+            <span className="font-bold text-sns-ink">{file.name}</span>
+            <span className="text-[11px] text-sns-grey">{(file.size / 1024).toFixed(0)} KB</span>
+            <button
+              type="button"
+              onClick={() => {
+                onFile(null);
+                if (inputRef.current) inputRef.current.value = '';
+              }}
+              className="text-[11px] font-bold text-sns-grey underline"
+            >
+              Remove
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="mb-1 text-[11px] text-sns-grey">{hint}</div>
+            <label
+              htmlFor={inputId}
+              className="cursor-pointer text-[12px] font-bold text-sns-green underline"
+            >
+              Drag it here, or choose a file
+            </label>
+          </>
+        )}
+        {/* A real input, kept for the keyboard and for screen readers. */}
+        <input
+          id={inputId}
+          ref={inputRef}
+          type="file"
+          accept={acceptAttr}
+          className="sr-only"
+          onChange={(e) => take(e.target.files?.[0] ?? null)}
+        />
+      </div>
+    </div>
+  );
+}
+
+export default function UploadModal({ vm }: ScreenProps) {
+  const [workbook, setWorkbook] = useState<File | null>(null);
+  const [email, setEmail] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const onError = useCallback((message: string) => setError(message), []);
+  const takeWorkbook = useCallback((f: File | null) => {
     setError(null);
-    setFile(chosen);
+    setWorkbook(f);
+  }, []);
+  const takeEmail = useCallback((f: File | null) => {
+    setError(null);
+    setEmail(f);
   }, []);
 
   function submit() {
-    if (!file) return setError('Choose the statement file first.');
+    if (!workbook && !email) {
+      return setError('Add the supplier’s spreadsheet, their email, or both.');
+    }
     setError(null);
-    vm.onAcceptSOA(file);
+    vm.onAcceptSOA({ workbook, email });
   }
 
   return (
@@ -84,73 +190,25 @@ export default function UploadModal({ vm }: ScreenProps) {
           </div>
         </div>
 
-        {/* The file usually arrives as a reply to the request, so dragging it straight out of the
-            mail client is one step where saving it and finding it again is three. */}
-        <div
-          onDragEnter={(e) => {
-            e.preventDefault();
-            setDragging(true);
-          }}
-          onDragOver={(e) => {
-            // Without this the browser navigates away to the dropped file.
-            e.preventDefault();
-            setDragging(true);
-          }}
-          onDragLeave={(e) => {
-            // Crossing onto a child fires leave on the parent; only a real exit counts.
-            if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
-            setDragging(false);
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragging(false);
-            accept(e.dataTransfer.files?.[0] ?? null);
-          }}
-          className={`rounded-lg border-2 border-dashed p-5 text-center mb-3.5 transition-colors ${
-            dragging ? 'border-sns-green bg-sns-green-wash' : 'border-sns-line bg-[#FAFAFA]'
-          }`}
-        >
-          {file ? (
-            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[12px]">
-              <span className="font-bold text-sns-ink">{file.name}</span>
-              <span className="text-[11px] text-sns-grey">
-                {(file.size / 1024).toFixed(0)} KB
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setFile(null);
-                  if (fileRef.current) fileRef.current.value = '';
-                }}
-                className="text-[11px] font-bold text-sns-grey underline"
-              >
-                Change
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="text-[13px] font-bold mb-1">Drag the supplier&apos;s reply here</div>
-              <div className="text-[11px] text-sns-grey mb-2">
-                The filled-in Excel template, or their email saved as .msg or .eml · Max 10 MB
-              </div>
-              <label
-                htmlFor="soa-file"
-                className="cursor-pointer text-[12px] font-bold text-sns-green underline"
-              >
-                or choose a file
-              </label>
-            </>
-          )}
-          {/* A real input, kept for the keyboard and for screen readers. */}
-          <input
-            id="soa-file"
-            ref={fileRef}
-            type="file"
-            accept=".xlsx,.xlsm,.xls,.eml,.msg"
-            className="sr-only"
-            onChange={(e) => accept(e.target.files?.[0] ?? null)}
-          />
-        </div>
+        <DropZone
+          label="Statement spreadsheet"
+          hint="The filled-in Excel template · .xlsx, .xlsm or .xls · Max 10 MB"
+          accepted={WORKBOOK}
+          acceptAttr=".xlsx,.xlsm,.xls"
+          file={workbook}
+          onFile={takeWorkbook}
+          onError={onError}
+        />
+
+        <DropZone
+          label="Supplier’s email"
+          hint="Their reply saved out of Outlook · .msg or .eml · Max 10 MB"
+          accepted={CORRESPONDENCE}
+          acceptAttr=".eml,.msg"
+          file={email}
+          onFile={takeEmail}
+          onError={onError}
+        />
 
         {error && (
           <div className="mb-3 rounded-md bg-[#FFEBEE] px-3 py-2 text-[11px] font-bold text-[#B71C1C]">
@@ -158,27 +216,26 @@ export default function UploadModal({ vm }: ScreenProps) {
           </div>
         )}
 
-        {/* Which of the two this is, said before it is uploaded rather than discovered after. */}
-        <div
-          className={`rounded-md px-3 py-2 text-[11px] leading-[1.45] mb-3.5 ${
-            isCorrespondence ? 'bg-[#FFF8E1] text-[#8A4B00]' : 'bg-[#F5F5F5] text-sns-grey'
-          }`}
-        >
-          {isCorrespondence ? (
+        {/* What each of the two will do, said before uploading rather than discovered after. */}
+        <div className="mb-3.5 rounded-md bg-[#F5F5F5] px-3 py-2 text-[11px] leading-[1.45] text-sns-grey">
+          {workbook ? (
             <>
-              <strong>This will be filed as correspondence.</strong> Nothing in an email is read
-              into invoice lines, so the vendor counts towards coverage and the consolidated
-              workbook carries one line telling AP to refer to this attachment. Upload the filled-in
-              template instead if you have it.
+              The invoice rows are read from the spreadsheet and shown for review on the
+              vendor&apos;s row.{' '}
             </>
           ) : (
             <>
-              The invoice rows are read from the workbook and shown for review on the vendor&apos;s
-              row. The file is checked against its declared type, stored in the database, and served
-              only through an authenticated route, a statement lists a vendor&apos;s invoice numbers
-              and balances.
+              <strong className="text-[#8A4B00]">
+                No spreadsheet, so nothing is read into invoice lines.
+              </strong>{' '}
+              The vendor still counts towards coverage and the consolidated workbook carries one
+              line pointing AP at the email.{' '}
             </>
           )}
+          {email ? <>The email is filed as evidence beside it. </> : null}
+          Files are checked against their declared type, stored in the database and served only
+          through an authenticated route, because a statement lists a vendor&apos;s invoice numbers
+          and balances.
         </div>
 
         <details className="mb-3.5 rounded-md border border-sns-line px-3 py-2">
@@ -191,7 +248,7 @@ export default function UploadModal({ vm }: ScreenProps) {
             ))}
           </ol>
           <div className="mt-2 text-[11px] text-sns-grey leading-[1.45]">
-            Dragging the mail straight from the message list onto this box works too, and saves the
+            Dragging the mail straight from the message list onto the box works too, and saves the
             four steps. On Outlook for the web, use the three dots on the message and Download.
           </div>
         </details>
@@ -207,7 +264,7 @@ export default function UploadModal({ vm }: ScreenProps) {
           <button
             type="button"
             onClick={submit}
-            disabled={!file || vm.busy}
+            disabled={(!workbook && !email) || vm.busy}
             className="flex-[2] bg-sns-green text-white border-none p-2.5 rounded-[7px] text-[12px] font-bold disabled:opacity-50"
           >
             {vm.busy ? 'Reading and storing' : 'Accept & Store SOA'}

@@ -394,28 +394,30 @@ export default function SoaConsolidationClient({
         'Contacts not saved',
       );
     },
-    acceptSOA(file) {
+    acceptSOA({ workbook, email }) {
       const modal = state.modal;
       if (!modal || modal.type !== 'upload') return;
+      if (!workbook && !email) return;
       const formData = new FormData();
-      formData.append('file', file);
+      if (workbook) formData.append('workbook', workbook);
+      if (email) formData.append('email', email);
       void run(
         () => acceptSoaSubmission(Number(modal.vendorId), formData),
         (data) => {
           patch({ modal: null, expandedVendor: null });
           const lines = data?.lines ?? 0;
           const flagged = data?.needingReview ?? 0;
-          const filed = /\.(eml|msg)$/i.test(file.name);
-          // The count comes from the file. It used to be typed in beside the picker and then
-          // thrown away unread, so the figure on the row was whatever somebody had counted by eye
-          // while the tool had already read the rows and knew.
+          /* The counts come from the files. They used to be typed in beside the picker and then
+             thrown away unread, so the figure on the row was whatever somebody had counted by eye
+             while the tool had already read the rows and knew. */
           addToast(
             'success',
-            filed ? 'Reply filed as evidence' : 'SOA accepted',
-            filed
-              ? `${file.name} is on file. This vendor counts towards coverage, and the consolidated workbook will refer AP to the attachment.`
-              : `${lines} invoice ${lines === 1 ? 'line' : 'lines'} read from ${file.name}` +
-                (flagged > 0 ? `, ${flagged} needing review.` : '.'),
+            workbook ? 'SOA accepted' : 'Reply filed as evidence',
+            workbook
+              ? `${lines} invoice ${lines === 1 ? 'line' : 'lines'} read from ${workbook.name}` +
+                  (flagged > 0 ? `, ${flagged} needing review` : '') +
+                  (email ? `, and ${email.name} filed beside it.` : '.')
+              : `${email?.name} is on file. This vendor counts towards coverage, and the consolidated workbook will refer AP to the attachment.`,
           );
         },
         'SOA not accepted',

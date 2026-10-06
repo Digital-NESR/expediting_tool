@@ -42,13 +42,7 @@ export interface Viewer {
 }
 
 export type ScreenId =
-  | 'dashboard'
-  | 'scoping'
-  | 'outreach'
-  | 'tracking'
-  | 'consolidation'
-  | 'evidence'
-  | 'rollup';
+  'dashboard' | 'scoping' | 'outreach' | 'tracking' | 'consolidation' | 'evidence' | 'rollup';
 
 /**
  * `scoped` is a vendor drawn into the cycle that nobody has written to yet. The prototype had no
@@ -318,7 +312,7 @@ export interface ScopeBulkVM {
 }
 
 /**
- * A control criterion is pass, fail, or, when the payload does not carry what the test needs, 
+ * A control criterion is pass, fail, or, when the payload does not carry what the test needs,
  * `unknown`. The prototype hard-coded three of the four to pass, which is the one outcome a
  * control check must never be able to produce without measuring something.
  */
@@ -384,12 +378,7 @@ export interface TableControlsVM {
 
 /** Which "there is nothing to show yet, and here is why" the tool is in. */
 export type EmptyKind =
-  | 'none'
-  | 'no-cycle'
-  | 'no-extract'
-  | 'no-country'
-  | 'not-enrolled'
-  | 'not-scoped';
+  'none' | 'no-cycle' | 'no-extract' | 'no-country' | 'not-enrolled' | 'not-scoped';
 
 export interface ViewModel {
   role: Role;
@@ -553,7 +542,7 @@ export interface ViewModel {
   modalVendorAmt: string;
   modalVendorCurrency: string;
   onCloseModal: () => void;
-  onAcceptSOA: (file: File) => void;
+  onAcceptSOA: (files: AcceptSoaFiles) => void;
   /** Close a vendor that never sent a statement, saying which kind of silence it was. */
   onResolveVendor: (outcome: ResolveOutcome, note: string) => void;
   onConfirmHandoff: () => void;
@@ -563,6 +552,18 @@ export interface ViewModel {
 
   toasts: Toast[];
   hasToasts: boolean;
+}
+
+/**
+ * What a champion files for one vendor: the spreadsheet, the covering email, or both.
+ *
+ * Both are optional and at least one is required, checked where it is chosen and again in the
+ * action. A supplier who only sent a spreadsheet and one who wrote the figures into the body of a
+ * mail are both ordinary.
+ */
+export interface AcceptSoaFiles {
+  workbook: File | null;
+  email: File | null;
 }
 
 export interface ScreenProps {
@@ -605,6 +606,6 @@ export interface Handlers {
   generateExport: () => void;
   openHandoffModal: () => void;
   closeModal: () => void;
-  acceptSOA: (file: File) => void;
+  acceptSOA: (files: AcceptSoaFiles) => void;
   confirmHandoff: () => void;
 }

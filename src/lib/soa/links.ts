@@ -40,6 +40,21 @@ function appBase(): string {
 }
 
 /**
+ * The base, or null when it is not configured.
+ *
+ * Null rather than throwing, for the callers where a link is a convenience rather than the whole
+ * point: the consolidated workbook still has to build for AP if nobody has set the variable, it
+ * just prints the file's name where it would have put a link.
+ */
+export function appBaseUrl(): string | null {
+  try {
+    return appBase();
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The tool's own front door, or null when the base is not configured.
  *
  * Null rather than throwing, because this is only ever a convenience link inside a notification.

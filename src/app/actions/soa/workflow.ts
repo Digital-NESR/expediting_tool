@@ -242,7 +242,11 @@ async function prepareLetter(
     apEmails: ctx.apEmails,
     championEmails: ctx.championEmails,
     vars: {
-      date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+      date: new Date().toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }),
       vendorName: '',
       vendorNo: '',
       countryName: ctx.countryName,
@@ -417,7 +421,6 @@ export async function getSoaOutreachDue(input: {
   }
 }
 
-
 /**
  * Close a vendor that never sent a statement, saying which kind of silence it was.
  *
@@ -469,7 +472,7 @@ export async function resolveSoaVendor(input: {
         isNil
           ? `${context.vendorName} (${context.vendorNo}) has no pending invoices and counts towards coverage. Reason given: ${note}`
           : `${context.vendorName} (${context.vendorNo}) did not respond; balance unconfirmed and not counted. Correspondence retained.` +
-            (note ? ` Note: ${note}` : ''),
+              (note ? ` Note: ${note}` : ''),
       );
     });
 
@@ -498,45 +501,86 @@ export async function acceptSoaSubmission(
   try {
     const { actor, context } = await loadEntry(entryId);
 
-    const file = formData.get('file');
-    if (!(file instanceof File) || file.size === 0) {
+    /* Two named parts rather than one anonymous `file`. A champion usually holds the supplier's
+       reply and the spreadsheet attached to it, and the single field could only carry one of
+       them: filing the second used to retire the first, so the two pieces of evidence for one
+       answer could never be held at once. Each is stored under its own kind and supersedes only
+       its own kind. */
+    const picked: { field: 'workbook' | 'email'; file: File }[] = [];
+    for (const field of ['workbook', 'email'] as const) {
+      const value = formData.get(field);
+      if (value instanceof File && value.size > 0) picked.push({ field, file: value });
+    }
+    if (!picked.length) {
       return { success: false, error: 'No statement file received.' };
     }
-    if (file.size > MAX_SOA_BYTES) {
-      return { success: false, error: 'That file is larger than 10 MB.' };
+
+    /* Both are read and checked before either is stored. Storing as we go would leave a champion
+       who dropped a PDF into the second box with the first already filed and the vendor already
+       marked as answered. */
+    const prepared: { kind: 'workbook' | 'email'; file: File; content: Buffer }[] = [];
+    for (const { field, file } of picked) {
+      if (file.size > MAX_SOA_BYTES) {
+        return { success: false, error: `${file.name} is larger than 10 MB.` };
+      }
+      const content = Buffer.from(await file.arrayBuffer());
+      if (content.byteLength > MAX_SOA_BYTES) {
+        return { success: false, error: `${file.name} is larger than 10 MB.` };
+      }
+
+      // The extension and the browser's MIME claim are both claims; check the real leading bytes.
+      const verdict = validateUploadSignature(file.name, content, file.type);
+      if (!verdict.ok) return { success: false, error: verdict.reason };
+
+      /* The box it came from decides what it is, but the name still has to agree with it: a
+         spreadsheet dropped into the email box would otherwise be filed as correspondence and
+         never read into invoice rows, silently. */
+      const looksLikeEmail = /\.(eml|msg)$/i.test(file.name);
+      if (field === 'email' && !looksLikeEmail) {
+        return {
+          success: false,
+          error: `${file.name} is not a saved email. Put the spreadsheet in the statement box.`,
+        };
+      }
+      if (field === 'workbook' && looksLikeEmail) {
+        return {
+          success: false,
+          error: `${file.name} is a saved email. Put it in the email box.`,
+        };
+      }
+      prepared.push({ kind: field, file, content });
     }
-    const content = Buffer.from(await file.arrayBuffer());
-    if (content.byteLength > MAX_SOA_BYTES) {
-      return { success: false, error: 'That file is larger than 10 MB.' };
+
+    /* The workbook first, so that when both are filed the vendor's invoice_count comes from the
+       spreadsheet rather than being reset to zero by the correspondence landing after it. */
+    prepared.sort((a, b) => (a.kind === 'workbook' ? -1 : b.kind === 'workbook' ? 1 : 0));
+
+    let lines = 0;
+    let needingReview = 0;
+    for (const { kind, file, content } of prepared) {
+      const stored = await storeStatement({
+        kind,
+        entryId,
+        countryCycleId: context.countryCycleId,
+        vendorNo: context.vendorNo,
+        vendorName: context.vendorName,
+        countryId: context.countryId,
+        cycleLabel: context.cycleLabel,
+        fileName: file.name,
+        contentType: uploadMimeTypeFor(file.name, file.type),
+        content,
+        uploadedBy: actor.email,
+        actorLabel: actor.email,
+        selfService: false,
+      });
+      if (kind === 'workbook') {
+        lines = stored.lines;
+        needingReview = stored.needingReview;
+      }
     }
-
-    // The extension and the browser's MIME claim are both claims; check the real leading bytes.
-    const verdict = validateUploadSignature(file.name, content, file.type);
-    if (!verdict.ok) return { success: false, error: verdict.reason };
-
-    /* Two things a champion can file, told apart by the file itself rather than by a toggle they
-       would have to remember to set: the template, which is read into invoice rows, and a saved
-       reply, which is filed as evidence and read by nobody. */
-    const isCorrespondence = /\.(eml|msg)$/i.test(file.name);
-
-    const stored = await storeStatement({
-      kind: isCorrespondence ? 'email' : 'workbook',
-      entryId,
-      countryCycleId: context.countryCycleId,
-      vendorNo: context.vendorNo,
-      vendorName: context.vendorName,
-      countryId: context.countryId,
-      cycleLabel: context.cycleLabel,
-      fileName: file.name,
-      contentType: uploadMimeTypeFor(file.name, file.type),
-      content,
-      uploadedBy: actor.email,
-      actorLabel: actor.email,
-      selfService: false,
-    });
 
     revalidatePath('/soa-consolidation');
-    return { success: true, data: { lines: stored.lines, needingReview: stored.needingReview } };
+    return { success: true, data: { lines, needingReview } };
   } catch (err) {
     if (err instanceof StatementRejected) return { success: false, error: err.message };
     log.error('acceptSoaSubmission.failed', err, { entryId });
@@ -773,4 +817,3 @@ export async function getSoaOutreachFailures(countryId: string): Promise<Deliver
     return [];
   }
 }
-
