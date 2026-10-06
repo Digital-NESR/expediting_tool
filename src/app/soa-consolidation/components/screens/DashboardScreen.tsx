@@ -79,17 +79,45 @@ export default function DashboardScreen({ vm }: ScreenProps) {
           <div className="text-[10px] text-sns-grey mb-2">
             of {vm.totalBalanceLabel} 18-month PO balance
           </div>
-          <div className="bg-[#E0E8E3] rounded-[3px] h-2.5 mb-[5px] overflow-hidden">
-            {/* Width tracks a live percentage, so it is the one declaration that has to stay inline. */}
+          {/* The bar is a plain 0 to 100 scale, and the ticks now sit where their numbers
+              actually fall on it.
+
+              They were laid out with `justify-between`, which puts three labels at 0%, 50% and
+              100% of the width whatever they say. Reading 0 / 70 / 95, the axis claimed the
+              target was at the halfway point, so a 48% fill — drawn at 48% of the width, because
+              the bar was always linear — appeared to land somewhere around 70. The bar and its
+              own scale disagreed by a third of the width. */}
+          <div className="relative bg-[#E0E8E3] rounded-[3px] h-2.5 mb-[5px]">
             <div
               className={`rounded-[3px] h-full transition-[width] duration-[0.4s] ease-[ease] ${vm.coverageMet ? 'bg-sns-green' : 'bg-[#FF8F00]'}`}
               style={{ width: `${Math.min(vm.coveragePct, 100)}%` }}
             />
+            {/* The target, on the bar itself: whether the fill has reached it is the whole
+                question, and that reads faster as a line to cross than as a number to compare. */}
+            {[vm.coverageTargetPct, vm.yearEndTargetPct].map((tick) => (
+              <span
+                key={tick}
+                aria-hidden
+                className="absolute top-0 h-full w-px bg-sns-grey/50"
+                style={{ left: `${Math.min(Math.max(tick, 0), 100)}%` }}
+              />
+            ))}
           </div>
-          <div className="flex justify-between text-[9px] text-sns-grey mb-2">
-            <span>0%</span>
-            <span>{vm.coverageTargetPct}%</span>
-            <span>{vm.yearEndTargetPct}%</span>
+          {/* No label on the right end. The track finishes at 100% by definition, and printing it
+              collided with the year-end tick sitting at 95. */}
+          <div className="relative mb-2 h-3 text-[9px] text-sns-grey">
+            <span className="absolute left-0">0%</span>
+            {[vm.coverageTargetPct, vm.yearEndTargetPct].map((tick) => (
+              <span
+                key={tick}
+                className="absolute -translate-x-1/2 whitespace-nowrap"
+                /* Pulled inside the track at the ends, so the last label is not half outside the
+                   card it belongs to. */
+                style={{ left: `${Math.min(Math.max(tick, 4), 96)}%` }}
+              >
+                {tick}%
+              </span>
+            ))}
           </div>
           <div
             className={`text-[11px] font-bold ${vm.coverageMet ? 'text-sns-green' : 'text-[#E65100]'}`}
