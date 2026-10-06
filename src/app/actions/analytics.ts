@@ -51,9 +51,18 @@ export interface MyAnalytics {
   supplierResponseTime: MySupplierResponseTimeRow[];
 }
 
+export interface MyAnalyticsFilters {
+  /** Inclusive, as the date input gives it: YYYY-MM-DD. */
+  dateFrom?: string;
+  /** Inclusive of the whole day, not the midnight at its start. */
+  dateTo?: string;
+}
+
 /* ─── getMyExpeditingAnalytics ───────────────────────────────── */
 
-export async function getMyExpeditingAnalytics(): Promise<MyAnalytics> {
+export async function getMyExpeditingAnalytics(
+  filters: MyAnalyticsFilters = {},
+): Promise<MyAnalytics> {
   const toStr = (v: unknown): string | null => {
     if (v === null || v === undefined) return null;
     if (v instanceof Date) return v.toISOString();
@@ -77,6 +86,26 @@ export async function getMyExpeditingAnalytics(): Promise<MyAnalytics> {
   if (!actor) return empty;
   const userEmail = actor.email;
 
+  /* One parameter list for all five queries: $1 is always the buyer, and the dates take $2 and
+     $3 when they are set. Postgres is happy for a placeholder to appear several times in one
+     statement, which is what lets the KPI block apply the same range in four subqueries without
+     passing the value four times.
+
+     `dispatched_at` is the date everywhere, including on the session table, so the range always
+     means "work I sent out in this window" rather than something that shifts meaning per chart. */
+  const params: unknown[] = [userEmail];
+  const fromIdx = filters.dateFrom ? params.push(filters.dateFrom) : null;
+  const toIdx = filters.dateTo ? params.push(filters.dateTo) : null;
+
+  const inRange = (alias: string): string => {
+    const conditions: string[] = [];
+    if (fromIdx) conditions.push(`${alias}.dispatched_at >= $${fromIdx}`);
+    /* +1 day, so a range ending on the 30th includes everything dispatched ON the 30th rather
+       than stopping at its first second. */
+    if (toIdx) conditions.push(`${alias}.dispatched_at <= $${toIdx}::date + interval '1 day'`);
+    return conditions.length ? ` AND ${conditions.join(' AND ')}` : '';
+  };
+
   try {
     await ensurePoExpeditingSchema();
 
@@ -90,23 +119,24 @@ export async function getMyExpeditingAnalytics(): Promise<MyAnalytics> {
         `
         SELECT
           (SELECT COUNT(*)
-             FROM active_expediting
-             WHERE LOWER(dispatched_by) = $1
+             FROM active_expediting ae
+             WHERE LOWER(ae.dispatched_by) = $1${inRange('ae')}
           ) AS total_lines,
           (SELECT COUNT(DISTINCT ae.supplier_name)
              FROM active_expediting ae
-             WHERE LOWER(ae.dispatched_by) = $1
+             WHERE LOWER(ae.dispatched_by) = $1${inRange('ae')}
           ) AS total_suppliers,
-          (SELECT COALESCE(SUM(total_emails_sent), 0)
-             FROM expediting_sessions
-             WHERE LOWER(dispatched_by) = $1
+          (SELECT COALESCE(SUM(es.total_emails_sent), 0)
+             FROM expediting_sessions es
+             WHERE LOWER(es.dispatched_by) = $1${inRange('es')}
           ) AS total_emails,
           (SELECT ROUND(
-             COUNT(CASE WHEN workflow_state = 'Submitted' THEN 1 END) * 100.0
+             COUNT(CASE WHEN ae.workflow_state = 'Submitted' THEN 1 END) * 100.0
                / NULLIF(COUNT(*), 0), 1
-           ) FROM active_expediting WHERE LOWER(dispatched_by) = $1) AS response_rate
+           ) FROM active_expediting ae
+            WHERE LOWER(ae.dispatched_by) = $1${inRange('ae')}) AS response_rate
       `,
-        [userEmail],
+        params,
       ),
 
       /* ── My supplier breakdown ── */
@@ -123,48 +153,59 @@ export async function getMyExpeditingAnalytics(): Promise<MyAnalytics> {
           )                                                                      AS response_rate,
           MAX(ae.responded_at)                                                   AS last_response
         FROM active_expediting ae
-        WHERE LOWER(ae.dispatched_by) = $1
+        WHERE LOWER(ae.dispatched_by) = $1${inRange('ae')}
         GROUP BY ae.supplier_name
         ORDER BY response_rate DESC NULLS LAST
       `,
-        [userEmail],
+        params,
       ),
 
       /* ── My recent sessions ── */
       pool.query(
         `
         SELECT
-          session_ref,
-          dispatched_at,
-          total_suppliers,
-          total_po_lines,
-          total_emails_sent,
-          suppliers_responded,
-          response_rate_pct,
-          fully_closed
-        FROM expediting_sessions
-        WHERE LOWER(dispatched_by) = $1
-        ORDER BY dispatched_at DESC
+          es.session_ref,
+          es.dispatched_at,
+          es.total_suppliers,
+          es.total_po_lines,
+          es.total_emails_sent,
+          es.suppliers_responded,
+          es.response_rate_pct,
+          es.fully_closed
+        FROM expediting_sessions es
+        WHERE LOWER(es.dispatched_by) = $1${inRange('es')}
+        ORDER BY es.dispatched_at DESC
         LIMIT 20
       `,
-        [userEmail],
+        params,
       ),
 
-      /* ── Weekly expediting vs responses trend ── */
+      /* ── Weekly expediting vs responses trend ──
+         Counted from the lines, like the KPI card above it. Read off the session table it
+         disagreed with that card on the same screen: for one buyer the card showed 270 lines
+         while the chart beside it summed 1,263, because a session's totals are frozen at
+         dispatch and lines are closed out of the line table afterwards.
+
+         The rate changes with it, from an average of per-session rates to the pooled rate: a
+         session of 2 lines used to weigh as heavily in a week as one of 469. */
       pool.query(
         `
         SELECT
-          DATE_TRUNC('week', dispatched_at)  AS week,
-          SUM(total_po_lines)                AS lines_expedited,
-          SUM(lines_responded)               AS lines_responded,
-          ROUND(AVG(response_rate_pct), 1)   AS avg_response_rate,
-          COUNT(*)                           AS sessions_count
-        FROM expediting_sessions
-        WHERE LOWER(dispatched_by) = $1
-        GROUP BY DATE_TRUNC('week', dispatched_at)
+          DATE_TRUNC('week', ae.dispatched_at)                     AS week,
+          COUNT(ae.id)                                             AS lines_expedited,
+          COUNT(*) FILTER (WHERE ae.workflow_state = 'Submitted')  AS lines_responded,
+          ROUND(
+            COUNT(*) FILTER (WHERE ae.workflow_state = 'Submitted') * 100.0
+              / NULLIF(COUNT(ae.id), 0), 1
+          )                                                        AS avg_response_rate,
+          COUNT(DISTINCT ae.session_ref)                           AS sessions_count
+        FROM active_expediting ae
+        WHERE LOWER(ae.dispatched_by) = $1
+          AND ae.dispatched_at IS NOT NULL${inRange('ae')}
+        GROUP BY DATE_TRUNC('week', ae.dispatched_at)
         ORDER BY week ASC
       `,
-        [userEmail],
+        params,
       ),
 
       /* ── My avg response time by supplier ──
@@ -182,11 +223,11 @@ export async function getMyExpeditingAnalytics(): Promise<MyAnalytics> {
         WHERE ae.workflow_state = 'Submitted'
           AND LOWER(ae.dispatched_by) = $1
           AND ae.dispatched_at IS NOT NULL
-          AND ae.responded_at IS NOT NULL
+          AND ae.responded_at IS NOT NULL${inRange('ae')}
         GROUP BY ae.supplier_name
         ORDER BY avg_days_to_respond ASC
       `,
-        [userEmail],
+        params,
       ),
     ]);
 

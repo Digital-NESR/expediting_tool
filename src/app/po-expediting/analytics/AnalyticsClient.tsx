@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import DetailModal from '@/components/DetailModal';
@@ -18,6 +18,7 @@ import {
   LabelList,
   Legend,
 } from 'recharts';
+import type { MyAnalyticsFilters } from '@/app/actions/analytics';
 import {
   getMyExpeditingAnalytics,
   getSupplierDetail,
@@ -1008,10 +1009,21 @@ export default function AnalyticsClient({ userName }: { userName: string }) {
   const [supplierModalName, setSupplierModalName] = useState<string | null>(null);
   const [sessionModal, setSessionModal] = useState<MyRecentSession | null>(null);
 
+  // Date range. Empty means no bound on that end, which is how the page behaved before it had one.
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const hasDateFilter = Boolean(dateFrom || dateTo);
+
+  /* Read through a ref so `fetchData` keeps a stable identity: the Refresh button and the initial
+     effect both call it, and rebuilding it on every keystroke would re-run the effect and fire a
+     query for each digit of a half-typed year. */
+  const filtersRef = useRef<MyAnalyticsFilters>({});
+  filtersRef.current = { dateFrom: dateFrom || undefined, dateTo: dateTo || undefined };
+
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = await getMyExpeditingAnalytics();
+      const data = await getMyExpeditingAnalytics(filtersRef.current);
       setAnalytics(data);
       setLastRefreshed(new Date());
     } finally {
@@ -1022,6 +1034,19 @@ export default function AnalyticsClient({ userName }: { userName: string }) {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  /* A date input fires onChange per keystroke, including on the partial dates a keyboard user
+     passes through on the way to a real one, so the refetch waits for them to stop. The first run
+     is the effect above; without this guard it would fire twice on mount. */
+  const initialLoadDone = useRef(false);
+  useEffect(() => {
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true;
+      return;
+    }
+    const timer = setTimeout(fetchData, 400);
+    return () => clearTimeout(timer);
+  }, [dateFrom, dateTo, fetchData]);
 
   const hasData = analytics !== null && analytics.recentSessions.length > 0;
   const isEmpty = analytics !== null && !isLoading && analytics.recentSessions.length === 0;
@@ -1108,6 +1133,63 @@ export default function AnalyticsClient({ userName }: { userName: string }) {
                 })}
               </p>
             )}
+
+            {/* Date range. Every number on this page moves with it, including the trend chart,
+                which is the half that used to be read off a different table. */}
+            <div className="mt-4 flex flex-wrap items-end gap-3">
+              <div>
+                <label
+                  htmlFor="my-analytics-from"
+                  className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+                >
+                  From
+                </label>
+                <input
+                  id="my-analytics-from"
+                  type="date"
+                  value={dateFrom}
+                  max={dateTo || undefined}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="mt-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none transition-colors focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="my-analytics-to"
+                  className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+                >
+                  To
+                </label>
+                <input
+                  id="my-analytics-to"
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom || undefined}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="mt-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none transition-colors focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20"
+                />
+              </div>
+              {hasDateFilter && (
+                <button
+                  onClick={() => {
+                    setDateFrom('');
+                    setDateTo('');
+                  }}
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                >
+                  Clear dates
+                </button>
+              )}
+              {/* Said out loud, because an empty chart under a filter and an empty chart because
+                  nothing was expedited look identical. */}
+              {hasDateFilter && (
+                <p className="py-1.5 text-[12px] text-slate-400">
+                  Showing work dispatched
+                  {dateFrom ? ` from ${dateFrom}` : ' up to'}
+                  {dateTo ? ` to ${dateTo}` : dateFrom ? ' onwards' : ''}.
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Loading */}
