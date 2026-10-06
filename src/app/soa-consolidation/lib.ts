@@ -982,6 +982,13 @@ export function deriveViewModel(
      nil-balance vendors, which is why the gap looked like a Saudi problem rather than a rule. */
   const consolidatedVendors = vendors.filter((v) => countsTowardCoverage(v.status));
   const consolidatedShareLabels = labelsFrom(sharesOver(consolidatedVendors));
+  /* The header counts the rows this page lists, which is not the same as `receivedCount`: that
+     one is answered-by-spreadsheet and drives the stepper and the KPI tile, while this page also
+     lists the nil-balance vendors that count towards coverage. Two numbers because they are two
+     different facts, rather than one number that is wrong on one of the screens showing it. */
+  const consolidatedCount = consolidatedVendors.length;
+  const consolidatedBalance = consolidatedVendors.reduce((sum, v) => sum + v.openPO, 0);
+
   const consolidatedRows = consolidatedVendors.map((v, i) => ({
     ...v,
     num: i + 1,
@@ -1199,6 +1206,8 @@ export function deriveViewModel(
 
     complianceItems: items,
     consolidatedRows,
+    consolidatedCount,
+    fmtConsolidatedBalance: fmtM(consolidatedBalance),
     allPass,
     allPassLabel,
     handedOff: payload.handedOff,

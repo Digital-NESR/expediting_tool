@@ -528,6 +528,10 @@ export interface ViewModel {
 
   complianceItems: ComplianceItemVM[];
   consolidatedRows: ConsolidatedRowVM[];
+  /** The rows this page lists: everything that counts towards coverage, not only the spreadsheets. */
+  consolidatedCount: number;
+  /** Their balance, already written, so the page can state what the coverage figure is made of. */
+  fmtConsolidatedBalance: string;
   allPass: boolean;
   allPassLabel: string;
   handedOff: boolean;

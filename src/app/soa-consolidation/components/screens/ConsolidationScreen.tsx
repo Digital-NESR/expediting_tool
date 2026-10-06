@@ -99,9 +99,20 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
       </div>
 
       <div className="bg-white rounded-[10px] overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
-        <div className="px-3.5 py-3 border-b border-b-[#F0F0F0] flex items-center justify-between">
-          <div className="text-[12px] font-bold text-sns-ink">
-            Consolidated SOA, {vm.receivedCount} Vendors · {vm.exportFileName}
+        <div className="px-3.5 py-3 border-b border-b-[#F0F0F0] flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="text-[12px] font-bold text-sns-ink">
+              Consolidated SOA, {vm.consolidatedCount} Vendors · {vm.exportFileName}
+            </div>
+            {/* The coverage figure, said here rather than left to be inferred from the last row of
+                the Cumulative column. It is the same number the Corporate Rollup reports for this
+                country, computed from the same vendors over the same denominator, and showing it
+                beside the rows it is made of is how the two are checked against each other. */}
+            <div className="mt-0.5 text-[11px] text-sns-grey">
+              {vm.fmtConsolidatedBalance} collected ·{' '}
+              <span className="font-bold text-sns-ink">{vm.coveragePct}%</span> of the country’s
+              balance
+            </div>
           </div>
           <div className="text-[11px] text-sns-grey">Auto-compiled · No manual re-keying</div>
         </div>
