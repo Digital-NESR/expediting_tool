@@ -6,13 +6,22 @@
    also differs, returning a styled node with an 'N/A' fallback rather than a plain string.
    Unifying them would change what buyers see, so the two stay apart on purpose. */
 
-import { shortDate } from '@/lib/format';
+import { shortDate, shortDateTime } from '@/lib/format';
 
 export function formatDate(raw: string | null | undefined): string {
   if (!raw) return '—';
   const d = new Date(raw);
   if (isNaN(d.getTime())) return String(raw);
   return shortDate(d);
+}
+
+/** A timestamp with the time on it: "05 Oct 2026, 06:04". For when SAP data last landed, where
+ *  the date alone would not tell a buyer whether this morning's load has run. */
+export function formatDateTime(raw: string | null | undefined): string {
+  if (!raw) return '—';
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return String(raw);
+  return shortDateTime(d);
 }
 
 export function formatCurrency(raw: number | string | null | undefined): string {

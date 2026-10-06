@@ -73,7 +73,23 @@ export async function GET() {
       return Response.json({ error: 'Access denied' }, { status: 403 });
     }
 
-    return Response.json({ data: result.rows });
+    /* When SAP data last landed, which is a different fact from when this request ran. The
+       dashboard's own "last updated" is the latter and reads like the former, so a buyer looking
+       at a stale report sees a recent time and has no reason to doubt it.
+
+       Scoped the same way the rows are: an approved user sees the freshness of the countries
+       they can see, not of a country they cannot. In practice the loader writes them all in one
+       pass, so the two are the same timestamp. */
+    const freshness = access.isAdmin
+      ? await pool.query<{ loaded_at: string | null }>(
+          `SELECT MAX(loaded_at) AS loaded_at FROM sap_open_po_master`,
+        )
+      : await pool.query<{ loaded_at: string | null }>(
+          `SELECT MAX(loaded_at) AS loaded_at FROM sap_open_po_master WHERE country = ANY($1)`,
+          [access.approvedCountries],
+        );
+
+    return Response.json({ data: result.rows, loadedAt: freshness.rows[0]?.loaded_at ?? null });
   } catch (error) {
     console.error('[/api/pos] Database query failed:', error);
     return Response.json({ error: 'Failed to fetch purchase orders.' }, { status: 500 });

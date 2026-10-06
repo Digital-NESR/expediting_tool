@@ -22,7 +22,7 @@ import { SquareCheckbox } from '@/components/SquareCheckbox';
 import type { PurchaseOrder } from '@/types/po';
 import { DS_DISPLAY_LABELS } from '@/lib/ds-codes';
 import type { PoGroup, PoSortKey, SortDir } from './_lib/types';
-import { compareValues, daysDiff, formatCurrency, formatDate } from './_lib/format';
+import { compareValues, daysDiff, formatCurrency, formatDate, formatDateTime } from './_lib/format';
 import {
   PO_SORT_MAP,
   rowMatchesAccountType,
@@ -44,6 +44,8 @@ export default function Dashboard() {
   const [rows, setRows] = useState<PurchaseOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /* When SAP data landed, as distinct from when this page asked for it. */
+  const [loadedAt, setLoadedAt] = useState<string | null>(null);
 
   // Drawer selection
   const [selectedLineItem, setSelectedLineItem] = useState<PurchaseOrder | null>(null);
@@ -90,6 +92,7 @@ export default function Dashboard() {
         if (!res.ok) throw new Error(`Server error ${res.status}`);
         const json = await res.json();
         setRows(json.data ?? []);
+        setLoadedAt(json.loadedAt ?? null);
       })
       .catch((err) => {
         if (err.name !== 'AbortError') setError(err.message ?? 'Unknown error');
@@ -442,6 +445,16 @@ export default function Dashboard() {
                 Live view of all open POs sourced from SAP — grouped by PO, sortable by delivery
                 date or value.
               </p>
+              {/* How old the SAP extract is. Not when this page fetched it: that is the number
+                  every other screen shows, and it reads like this one, so a buyer looking at a
+                  stale report sees a recent time and has no reason to doubt it. */}
+              {!loading && (
+                <p className="mt-1 text-xs text-slate-400">
+                  {loadedAt
+                    ? `SAP data last refreshed ${formatDateTime(loadedAt)}`
+                    : 'SAP data refresh time is not recorded for these rows yet.'}
+                </p>
+              )}
             </div>
             <button
               onClick={() => setDsCodeModalOpen(true)}
