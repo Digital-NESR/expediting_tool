@@ -1,5 +1,6 @@
 import type { ScreenProps } from '../../types';
 import { COUNTRY_STATUS_BADGE, STANDING_BG, STANDING_BORDER_TOP, STANDING_TEXT } from '../tones';
+import { formatPct } from '@/lib/soa/spend-share';
 
 const COLUMNS = 'grid-cols-[140px_120px_85px_1fr_115px_70px_65px]';
 
@@ -101,7 +102,7 @@ export default function CorporateRollupScreen({ vm }: ScreenProps) {
                       stage.label === 'Answered' ? 'font-bold text-sns-ink' : 'text-sns-grey'
                     }`}
                   >
-                    {stage.pct}%
+                    {formatPct(stage.pct)}
                   </span>
                 </div>
               ))}

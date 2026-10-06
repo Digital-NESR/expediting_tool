@@ -6,6 +6,7 @@ import type { ScreenProps, VendorEnrichedVM } from '../../types';
 import TableToolbar from '../TableToolbar';
 import SendProgressBar from '../SendProgress';
 import { useConfirm } from '../useConfirm';
+import KpiCards from '../KpiCards';
 import {
   FILTER_TAB_SELECTED,
   VENDOR_AWAITING_VERIFICATION_BADGE,
@@ -341,6 +342,7 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
         ))}
       </div>
 
+      <KpiCards cards={vm.kpiCards} />
       <TableToolbar table={vm.trackingTable} placeholder="Filter by vendor name or number" />
 
       <div className="bg-white rounded-[10px] overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.07)]">

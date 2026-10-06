@@ -53,7 +53,7 @@ export default function HandoffModal({ vm }: ScreenProps) {
           <strong>{vm.exportFileName}</strong> will be marked as delivered to the AP/Finance Country
           Group inbox for {vm.countryLabel}, and the handoff is written to the evidence repository.
           The action refuses below {vm.coverageTargetPct}% coverage; this country is at{' '}
-          {vm.coveragePct}%.
+          {vm.fmtCoveragePct}.
         </div>
         <div className="flex gap-2">
           <button

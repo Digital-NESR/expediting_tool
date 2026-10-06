@@ -1,5 +1,6 @@
 import type { ScreenProps } from '../../types';
 import { CRITERION_BORDER, CRITERION_FILL } from '../tones';
+import KpiCards from '../KpiCards';
 
 const COLUMNS = 'grid-cols-[30px_1fr_110px_65px_85px_68px_78px_55px_80px_60px]';
 
@@ -57,6 +58,8 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
         </div>
       </div>
 
+      <KpiCards cards={vm.kpiCards} />
+
       <div className="bg-white rounded-[10px] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.07)] mb-3.5">
         <div className="flex items-center justify-between mb-3">
           <div className="text-[12px] font-bold uppercase tracking-[0.5px] text-sns-grey">
@@ -93,7 +96,7 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
         {!vm.handedOff && !vm.coverageMet && (
           <div className="mt-1 rounded-lg bg-[#FFF3E0] px-[15px] py-2.5 text-[11px] text-[#E65100] leading-[1.5]">
             Handoff stays closed until coverage reaches {vm.coverageTargetPct}%. It is currently{' '}
-            {vm.coveragePct}%, and the action itself refuses a country that is short.
+            {vm.fmtCoveragePct}, and the action itself refuses a country that is short.
           </div>
         )}
       </div>

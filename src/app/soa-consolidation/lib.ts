@@ -441,8 +441,17 @@ export function deriveViewModel(
   const receivedBalance = vendors
     .filter((v) => countsTowardCoverage(v.status))
     .reduce((s, v) => s + v.openPO, 0);
-  const coveragePct = totalBalance > 0 ? Math.round((receivedBalance / totalBalance) * 100) : 0;
-  const coverageMet = coveragePct >= coverageTargetPct && totalBalance > 0;
+  /* Two decimals, like the columns that are measured against it. Rounded to whole percent it
+     disagreed with them on sight: Saudi Arabia's 20.52% showed as 21% beside a column whose last
+     row read 20.52%.
+
+     The threshold is judged on the unrounded figure. Whole-percent rounding let 69.5% present
+     itself as meeting a 70% target, which is a gate passed by rounding rather than by collecting.
+     Checked against every country before changing it: none of the thirteen sits in the band where
+     the two disagree, so no verdict moves today. */
+  const coverageExact = totalBalance > 0 ? (receivedBalance / totalBalance) * 100 : 0;
+  const coveragePct = Math.round(coverageExact * 100) / 100;
+  const coverageMet = coverageExact >= coverageTargetPct && totalBalance > 0;
 
   const activeCountry = countries.find((c) => c.id === countryId);
   const countryStatus = asCountryStatus(activeCountry?.status ?? 'not_started');
@@ -543,7 +552,7 @@ export function deriveViewModel(
     {
       label: 'SOAs Received',
       value: String(receivedCount),
-      sub: `${totalCount ? Math.round((receivedCount / totalCount) * 100) : 0}% of vendors`,
+      sub: `${formatPct(totalCount ? Math.round((receivedCount / totalCount) * 10000) / 100 : 0)} of vendors`,
       accent: receivedCount > 0 ? 'on-track' : 'neutral',
     },
     {
@@ -554,7 +563,7 @@ export function deriveViewModel(
     },
     {
       label: '18-Month PO Coverage',
-      value: `${coveragePct}%`,
+      value: formatPct(coveragePct),
       sub: coverageMet
         ? `✓ Meets ${coverageTargetPct}% threshold`
         : `⚠ Below ${coverageTargetPct}% target`,
@@ -568,7 +577,7 @@ export function deriveViewModel(
     },
   ];
 
-  const coverageCheckLabel = `${coverageMet ? '✓ ' : '⚠ '}${coveragePct}%, ${
+  const coverageCheckLabel = `${coverageMet ? '✓ ' : '⚠ '}${formatPct(coveragePct)}, ${
     coverageMet
       ? `Meets ${coverageTargetPct}% ${cycleLabel} threshold`
       : `Below ${coverageTargetPct}% target`
@@ -1038,7 +1047,7 @@ export function deriveViewModel(
   const handedOffCount = countriesEnriched.filter((c) => c.status === 'handed_off').length;
   const atRiskCount = countriesEnriched.filter((c) => c.isAtRisk).length;
   const avgCoverage = countries.length
-    ? Math.round(countries.reduce((s, c) => s + c.pct, 0) / countries.length)
+    ? Math.round((countries.reduce((s, c) => s + c.pct, 0) / countries.length) * 100) / 100
     : 0;
   const inProgressCount = countriesEnriched.filter(
     (c) => c.status !== 'not_started' && c.status !== 'handed_off',
@@ -1065,7 +1074,7 @@ export function deriveViewModel(
     },
     {
       label: 'Avg Coverage',
-      value: `${avgCoverage}%`,
+      value: formatPct(avgCoverage),
       sub: entityCount ? `Across ${entityCount} started entities` : 'No country has started',
       accent: avgCoverage >= coverageTargetPct ? 'on-track' : 'behind',
     },
@@ -1209,11 +1218,8 @@ export function deriveViewModel(
     consolidatedRows,
     consolidatedCount,
     fmtConsolidatedBalance: fmtM(consolidatedBalance),
-    /* Written to the same precision as the Cumulative column beneath it. At whole percent beside
-       a two-decimal column, the header and the last row would read as two different numbers. */
-    fmtCoveragePct: formatPct(
-      totalBalance > 0 ? Math.round((receivedBalance / totalBalance) * 10000) / 100 : 0,
-    ),
+    /* The same figure as the KPI tile and the rollup, written once. */
+    fmtCoveragePct: formatPct(coveragePct),
     allPass,
     allPassLabel,
     handedOff: payload.handedOff,

@@ -1,5 +1,6 @@
 import type { ScreenProps } from '../../types';
-import { STANDING_BORDER_TOP, STANDING_TEXT, VENDOR_STATUS_FILL } from '../tones';
+import { VENDOR_STATUS_FILL } from '../tones';
+import KpiCards from '../KpiCards';
 
 export default function DashboardScreen({ vm }: ScreenProps) {
   return (
@@ -40,22 +41,7 @@ export default function DashboardScreen({ vm }: ScreenProps) {
         </div>
       </div>
 
-      <div className="grid grid-cols-[repeat(5,1fr)] gap-2.5 mb-3.5">
-        {vm.kpiCards.map((kpi) => (
-          <div
-            key={kpi.label}
-            className={`bg-white rounded-[10px] px-4 py-3.5 border-t-4 ${STANDING_BORDER_TOP[kpi.accent]} shadow-[0_1px_3px_rgba(0,0,0,0.07)]`}
-          >
-            <div className="text-[10px] uppercase tracking-[0.5px] text-sns-grey font-bold mb-1">
-              {kpi.label}
-            </div>
-            <div className={`text-[30px] font-bold leading-none my-1 ${STANDING_TEXT[kpi.accent]}`}>
-              {kpi.value}
-            </div>
-            <div className="text-[10px] text-sns-grey mt-[3px] leading-[1.3]">{kpi.sub}</div>
-          </div>
-        ))}
-      </div>
+      <KpiCards cards={vm.kpiCards} />
 
       <div className="grid grid-cols-[3fr_1fr] gap-3 mb-3">
         <div className="bg-white rounded-[10px] p-4 shadow-[0_1px_3px_rgba(0,0,0,0.07)]">
@@ -88,7 +74,7 @@ export default function DashboardScreen({ vm }: ScreenProps) {
           <div
             className={`text-[36px] font-bold leading-none mb-1 ${vm.coverageMet ? 'text-sns-green' : 'text-[#E65100]'}`}
           >
-            {vm.coveragePct}%
+            {vm.fmtCoveragePct}
           </div>
           <div className="text-[10px] text-sns-grey mb-2">
             of {vm.totalBalanceLabel} 18-month PO balance

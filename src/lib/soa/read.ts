@@ -264,14 +264,17 @@ async function rollup(cycleId: number, deadline: Date): Promise<CountryRow[]> {
        back. Each is a subset of the one before it, which is what makes the gaps diagnostic. A
        country at 40% coverage is behind for a different reason depending on whether it scoped
        45% or 95% of its balance. */
+    /* Two decimals, matching the figures these are read against on the country screens. A
+       rollup at whole percent beside a country page at two is the same quantity shown as two
+       numbers, which is how the last discrepancy was reported. */
     const share = (value: unknown) =>
-      total > 0 ? Math.round((Number(value) / total) * 100) : 0;
+      total > 0 ? Math.round((Number(value) / total) * 10000) / 100 : 0;
     return {
       id: String(r.country_id),
       name: String(r.name),
       champion: String(r.champions) || 'Unassigned',
       balance: total,
-      pct: total > 0 ? Math.round((received / total) * 100) : 0,
+      pct: total > 0 ? Math.round((received / total) * 10000) / 100 : 0,
       scopedPct: share(r.scoped_balance),
       requestedPct: share(r.requested_balance),
       remindedPct: share(r.reminded_balance),
