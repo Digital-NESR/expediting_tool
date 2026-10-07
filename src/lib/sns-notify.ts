@@ -137,7 +137,14 @@ export function escapeHtml(value: string): string {
    signed-in user action and reaches n8n over the webhook as before.        */
 
 export interface WorkflowEmailInput {
-  event: 'submitted' | 'level1_approved' | 'published' | 'rejected' | 'renewed' | 'closed';
+  event:
+    | 'submitted'
+    | 'revalidate'
+    | 'level1_approved'
+    | 'published'
+    | 'rejected'
+    | 'renewed'
+    | 'closed';
   registryId: string;
   classification: string;
   country: string;
@@ -166,6 +173,11 @@ const WORKFLOW_COPY: Record<
   submitted: {
     headline: 'Awaiting your Country Supply Chain Manager validation',
     body: 'A new registry record has been raised in your country and is waiting on the Country Supply Chain Manager.',
+    tone: '#E09A4E',
+  },
+  revalidate: {
+    headline: 'Edited after your validation — back with you',
+    body: 'The requestor changed this record after you validated it, so it has returned to you rather than going on to final sign-off. The audit trail shows what changed.',
     tone: '#E09A4E',
   },
   level1_approved: {

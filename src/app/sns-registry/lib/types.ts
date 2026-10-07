@@ -95,6 +95,14 @@ export interface RegistryRecord {
   issue: string | null;
   expiry: string | null;
   requestor: string;
+  /**
+   * Lower-cased email of whoever raised the record.
+   *
+   * `requestor` is a display string snapshotted at creation, so it cannot be
+   * compared against the viewer. This is what decides whether the Edit button
+   * is theirs to see — the server checks it again.
+   */
+  createdBy: string;
   history: HistoryEntry[];
   /** How many times the record has survived a periodic review. */
   /**

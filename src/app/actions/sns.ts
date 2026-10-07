@@ -358,7 +358,7 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
       snsPool.query(
         `SELECT r.rid, r.classification, r.country, r.scope_level, r.supplier_id, r.supplier_name,
                 r.reason, r.reason_other, r.justification, r.base_status, r.spend, r.registry_id,
-                r.issue_date, r.expiry_date, r.requestor,
+                r.issue_date, r.expiry_date, r.requestor, r.created_by,
                 r.renewal_count, r.closed_at, r.closed_by, r.closed_reason, r.renewal_of_rid,
                 COALESCE(r.country_code, c.code) AS resolved_country_code
            FROM sns_record r
@@ -470,6 +470,7 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
       level2Names: level2For([...new Set((nodesBy.get(Number(r.rid)) ?? []).map((n) => n.cat))]),
       supplierId: String(r.supplier_id ?? ''),
       supplierName: String(r.supplier_name ?? ''),
+      createdBy: String(r.created_by ?? '').toLowerCase(),
       reason: String(r.reason ?? ''),
       reasonOther: String(r.reason_other ?? ''),
       justification: String(r.justification ?? ''),
@@ -757,7 +758,14 @@ async function stakeholderRecipients(
  * history to reconcile against.
  */
 async function notifyWorkflow(
-  event: 'submitted' | 'level1_approved' | 'published' | 'rejected' | 'renewed' | 'closed',
+  event:
+    | 'submitted'
+    | 'revalidate'
+    | 'level1_approved'
+    | 'published'
+    | 'rejected'
+    | 'renewed'
+    | 'closed',
   ctx: RecordContext,
   to: { name: string; email: string; title: string }[],
   actor: string,
@@ -1051,21 +1059,23 @@ export async function createSnsRecord(
 /**
  * Rewrites a record that has not been approved.
  *
- * Only Draft and Rejected are editable, and deliberately so. Once a record is
- * published it is the documented justification for bypassing the three-quote
- * policy: two named people validated a specific text, and the Registry ID
- * itself encodes the classification, country, supplier and validity window it
- * was minted with. Editing any of that after the fact would leave an ID that
- * contradicts its own record, and a sign-off attesting to a document that no
- * longer exists. The periodic review is the sanctioned way to change a
- * published record — it raises a replacement and revalidates it.
+ * Editable right up until a Registry ID exists, and not after. Nothing outside
+ * the registry can reference a record before that point, so there is nothing to
+ * break; once published it is the documented justification for bypassing the
+ * three-quote policy, two named people have validated a specific text, and the
+ * ID itself encodes the classification, country, supplier and validity window it
+ * was minted with. Editing then would leave an ID contradicting its own record
+ * and a sign-off attesting to a document that no longer exists. The periodic
+ * review is the sanctioned way to change a published record.
  *
- * Pending records are excluded too: rewriting a record underneath the validator
- * who is reading it is its own kind of wrong.
+ * A record that has already cleared Level 1 goes back to Level 1 when it is
+ * edited. Otherwise the Country Supply Chain Manager's validation would stand
+ * against text they never read, and Level 2 would sign off a record only one of
+ * its two validators had seen.
  *
- * The status is left alone. Editing a Rejected record does not resubmit it —
- * that stays the requestor's explicit decision, and `advanceSnsRecord` re-runs
- * the full submission rules when they make it.
+ * The status is otherwise left alone. Editing a Rejected record does not
+ * resubmit it — that stays the requestor's explicit decision, and
+ * `advanceSnsRecord` re-runs the full submission rules when they make it.
  */
 export async function updateSnsRecord(rid: number, draft: Draft): Promise<ActionResult> {
   const viewer = await getSnsViewer();
@@ -1126,14 +1136,12 @@ export async function updateSnsRecord(rid: number, draft: Draft): Promise<Action
     const rec = rows[0];
     const base = String(rec.base_status) as BaseStatus;
 
-    if (base !== 'Draft' && base !== 'Rejected') {
+    const EDITABLE: BaseStatus[] = ['Draft', 'Rejected', 'Pending Level 1', 'Pending Level 2'];
+    if (!EDITABLE.includes(base)) {
       await client.query('ROLLBACK');
       return {
         success: false,
-        error:
-          base === 'Pending Level 1' || base === 'Pending Level 2'
-            ? 'This record is with a validator and cannot be edited. Ask them to reject it back to you first.'
-            : `A ${base} record cannot be edited. Raise a periodic review to change a published record.`,
+        error: `A ${base} record cannot be edited — its Registry ID is already issued. Raise a periodic review to change it.`,
       };
     }
 
@@ -1163,6 +1171,18 @@ export async function updateSnsRecord(rid: number, draft: Draft): Promise<Action
         success: false,
         error: `You are not approved to raise records for ${draft.country}.`,
       };
+    }
+
+    /* A record sitting in a validator's queue is held to the submission rules,
+       not the looser draft ones: editing it down to something incomplete would
+       leave it in the queue in a state that could never be signed off. A Draft
+       or a Rejected record may legitimately be left half-finished. */
+    if (base === 'Pending Level 1' || base === 'Pending Level 2') {
+      const missing = validateForSubmission(draft);
+      if (missing.length) {
+        await client.query('ROLLBACK');
+        return { success: false, error: submissionError(missing) };
+      }
     }
 
     const before = await draftFromRecord(client, rec);
@@ -1226,16 +1246,43 @@ export async function updateSnsRecord(rid: number, draft: Draft): Promise<Action
       );
     }
 
-    await addHistory(
-      client,
-      rid,
-      base === 'Rejected' ? 'Revised after rejection' : 'Draft edited',
-      actorFor(viewer, 'req', draft.country),
-      viewer.email,
-      changes.join('\n'),
-    );
+    /* Back to Level 1 — see the note on this function. Only from Level 2: a
+       record still awaiting its first validation has nothing to invalidate. */
+    const returned = base === 'Pending Level 2';
+    if (returned) {
+      await client.query(`UPDATE sns_record SET base_status = 'Pending Level 1' WHERE rid = $1`, [
+        rid,
+      ]);
+    }
+
+    const STEP: Record<string, string> = {
+      Draft: 'Draft edited',
+      Rejected: 'Revised after rejection',
+      'Pending Level 1': 'Edited while awaiting first validation',
+      'Pending Level 2':
+        'Edited after Country Supply Chain Manager validation — returned for re-validation',
+    };
+    const actor = actorFor(viewer, 'req', draft.country);
+    await addHistory(client, rid, STEP[base], actor, viewer.email, changes.join('\n'));
+
+    const ctx = returned ? await loadRecordContext(client, rid) : null;
 
     await client.query('COMMIT');
+
+    /* After the commit, as everywhere else: a webhook must never be made on a
+       held connection. The record is in the Level 1 queue again, so the person
+       who has to look at it is told. */
+    if (ctx) {
+      const approver = await resolveSnsLevel1Approver(ctx.countryCode);
+      await notifyWorkflow(
+        'revalidate',
+        ctx,
+        approver ? [approver] : [],
+        actor,
+        changes.join(' · '),
+      );
+    }
+
     return { success: true };
   } catch (err) {
     await client.query('ROLLBACK');

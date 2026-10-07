@@ -2,18 +2,32 @@ import { describe, expect, it } from 'vitest';
 import type { BaseStatus } from '../types';
 
 /**
- * Which statuses an unapproved record may be edited in, and why the rest may
- * not.
+ * Which statuses a record may be edited in, and what an edit costs.
  *
- * Mirrors the gate in updateSnsRecord. A published record is the documented
- * justification for bypassing the three-quote policy: two named people
- * validated a specific text, and the Registry ID encodes the classification,
- * country, supplier and validity window it was minted with. Editing one after
- * the fact leaves an ID contradicting its own record and a sign-off attesting
- * to a document that no longer exists — the periodic review exists for that.
+ * Mirrors updateSnsRecord. The line is the Registry ID: before one exists
+ * nothing outside the registry can be referencing the record, so there is
+ * nothing to break. After it exists the record is the documented justification
+ * for bypassing the three-quote policy — two named people validated a specific
+ * text, and the ID encodes the classification, country, supplier and validity
+ * window it was minted with.
  */
 function isEditable(base: BaseStatus): boolean {
-  return base === 'Draft' || base === 'Rejected';
+  return (
+    base === 'Draft' ||
+    base === 'Rejected' ||
+    base === 'Pending Level 1' ||
+    base === 'Pending Level 2'
+  );
+}
+
+/** Where an edited record lands. */
+function statusAfterEdit(base: BaseStatus): BaseStatus {
+  return base === 'Pending Level 2' ? 'Pending Level 1' : base;
+}
+
+/** A record in a validator's queue is held to the full submission rules. */
+function mustBeComplete(base: BaseStatus): boolean {
+  return base === 'Pending Level 1' || base === 'Pending Level 2';
 }
 
 const ALL: BaseStatus[] = [
@@ -28,26 +42,52 @@ const ALL: BaseStatus[] = [
 ];
 
 describe('which records can be edited', () => {
-  it('allows a draft — nothing downstream depends on it', () => {
-    expect(isEditable('Draft')).toBe(true);
+  it('allows everything that has no Registry ID yet', () => {
+    expect(ALL.filter(isEditable)).toEqual([
+      'Draft',
+      'Pending Level 1',
+      'Pending Level 2',
+      'Rejected',
+    ]);
   });
 
-  it('allows a rejected record — revising it is the point of sending it back', () => {
-    expect(isEditable('Rejected')).toBe(true);
-  });
-
-  it('refuses a record sitting with a validator', () => {
-    expect(isEditable('Pending Level 1')).toBe(false);
-    expect(isEditable('Pending Level 2')).toBe(false);
-  });
-
-  it('refuses every published status — the ID and the sign-off are fixed', () => {
+  it('refuses every published status', () => {
     for (const base of ['Active', 'Extended', 'Expired', 'Closed'] as BaseStatus[]) {
       expect(isEditable(base)).toBe(false);
     }
   });
+});
 
-  it('refuses everything that is not explicitly allowed', () => {
-    expect(ALL.filter(isEditable)).toEqual(['Draft', 'Rejected']);
+describe('what an edit does to the status', () => {
+  it('sends a record that cleared Level 1 back to Level 1', () => {
+    // Otherwise the Country Supply Chain Manager's validation would stand
+    // against text they never read, and Level 2 would sign off a record only
+    // one of its two validators had seen.
+    expect(statusAfterEdit('Pending Level 2')).toBe('Pending Level 1');
+  });
+
+  it('leaves a record still awaiting its first validation where it is', () => {
+    // Nothing has been validated yet, so there is nothing to invalidate.
+    expect(statusAfterEdit('Pending Level 1')).toBe('Pending Level 1');
+  });
+
+  it('does not resubmit a draft or a rejected record', () => {
+    // Submitting stays the requestor's own explicit decision.
+    expect(statusAfterEdit('Draft')).toBe('Draft');
+    expect(statusAfterEdit('Rejected')).toBe('Rejected');
+  });
+});
+
+describe('how complete an edit has to leave the record', () => {
+  it('holds a queued record to the submission rules', () => {
+    // Editing it down to something incomplete would leave it in the queue in a
+    // state that could never be signed off.
+    expect(mustBeComplete('Pending Level 1')).toBe(true);
+    expect(mustBeComplete('Pending Level 2')).toBe(true);
+  });
+
+  it('lets a draft or a rejected record stay half-finished', () => {
+    expect(mustBeComplete('Draft')).toBe(false);
+    expect(mustBeComplete('Rejected')).toBe(false);
   });
 });

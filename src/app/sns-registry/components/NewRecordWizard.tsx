@@ -156,9 +156,13 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
             Editing {recordLabel(editing)}
           </p>
           <p className="mt-1 text-[12.5px] leading-relaxed text-slate-700">
-            {editing.base === 'Rejected'
-              ? `This record was rejected and is back with you. Saving your changes leaves it Rejected — send it back for validation from the record itself, once you are happy with it.`
-              : 'Saving your changes leaves this record a Draft. Submit it for validation from the record itself, once you are happy with it.'}
+            {editing.base === 'Pending Level 2'
+              ? `This record has already been validated by the ${STAGE1}. Saving your changes returns it to them for re-validation — otherwise they would have signed off text they never read.`
+              : editing.base === 'Pending Level 1'
+                ? `This record is waiting on the ${STAGE1}. It stays in their queue; they will see what you changed on the audit trail.`
+                : editing.base === 'Rejected'
+                  ? 'This record was rejected and is back with you. Saving your changes leaves it Rejected — send it back for validation from the record itself, once you are happy with it.'
+                  : 'Saving your changes leaves this record a Draft. Submit it for validation from the record itself, once you are happy with it.'}
           </p>
         </div>
       )}

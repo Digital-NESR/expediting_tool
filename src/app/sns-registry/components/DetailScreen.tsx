@@ -71,15 +71,30 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
 
   const actions: { label: string; className: string; onClick: () => void }[] = [];
   const canReq = can('req');
-  if ((rec.base === 'Draft' || rec.base === 'Rejected') && canReq) {
+
+  /* Editable until a Registry ID exists — before that nothing outside the
+     registry can be referencing the record. The record is the requestor's own,
+     so another requestor in the same country is not offered it; the server
+     checks both again. */
+  const mine = isAdmin || rec.createdBy === app.viewer.email.toLowerCase();
+  const pending = rec.base === 'Pending Level 1' || rec.base === 'Pending Level 2';
+  const canEdit = canReq && mine && (rec.base === 'Draft' || rec.base === 'Rejected' || pending);
+  if (canEdit) {
     /* Offered before the submit button, because on a Rejected record it is
        almost always the one that should be pressed first: resubmitting
        unchanged sends the approver back the text they just refused. */
     actions.push({
-      label: rec.base === 'Rejected' ? 'Edit and revise' : 'Edit record',
+      label:
+        rec.base === 'Rejected'
+          ? 'Edit and revise'
+          : pending
+            ? 'Edit — pulls it back to you'
+            : 'Edit record',
       className: BTN_SECONDARY,
       onClick: () => app.startEdit(rec.rid),
     });
+  }
+  if ((rec.base === 'Draft' || rec.base === 'Rejected') && canReq) {
     actions.push({
       label:
         rec.base === 'Rejected'
