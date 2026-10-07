@@ -1,4 +1,4 @@
-import { clsLabel, displayStatus, leafOf, money, nodePath } from './helpers';
+import { clsLabel, displayStatus, leafOf, money, nodePath, reasonLabel } from './helpers';
 import { formatDate } from './date';
 import type { RegistryRecord } from './types';
 
@@ -158,7 +158,7 @@ export async function exportRecordPdf(rec: RegistryRecord): Promise<void> {
   ]);
 
   section('Justification', [
-    ['Reason code', rec.reason || '—'],
+    ['Reason code', reasonLabel(rec.reason, rec.reasonOther) || '—'],
     ['Narrative', rec.justification || '—'],
   ]);
 

@@ -291,11 +291,13 @@ export const REASONS = {
     'OEM / patented technology',
     'Regulatory restriction',
     'Geographic or logistics constraint',
+    'Other',
   ],
   SOL: [
     'Standardization',
-    'Active contract / master agreement',
+    'Active contract',
     'Warranty preservation',
     'Strategic relationship',
+    'Other',
   ],
 };

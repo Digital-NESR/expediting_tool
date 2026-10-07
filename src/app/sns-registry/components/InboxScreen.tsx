@@ -1,7 +1,7 @@
 'use client';
 
 import { STAGE1, STAGE2 } from '../lib/constants';
-import { money } from '../lib/helpers';
+import { money, reasonLabel } from '../lib/helpers';
 import { shapeRow } from '../lib/shapeRow';
 import type { RegistryApp } from '../lib/useRegistryApp';
 import { displayStatus } from '../lib/helpers';
@@ -109,7 +109,7 @@ export default function InboxScreen({ app }: { app: RegistryApp }) {
                 ? 'Review and confirm'
                 : 'Review and sign off';
           const meta = [
-            { label: 'Reason code', value: r.reason },
+            { label: 'Reason code', value: reasonLabel(r.reason, r.reasonOther) },
             { label: 'Segment', value: r.segments.join(', ') || '—' },
             { label: 'Annual spend', value: money(r.spend) },
             { label: 'Requestor', value: r.requestor },

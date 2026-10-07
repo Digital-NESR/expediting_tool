@@ -1,3 +1,4 @@
+import { REASON_OTHER } from './constants';
 import { maxExpiryISO, todayISO } from './date';
 import type { Draft } from './types';
 
@@ -37,6 +38,10 @@ export function validateForSubmission(draft: Draft): string[] {
   if (!draft.supplierId.trim() || !draft.supplierName.trim())
     missing.push('supplier SAP ID and name');
   if (!draft.reason) missing.push('reason code');
+  // Picking 'Other' and leaving the box empty is the same as picking nothing:
+  // the record would carry a reason code that states no reason.
+  else if (draft.reason === REASON_OTHER && !draft.reasonOther.trim())
+    missing.push('a written reason');
   if (!draft.justification.trim()) missing.push('justification narrative');
   // Not merely a required field: Level 2 cannot mint a Registry ID without it,
   // because the expiry year and month are part of the ID itself.

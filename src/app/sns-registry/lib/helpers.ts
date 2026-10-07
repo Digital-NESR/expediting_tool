@@ -1,4 +1,4 @@
-import { STATUS_LABEL, STATUS_STYLE } from './constants';
+import { REASON_OTHER, STATUS_LABEL, STATUS_STYLE } from './constants';
 import { daysFromToday } from './date';
 import type {
   Classification,
@@ -20,6 +20,18 @@ import type {
  */
 export function recordLabel(r: { id: string | null; rid: number }): string {
   return r.id || `Draft #${r.rid}`;
+}
+
+/**
+ * A reason code as a reader should see it.
+ *
+ * 'Other' on its own says nothing, so the typed sentence is shown with it.
+ * Deliberately not stored this way: the bare code is what the dashboard and the
+ * filters group on.
+ */
+export function reasonLabel(reason: string, reasonOther?: string | null): string {
+  const extra = (reasonOther ?? '').trim();
+  return reason === REASON_OTHER && extra ? `${REASON_OTHER} — ${extra}` : reason;
 }
 
 export function money(n: number): string {

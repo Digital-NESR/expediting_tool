@@ -1,7 +1,7 @@
 'use client';
 
-import { STAGE1, STAGE2 } from '../lib/constants';
-import { recordLabel } from '../lib/helpers';
+import { REASON_OTHER, STAGE1, STAGE2 } from '../lib/constants';
+import { reasonLabel, recordLabel } from '../lib/helpers';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import {
@@ -99,7 +99,7 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
       label: 'Supplier',
       value: d.supplierName ? `${d.supplierId} — ${d.supplierName}` : 'Not set',
     },
-    { label: 'Reason code', value: d.reason || 'Not set' },
+    { label: 'Reason code', value: reasonLabel(d.reason, d.reasonOther) || 'Not set' },
     {
       label: 'Estimated annual spend',
       value: d.spend ? money(parseInt(String(d.spend).replace(/[^0-9]/g, ''), 10)) : 'Not set',
@@ -231,7 +231,7 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
                   code: 'SGL' as const,
                   title: 'Single-Source',
                   kind: 'A business decision — justification-based',
-                  body: 'Alternative suppliers exist, but NESR has chosen to procure from one vendor only: standardization, an active master agreement, warranty preservation, or a strategic relationship.',
+                  body: 'Alternative suppliers exist, but NESR has chosen to procure from one vendor only: standardization, an active contract, warranty preservation, or a strategic relationship.',
                   evidence:
                     'Justification required: the business rationale for restricting sourcing, not proof that no alternative exists.',
                 },
@@ -249,7 +249,7 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
                   <button
                     key={c.code}
                     type="button"
-                    onClick={() => app.setDraft({ cls: c.code, reason: '' })}
+                    onClick={() => app.setDraft({ cls: c.code, reason: '', reasonOther: '' })}
                     className={`rounded-xl border-2 px-4 py-4 text-left transition-colors ${
                       sel
                         ? 'border-[#307c4c] bg-[#307c4c]/5'
@@ -533,7 +533,12 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
                     <button
                       key={r}
                       type="button"
-                      onClick={() => app.setDraft({ reason: r })}
+                      onClick={() =>
+                        app.setDraft({
+                          reason: r,
+                          ...(r === REASON_OTHER ? {} : { reasonOther: '' }),
+                        })
+                      }
                       className={`flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors ${
                         sel
                           ? 'border-[#307c4c] bg-[#307c4c]/5'
@@ -550,6 +555,31 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
                   );
                 })}
               </div>
+
+              {/* Shown only once Other is picked. The sentence is stored
+                  separately from the code, so switching back to a listed
+                  reason leaves nothing behind. */}
+              {d.reason === REASON_OTHER && (
+                <div className="mt-3 max-w-[460px]">
+                  <label
+                    htmlFor="sns-reason-other"
+                    className="text-[11px] font-bold uppercase tracking-wider text-slate-500"
+                  >
+                    Your reason
+                  </label>
+                  <textarea
+                    id="sns-reason-other"
+                    value={d.reasonOther}
+                    onChange={(e) => app.setDraft({ reasonOther: e.target.value })}
+                    placeholder="In a line or two, why none of the codes above fits."
+                    className="mt-1.5 min-h-[70px] w-full resize-y rounded-lg border border-slate-200 p-3 text-[13px] leading-relaxed outline-none transition-colors focus:border-[#307c4c]"
+                  />
+                  <p className="mt-1.5 text-[11.5px] leading-relaxed text-slate-500">
+                    This is the reason code, not the justification — the full narrative goes in the
+                    box below.
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="lg:col-span-2">

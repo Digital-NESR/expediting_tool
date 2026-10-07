@@ -31,6 +31,7 @@ export function diffDraft(before: Draft, after: Draft): string[] {
   scalar('Supplier SAP ID', before.supplierId, after.supplierId);
   scalar('Supplier name', before.supplierName, after.supplierName);
   scalar('Reason code', before.reason, after.reason);
+  scalar('Written reason', before.reasonOther, after.reasonOther);
   scalar('Expiry date', before.expiry, after.expiry);
   scalar('Annual spend', before.spend, after.spend);
   scalar('Justification', before.justification, after.justification);

@@ -58,6 +58,15 @@ export const GRANTABLE_ROLES: SnsRole[] = [
   'Read-only — Supply Chain Management / Auditor',
 ];
 
+/**
+ * The reason code that means "none of these".
+ *
+ * Seeded into sns_reason for both classifications rather than appended by the
+ * client, so the list the wizard renders stays exactly the list the database
+ * holds. Matching on this string is what turns the free-text box on.
+ */
+export const REASON_OTHER = 'Other';
+
 /** Short labels for the admin approvals queue, where the full role strings don't fit. */
 export const ROLE_SHORT: Record<string, string> = {
   'Requestor — Sourcing / Procurement': 'Requestor',

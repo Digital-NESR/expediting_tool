@@ -7,7 +7,7 @@ import { authOptions } from '@/lib/auth';
 import { isPlatformAdminEmail } from '@/lib/require-access';
 import snsPool from '@/lib/db-sns';
 import { logger } from '@/lib/logger';
-import { GRANTABLE_ROLES, ROLES } from '@/app/sns-registry/lib/constants';
+import { GRANTABLE_ROLES, REASON_OTHER, ROLES } from '@/app/sns-registry/lib/constants';
 import { addDays, parseISODate, toISODate, today, todayISO } from '@/app/sns-registry/lib/date';
 import { diffDraft } from '@/app/sns-registry/lib/diff';
 import { roleKind } from '@/app/sns-registry/lib/helpers';
@@ -357,7 +357,7 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
          deactivated country still resolves. Unresolvable stays NULL. */
       snsPool.query(
         `SELECT r.rid, r.classification, r.country, r.scope_level, r.supplier_id, r.supplier_name,
-                r.reason, r.justification, r.base_status, r.spend, r.registry_id,
+                r.reason, r.reason_other, r.justification, r.base_status, r.spend, r.registry_id,
                 r.issue_date, r.expiry_date, r.requestor,
                 r.renewal_count, r.closed_at, r.closed_by, r.closed_reason, r.renewal_of_rid,
                 COALESCE(r.country_code, c.code) AS resolved_country_code
@@ -471,6 +471,7 @@ export async function getSnsRecords(): Promise<RegistryRecord[]> {
       supplierId: String(r.supplier_id ?? ''),
       supplierName: String(r.supplier_name ?? ''),
       reason: String(r.reason ?? ''),
+      reasonOther: String(r.reason_other ?? ''),
       justification: String(r.justification ?? ''),
       base: r.base_status as BaseStatus,
       spend: Number(r.spend ?? 0),
@@ -548,6 +549,7 @@ async function draftFromRecord(client: PoolClient, rec: Record<string, unknown>)
     supplierName: String(rec.supplier_name ?? ''),
     spend: '',
     reason: String(rec.reason ?? ''),
+    reasonOther: String(rec.reason_other ?? ''),
     justification: String(rec.justification ?? ''),
   };
 }
@@ -886,6 +888,8 @@ export async function createSnsRecord(
     if (!draft.supplierId || !draft.supplierName)
       return { success: false, error: 'Supplier SAP ID and name are required.' };
     if (!draft.reason) return { success: false, error: 'Select a reason code.' };
+    if (draft.reason === REASON_OTHER && !draft.reasonOther.trim())
+      return { success: false, error: 'Describe the reason you have selected Other for.' };
     /* A Draft may have no expiry yet — it is the one field a draft is allowed
        to be missing. One that IS set still has to be a date inside the cap,
        rather than being stored now and refused at submission. */
@@ -950,8 +954,9 @@ export async function createSnsRecord(
     const { rows } = await client.query(
       `INSERT INTO sns_record
          (classification, country, country_code, scope_level, supplier_id, supplier_name, reason,
-          justification, base_status, spend, requestor, created_by, expiry_date, renewal_of_rid)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+          reason_other, justification, base_status, spend, requestor, created_by, expiry_date,
+          renewal_of_rid)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
        RETURNING rid`,
       [
         draft.cls,
@@ -961,6 +966,10 @@ export async function createSnsRecord(
         draft.supplierId,
         draft.supplierName,
         draft.reason,
+        // Dropped unless 'Other' is the code: a sentence left behind by
+        // switching back to a listed reason would otherwise be stored against
+        // it, and shown beside it.
+        draft.reason === REASON_OTHER ? draft.reasonOther.trim() : '',
         draft.justification,
         base,
         spend,
@@ -1072,6 +1081,8 @@ export async function updateSnsRecord(rid: number, draft: Draft): Promise<Action
   if (!draft.supplierId || !draft.supplierName)
     return { success: false, error: 'Supplier SAP ID and name are required.' };
   if (!draft.reason) return { success: false, error: 'Select a reason code.' };
+  if (draft.reason === REASON_OTHER && !draft.reasonOther.trim())
+    return { success: false, error: 'Describe the reason you have selected Other for.' };
   if (draft.expiry?.trim() && !isExpiryWithinCap(draft.expiry)) {
     return { success: false, error: `This record needs ${expiryCapError()}.` };
   }
@@ -1099,7 +1110,8 @@ export async function updateSnsRecord(rid: number, draft: Draft): Promise<Action
     await client.query('BEGIN');
     const { rows } = await client.query(
       `SELECT r.rid, r.classification, r.country, r.scope_level, r.supplier_id, r.supplier_name,
-              r.reason, r.justification, r.base_status, r.spend, r.expiry_date, r.created_by,
+              r.reason, r.reason_other, r.justification, r.base_status, r.spend, r.expiry_date,
+              r.created_by,
               COALESCE(r.country_code, c.code) AS resolved_country_code
          FROM sns_record r
          LEFT JOIN sns_country c ON c.name = r.country
@@ -1159,7 +1171,11 @@ export async function updateSnsRecord(rid: number, draft: Draft): Promise<Action
     before.spend = rec.spend == null ? '' : String(rec.spend);
 
     const spend = parseInt(String(draft.spend).replace(/[^0-9]/g, ''), 10) || 0;
-    const after: Draft = { ...draft, spend: String(spend) };
+    const after: Draft = {
+      ...draft,
+      spend: String(spend),
+      reasonOther: draft.reason === REASON_OTHER ? draft.reasonOther.trim() : '',
+    };
     const changes = diffDraft(before, after);
     if (changes.length === 0) {
       await client.query('ROLLBACK');
@@ -1169,8 +1185,8 @@ export async function updateSnsRecord(rid: number, draft: Draft): Promise<Action
     await client.query(
       `UPDATE sns_record
           SET classification = $2, country = $3, country_code = $4, scope_level = $5,
-              supplier_id = $6, supplier_name = $7, reason = $8, justification = $9,
-              spend = $10, expiry_date = $11, updated_at = CURRENT_TIMESTAMP
+              supplier_id = $6, supplier_name = $7, reason = $8, reason_other = $9,
+              justification = $10, spend = $11, expiry_date = $12, updated_at = CURRENT_TIMESTAMP
         WHERE rid = $1`,
       [
         rid,
@@ -1181,6 +1197,7 @@ export async function updateSnsRecord(rid: number, draft: Draft): Promise<Action
         draft.supplierId,
         draft.supplierName,
         draft.reason,
+        draft.reason === REASON_OTHER ? draft.reasonOther.trim() : '',
         draft.justification,
         spend,
         isExpiryDate(draft.expiry) && isExpiryWithinCap(draft.expiry) ? draft.expiry.trim() : null,

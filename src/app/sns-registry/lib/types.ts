@@ -79,6 +79,14 @@ export interface RegistryRecord {
   supplierId: string;
   supplierName: string;
   reason: string;
+  /**
+   * The typed reason, when `reason` is 'Other'. Empty otherwise.
+   *
+   * Kept beside the code rather than written into it so that grouping by
+   * reason — the dashboard bars, the filters, the CSV — still works, and so
+   * "how often does none of our codes fit" stays answerable.
+   */
+  reasonOther: string;
   justification: string;
   base: BaseStatus;
   spend: number;
@@ -121,6 +129,8 @@ export interface Draft {
   supplierName: string;
   spend: string;
   reason: string;
+  /** Free text, required when `reason` is 'Other' and ignored otherwise. */
+  reasonOther: string;
   justification: string;
   /**
    * Expiry, entered by the requestor as YYYY-MM-DD rather than derived from the

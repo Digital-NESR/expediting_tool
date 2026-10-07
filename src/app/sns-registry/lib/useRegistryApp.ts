@@ -177,6 +177,7 @@ export function useRegistryApp({
       supplierName: '',
       spend: '',
       reason: '',
+      reasonOther: '',
       justification: '',
     });
     setBrowse(defaultBrowse());
@@ -334,6 +335,7 @@ export function useRegistryApp({
         supplierName: r.supplierName,
         spend: r.spend ? String(r.spend) : '',
         reason: r.reason,
+        reasonOther: r.reasonOther,
         justification: r.justification,
         expiry: r.expiry ?? '',
       });
@@ -362,6 +364,7 @@ export function useRegistryApp({
         supplierName: r.supplierName,
         spend: r.spend ? String(r.spend) : '',
         reason: r.reason,
+        reasonOther: r.reasonOther,
         justification: r.justification,
         expiry: '',
       });
@@ -379,7 +382,14 @@ export function useRegistryApp({
       if (filters.fStatus !== 'All statuses' && displayStatus(r) !== filters.fStatus) return false;
       if (filters.fSeg !== 'All segments' && !r.segments.includes(filters.fSeg)) return false;
       if (!q) return true;
-      const hay = [r.id || '', r.supplierName, r.supplierId, r.reason, r.justification]
+      const hay = [
+        r.id || '',
+        r.supplierName,
+        r.supplierId,
+        r.reason,
+        r.reasonOther,
+        r.justification,
+      ]
         .concat(r.nodes.map((n) => n.cat + ' ' + n.sub + ' ' + n.fam + ' ' + n.com))
         .join(' ')
         .toLowerCase();
@@ -399,11 +409,14 @@ export function useRegistryApp({
       'Supplier SAP ID',
       'Supplier SAP Name',
       'Reason code',
+      'Written reason',
       'Status',
       'Issue date',
       'Expiry date',
       'Annual spend USD',
     ];
+    // The written reason gets its own column rather than being folded into the
+    // code: a spreadsheet that groups by reason should still group.
     const rows = [
       header,
       ...filteredRecords.map((r) => [
@@ -417,6 +430,7 @@ export function useRegistryApp({
         r.supplierId,
         r.supplierName,
         r.reason,
+        r.reasonOther,
         displayStatus(r),
         r.issue || '',
         r.expiry || '',

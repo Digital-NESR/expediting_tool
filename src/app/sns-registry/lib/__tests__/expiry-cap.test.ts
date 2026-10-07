@@ -14,7 +14,8 @@ function draftWithExpiry(expiry: string): Draft {
     supplierId: '0001100576',
     supplierName: '3M GULF LTD',
     spend: '1000',
-    reason: 'Active contract / master agreement',
+    reason: 'Active contract',
+    reasonOther: '',
     justification: 'Sole licensed distributor in country.',
     expiry,
   };
