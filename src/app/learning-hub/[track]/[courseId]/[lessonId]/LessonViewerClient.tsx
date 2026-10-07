@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -17,6 +17,7 @@ import QuizOptionButton, { type QuizOptionState } from '../../../components/Quiz
 import {
   markLessonComplete,
   markLessonIncomplete,
+  recordLessonView,
   submitLessonQuiz,
 } from '@/app/actions/learning-hub';
 import { formatDuration } from '@/lib/learning-hub-utils';
@@ -114,11 +115,14 @@ function Shell({
 function QuizBlock({
   quiz,
   initiallyPassed,
+  gated,
   color,
   onPassed,
 }: {
   quiz: LessonQuiz;
   initiallyPassed: boolean;
+  /** Whether passing this quiz is what releases the next lesson, or just marks this one done. */
+  gated: boolean;
   color: string;
   onPassed: () => void;
 }) {
@@ -171,7 +175,7 @@ function QuizBlock({
         <div>
           <p className="text-sm font-bold text-slate-900">Knowledge check</p>
           <p className="text-xs text-slate-500">
-            Score {quiz.pass_pct}% or higher to unlock the next video.
+            Score {quiz.pass_pct}% or higher to {gated ? 'unlock the next video' : 'complete this lesson'}.
           </p>
         </div>
       </div>
@@ -188,7 +192,9 @@ function QuizBlock({
             className={`mb-4 rounded-lg px-3.5 py-2.5 text-sm font-semibold ${result.passed ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}
           >
             {result.passed
-              ? `Passed, ${result.correctCount}/${result.total} correct (${result.scorePct}%). The next video is unlocked.`
+              ? `Passed, ${result.correctCount}/${result.total} correct (${result.scorePct}%). ${
+                  gated ? 'The next video is unlocked.' : 'This lesson is complete.'
+                }`
               : `${result.correctCount}/${result.total} correct (${result.scorePct}%). You need ${result.pass_pct}%, review the answers below, rewatch the video, and try again.`}
           </div>
         )}
@@ -270,7 +276,18 @@ export default function LessonViewerClient({ data }: { data: LessonDetailData })
   const { track, course, lesson, prev, next, quiz } = data;
   const color = track.color || DEFAULT_TRACK_COLOR;
   const hasQuiz = !!quiz;
-  const canProceed = hasQuiz ? passed : true;
+  /* An ungated module lets people take its lessons in any order, so nothing holds up "Next".
+     Anything but an explicit false is gated — a track row from before the column existed keeps
+     the behaviour it had. */
+  const gated = track.sequential_gating !== false;
+  const canProceed = !gated || !hasQuiz || passed;
+
+  /* Opening the lesson is the view. Nothing is awaited and nothing is shown if it fails: this is
+     telemetry for the admin funnel, not something the learner is waiting on. A locked lesson is
+     not a view — its body was never sent. */
+  useEffect(() => {
+    if (!data.locked) void recordLessonView(lesson.id);
+  }, [lesson.id, data.locked]);
 
   function toggleComplete() {
     const nextVal = !completed;
@@ -360,7 +377,13 @@ export default function LessonViewerClient({ data }: { data: LessonDetailData })
         </div>
 
         {quiz && (
-          <QuizBlock quiz={quiz} initiallyPassed={passed} color={color} onPassed={onPassed} />
+          <QuizBlock
+            quiz={quiz}
+            initiallyPassed={passed}
+            gated={gated}
+            color={color}
+            onPassed={onPassed}
+          />
         )}
 
         <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-6">
@@ -370,11 +393,17 @@ export default function LessonViewerClient({ data }: { data: LessonDetailData })
             >
               {passed ? (
                 <>
-                  <CheckCircle2 className="h-4 w-4" /> Quiz passed
+                  <CheckCircle2 className="h-4 w-4" /> Lesson complete — quiz passed
                 </>
-              ) : (
+              ) : gated ? (
                 <>
                   <Lock className="h-4 w-4" /> Pass the quiz to continue
+                </>
+              ) : (
+                /* Nothing is being withheld here, so no padlock: the quiz is what marks the
+                   lesson done, and the learner is free to move on without it. */
+                <>
+                  <ClipboardCheck className="h-4 w-4" /> Pass the quiz to complete this lesson
                 </>
               )}
             </span>
@@ -387,7 +416,7 @@ export default function LessonViewerClient({ data }: { data: LessonDetailData })
               style={completed ? undefined : { background: color }}
             >
               <CheckCircle2 className="h-4 w-4" />
-              {completed ? 'Completed, mark as not done' : 'Mark as complete'}
+              {completed ? 'Lesson complete — mark as not done' : 'Mark as complete'}
             </button>
           )}
 

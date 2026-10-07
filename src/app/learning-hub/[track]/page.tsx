@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowRight, BookOpen } from 'lucide-react';
+import { ArrowRight, BookOpen, CheckCircle2 } from 'lucide-react';
 import { getTrackDetail, getTrackName } from '@/lib/learning-hub-queries';
 import LearningHubShell from '../components/LearningHubShell';
 import LearningHubHero from '../components/LearningHubHero';
@@ -102,14 +102,28 @@ export default async function TrackPage({ params }: PageProps) {
                     <span className="font-medium text-slate-500">
                       {course.completed_count} / {course.lesson_count} lessons
                     </span>
-                    <span className="font-semibold" style={{ color }}>
-                      {course.progress_pct}%
-                    </span>
+                    {/* A finished course is worth more than "100%": it gets the word and the
+                        colour, so a learner can see at a glance which levels are behind them. */}
+                    {course.lesson_count > 0 && course.completed_count >= course.lesson_count ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                        <CheckCircle2 className="h-3 w-3" /> Completed
+                      </span>
+                    ) : (
+                      <span className="font-semibold" style={{ color }}>
+                        {course.progress_pct}%
+                      </span>
+                    )}
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                     <div
                       className="h-full rounded-full transition-all"
-                      style={{ width: `${course.progress_pct}%`, background: color }}
+                      style={{
+                        width: `${course.progress_pct}%`,
+                        background:
+                          course.lesson_count > 0 && course.completed_count >= course.lesson_count
+                            ? '#059669'
+                            : color,
+                      }}
                     />
                   </div>
                 </div>

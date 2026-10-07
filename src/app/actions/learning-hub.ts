@@ -23,9 +23,11 @@ import {
   checkVideoUrl,
   gradeLessonQuizAttempt,
   gradeQuizAttempt,
+  learnerStage,
   planOrderSwap,
   progressPct,
 } from '@/lib/learning-hub-logic';
+import { requireSchema } from '@/lib/db/schema-version';
 import type {
   LearningTrack,
   LearningCourse,
@@ -41,7 +43,11 @@ import type {
   QuizAttemptResult,
   LessonQuizAttemptResult,
   LhCourseAnalytics,
+  LhLessonAnalytics,
+  LhQuizAnalytics,
+  LhLearnerRow,
   LhTrackAnalytics,
+  LhWeekPoint,
   LearningHubAnalytics,
 } from '@/types/learning-hub';
 
@@ -94,13 +100,19 @@ function sanitiseVideoUrl(raw: string | null | undefined): string | null {
 
 const EMPTY_ANALYTICS: LearningHubAnalytics = {
   overview: {
+    viewers: 0,
     learners: 0,
     lessonCompletions: 0,
     courseCompletions: 0,
     trackCount: 0,
     courseCount: 0,
     lessonCount: 0,
+    quizCount: 0,
+    quizTakers: 0,
+    quizPassRate: null,
   },
+  viewTracking: false,
+  weekly: [],
   tracks: [],
   redBull: {
     totalPlays: 0,
@@ -113,16 +125,53 @@ const EMPTY_ANALYTICS: LearningHubAnalytics = {
   },
 };
 
+/* Lesson views arrived in their own migration, after the hub had been live for a month. The
+   analytics read joins that table, so it has to know whether the table is there - a deploy whose
+   migration has not landed yet would otherwise fail the whole screen over one optional table. */
+const LESSON_VIEWS_MIGRATION = '002_lesson_views';
+
+async function hasViewTracking(): Promise<boolean> {
+  try {
+    await requireSchema(learningHubPool, 'learning-hub', LESSON_VIEWS_MIGRATION);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/* A relation with the right column names and no rows, substituted for the views table when the
+   migration has not run. Every query below then returns the same shape with zeroes in the view
+   columns, instead of needing a second copy of itself without the join. */
+const NO_VIEWS = `(SELECT ''::text AS user_email, 0 AS lesson_id,
+                          NOW() AS first_viewed_at, NOW() AS last_viewed_at WHERE false)`;
+
+const num = (v: unknown): number => Number(v ?? 0);
+/** Postgres AVG over no rows is NULL, which is the honest answer and must survive to the screen. */
+const avg = (v: unknown): number | null => (v == null ? null : Number(v));
+
 export async function getLearningHubAnalytics(): Promise<LearningHubAnalytics> {
   try {
     const actor = await getLearningHubActor();
     if (!actor?.isAdmin) return EMPTY_ANALYTICS;
     await ensureLearningHubReady();
 
-    // All five reads are independent; they used to be awaited one after the other, so the admin
-    // analytics page paid five serial round trips (plus whatever getRedBullGameStats did) before
-    // rendering anything.
-    const [trackRows, courseRows, overallRows, trackLearnerRows, redBull] = await Promise.all([
+    const viewTracking = await hasViewTracking();
+    const VIEWS = viewTracking ? 'learning_lesson_views' : NO_VIEWS;
+
+    // All of these are independent, so they go out together: the admin page used to pay one
+    // serial round trip per read before it could render anything.
+    const [
+      trackRows,
+      courseRows,
+      overallRows,
+      trackLearnerRows,
+      lessonRows,
+      quizRows,
+      userCourseRows,
+      userQuizRows,
+      weeklyRows,
+      redBull,
+    ] = await Promise.all([
       sql<QueryResultRow[]>(
         `SELECT id, key, name, color, order_index FROM learning_tracks ORDER BY order_index, id`,
       ),
@@ -155,7 +204,13 @@ export async function getLearningHubAnalytics(): Promise<LearningHubAnalytics> {
        ORDER BY cl.track_id, cl.order_index, cl.course_id`,
       ),
       sql<QueryResultRow[]>(
-        `SELECT COUNT(DISTINCT user_email)::int AS learners, COUNT(*)::int AS completions FROM learning_lesson_progress`,
+        `SELECT (SELECT COUNT(DISTINCT user_email) FROM learning_lesson_progress)::int AS learners,
+                (SELECT COUNT(*) FROM learning_lesson_progress)::int AS completions,
+                (SELECT COUNT(DISTINCT user_email) FROM ${VIEWS} v)::int AS viewers,
+                (SELECT COUNT(*) FROM learning_quizzes)::int AS quiz_count,
+                (SELECT COUNT(DISTINCT user_email) FROM learning_quiz_results)::int AS quiz_takers,
+                (SELECT COUNT(*) FROM learning_quiz_results)::int AS quiz_results,
+                (SELECT COUNT(*) FROM learning_quiz_results WHERE passed)::int AS quiz_passes`,
       ),
       sql<QueryResultRow[]>(
         `SELECT c.track_id, COUNT(DISTINCT p.user_email)::int AS learners
@@ -165,49 +220,284 @@ export async function getLearningHubAnalytics(): Promise<LearningHubAnalytics> {
          JOIN learning_lesson_progress p ON p.lesson_id = l.id
          GROUP BY c.track_id`,
       ),
+      /* Per-lesson funnel. The two LEFT JOINs multiply rows against each other, which is why both
+         counts are COUNT(DISTINCT ...) - a plain COUNT would report viewers times completers. */
+      sql<QueryResultRow[]>(
+        `SELECT l.id, l.title, m.id AS module_id, m.title AS module_title, m.course_id,
+                (l.video_url IS NOT NULL AND l.video_url <> '') AS has_video,
+                COUNT(DISTINCT v.user_email)::int AS viewers,
+                COUNT(DISTINCT p.user_email)::int AS completions
+         FROM learning_lessons l
+         JOIN learning_modules m ON m.id = l.module_id
+         LEFT JOIN ${VIEWS} v ON v.lesson_id = l.id
+         LEFT JOIN learning_lesson_progress p ON p.lesson_id = l.id
+         GROUP BY l.id, l.title, l.video_url, l.order_index, m.id, m.title, m.course_id, m.order_index
+         ORDER BY m.course_id, m.order_index, l.order_index`,
+      ),
+      /* Per-quiz performance. A quiz hangs off EITHER a module or a lesson, so the course it
+         belongs to has to be reached down both paths and coalesced. */
+      sql<QueryResultRow[]>(
+        `SELECT q.id, q.title, q.module_id, q.lesson_id,
+                COALESCE(m.course_id, lm.course_id) AS course_id,
+                (SELECT COUNT(*) FROM learning_quiz_questions qq WHERE qq.quiz_id = q.id)::int AS question_count,
+                COUNT(r.user_email)::int AS takers,
+                COUNT(r.user_email) FILTER (WHERE r.passed)::int AS passers,
+                ROUND(AVG(r.best_pct))::int AS avg_best_pct,
+                ROUND(AVG(r.attempts), 1)::float8 AS avg_attempts
+         FROM learning_quizzes q
+         LEFT JOIN learning_modules m ON m.id = q.module_id
+         LEFT JOIN learning_lessons ql ON ql.id = q.lesson_id
+         LEFT JOIN learning_modules lm ON lm.id = ql.module_id
+         LEFT JOIN learning_quiz_results r ON r.quiz_id = q.id
+         GROUP BY q.id, q.title, q.module_id, q.lesson_id, m.course_id, lm.course_id
+         ORDER BY q.id`,
+      ),
+      /* One row per person per course: what they opened, what they finished, when they were last
+         here. Views and completions are unioned rather than joined so a lesson somebody opened but
+         never finished still counts on the view side. */
+      sql<QueryResultRow[]>(
+        `WITH cl AS (
+           SELECT c.id AS course_id, c.track_id, l.id AS lesson_id
+           FROM learning_courses c
+           JOIN learning_modules m ON m.course_id = c.id
+           JOIN learning_lessons l ON l.module_id = m.id
+         ),
+         acts AS (
+           SELECT user_email, lesson_id, 'view' AS kind, last_viewed_at AS ts FROM ${VIEWS} v
+           UNION ALL
+           SELECT user_email, lesson_id, 'done', completed_at FROM learning_lesson_progress
+         )
+         SELECT cl.track_id, cl.course_id, a.user_email,
+                COUNT(DISTINCT a.lesson_id) FILTER (WHERE a.kind = 'view')::int AS viewed,
+                COUNT(DISTINCT a.lesson_id) FILTER (WHERE a.kind = 'done')::int AS done,
+                MAX(a.ts) AS last_at
+         FROM cl
+         JOIN acts a ON a.lesson_id = cl.lesson_id
+         GROUP BY cl.track_id, cl.course_id, a.user_email`,
+      ),
+      sql<QueryResultRow[]>(
+        `SELECT c.track_id, r.user_email,
+                COUNT(*)::int AS taken,
+                COUNT(*) FILTER (WHERE r.passed)::int AS passed,
+                ROUND(AVG(r.best_pct))::int AS avg_pct
+         FROM learning_quiz_results r
+         JOIN learning_quizzes q ON q.id = r.quiz_id
+         LEFT JOIN learning_modules m ON m.id = q.module_id
+         LEFT JOIN learning_lessons ql ON ql.id = q.lesson_id
+         LEFT JOIN learning_modules lm ON lm.id = ql.module_id
+         JOIN learning_courses c ON c.id = COALESCE(m.course_id, lm.course_id)
+         GROUP BY c.track_id, r.user_email`,
+      ),
+      /* Twelve weeks of activity. `first_viewed_at`, not `last_viewed_at`: the question the strip
+         answers is when people started lessons, and re-opening an old one is not a new start. */
+      sql<QueryResultRow[]>(
+        `SELECT to_char(date_trunc('week', ts), 'YYYY-MM-DD') AS week,
+                COUNT(*) FILTER (WHERE kind = 'started')::int AS started,
+                COUNT(*) FILTER (WHERE kind = 'completed')::int AS completed
+         FROM (
+           SELECT first_viewed_at AS ts, 'started' AS kind FROM ${VIEWS} v
+           UNION ALL
+           SELECT completed_at, 'completed' FROM learning_lesson_progress
+         ) x
+         WHERE ts >= date_trunc('week', NOW()) - INTERVAL '11 weeks'
+         GROUP BY 1
+         ORDER BY 1`,
+      ),
       getRedBullGameStats(),
     ]);
 
+    /* -- index the per-row reads by the key each assembly step needs -- */
+
+    const lessonsByCourse = new Map<number, QueryResultRow[]>();
+    for (const r of lessonRows) {
+      const k = num(r.course_id);
+      const list = lessonsByCourse.get(k);
+      if (list) list.push(r);
+      else lessonsByCourse.set(k, [r]);
+    }
+
+    const quizzesByCourse = new Map<number, QueryResultRow[]>();
+    const quizByLesson = new Map<number, QueryResultRow>();
+    for (const r of quizRows) {
+      const k = num(r.course_id);
+      const list = quizzesByCourse.get(k);
+      if (list) list.push(r);
+      else quizzesByCourse.set(k, [r]);
+      if (r.lesson_id != null) quizByLesson.set(num(r.lesson_id), r);
+    }
+
+    const userCourseByCourse = new Map<number, QueryResultRow[]>();
+    const userCourseByTrack = new Map<number, QueryResultRow[]>();
+    for (const r of userCourseRows) {
+      const c = num(r.course_id);
+      const t = num(r.track_id);
+      const cl = userCourseByCourse.get(c);
+      if (cl) cl.push(r);
+      else userCourseByCourse.set(c, [r]);
+      const tl = userCourseByTrack.get(t);
+      if (tl) tl.push(r);
+      else userCourseByTrack.set(t, [r]);
+    }
+
     const tracks: LhTrackAnalytics[] = trackRows.map((t) => {
+      const trackId = num(t.id);
+
       const courses: LhCourseAnalytics[] = courseRows
-        .filter((c) => Number(c.track_id) === Number(t.id))
+        .filter((c) => num(c.track_id) === trackId)
         .map((c) => {
-          const learners = Number(c.learners ?? 0);
-          const completedLearners = Number(c.completed_learners ?? 0);
+          const courseId = num(c.course_id);
+          const learners = num(c.learners);
+          const completedLearners = num(c.completed_learners);
+          const courseUsers = userCourseByCourse.get(courseId) ?? [];
+
+          const lessons: LhLessonAnalytics[] = (lessonsByCourse.get(courseId) ?? []).map((l) => {
+            const lq = quizByLesson.get(num(l.id));
+            return {
+              id: num(l.id),
+              title: String(l.title),
+              moduleTitle: String(l.module_title),
+              hasVideo: Boolean(l.has_video),
+              viewers: num(l.viewers),
+              completions: num(l.completions),
+              quizTakers: lq ? num(lq.takers) : 0,
+              quizPassers: lq ? num(lq.passers) : 0,
+              avgBestPct: lq ? avg(lq.avg_best_pct) : null,
+            };
+          });
+
+          const quizzes: LhQuizAnalytics[] = (quizzesByCourse.get(courseId) ?? []).map((q) => ({
+            id: num(q.id),
+            title: String(q.title),
+            scope: q.lesson_id != null ? 'lesson' : 'module',
+            questionCount: num(q.question_count),
+            takers: num(q.takers),
+            passers: num(q.passers),
+            avgBestPct: avg(q.avg_best_pct),
+            avgAttempts: avg(q.avg_attempts),
+          }));
+
+          /* A course's quiz score is the mean of its results, not the mean of its quizzes' means:
+             a quiz one person sat would otherwise weigh as heavily as one thirty people sat. */
+          const scored = quizzes.filter((q) => q.avgBestPct != null);
+          const scoredTakers = scored.reduce((n, q) => n + q.takers, 0);
+          const scoreSum = scored.reduce((n, q) => n + (q.avgBestPct ?? 0) * q.takers, 0);
+
           return {
-            id: Number(c.course_id),
+            id: courseId,
             title: String(c.title),
             status: String(c.status),
-            lessonCount: Number(c.lesson_count ?? 0),
+            lessonCount: num(c.lesson_count),
+            viewers: courseUsers.filter((r) => num(r.viewed) > 0).length,
             learners,
             completedLearners,
-            lessonCompletions: Number(c.lesson_completions ?? 0),
+            lessonCompletions: num(c.lesson_completions),
             completionPct: progressPct(completedLearners, learners),
+            quizCount: quizzes.length,
+            quizTakers: quizzes.reduce((n, q) => n + q.takers, 0),
+            quizPassers: quizzes.reduce((n, q) => n + q.passers, 0),
+            avgBestPct: scoredTakers > 0 ? Math.round(scoreSum / scoredTakers) : null,
+            lessons,
+            quizzes,
           };
         });
+
+      const lessonCount = courses.reduce((n, c) => n + c.lessonCount, 0);
+
+      /* -- the journey: one row per person who has touched this module -- */
+      const quizByUser = new Map(
+        userQuizRows
+          .filter((r) => num(r.track_id) === trackId)
+          .map((r) => [String(r.user_email), r] as const),
+      );
+      const byUser = new Map<string, QueryResultRow[]>();
+      for (const r of userCourseByTrack.get(trackId) ?? []) {
+        const email = String(r.user_email);
+        const list = byUser.get(email);
+        if (list) list.push(r);
+        else byUser.set(email, [r]);
+      }
+      // Somebody with quiz results but no lesson row still belongs in the table.
+      for (const email of quizByUser.keys()) if (!byUser.has(email)) byUser.set(email, []);
+
+      const learnerRows: LhLearnerRow[] = [...byUser.entries()]
+        .map(([email, rows]) => {
+          const doneByCourse = new Map(rows.map((r) => [num(r.course_id), num(r.done)]));
+          const viewed = rows.reduce((n, r) => n + num(r.viewed), 0);
+          const completed = rows.reduce((n, r) => n + num(r.done), 0);
+          const q = quizByUser.get(email);
+          const last = rows
+            .map((r) => (r.last_at ? new Date(r.last_at as string).getTime() : 0))
+            .reduce((a, b) => Math.max(a, b), 0);
+          return {
+            email,
+            stage: learnerStage(viewed, completed, lessonCount),
+            lessonsViewed: viewed,
+            lessonsCompleted: completed,
+            lessonCount,
+            quizzesTaken: q ? num(q.taken) : 0,
+            quizzesPassed: q ? num(q.passed) : 0,
+            avgBestPct: q ? avg(q.avg_pct) : null,
+            lastActiveAt: last > 0 ? new Date(last).toISOString() : null,
+            courses: courses.map((c) => ({
+              id: c.id,
+              title: c.title,
+              done: doneByCourse.get(c.id) ?? 0,
+              total: c.lessonCount,
+            })),
+          };
+        })
+        // Furthest along first; the people to chase are then the tail of the table.
+        .sort((a, b) => b.lessonsCompleted - a.lessonsCompleted || a.email.localeCompare(b.email));
+
+      const scoredCourses = courses.filter((c) => c.avgBestPct != null);
+      const scoredTakers = scoredCourses.reduce((n, c) => n + c.quizTakers, 0);
+      const trackScoreSum = scoredCourses.reduce((n, c) => n + (c.avgBestPct ?? 0) * c.quizTakers, 0);
+
       return {
         key: String(t.key),
         name: String(t.name),
         color: (t.color as string) ?? null,
-        learners: Number(
-          trackLearnerRows.find((r) => Number(r.track_id) === Number(t.id))?.learners ?? 0,
-        ),
-        lessonCount: courses.reduce((s, c) => s + c.lessonCount, 0),
-        lessonCompletions: courses.reduce((s, c) => s + c.lessonCompletions, 0),
-        completedLearners: courses.reduce((s, c) => s + c.completedLearners, 0),
+        viewers: new Set(
+          (userCourseByTrack.get(trackId) ?? [])
+            .filter((r) => num(r.viewed) > 0)
+            .map((r) => String(r.user_email)),
+        ).size,
+        learners: num(trackLearnerRows.find((r) => num(r.track_id) === trackId)?.learners),
+        lessonCount,
+        lessonCompletions: courses.reduce((n, c) => n + c.lessonCompletions, 0),
+        completedLearners: courses.reduce((n, c) => n + c.completedLearners, 0),
+        quizTakers: courses.reduce((n, c) => n + c.quizTakers, 0),
+        quizPassers: courses.reduce((n, c) => n + c.quizPassers, 0),
+        avgBestPct: scoredTakers > 0 ? Math.round(trackScoreSum / scoredTakers) : null,
         courses,
+        learnerRows,
       };
     });
 
+    const o = overallRows[0] ?? {};
+    const quizResults = num(o.quiz_results);
+
     return {
       overview: {
-        learners: Number(overallRows[0]?.learners ?? 0),
-        lessonCompletions: Number(overallRows[0]?.completions ?? 0),
-        courseCompletions: tracks.reduce((s, t) => s + t.completedLearners, 0),
+        viewers: num(o.viewers),
+        learners: num(o.learners),
+        lessonCompletions: num(o.completions),
+        courseCompletions: tracks.reduce((n, t) => n + t.completedLearners, 0),
         trackCount: tracks.length,
         courseCount: courseRows.length,
-        lessonCount: courseRows.reduce((s, c) => s + Number(c.lesson_count ?? 0), 0),
+        lessonCount: courseRows.reduce((n, c) => n + num(c.lesson_count), 0),
+        quizCount: num(o.quiz_count),
+        quizTakers: num(o.quiz_takers),
+        quizPassRate: quizResults > 0 ? Math.round((num(o.quiz_passes) / quizResults) * 100) : null,
       },
+      viewTracking,
+      weekly: weeklyRows.map(
+        (w): LhWeekPoint => ({
+          week: String(w.week),
+          started: num(w.started),
+          completed: num(w.completed),
+        }),
+      ),
       tracks,
       redBull,
     };
@@ -231,6 +521,37 @@ export async function markLessonComplete(lessonId: number): Promise<{ success: b
     [actor.email, lessonId],
   );
   return { success: true };
+}
+
+/**
+ * Note that this learner has opened this lesson.
+ *
+ * Deliberately not markLessonComplete's job: completion is something the learner asserts, by
+ * ticking the box or passing the quiz, and a view is something that just happened. Conflating them
+ * would mean opening a lesson marked it done.
+ *
+ * Nothing here can fail the lesson page. A missing migration or a dead connection costs one
+ * analytics row, which is not worth a blank lesson, so the error is swallowed - but logged, so a
+ * permanently broken recorder is still visible.
+ */
+export async function recordLessonView(lessonId: number): Promise<{ success: boolean }> {
+  try {
+    const actor = await getLearningHubActor();
+    if (!actor) return { success: false };
+    await ensureLearningHubReady();
+    await requireSchema(learningHubPool, 'learning-hub', LESSON_VIEWS_MIGRATION);
+    await exec(
+      `INSERT INTO learning_lesson_views (user_email, lesson_id) VALUES (?, ?)
+       ON CONFLICT (user_email, lesson_id) DO UPDATE SET
+         last_viewed_at = NOW(),
+         view_count = learning_lesson_views.view_count + 1`,
+      [actor.email, lessonId],
+    );
+    return { success: true };
+  } catch (err) {
+    log.error('lesson.view.record.failed', err);
+    return { success: false };
+  }
 }
 
 export async function markLessonIncomplete(lessonId: number): Promise<{ success: boolean }> {

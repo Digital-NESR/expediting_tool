@@ -43,6 +43,28 @@ export function progressPct(completed: number, total: number): number {
   return total > 0 ? Math.round((completed / total) * 100) : 0;
 }
 
+/**
+ * The one-word answer to "where is this person in the module".
+ *
+ * The admin screen shows this beside the raw counts, so the label has to be derived from exactly
+ * those counts and nowhere else — a stored status would drift the moment a lesson was added to the
+ * module and everybody's denominator changed under it.
+ *
+ * "Browsing" is the distinction the raw numbers cannot make on their own: somebody who has opened
+ * lessons but ticked nothing is engaged and stuck, which reads very differently from somebody who
+ * has not shown up. It depends on view tracking, so without it nobody is ever "Browsing" — they
+ * go straight from "Not started" to "In progress", which is the honest reading of what is known.
+ */
+export function learnerStage(
+  viewed: number,
+  completed: number,
+  total: number,
+): 'Not started' | 'Browsing' | 'In progress' | 'Nearly there' | 'Completed' {
+  if (total > 0 && completed >= total) return 'Completed';
+  if (completed > 0) return progressPct(completed, total) >= 75 ? 'Nearly there' : 'In progress';
+  return viewed > 0 ? 'Browsing' : 'Not started';
+}
+
 /* ── Lesson gating ───────────────────────────────────────────────────────── */
 
 /** What the gating fold decides about one lesson. */
@@ -65,15 +87,25 @@ export type CourseGatingRow = Record<string, unknown> & {
   quiz_id?: unknown;
   pass_pct?: unknown;
   passed?: unknown;
+  /** The module's `learning_tracks.sequential_gating`. Absent or anything but `false` means gated. */
+  sequential_gating?: unknown;
 };
 
 /**
  * Walk a course's lessons in order and decide what is locked.
  *
- * The rule: a lesson is locked when any EARLIER lesson carrying a quiz has not been passed. The
- * lesson holding the first unpassed quiz is itself unlocked — that is the one you are meant to be
- * sitting on — and everything after it stays locked until that quiz passes. A lesson with no quiz
- * never blocks anything.
+ * The rule, in a gated module: a lesson is locked when any EARLIER lesson carrying a quiz has not
+ * been passed. The lesson holding the first unpassed quiz is itself unlocked — that is the one you
+ * are meant to be sitting on — and everything after it stays locked until that quiz passes. A
+ * lesson with no quiz never blocks anything.
+ *
+ * In an ungated module (`sequential_gating = false` on its track) nothing is ever locked. The quiz
+ * is still there and passing it still decides whether the lesson counts as complete; what goes away
+ * is only the requirement to do them in order.
+ *
+ * The flag is read off each row rather than passed in, because it arrives on the same query. Rows
+ * written before the column existed carry `undefined`, which stays gated — the pre-existing
+ * behaviour, so no caller silently loses its gate.
  *
  * `rows` MUST already be in course order (module order_index, then lesson order_index); the caller's
  * ORDER BY is what makes "earlier" mean anything here.
@@ -82,6 +114,7 @@ export function foldCourseGating(rows: readonly CourseGatingRow[]): Map<number, 
   const map = new Map<number, LessonGate>();
   let blocked = false;
   for (const r of rows) {
+    const gated = r.sequential_gating !== false;
     const quizId = r.quiz_id != null ? Number(r.quiz_id) : null;
     const hasQuiz = quizId != null;
     const quizPassed = r.passed === true;
@@ -90,9 +123,9 @@ export function foldCourseGating(rows: readonly CourseGatingRow[]): Map<number, 
       quizId,
       passPct: Number(r.pass_pct ?? DEFAULT_QUIZ_PASS_PCT),
       quizPassed,
-      locked: blocked,
+      locked: gated && blocked,
     });
-    if (hasQuiz && !quizPassed) blocked = true;
+    if (gated && hasQuiz && !quizPassed) blocked = true;
   }
   return map;
 }

@@ -12,6 +12,12 @@ export interface LearningTrack {
   order_index: number;
   /** Short prefix for the browser-tab label ("SC" -> "SC lvl 1"); null keeps the full course title. */
   tab_label_prefix: string | null;
+  /**
+   * False when learners may take this module's lessons in any order. Optional because the column
+   * arrived in migration 003 and rows read by older code paths will not carry it; everywhere it is
+   * read, anything but an explicit `false` means gated, which is what every track did before.
+   */
+  sequential_gating?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -290,37 +296,118 @@ export interface LearningHubAdminData {
    module may only export async functions, so every type declared there is a
    footgun waiting for someone to export a value beside it. ── */
 
+/**
+ * One lesson's funnel: opened it, finished it, sat the quiz, passed the quiz.
+ *
+ * `viewers` and `completions` are the two ends of the same step and the gap between them is the
+ * point. A lesson forty people open and six finish is a lesson with a problem, and counting only
+ * the six hides it.
+ */
+export interface LhLessonAnalytics {
+  id: number;
+  title: string;
+  moduleTitle: string;
+  hasVideo: boolean;
+  viewers: number; // distinct people who opened it
+  completions: number; // distinct people who finished it
+  quizTakers: number; // of its own lesson quiz, if it has one
+  quizPassers: number;
+  avgBestPct: number | null; // null when nobody has attempted it
+}
+
+/** One quiz's performance. `avgAttempts` is how many goes it took, which is the difficulty tell. */
+export interface LhQuizAnalytics {
+  id: number;
+  title: string;
+  scope: 'module' | 'lesson';
+  questionCount: number;
+  takers: number;
+  passers: number;
+  avgBestPct: number | null;
+  avgAttempts: number | null;
+}
+
 export interface LhCourseAnalytics {
   id: number;
   title: string;
   status: string;
   lessonCount: number;
+  viewers: number; // distinct users who opened any lesson in the course
   learners: number; // distinct users with any progress in the course
   completedLearners: number; // users who completed every lesson in the course
   lessonCompletions: number; // total lesson completions across users
   completionPct: number; // completedLearners / learners
+  quizCount: number;
+  quizTakers: number; // distinct people who sat any quiz in the course
+  quizPassers: number; // distinct people who passed at least one
+  avgBestPct: number | null; // mean best score across every result in the course
+  lessons: LhLessonAnalytics[];
+  quizzes: LhQuizAnalytics[];
+}
+
+/**
+ * Where one person has got to in a module.
+ *
+ * `stage` is derived, not stored: it is the shortest honest answer to "where are they", and the
+ * thresholds live in `learnerStage()` so the label and the numbers can never disagree.
+ */
+export interface LhLearnerRow {
+  email: string;
+  stage: 'Not started' | 'Browsing' | 'In progress' | 'Nearly there' | 'Completed';
+  lessonsViewed: number;
+  lessonsCompleted: number;
+  lessonCount: number; // of the whole module, so the row carries its own denominator
+  quizzesTaken: number;
+  quizzesPassed: number;
+  avgBestPct: number | null;
+  lastActiveAt: string | null; // ISO; null for somebody with no recorded activity at all
+  /** Per-course progress, in the module's own course order — the "journey" across levels. */
+  courses: { id: number; title: string; done: number; total: number }[];
 }
 
 export interface LhTrackAnalytics {
   key: string;
   name: string;
   color: string | null;
+  viewers: number;
   learners: number;
   lessonCount: number;
   lessonCompletions: number;
   completedLearners: number;
+  quizTakers: number;
+  quizPassers: number;
+  avgBestPct: number | null;
   courses: LhCourseAnalytics[];
+  learnerRows: LhLearnerRow[];
+}
+
+/** One week of hub-wide activity, for the trend strip. `week` is the Monday, as `YYYY-MM-DD`. */
+export interface LhWeekPoint {
+  week: string;
+  started: number; // lessons opened for the first time
+  completed: number;
 }
 
 export interface LearningHubAnalytics {
   overview: {
+    viewers: number;
     learners: number;
     lessonCompletions: number;
     courseCompletions: number;
     trackCount: number;
     courseCount: number;
     lessonCount: number;
+    quizCount: number;
+    quizTakers: number;
+    quizPassRate: number | null; // passers / takers, null when nobody has attempted one
   };
+  /**
+   * False when migration `002_lesson_views` has not run against this database. Every `viewers`
+   * figure is then 0, which is indistinguishable from "nobody opened anything" — so the screen
+   * says so rather than quietly reporting an empty funnel.
+   */
+  viewTracking: boolean;
+  weekly: LhWeekPoint[];
   tracks: LhTrackAnalytics[];
   redBull: RedBullGameStats;
 }

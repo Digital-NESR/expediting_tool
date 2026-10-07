@@ -29,6 +29,10 @@ export default async function CourseDetailPage({ params }: PageProps) {
 
   // First not-yet-completed lesson across the whole course, for a "Resume" CTA.
   const nextLesson = modules.flatMap((m) => m.lessons).find((l) => !l.completed);
+  /* Finished means every lesson in it is finished — and for a lesson carrying a quiz, finished
+     means the quiz was passed (see lessonProgressFlags). An empty course is not "complete". */
+  const courseComplete = lesson_count > 0 && completed_count >= lesson_count;
+  const firstLesson = modules.flatMap((m) => m.lessons)[0];
   // A course with a single module is shown as a flat lesson list, no "Module" header.
   const flat = modules.length === 1;
 
@@ -61,23 +65,46 @@ export default async function CourseDetailPage({ params }: PageProps) {
             >
               {completed_count === 0 ? 'Start course' : 'Resume course'} →
             </Link>
+          ) : courseComplete && firstLesson ? (
+            /* A finished course used to show no action at all, which read as a dead end rather
+               than as an achievement. It says so, and still offers the way back in. */
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-2 text-sm font-semibold text-white ring-1 ring-inset ring-white/40">
+                <CheckCircle2 className="h-4 w-4" /> Course complete
+              </span>
+              <Link
+                href={`/learning-hub/${track.key}/${course.id}/${firstLesson.id}`}
+                className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold shadow-sm transition-colors hover:bg-white/90"
+                style={{ color }}
+              >
+                Review it →
+              </Link>
+            </div>
           ) : undefined
         }
       />
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div
+        className={`rounded-2xl border bg-white p-5 shadow-sm ${courseComplete ? 'border-emerald-200' : 'border-slate-200'}`}
+      >
         <div className="flex items-center justify-between text-xs">
           <span className="font-medium text-slate-500">
             {completed_count} / {lesson_count} lessons complete
           </span>
-          <span className="font-semibold" style={{ color }}>
-            {progress_pct}%
-          </span>
+          {courseComplete ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700">
+              <CheckCircle2 className="h-3.5 w-3.5" /> Completed
+            </span>
+          ) : (
+            <span className="font-semibold" style={{ color }}>
+              {progress_pct}%
+            </span>
+          )}
         </div>
         <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
           <div
             className="h-full rounded-full transition-all"
-            style={{ width: `${progress_pct}%`, background: color }}
+            style={{ width: `${progress_pct}%`, background: courseComplete ? '#059669' : color }}
           />
         </div>
       </div>

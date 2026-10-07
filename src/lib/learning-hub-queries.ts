@@ -668,6 +668,27 @@ export async function getLearningHubNavTracks(): Promise<LearningHubNavTrack[]> 
   }));
 }
 
+/* ── "Finished", as SQL ───────────────────────────────────────────
+
+   The TypeScript answer is `lessonProgressFlags()`: a lesson carrying a quiz is finished when that
+   quiz is passed, and one without is finished when it has a progress row. The course outline and
+   the lesson viewer both go through it.
+
+   The three screens that count a whole course at a time — the hub home, a module's course cards and
+   My Work — did not. They counted progress rows, so "complete" meant two different things depending
+   on which screen you were looking at: someone who ticked ten Level 1 lessons before those lessons
+   had quizzes read 10/11 on the card and 1/11 the moment they opened the course. The card was the
+   wrong one, and this is the rule it was missing.
+
+   Expects `l` (the lesson), `p` (this learner's progress row), `z` (the lesson's quiz) and `r`
+   (this learner's result for it) in scope. */
+const LESSON_IS_DONE = `CASE WHEN z.id IS NULL THEN p.id IS NOT NULL ELSE r.passed IS TRUE END`;
+
+/* The two joins `LESSON_IS_DONE` needs. Carries one `?` for the learner's email, which must be
+   counted when ordering the caller's parameters. */
+const LESSON_DONE_JOINS = `LEFT JOIN learning_quizzes z ON z.lesson_id = l.id
+       LEFT JOIN learning_quiz_results r ON r.quiz_id = z.id AND r.user_email = ?`;
+
 /* ── Dashboard ────────────────────────────────────────────────────────── */
 
 const EMPTY_DASHBOARD: LearningHubDashboardData = {
@@ -695,14 +716,15 @@ export async function getLearningHubDashboardData(): Promise<LearningHubDashboar
          t.id AS track_id,
          COUNT(DISTINCT c.id)::int AS course_count,
          COUNT(DISTINCT l.id)::int AS lesson_count,
-         COUNT(DISTINCT p.id)::int AS completed_count
+         COUNT(DISTINCT l.id) FILTER (WHERE ${LESSON_IS_DONE})::int AS completed_count
        FROM learning_tracks t
        LEFT JOIN learning_courses c ON c.track_id = t.id AND c.status = 'published'
        LEFT JOIN learning_modules m ON m.course_id = c.id
        LEFT JOIN learning_lessons l ON l.module_id = m.id
        LEFT JOIN learning_lesson_progress p ON p.lesson_id = l.id AND p.user_email = ?
+       ${LESSON_DONE_JOINS}
        GROUP BY t.id`,
-      [userEmail],
+      [userEmail, userEmail],
     ),
     sql<QueryResultRow[]>(
       `SELECT t.key AS track_key, t.name AS track_name, c.id AS course_id, c.title AS course_title,
@@ -712,10 +734,11 @@ export async function getLearningHubDashboardData(): Promise<LearningHubDashboar
        JOIN learning_courses c ON c.id = m.course_id
        JOIN learning_tracks t ON t.id = c.track_id
        LEFT JOIN learning_lesson_progress p ON p.lesson_id = l.id AND p.user_email = ?
-       WHERE c.status = 'published' AND p.id IS NULL
+       ${LESSON_DONE_JOINS}
+       WHERE c.status = 'published' AND NOT (${LESSON_IS_DONE})
        ORDER BY t.order_index ASC, c.order_index ASC, m.order_index ASC, l.order_index ASC
        LIMIT 1`,
-      [userEmail],
+      [userEmail, userEmail],
     ),
   ]);
 
@@ -784,14 +807,15 @@ export async function getTrackDetail(trackKey: string): Promise<TrackDetailData 
     sql<QueryResultRow[]>(
       `SELECT c.id AS course_id,
               COUNT(DISTINCT l.id)::int AS lesson_count,
-              COUNT(DISTINCT p.id)::int AS completed_count
+              COUNT(DISTINCT l.id) FILTER (WHERE ${LESSON_IS_DONE})::int AS completed_count
        FROM learning_courses c
        LEFT JOIN learning_modules m ON m.course_id = c.id
        LEFT JOIN learning_lessons l ON l.module_id = m.id
        LEFT JOIN learning_lesson_progress p ON p.lesson_id = l.id AND p.user_email = ?
+       ${LESSON_DONE_JOINS}
        WHERE c.track_id = ? AND c.status = 'published'
        GROUP BY c.id`,
-      [userEmail, track.id],
+      [userEmail, userEmail, track.id],
     ),
   ]);
 
@@ -823,9 +847,12 @@ async function getCourseGating(
   userEmail: string,
 ): Promise<Map<number, LessonGate>> {
   const rows = await sql<QueryResultRow[]>(
-    `SELECT l.id AS lesson_id, z.id AS quiz_id, z.pass_pct, (r.passed IS TRUE) AS passed
+    `SELECT l.id AS lesson_id, z.id AS quiz_id, z.pass_pct, (r.passed IS TRUE) AS passed,
+            t.sequential_gating
      FROM learning_lessons l
      JOIN learning_modules m ON m.id = l.module_id
+     JOIN learning_courses c ON c.id = m.course_id
+     JOIN learning_tracks t ON t.id = c.track_id
      LEFT JOIN learning_quizzes z ON z.lesson_id = l.id
      LEFT JOIN learning_quiz_results r ON r.quiz_id = z.id AND r.user_email = ?
      WHERE m.course_id = ?
@@ -1063,17 +1090,18 @@ export async function getMyWorkData(): Promise<MyWorkData> {
        t.key AS track_key, t.name AS track_name, t.color AS track_color,
        c.id AS course_id, c.title AS course_title,
        COUNT(DISTINCT l.id)::int AS lesson_count,
-       COUNT(DISTINCT p.id)::int AS completed_count,
+       COUNT(DISTINCT l.id) FILTER (WHERE ${LESSON_IS_DONE})::int AS completed_count,
        MAX(p.completed_at) AS last_activity_at
      FROM learning_courses c
      JOIN learning_tracks t ON t.id = c.track_id
      JOIN learning_modules m ON m.course_id = c.id
      JOIN learning_lessons l ON l.module_id = m.id
      LEFT JOIN learning_lesson_progress p ON p.lesson_id = l.id AND p.user_email = ?
+     ${LESSON_DONE_JOINS}
      WHERE c.status = 'published'
      GROUP BY t.key, t.name, t.color, c.id, c.title, t.order_index, c.order_index
      ORDER BY t.order_index ASC, c.order_index ASC`,
-    [userEmail],
+    [userEmail, userEmail],
   );
 
   const courses: MyWorkCourse[] = rows.map((r) => {

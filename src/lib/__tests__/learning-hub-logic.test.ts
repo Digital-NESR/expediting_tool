@@ -8,6 +8,7 @@ import {
   gradeLessonQuizAttempt,
   gradeQuizAttempt,
   hashSeedTrack,
+  learnerStage,
   lessonProgressFlags,
   planOrderSwap,
   type CourseGatingRow,
@@ -87,6 +88,73 @@ describe('a course gates its lessons behind the quizzes before them', () => {
   it('applies the default pass mark to a quiz that sets none', () => {
     const gates = foldCourseGating([lesson(1, { id: 10 })]);
     expect(gates.get(1)?.passPct).toBe(DEFAULT_QUIZ_PASS_PCT);
+  });
+});
+
+/* General Supply Chain is reference material people arrive at with a question, so its track row
+   carries sequential_gating = false and the ladder comes off. The quiz stays: what changes is what
+   you may OPEN, not what counts as done. */
+describe('an ungated module lets its lessons be taken in any order', () => {
+  const ungated = (row: CourseGatingRow) => ({ ...row, sequential_gating: false });
+
+  it('locks nothing, however many quizzes are unpassed', () => {
+    const gates = foldCourseGating(
+      [
+        lesson(1, { id: 10, passed: false }),
+        lesson(2),
+        lesson(3, { id: 30, passed: false }),
+        lesson(4),
+      ].map(ungated),
+    );
+    expect([...gates.values()].every((g) => !g.locked)).toBe(true);
+  });
+
+  it('still reports the quiz and whether it was passed, which is what completion is read from', () => {
+    const gates = foldCourseGating([
+      ungated(lesson(1, { id: 10, passed: true })),
+      ungated(lesson(2, { id: 20, passed: false })),
+    ]);
+    expect(gates.get(1)?.quizPassed).toBe(true);
+    expect(lessonProgressFlags(gates.get(1), false).completed).toBe(true);
+    // Opening lesson 2 freely does not mean finishing it: its quiz is still unpassed.
+    expect(lessonProgressFlags(gates.get(2), true).completed).toBe(false);
+  });
+
+  /* The column arrived in migration 003. Anything older than it, or any caller that does not
+     select it, has to keep the gate it already had rather than silently losing it. */
+  it('gates a row that says nothing about gating', () => {
+    const gates = foldCourseGating([lesson(1, { id: 10, passed: false }), lesson(2)]);
+    expect(gates.get(2)?.locked).toBe(true);
+  });
+});
+
+describe('a learner stage is the shortest honest answer to "where are they"', () => {
+  it('separates somebody who has opened lessons from somebody who has not shown up', () => {
+    expect(learnerStage(0, 0, 10)).toBe('Not started');
+    expect(learnerStage(3, 0, 10)).toBe('Browsing');
+  });
+
+  it('calls the last stretch "Nearly there" from three quarters of the way', () => {
+    expect(learnerStage(10, 7, 10)).toBe('In progress');
+    expect(learnerStage(10, 8, 10)).toBe('Nearly there');
+  });
+
+  it('is Completed only when every lesson is done', () => {
+    expect(learnerStage(10, 9, 10)).toBe('Nearly there');
+    expect(learnerStage(10, 10, 10)).toBe('Completed');
+  });
+
+  /* A module with no lessons cannot be completed by anybody, however much they have opened —
+     otherwise an empty module would report its whole audience as having finished it. */
+  it('never completes an empty module', () => {
+    expect(learnerStage(0, 0, 0)).toBe('Not started');
+    expect(learnerStage(2, 0, 0)).toBe('Browsing');
+  });
+
+  /* Content gets added to a module after people have finished it. Their completion count is then
+     above the new total, which is a real state and still means finished. */
+  it('stays Completed when more was finished than the module now holds', () => {
+    expect(learnerStage(12, 12, 10)).toBe('Completed');
   });
 });
 
