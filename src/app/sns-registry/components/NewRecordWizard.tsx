@@ -51,6 +51,9 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
      headings say and that the Registry ID it mints will supersede the one it
      was copied from. */
   const renewing = app.renewalOf != null ? app.records.find((r) => r.rid === app.renewalOf) : null;
+  /* An edit rewrites this record in place. The wizard is otherwise identical —
+     only the headings, the footer buttons and the notice below change. */
+  const editing = app.editingRid != null ? app.records.find((r) => r.rid === app.editingRid) : null;
 
   const step = app.step;
   const selKeys = d.nodes.map(nodeKey);
@@ -132,14 +135,33 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-bold tracking-tight text-slate-900">
-          {renewing ? 'Update Existing Record' : 'New Registry Record'}
+          {editing
+            ? `Edit ${recordLabel(editing)}`
+            : renewing
+              ? 'Update Existing Record'
+              : 'New Registry Record'}
         </h2>
         <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-slate-500">
-          {renewing
-            ? 'Every field is carried over and every field can be changed. Set a new expiry date — it is the one thing not copied.'
-            : 'A record is scoped to one country and one supplier, at Family or Commodity level only.'}
+          {editing
+            ? 'Every change is recorded on the audit trail, with the previous value beside the new one.'
+            : renewing
+              ? 'Every field is carried over and every field can be changed. Set a new expiry date — it is the one thing not copied.'
+              : 'A record is scoped to one country and one supplier, at Family or Commodity level only.'}
         </p>
       </div>
+
+      {editing && (
+        <div className="rounded-xl border border-[#6AAF8E] bg-[#307c4c]/5 px-4 py-3.5">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-[#1d4f31]">
+            Editing {recordLabel(editing)}
+          </p>
+          <p className="mt-1 text-[12.5px] leading-relaxed text-slate-700">
+            {editing.base === 'Rejected'
+              ? `This record was rejected and is back with you. Saving your changes leaves it Rejected — send it back for validation from the record itself, once you are happy with it.`
+              : 'Saving your changes leaves this record a Draft. Submit it for validation from the record itself, once you are happy with it.'}
+          </p>
+        </div>
+      )}
 
       {renewing && (
         <div className="rounded-xl border border-[#6AAF8E] bg-[#307c4c]/5 px-4 py-3.5">
@@ -681,7 +703,12 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
                 Continue
               </button>
             )}
-            {step === 4 && (
+            {/* An edit saves and stops. Offering "Submit" here would let a
+                requestor revise and resubmit in one press, which reads as a
+                single action but is two decisions — and on a Rejected record
+                the second one deserves to be made while looking at the
+                record, not at the form. */}
+            {step === 4 && !editing && (
               <button
                 type="button"
                 onClick={() => app.commit('Draft', attachEvidence)}
@@ -694,13 +721,17 @@ export default function NewRecordWizard({ app }: { app: RegistryApp }) {
             {step === 4 && (
               <button
                 type="button"
-                onClick={submit}
+                onClick={editing ? () => app.commit('Draft') : submit}
                 disabled={app.busy}
                 className="rounded-lg bg-gradient-to-r from-[#307c4c] to-[#2b6f44] px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm shadow-[#307c4c]/30 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {app.busy
-                  ? 'Submitting…'
-                  : `Submit ${renewing ? 'replacement ' : ''}for ${STAGE1} validation`}
+                {editing
+                  ? app.busy
+                    ? 'Saving…'
+                    : 'Save changes'
+                  : app.busy
+                    ? 'Submitting…'
+                    : `Submit ${renewing ? 'replacement ' : ''}for ${STAGE1} validation`}
               </button>
             )}
           </div>

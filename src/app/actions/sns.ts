@@ -9,6 +9,7 @@ import snsPool from '@/lib/db-sns';
 import { logger } from '@/lib/logger';
 import { GRANTABLE_ROLES, ROLES } from '@/app/sns-registry/lib/constants';
 import { addDays, parseISODate, toISODate, today, todayISO } from '@/app/sns-registry/lib/date';
+import { diffDraft } from '@/app/sns-registry/lib/diff';
 import { roleKind } from '@/app/sns-registry/lib/helpers';
 import { nextRegistryIdFrom, registryIdPrefix } from '@/app/sns-registry/lib/registry-id';
 import { fetchSnsTaxonomyTree } from '@/lib/sns-taxonomy';
@@ -1031,6 +1032,198 @@ export async function createSnsRecord(
       supplierId: draft.supplierId,
     });
     return { success: false, error: 'Could not save the record.' };
+  } finally {
+    client.release();
+  }
+}
+
+/* ─── Editing an unapproved record ───────────────── */
+
+/**
+ * Rewrites a record that has not been approved.
+ *
+ * Only Draft and Rejected are editable, and deliberately so. Once a record is
+ * published it is the documented justification for bypassing the three-quote
+ * policy: two named people validated a specific text, and the Registry ID
+ * itself encodes the classification, country, supplier and validity window it
+ * was minted with. Editing any of that after the fact would leave an ID that
+ * contradicts its own record, and a sign-off attesting to a document that no
+ * longer exists. The periodic review is the sanctioned way to change a
+ * published record — it raises a replacement and revalidates it.
+ *
+ * Pending records are excluded too: rewriting a record underneath the validator
+ * who is reading it is its own kind of wrong.
+ *
+ * The status is left alone. Editing a Rejected record does not resubmit it —
+ * that stays the requestor's explicit decision, and `advanceSnsRecord` re-runs
+ * the full submission rules when they make it.
+ */
+export async function updateSnsRecord(rid: number, draft: Draft): Promise<ActionResult> {
+  const viewer = await getSnsViewer();
+  if (!viewer) return { success: false, error: 'You do not have access to the S&S Registry.' };
+  if (!isAdminOr(viewer, 'req'))
+    return { success: false, error: 'Only Requestors can edit records.' };
+  if (!draft.country) return { success: false, error: 'Select a country.' };
+
+  /* The rules a Draft is saved under, not the submission ones: an edit may
+     legitimately leave the record incomplete, and advanceSnsRecord applies
+     validateForSubmission when it is sent back. */
+  if (draft.nodes.length === 0) return { success: false, error: 'Select at least one scope item.' };
+  if (!draft.supplierId || !draft.supplierName)
+    return { success: false, error: 'Supplier SAP ID and name are required.' };
+  if (!draft.reason) return { success: false, error: 'Select a reason code.' };
+  if (draft.expiry?.trim() && !isExpiryWithinCap(draft.expiry)) {
+    return { success: false, error: `This record needs ${expiryCapError()}.` };
+  }
+
+  /* Resolved before the transaction, as in createSnsRecord: it validates the
+     country against sns_country and keeps the access decision off a held
+     connection. An edit may move the record to another country, so the new code
+     is what gets pinned. */
+  let code: string;
+  try {
+    code = await resolveCountryCode(snsPool, draft.country);
+  } catch (err) {
+    const msg = unknownCountryMessage(err);
+    if (msg) return { success: false, error: msg };
+    log.error('record.update.countryLookup.failed', err, {
+      rid,
+      country: draft.country,
+      actor: viewer.email,
+    });
+    return { success: false, error: 'Could not save the record.' };
+  }
+
+  const client = await snsPool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      `SELECT r.rid, r.classification, r.country, r.scope_level, r.supplier_id, r.supplier_name,
+              r.reason, r.justification, r.base_status, r.spend, r.expiry_date, r.created_by,
+              COALESCE(r.country_code, c.code) AS resolved_country_code
+         FROM sns_record r
+         LEFT JOIN sns_country c ON c.name = r.country
+        WHERE r.rid = $1
+          FOR UPDATE OF r`,
+      [rid],
+    );
+    if (rows.length === 0) {
+      await client.query('ROLLBACK');
+      return { success: false, error: 'Record not found.' };
+    }
+    const rec = rows[0];
+    const base = String(rec.base_status) as BaseStatus;
+
+    if (base !== 'Draft' && base !== 'Rejected') {
+      await client.query('ROLLBACK');
+      return {
+        success: false,
+        error:
+          base === 'Pending Level 1' || base === 'Pending Level 2'
+            ? 'This record is with a validator and cannot be edited. Ask them to reject it back to you first.'
+            : `A ${base} record cannot be edited. Raise a periodic review to change a published record.`,
+      };
+    }
+
+    /* The record belongs to whoever raised it. A rejection goes back to them
+       alone, so the revision is theirs to make — another requestor in the same
+       country has no business rewriting it. */
+    const owner = rec.created_by ? String(rec.created_by).toLowerCase() : '';
+    if (!viewer.isAdmin && owner !== viewer.email.toLowerCase()) {
+      await client.query('ROLLBACK');
+      return { success: false, error: 'Only the requestor who raised this record can edit it.' };
+    }
+
+    /* Both ends are checked: the country the record is in now, and the one it
+       is being moved to. Checking only the new one would let someone drag a
+       record out of a country they cannot act in. */
+    const oldCode = rec.resolved_country_code ? String(rec.resolved_country_code) : '';
+    if (!canActInCountry(viewer, oldCode)) {
+      await client.query('ROLLBACK');
+      return {
+        success: false,
+        error: `You are not approved to act on ${String(rec.country)} records.`,
+      };
+    }
+    if (!canActInCountry(viewer, code)) {
+      await client.query('ROLLBACK');
+      return {
+        success: false,
+        error: `You are not approved to raise records for ${draft.country}.`,
+      };
+    }
+
+    const before = await draftFromRecord(client, rec);
+    // draftFromRecord leaves spend out — it is not a submission rule — so the
+    // stored figure is read here for the diff.
+    before.spend = rec.spend == null ? '' : String(rec.spend);
+
+    const spend = parseInt(String(draft.spend).replace(/[^0-9]/g, ''), 10) || 0;
+    const after: Draft = { ...draft, spend: String(spend) };
+    const changes = diffDraft(before, after);
+    if (changes.length === 0) {
+      await client.query('ROLLBACK');
+      return { success: true };
+    }
+
+    await client.query(
+      `UPDATE sns_record
+          SET classification = $2, country = $3, country_code = $4, scope_level = $5,
+              supplier_id = $6, supplier_name = $7, reason = $8, justification = $9,
+              spend = $10, expiry_date = $11, updated_at = CURRENT_TIMESTAMP
+        WHERE rid = $1`,
+      [
+        rid,
+        draft.cls,
+        draft.country,
+        code,
+        draft.level,
+        draft.supplierId,
+        draft.supplierName,
+        draft.reason,
+        draft.justification,
+        spend,
+        isExpiryDate(draft.expiry) && isExpiryWithinCap(draft.expiry) ? draft.expiry.trim() : null,
+      ],
+    );
+
+    await upsertSupplier(client, draft.supplierId, draft.supplierName);
+
+    /* Replaced wholesale rather than reconciled: the rows carry a sort order
+       that is the user's chosen order, and matching them up by value would only
+       reproduce it. */
+    await client.query(`DELETE FROM sns_record_node WHERE record_rid = $1`, [rid]);
+    for (const [i, n] of draft.nodes.entries()) {
+      await client.query(
+        `INSERT INTO sns_record_node (record_rid, category, sub_category, family, commodity, sort_order)
+         VALUES ($1,$2,$3,$4,$5,$6)`,
+        [rid, n.cat, n.sub, n.fam, n.com ?? '', i],
+      );
+    }
+    await client.query(`DELETE FROM sns_record_segment WHERE record_rid = $1`, [rid]);
+    for (const seg of draft.segments) {
+      await client.query(
+        `INSERT INTO sns_record_segment (record_rid, segment) VALUES ($1,$2)
+         ON CONFLICT (record_rid, segment) DO NOTHING`,
+        [rid, seg],
+      );
+    }
+
+    await addHistory(
+      client,
+      rid,
+      base === 'Rejected' ? 'Revised after rejection' : 'Draft edited',
+      actorFor(viewer, 'req', draft.country),
+      viewer.email,
+      changes.join('\n'),
+    );
+
+    await client.query('COMMIT');
+    return { success: true };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    log.error('record.update.failed', err, { rid, actor: viewer.email });
+    return { success: false, error: unknownCountryMessage(err) ?? 'Could not save the record.' };
   } finally {
     client.release();
   }

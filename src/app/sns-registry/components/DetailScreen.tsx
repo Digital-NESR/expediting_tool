@@ -24,6 +24,8 @@ const SHOW_SAP_PANEL = true;
 
 const BTN_PRIMARY =
   'w-full rounded-lg bg-gradient-to-r from-[#307c4c] to-[#2b6f44] px-3 py-2.5 text-[12.5px] font-semibold text-white shadow-sm shadow-[#307c4c]/30 transition-opacity hover:opacity-90';
+const BTN_SECONDARY =
+  'w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-[12.5px] font-semibold text-slate-600 shadow-sm transition-colors hover:border-[#307c4c]/30 hover:text-[#307c4c]';
 const BTN_DANGER =
   'w-full rounded-lg border border-red-200 bg-white px-3 py-2.5 text-[12.5px] font-semibold text-red-600 transition-colors hover:bg-red-50';
 
@@ -69,6 +71,14 @@ export default function DetailScreen({ app }: { app: RegistryApp }) {
   const actions: { label: string; className: string; onClick: () => void }[] = [];
   const canReq = can('req');
   if ((rec.base === 'Draft' || rec.base === 'Rejected') && canReq) {
+    /* Offered before the submit button, because on a Rejected record it is
+       almost always the one that should be pressed first: resubmitting
+       unchanged sends the approver back the text they just refused. */
+    actions.push({
+      label: rec.base === 'Rejected' ? 'Edit and revise' : 'Edit record',
+      className: BTN_SECONDARY,
+      onClick: () => app.startEdit(rec.rid),
+    });
     actions.push({
       label:
         rec.base === 'Rejected'

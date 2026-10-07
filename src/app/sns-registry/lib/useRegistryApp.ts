@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import {
   advanceSnsRecord,
   createSnsRecord,
+  updateSnsRecord,
   getSnsRecords,
   rejectSnsRecord,
 } from '@/app/actions/sns';
@@ -62,6 +63,12 @@ export function useRegistryApp({
   const [draft, setDraftState] = useState<Draft | null>(null);
   /** Set when the open draft is a periodic review, naming the record it replaces. */
   const [renewalOf, setRenewalOf] = useState<number | null>(null);
+  /**
+   * The record being edited in place, or null when the wizard is raising a new
+   * one. Distinct from `renewalOf`: a renewal creates a replacement record and
+   * leaves the original alone, an edit rewrites the record itself.
+   */
+  const [editingRid, setEditingRid] = useState<number | null>(null);
   const [browse, setBrowse] = useState<Browse>({ cat: '', sub: '', fam: '' });
   const [copied, setCopied] = useState(false);
   const [rejectFor, setRejectFor] = useState<number | null>(null);
@@ -155,6 +162,7 @@ export function useRegistryApp({
     setStep(1);
     setError(null);
     setRenewalOf(null);
+    setEditingRid(null);
     setDraftState({
       cls: 'SGL',
       expiry: '',
@@ -181,6 +189,7 @@ export function useRegistryApp({
   const cancelDraft = useCallback(() => {
     setDraftState(null);
     setRenewalOf(null);
+    setEditingRid(null);
     setScreen('registry');
     setError(null);
   }, []);
@@ -224,24 +233,42 @@ export function useRegistryApp({
       if (!draft) return;
       setError(null);
       startTransition(async () => {
-        const res = await createSnsRecord(draft, base, renewalOf);
-        if (!res.success) {
-          setError(res.error ?? 'Could not save the record.');
-          return;
-        }
-        if (onCreated && res.rid) {
-          const problem = await onCreated(res.rid);
-          if (problem) setError(problem);
+        /* An edit rewrites the record in place and keeps its status; only a
+           new record goes through createSnsRecord. Saving an edit never
+           submits it, so `base` is ignored on that path — a Rejected record
+           stays Rejected until the requestor presses Resubmit. */
+        let rid: number | null;
+        if (editingRid != null) {
+          const res = await updateSnsRecord(editingRid, draft);
+          if (!res.success) {
+            setError(res.error ?? 'Could not save the record.');
+            return;
+          }
+          rid = editingRid;
+        } else {
+          const res = await createSnsRecord(draft, base, renewalOf);
+          if (!res.success) {
+            setError(res.error ?? 'Could not save the record.');
+            return;
+          }
+          rid = res.rid ?? null;
+          // Only a new record carries a file from the wizard; an edit attaches
+          // from the record screen, where the existing attachments are listed.
+          if (onCreated && rid) {
+            const problem = await onCreated(rid);
+            if (problem) setError(problem);
+          }
         }
         setRecords(await getSnsRecords());
         setScreen('detail');
-        setSelectedId(res.rid ?? null);
+        setSelectedId(rid);
         setDraftState(null);
         setRenewalOf(null);
+        setEditingRid(null);
         setStep(1);
       });
     },
-    [draft, renewalOf],
+    [draft, renewalOf, editingRid],
   );
 
   /* `comment` is required by the server on both validator steps, and ignored on
@@ -278,11 +305,50 @@ export function useRegistryApp({
    * be reconsidered, and pre-filling last year's date is the easiest way to
    * have it waved through unchanged.
    */
+  /**
+   * Opens the wizard on a record that has not been approved, to be rewritten.
+   *
+   * The same form as a new record, pointed at an existing row. Unlike a
+   * renewal the expiry DOES carry over: the date is still the one the
+   * requestor chose for this record, and clearing it on every edit would make
+   * fixing a typo in the justification cost them the expiry as well.
+   *
+   * Only Draft and Rejected can reach this; the server enforces it again.
+   */
+  const startEdit = useCallback(
+    (rid: number) => {
+      const r = records.find((x) => x.rid === rid);
+      if (!r) return;
+      setEditingRid(rid);
+      setRenewalOf(null);
+      setScreen('new');
+      setStep(1);
+      setError(null);
+      setDraftState({
+        cls: r.cls,
+        country: r.country,
+        level: r.level,
+        nodes: r.nodes.map((n) => ({ ...n })),
+        segments: [...r.segments],
+        supplierId: r.supplierId,
+        supplierName: r.supplierName,
+        spend: r.spend ? String(r.spend) : '',
+        reason: r.reason,
+        justification: r.justification,
+        expiry: r.expiry ?? '',
+      });
+      const first = r.nodes[0];
+      setBrowse(first ? { cat: first.cat, sub: first.sub, fam: first.fam } : defaultBrowse());
+    },
+    [records, defaultBrowse],
+  );
+
   const startRenewal = useCallback(
     (rid: number) => {
       const r = records.find((x) => x.rid === rid);
       if (!r) return;
       setRenewalOf(rid);
+      setEditingRid(null);
       setScreen('new');
       setStep(1);
       setError(null);
@@ -478,6 +544,8 @@ export function useRegistryApp({
     reject,
     startRenewal,
     renewalOf,
+    startEdit,
+    editingRid,
     exportCsv,
     onCopyId,
   };
