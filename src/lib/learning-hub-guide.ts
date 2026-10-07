@@ -47,6 +47,13 @@ export interface GuideLevel {
 }
 
 export interface GuideRole {
+  /**
+   * Stable slug, stored against the learner.
+   *
+   * Separate from `role` because the label is editorial and will be reworded; the key is what a
+   * saved choice points at, and rewording a label must not silently un-curate everybody.
+   */
+  key: string;
   role: string;
   /** Whole level when `releases` is absent; otherwise only those module titles of it. */
   takes: { level: GuideLevelKey; releases?: string[] }[];
@@ -199,66 +206,77 @@ const SUPPLY_CHAIN: TrackGuide = {
      Learner hours include the worksheet exercises, which is why they exceed the video time. */
   roles: [
     {
+      key: 'new-hire',
       role: 'New hire, any function',
       takes: [{ level: 'L1' }],
       hours: 2.9,
       why: 'Onboarding — this one is meant to be mandatory.',
     },
     {
+      key: 'warehouse',
       role: 'Warehouse, yard and materials',
       takes: [{ level: 'L1' }],
       hours: 2.9,
       why: 'The vocabulary, and where your work sits in the chain.',
     },
     {
+      key: 'field-ops',
       role: 'Field engineer or operations supervisor',
       takes: [{ level: 'L1' }],
       hours: 2.9,
       why: 'You create supply chain work without seeing it.',
     },
     {
+      key: 'buyer',
       role: 'Buyer or category specialist',
       takes: [{ level: 'L1' }, { level: 'L2', releases: ['Supply, Logistics & Trade'] }],
       hours: 5.6,
       why: 'Total cost of ownership, make versus buy, supplier relationships and trade.',
     },
     {
+      key: 'logistics',
       role: 'Logistics or freight coordinator',
       takes: [{ level: 'L1' }, { level: 'L2', releases: ['Supply, Logistics & Trade'] }],
       hours: 5.6,
       why: 'Modes, carriers, warehousing and customs.',
     },
     {
+      key: 'trade-compliance',
       role: 'Trade and customs compliance',
       takes: [{ level: 'L1' }, { level: 'L2', releases: ['Supply, Logistics & Trade'] }],
       hours: 5.6,
       why: 'The monetary, regulatory and trade material is what you are here for.',
     },
     {
+      key: 'inventory-analyst',
       role: 'Inventory analyst',
       takes: [{ level: 'L1' }, { level: 'L2', releases: ['Supply Planning & Inventory Control'] }],
       hours: 6.0,
       why: 'EOQ, safety stock, and how inventory shows up in the accounts.',
     },
     {
+      key: 'master-scheduler',
       role: 'Master scheduler or MRP user',
       takes: [{ level: 'L1' }, { level: 'L2', releases: ['Supply Planning & Inventory Control'] }],
       hours: 6.0,
       why: 'Master scheduling, MRP and capacity. Add the forecasting release if you own the forecast too.',
     },
     {
+      key: 'erp-lead',
       role: 'ERP or systems project lead',
       takes: [{ level: 'L1' }, { level: 'L3', releases: ['Systems, Communication and Projects'] }],
       hours: 6.5,
       why: 'The systems landscape, plus project management.',
     },
     {
+      key: 'ci-quality',
       role: 'Continuous improvement or quality lead',
       takes: [{ level: 'L1' }, { level: 'L3', releases: ['Metrics, Improvement and Change'] }],
       hours: 7.5,
       why: 'Metrics, lean, six sigma, total quality management and theory of constraints.',
     },
     {
+      key: 'demand-planner',
       role: 'Demand planner',
       takes: [
         { level: 'L1' },
@@ -271,6 +289,7 @@ const SUPPLY_CHAIN: TrackGuide = {
       why: 'Forecasting and error measurement, then what the forecast actually drives.',
     },
     {
+      key: 'sc-manager',
       role: 'Supply chain or procurement manager',
       takes: [{ level: 'L1' }, { level: 'L2' }, { level: 'L3' }],
       hours: 28.0,
@@ -280,6 +299,32 @@ const SUPPLY_CHAIN: TrackGuide = {
 };
 
 const GUIDES: TrackGuide[] = [SUPPLY_CHAIN];
+
+/** A role by its stored key. Null when a saved choice names a role the guide no longer has. */
+export function roleByKey(guide: TrackGuide, key: string | null | undefined): GuideRole | null {
+  if (!key) return null;
+  return guide.roles.find((r) => r.key === key) ?? null;
+}
+
+/**
+ * What a chosen role means for one course, by the course's own title.
+ *
+ * The courses come from the database and the path from the guide, and the only thing joining them
+ * is the title. A course the guide does not describe is reported as outside the path rather than
+ * guessed at, so a new course appears as "beyond your role" instead of silently recommended.
+ */
+export function courseInPath(
+  guide: TrackGuide,
+  role: GuideRole | null,
+  courseTitle: string,
+): { level: GuideLevel | null; included: boolean; releases: string[] | null } {
+  const level = guide.levels.find((l) => l.courseTitle === courseTitle) ?? null;
+  if (!level || !role) return { level, included: false, releases: null };
+  const hit = levelInPath(role, level.key);
+  return hit.included
+    ? { level, included: true, releases: hit.releases }
+    : { level, included: false, releases: null };
+}
 
 /** The guide for a module, or null for one that has none — which is most of them. */
 export function guideForTrack(trackKey: string): TrackGuide | null {

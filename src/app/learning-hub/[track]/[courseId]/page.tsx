@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
+  Check,
   CheckCircle2,
   Circle,
   Clock,
@@ -12,6 +13,8 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { getCourseDetail, getCourseTabTitle } from '@/lib/learning-hub-queries';
+import { courseInPath, guideForTrack, roleByKey } from '@/lib/learning-hub-guide';
+import { getLearnerRole } from '@/app/actions/learning-hub-role';
 import LearningHubShell from '../../components/LearningHubShell';
 import LearningHubHero from '../../components/LearningHubHero';
 import { formatDuration } from '@/lib/learning-hub-utils';
@@ -32,6 +35,17 @@ export default async function CourseDetailPage({ params }: PageProps) {
 
   const data = await getCourseDetail(trackKey, numericId);
   if (!data) notFound();
+
+  /* The same role that curates the course list curates the releases inside a course. A learner who
+     picked "buyer" is here for one of three releases, and saying which is the difference between a
+     twelve-hour course and a three-hour one. */
+  const guide = guideForTrack(trackKey);
+  const role = guide ? roleByKey(guide, await getLearnerRole(trackKey)) : null;
+  const pathReleases =
+    guide && role ? courseInPath(guide, role, data.course.title).releases : null;
+  /* Null means "the whole course is yours" OR "no role chosen"; both render without chips, which
+     is correct — a chip on every release says nothing. */
+  const inPath = (moduleTitle: string) => !pathReleases || pathReleases.includes(moduleTitle);
 
   const {
     track,
@@ -153,14 +167,33 @@ export default async function CourseDetailPage({ params }: PageProps) {
         {modules.map((mod, modIdx) => (
           <div
             key={mod.id}
-            className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+            className={`overflow-hidden rounded-2xl border bg-white shadow-sm ${
+              pathReleases && !inPath(mod.title)
+                ? 'border-slate-200 opacity-70 transition-opacity hover:opacity-100'
+                : 'border-slate-200'
+            }`}
           >
             {!flat && (
               <div className="border-b border-slate-100 bg-slate-50/60 px-5 py-3.5">
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                   Track {modIdx + 1}
                 </p>
-                <h2 className="text-sm font-bold text-slate-900">{mod.title}</h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-sm font-bold text-slate-900">{mod.title}</h2>
+                  {pathReleases &&
+                    (inPath(mod.title) ? (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white"
+                        style={{ background: color }}
+                      >
+                        <Check className="h-3 w-3" /> Your path
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                        Optional for your role
+                      </span>
+                    ))}
+                </div>
               </div>
             )}
             {mod.resource_label && mod.resource_url && (
@@ -255,7 +288,7 @@ export default async function CourseDetailPage({ params }: PageProps) {
                     </span>
                   </p>
                   <p className="truncate text-xs text-slate-500">
-                    The case studies and tasks for this release, as a form.
+                    Work the case studies and tasks for this release.
                   </p>
                 </div>
                 {mod.worksheet.status === 'submitted' ? (
