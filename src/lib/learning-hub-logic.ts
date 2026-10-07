@@ -139,18 +139,24 @@ export interface LessonProgressFlags {
 }
 
 /**
- * Completion for one lesson.
+ * Completion for one lesson: a progress row, or a passed quiz.
  *
- * A lesson WITH a quiz counts as complete only when the quiz is passed — a progress row on its own
- * does not count, otherwise "mark complete" would let a learner walk past the gate. A lesson with no
- * quiz is complete exactly when it has a progress row.
+ * It used to be stricter — a lesson with a quiz counted only once the quiz was passed, so that
+ * "mark complete" could not walk a learner past the gate. That reasoning held while the quiz was
+ * the only way to get a progress row on such a lesson, and the viewer still never offers the
+ * checkbox on one. What it did not survive was quizzes being ADDED to lessons people had already
+ * finished: eighteen learners who worked through Level 1 before it had any quizzes were reset to
+ * near zero by content arriving behind them, which is not a thing they did.
+ *
+ * So a historic tick now counts. The gate it was guarding is enforced by `locked` in
+ * `foldCourseGating`, which reads `quizPassed` directly and is not affected by this.
  */
 export function lessonProgressFlags(
   gate: LessonGate | undefined,
   hasProgressRow: boolean,
 ): LessonProgressFlags {
   return {
-    completed: gate?.hasQuiz ? !!gate.quizPassed : hasProgressRow,
+    completed: hasProgressRow || !!gate?.quizPassed,
     has_quiz: !!gate?.hasQuiz,
     quiz_passed: !!gate?.quizPassed,
     locked: !!gate?.locked,

@@ -677,12 +677,11 @@ export async function getLearningHubNavTracks(): Promise<LearningHubNavTrack[]> 
    The three screens that count a whole course at a time — the hub home, a module's course cards and
    My Work — did not. They counted progress rows, so "complete" meant two different things depending
    on which screen you were looking at: someone who ticked ten Level 1 lessons before those lessons
-   had quizzes read 10/11 on the card and 1/11 the moment they opened the course. The card was the
-   wrong one, and this is the rule it was missing.
+   had quizzes read 10/11 on the card and 1/11 the moment they opened the course.
 
    Expects `l` (the lesson), `p` (this learner's progress row), `z` (the lesson's quiz) and `r`
    (this learner's result for it) in scope. */
-const LESSON_IS_DONE = `CASE WHEN z.id IS NULL THEN p.id IS NOT NULL ELSE r.passed IS TRUE END`;
+const LESSON_IS_DONE = `(p.id IS NOT NULL OR r.passed IS TRUE)`;
 
 /* The two joins `LESSON_IS_DONE` needs. Carries one `?` for the learner's email, which must be
    counted when ordering the caller's parameters. */

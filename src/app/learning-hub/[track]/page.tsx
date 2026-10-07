@@ -6,7 +6,9 @@ import { getTrackDetail, getTrackName } from '@/lib/learning-hub-queries';
 import LearningHubShell from '../components/LearningHubShell';
 import LearningHubHero from '../components/LearningHubHero';
 import TrackIcon from '../components/TrackIcon';
+import TrackGuide from '../components/TrackGuide';
 import { isComingSoon, DEFAULT_TRACK_COLOR } from '@/lib/learning-hub-display';
+import { guideForTrack } from '@/lib/learning-hub-guide';
 
 type PageProps = { params: Promise<{ track: string }> };
 
@@ -23,6 +25,10 @@ export default async function TrackPage({ params }: PageProps) {
 
   const { track, courses } = data;
   const color = track.color || DEFAULT_TRACK_COLOR;
+  /* Most modules have no guide; the one that does gets it above the course list, keyed to the
+     courses by title so a renamed course loses its link rather than linking somewhere wrong. */
+  const guide = guideForTrack(track.key);
+  const courseIdByTitle = Object.fromEntries(courses.map((c) => [c.title, c.id]));
 
   return (
     <LearningHubShell
@@ -31,6 +37,15 @@ export default async function TrackPage({ params }: PageProps) {
       mainClassName="max-w-[1220px] py-6"
     >
       <LearningHubHero title={track.name} subtitle={track.description ?? undefined} />
+
+      {guide && courses.length > 0 && (
+        <TrackGuide
+          guide={guide}
+          trackKey={track.key}
+          courseIdByTitle={courseIdByTitle}
+          color={color}
+        />
+      )}
 
       {courses.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">

@@ -116,8 +116,8 @@ describe('an ungated module lets its lessons be taken in any order', () => {
     ]);
     expect(gates.get(1)?.quizPassed).toBe(true);
     expect(lessonProgressFlags(gates.get(1), false).completed).toBe(true);
-    // Opening lesson 2 freely does not mean finishing it: its quiz is still unpassed.
-    expect(lessonProgressFlags(gates.get(2), true).completed).toBe(false);
+    // Opening lesson 2 freely does not mean finishing it: nothing has been passed or ticked.
+    expect(lessonProgressFlags(gates.get(2), false).completed).toBe(false);
   });
 
   /* The column arrived in migration 003. Anything older than it, or any caller that does not
@@ -158,10 +158,30 @@ describe('a learner stage is the shortest honest answer to "where are they"', ()
   });
 });
 
-describe('a lesson with a quiz is only finished when the quiz is', () => {
-  it('ignores a progress row on a lesson whose quiz is unpassed', () => {
+describe('a lesson is finished by a tick or by its quiz', () => {
+  /* The strict rule — a quiz lesson counts only on the pass — was right while passing was the only
+     way such a lesson could acquire a progress row. Then quizzes were added to Level 1 and Level 2
+     behind people who had already worked through them, and eighteen learners were reset to near
+     zero by content arriving after them. A historic tick counts. */
+  it('honours a progress row that predates the lesson acquiring a quiz', () => {
     const gate = { hasQuiz: true, quizId: 10, passPct: 70, quizPassed: false, locked: false };
-    expect(lessonProgressFlags(gate, true).completed).toBe(false);
+    expect(lessonProgressFlags(gate, true).completed).toBe(true);
+    // Being complete is not being passed: the two are reported separately, and the gate reads the
+    // second one.
+    expect(lessonProgressFlags(gate, true).quiz_passed).toBe(false);
+  });
+
+  it('leaves a quiz lesson nobody has touched unfinished', () => {
+    const gate = { hasQuiz: true, quizId: 10, passPct: 70, quizPassed: false, locked: false };
+    expect(lessonProgressFlags(gate, false).completed).toBe(false);
+  });
+
+  /* The gate is enforced by `locked`, not by `completed`, so grandfathering the tick cannot open a
+     lesson the learner has not earned. */
+  it('still locks what follows an unpassed quiz, tick or no tick', () => {
+    const gates = foldCourseGating([lesson(1, { id: 10, passed: false }), lesson(2)]);
+    expect(lessonProgressFlags(gates.get(1), true).completed).toBe(true);
+    expect(gates.get(2)?.locked).toBe(true);
   });
 
   it('counts a quiz lesson as finished on the pass alone', () => {
