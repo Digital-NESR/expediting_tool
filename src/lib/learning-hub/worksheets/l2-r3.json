@@ -1,0 +1,1101 @@
+{
+ "key": "l2-r3",
+ "level": "Level 2 — Practitioner",
+ "title": "Source, Move and Trade",
+ "courseTitle": "Supply Chain Professional",
+ "moduleTitle": "Supply, Logistics & Trade",
+ "intro": "Open this before module 1 and keep a calculator or spreadsheet to hand. Four of the ten tasks are calculations, in sections B to E. The answers are in the companion answers document — work each task before you look.",
+ "sections": [
+  {
+   "id": "sa",
+   "title": "Section A · Module tasks",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Tasks 1, 6, 9 and 10 use the data in sections B to E. Work them there."
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-1-build-a-tco-comparison",
+     "title": "Module 1 — Build a TCO comparison",
+     "pauseMinutes": 10,
+     "prompts": [
+      "Use the two options in section B. Calculate the landed cost per unit for each.",
+      "Calculate the net annual effect, including the ongoing cost difference.",
+      "Calculate the payback on the process change cost.",
+      "Which input is the answer most sensitive to, and what would you do to reduce that uncertainty?"
+     ],
+     "field": null,
+     "redirect": "Work this one in the relevant section below."
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-2-test-a-sourcing-decision",
+     "title": "Module 2 — Test a sourcing decision",
+     "pauseMinutes": 8,
+     "prompts": [
+      "Take an activity your area performs in-house, or one it buys. Is it a core competency? Say why in terms your client would recognise.",
+      "If we stopped doing it, how long to rebuild, and at what cost?",
+      "What does the total cost comparison say — and does it agree with the first two answers?",
+      "If they conflict, which should decide, and who makes that call?"
+     ],
+     "field": {
+      "id": "sa.t-module-2-test-a-sourcing-decision",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-3-position-three-suppliers",
+     "title": "Module 3 — Position three suppliers",
+     "pauseMinutes": 8,
+     "prompts": [
+      "For each of three suppliers, name the relationship type that applies today.",
+      "Name the type that should apply, given item importance and supplier capability.",
+      "Where they differ, what would have to change — on both sides?",
+      "For your most important item: has the supplier been told the forecast, and confirmed capacity?"
+     ],
+     "field": {
+      "id": "sa.t-module-3-position-three-suppliers",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-4-move-the-line",
+     "title": "Module 4 — Move the line",
+     "pauseMinutes": 8,
+     "prompts": [
+      "Name one thing your area does that trades along the service–cost line rather than moving it.",
+      "For each of the four tactics, name one specific opportunity in your area.",
+      "Which is cheapest to start, and what is the first step?",
+      "Where does risk pooling conflict with field service — and how is that resolved today?"
+     ],
+     "field": {
+      "id": "sa.t-module-4-move-the-line",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-5-expediting-and-channels",
+     "title": "Module 5 — Expediting and channels",
+     "pauseMinutes": 8,
+     "prompts": [
+      "What proportion of shipments were expedited last quarter, and what did it cost?",
+      "For the three largest, what was the underlying cause — lead time data, horizon, or a late demand signal?",
+      "Take three items: which fulfilment channel does each use, and is it right?",
+      "Is any item routed through a node that adds a step without adding pooling or control?"
+     ],
+     "field": {
+      "id": "sa.t-module-5-expediting-and-channels",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-6-price-the-network",
+     "title": "Module 6 — Price the network",
+     "pauseMinutes": 9,
+     "prompts": [
+      "Use the data in section C. Apply the square root law to the safety stock.",
+      "Convert the inventory increase into an annual carrying cost.",
+      "Weigh it against the transport saving and the facility cost.",
+      "How many locations would you recommend, and what service consideration could override that?"
+     ],
+     "field": null,
+     "redirect": "Work this one in the relevant section below."
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-7-audit-the-functions",
+     "title": "Module 7 — Audit the functions",
+     "pauseMinutes": 7,
+     "prompts": [
+      "Which of the seven warehouse functions does your main base actually perform?",
+      "Is there inbound flow that could be cross-docked rather than put away?",
+      "Where could postponement apply?",
+      "When was slotting last reviewed, and on what evidence?"
+     ],
+     "field": {
+      "id": "sa.t-module-7-audit-the-functions",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-8-profile-your-movements",
+     "title": "Module 8 — Profile your movements",
+     "pauseMinutes": 7,
+     "prompts": [
+      "What share of last quarter's inbound travelled by each mode, by value and by weight?",
+      "How much air freight was planned, and how much was recovery?",
+      "Is transport capacity forecast anywhere in your process — and from what?",
+      "For your largest regular flow, when were rates last contracted rather than spot-booked?"
+     ],
+     "field": {
+      "id": "sa.t-module-8-profile-your-movements",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-9-compare-two-modes",
+     "title": "Module 9 — Compare two modes",
+     "pauseMinutes": 9,
+     "prompts": [
+      "Use the data in section D. Calculate the in-transit carrying cost per day.",
+      "Calculate the total cost of the movement under each mode.",
+      "State the real premium for the faster mode.",
+      "At what cost of delay per day would the faster mode become cheaper overall?"
+     ],
+     "field": null,
+     "redirect": "Work this one in the relevant section below."
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-10-landed-cost-of-an-import",
+     "title": "Module 10 — Landed cost of an import",
+     "pauseMinutes": 9,
+     "prompts": [
+      "Use the data in section E. Calculate the CIF value.",
+      "Calculate the duty, then the VAT on the correct base.",
+      "State the total cash required at the border, and the true landed cost.",
+      "Which Incoterm is in use, and what would change if it were ex works?"
+     ],
+     "field": null,
+     "redirect": "Work this one in the relevant section below."
+    }
+   ]
+  },
+  {
+   "id": "sb",
+   "title": "Section B · TCO comparison for the module 1 task",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "A valve assembly. Annual volume 600 units. Option A is the current regional supplier; option B is an offshore alternative."
+    },
+    {
+     "type": "grid",
+     "id": "sb.g-per-unit",
+     "head": [
+      "Per unit",
+      "Option A — regional",
+      "Option B — offshore"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Purchase price"
+       },
+       {
+        "v": "340"
+       },
+       {
+        "v": "210"
+       }
+      ],
+      [
+       {
+        "v": "Transportation"
+       },
+       {
+        "v": "20"
+       },
+       {
+        "v": "55"
+       }
+      ],
+      [
+       {
+        "v": "Duty at 8% of price + transport"
+       },
+       {
+        "v": "—"
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "LANDED COST"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Ongoing: monitoring, inspection, expediting, extra buffer"
+       },
+       {
+        "v": "—"
+       },
+       {
+        "v": "20"
+       }
+      ]
+     ]
+    },
+    {
+     "type": "grid",
+     "id": "sb.g-section-b-tco-comparison-for-the-module-1-task",
+     "head": [
+      "",
+      "Amount"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Annual landed cost saving"
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Annual ongoing cost increase"
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "NET ANNUAL SAVING"
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Process change cost — qualification, tooling, travel, systems"
+       },
+       {
+        "v": "120,000 one-off"
+       }
+      ],
+      [
+       {
+        "v": "PAYBACK"
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "freeNote",
+     "label": "Which input is the answer most sensitive to, and what would you do about it?",
+     "field": {
+      "id": "sb.f-which-input-is-the-answer-most-sensitive-to-and-what-would-y",
+      "kind": "long_text",
+      "rows": 3
+     }
+    }
+   ]
+  },
+  {
+   "id": "sc",
+   "title": "Section C · Network decision for the module 6 task",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Currently one central warehouse. A proposal would replace it with three regional bases."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Input",
+      "Value"
+     ],
+     "rows": [
+      [
+       "Safety stock held today, at one central location",
+       "900 units"
+      ],
+      [
+       "Unit landed cost",
+       "60 dollars"
+      ],
+      [
+       "Carrying cost rate",
+       "25% per year"
+      ],
+      [
+       "Outbound transport saving with 3 locations",
+       "45,000 per year"
+      ],
+      [
+       "Additional fixed facility cost with 3 locations",
+       "24,000 per year"
+      ],
+      [
+       "Outbound transport saving with 4 locations",
+       "55,000 per year"
+      ],
+      [
+       "Additional fixed facility cost with 4 locations",
+       "36,000 per year"
+      ]
+     ]
+    },
+    {
+     "type": "grid",
+     "id": "sc.g-locations",
+     "head": [
+      "Locations",
+      "Total safety stock",
+      "Increase over 1",
+      "Annual carrying cost of the increase",
+      "Net annual effect"
+     ],
+     "rows": [
+      [
+       {
+        "v": "1"
+       },
+       {
+        "v": "900"
+       },
+       {
+        "v": "—"
+       },
+       {
+        "v": "—"
+       },
+       {
+        "v": "—"
+       }
+      ],
+      [
+       {
+        "v": "3"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "4"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "freeNote",
+     "label": "Recommended number of locations, and the service consideration that could override it:",
+     "field": {
+      "id": "sc.f-recommended-number-of-locations-and-the-service-consideratio",
+      "kind": "long_text",
+      "rows": 3
+     }
+    }
+   ]
+  },
+  {
+   "id": "sd",
+   "title": "Section D · Mode comparison for the module 9 task",
+   "blocks": [
+    {
+     "type": "caseTable",
+     "head": [
+      "Input",
+      "Value"
+     ],
+     "rows": [
+      [
+       "Shipment value",
+       "400,000 dollars"
+      ],
+      [
+       "Carrying cost rate",
+       "20% per year"
+      ],
+      [
+       "Ocean freight",
+       "4,500 dollars"
+      ],
+      [
+       "Ocean transit time",
+       "28 days"
+      ],
+      [
+       "Air freight",
+       "26,000 dollars"
+      ],
+      [
+       "Air transit time",
+       "3 days"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "In-transit carrying cost per day  =  ____________ dollars"
+    },
+    {
+     "type": "grid",
+     "id": "sd.g-section-d-mode-comparison-for-the-module-9-task",
+     "head": [
+      "",
+      "Ocean",
+      "Air"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Freight cost"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "In-transit carrying cost"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "TOTAL COST OF THE MOVEMENT"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Real premium for the faster mode  =  ____________   ·   Days saved  =  ____________"
+    },
+    {
+     "type": "prose",
+     "text": "Break-even cost of delay per day  =  ____________ dollars"
+    }
+   ]
+  },
+  {
+   "id": "se",
+   "title": "Section E · Import to cost for the module 10 task",
+   "blocks": [
+    {
+     "type": "grid",
+     "id": "se.g-element",
+     "head": [
+      "Element",
+      "Basis",
+      "Amount"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Goods value (FOB)"
+       },
+       {
+        "v": "Commercial invoice"
+       },
+       {
+        "v": "250,000"
+       }
+      ],
+      [
+       {
+        "v": "Freight"
+       },
+       {
+        "input": true
+       },
+       {
+        "v": "18,000"
+       }
+      ],
+      [
+       {
+        "v": "Insurance"
+       },
+       {
+        "input": true
+       },
+       {
+        "v": "4,000"
+       }
+      ],
+      [
+       {
+        "v": "CIF VALUE"
+       },
+       {
+        "v": "cost + insurance + freight"
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Import duty at 7%"
+       },
+       {
+        "v": "of the CIF value"
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Value-added tax at 15%"
+       },
+       {
+        "v": "of (CIF + duty)"
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Customs and clearance fees"
+       },
+       {
+        "input": true
+       },
+       {
+        "v": "1,200"
+       }
+      ],
+      [
+       {
+        "v": "TOTAL CASH AT THE BORDER"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "TRUE LANDED COST"
+       },
+       {
+        "v": "VAT is recoverable"
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "freeNote",
+     "label": "The Incoterm in use is DAP (delivered at place). What would change under EXW (ex works)?",
+     "field": {
+      "id": "se.f-the-incoterm-in-use-is-dap-delivered-at-place-what-would-cha",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "callout",
+     "text": "Content derived from the CSCP body of knowledge, Module 2 Section A, rewritten in NESR's own words with NESR examples. Internal training use."
+    }
+   ]
+  }
+ ],
+ "answers": [
+  {
+   "title": "Worked answers",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "NESR SUPPLY CHAIN TRAINING PROGRAMME"
+    },
+    {
+     "type": "prose",
+     "text": "Level 2 — Practitioner"
+    },
+    {
+     "type": "prose",
+     "text": "Release 3 · Source and Deliver — worksheet answers"
+    },
+    {
+     "type": "callout",
+     "text": "Answers to all ten module tasks. Tasks 1, 6, 9 and 10 are calculations with definite answers, worked in full in sections B to E. The other six ask about your own area. Work the task before reading the answer."
+    }
+   ]
+  },
+  {
+   "title": "Section A · The judgement tasks",
+   "blocks": [
+    {
+     "type": "subheading",
+     "text": "Module 2 — Test a sourcing decision"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "\"We have always done it\" is not a core competency. The test is whether we are genuinely better at it than the market, and whether the client would recognise it as part of what they are buying.",
+      "When cost and capability conflict, the decision belongs above supply chain. That is not an evasion — trading a permanent capability for a recurring saving is a strategic decision.",
+      "What supply chain owes that decision is both sides of it: what it saves, and what it costs in capability, with rebuild time and cost quantified. Presenting only the saving is how capabilities get traded away by accident."
+     ]
+    },
+    {
+     "type": "subheading",
+     "text": "Module 3 — Position three suppliers"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The common mismatch runs the opposite way to what people expect. Organisations treat important suppliers transactionally far more often than they over-invest in unimportant ones — because depth is expensive, so it gets rationed by habit rather than by importance.",
+      "Moving rightward requires both sides to want it. A partnership we declare unilaterally is still an ongoing relationship.",
+      "If the answer to the fourth question is no, that is the cheapest improvement in this release. Sending a forecast costs an email; a confirmed capacity reservation is worth considerably more."
+     ]
+    },
+    {
+     "type": "subheading",
+     "text": "Module 4 — Move the line"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Substituting information for inventory is almost always cheapest to start, and the first step is almost always the same: give the people holding buffer stock visibility of what is already in transit toward them.",
+      "A great deal of buffer exists purely because nobody can see what is coming.",
+      "If the pooling-versus-proximity conflict is resolved case by case by whoever argues hardest, it is not resolved. The resolution is a policy stating which item classes are centralised and which are positioned."
+     ]
+    },
+    {
+     "type": "subheading",
+     "text": "Module 5 — Expediting and channels"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "If you could not answer the first question, you are in the majority. Expediting cost is spread across many shipments, so it is invisible unless somebody deliberately adds it up — and the total is usually what funds the fix.",
+      "The most common answer to the fourth question is a base that material passes through out of habit. If it is not stocked, inspected or consolidated there, it is a handling cost and a delay with no offsetting benefit."
+     ]
+    },
+    {
+     "type": "subheading",
+     "text": "Module 7 — Audit the functions"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Most bases perform three of the seven functions: storage, break-bulk and some assortment. Consolidation and cross-docking are usually available and unused — and both reduce cost rather than adding it.",
+      "If slotting was last reviewed when the warehouse was set up, that is a real opportunity. Consumption patterns change constantly; slotting almost never follows, because nobody owns the review."
+     ]
+    },
+    {
+     "type": "subheading",
+     "text": "Module 8 — Profile your movements"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The value-versus-weight split is the informative one. Air freight is usually a small share of weight and a large share of cost — which is what makes it worth managing closely.",
+      "If transport capacity is forecast nowhere, that is normal and it is an opportunity. The demand plan already contains what you need; converting it into expected container or pallet volumes by month is what allows rates to be contracted rather than bought late."
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Section B · Module 1 — worked answer",
+   "blocks": [
+    {
+     "type": "caseTable",
+     "head": [
+      "Per unit",
+      "Option A — regional",
+      "Option B — offshore",
+      "Difference"
+     ],
+     "rows": [
+      [
+       "Purchase price",
+       "340",
+       "210",
+       "−130"
+      ],
+      [
+       "Transportation",
+       "20",
+       "55",
+       "+35"
+      ],
+      [
+       "Duty at 8% of (210 + 55)",
+       "—",
+       "21",
+       "+21"
+      ],
+      [
+       "LANDED COST",
+       "360",
+       "286",
+       "−74"
+      ],
+      [
+       "Ongoing costs",
+       "—",
+       "+20",
+       "+20"
+      ]
+     ]
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "",
+      "Calculation",
+      "Amount"
+     ],
+     "rows": [
+      [
+       "Annual landed cost saving",
+       "74 × 600",
+       "44,400 a year"
+      ],
+      [
+       "Annual ongoing cost increase",
+       "20 × 600",
+       "(12,000) a year"
+      ],
+      [
+       "NET ANNUAL SAVING",
+       "44,400 − 12,000",
+       "32,400 a year"
+      ],
+      [
+       "Process change cost",
+       "one-off",
+       "120,000"
+      ],
+      [
+       "PAYBACK",
+       "120,000 ÷ 32,400",
+       "3.7 years"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Reading the result"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The purchase price advantage is 130 dollars a unit — 38%. By the time transport and duty are added, the landed advantage is 74. By the time ongoing costs are included, the net is 54 a unit.",
+      "At 600 units a year, a 3.7-year payback on a 120,000 investment is a marginal case rather than an obvious one. It would become attractive at higher volume and unattractive at lower."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "The answer is most sensitive to the ongoing cost estimate of 20 dollars a unit — the figure with no data behind it. At 30 a unit the net saving falls to 26,400 and the payback stretches to 4.5 years; at 10 it rises to 38,400 and the payback falls to 3.1 years. Ways to reduce that uncertainty are commercial rather than analytical: run a trial order and measure for six months, ask for references you can call, and build a break clause into the contract."
+    }
+   ]
+  },
+  {
+   "title": "Section C · Module 6 — worked answer",
+   "blocks": [
+    {
+     "type": "caseTable",
+     "head": [
+      "Locations",
+      "Total safety stock",
+      "Increase over 1",
+      "Annual carrying cost of the increase",
+      "Transport saving",
+      "Facility cost",
+      "NET ANNUAL EFFECT"
+     ],
+     "rows": [
+      [
+       "1",
+       "900 units",
+       "—",
+       "—",
+       "—",
+       "—",
+       "—"
+      ],
+      [
+       "3",
+       "1,559 units",
+       "659 units",
+       "9,883",
+       "45,000",
+       "(24,000)",
+       "+11,117"
+      ],
+      [
+       "4",
+       "1,800 units",
+       "900 units",
+       "13,500",
+       "55,000",
+       "(36,000)",
+       "+5,500"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "The working"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Square root law: 3 locations need 900 × √3 = 900 × 1.732 = 1,559 units. 4 locations need 900 × 2 = 1,800 units.",
+      "The increase at 3 locations is 659 units. At a landed cost of 60 dollars and a carrying rate of 25%, that costs 659 × 60 × 0.25 = 9,883 dollars a year.",
+      "At 4 locations the increase is 900 units, costing 13,500 dollars a year.",
+      "Net effect at 3 locations: 45,000 saved, less 24,000 of facility cost, less 9,883 of carrying cost, giving a net gain of 11,117 a year.",
+      "Net effect at 4 locations: 55,000 saved, less 36,000, less 13,500, giving a net gain of 5,500 a year."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "The recommendation"
+    },
+    {
+     "type": "prose",
+     "text": "Three locations. It produces the largest net gain, and the fourth location roughly halves it."
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The pattern is the important part: each additional location buys less transport saving and costs more in inventory and fixed cost. The returns diminish, and eventually reverse.",
+      "Note what the inventory line does. Without it, four locations would look like a 19,000 gain rather than 5,500 — the square root law removes 13,500 of apparent benefit that would otherwise have been invisible."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "The service consideration that could override this: if a location exists to put job-critical stock within reach of a rig, the case for it is availability, not cost, and it may be right even when the arithmetic says otherwise. What the calculation does is make the price of that decision visible. Choosing to pay it is legitimate. Not knowing you are paying it is not."
+    }
+   ]
+  },
+  {
+   "title": "Section D · Module 9 — worked answer",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "In-transit carrying cost per day  =  400,000 × 20% ÷ 365  =  219.18 dollars"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "",
+      "Ocean",
+      "Air"
+     ],
+     "rows": [
+      [
+       "Freight cost",
+       "4,500",
+       "26,000"
+      ],
+      [
+       "Transit time",
+       "28 days",
+       "3 days"
+      ],
+      [
+       "In-transit carrying cost",
+       "28 × 219.18  =  6,137",
+       "3 × 219.18  =  658"
+      ],
+      [
+       "TOTAL COST OF THE MOVEMENT",
+       "10,637",
+       "26,658"
+      ]
+     ]
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "",
+      "Amount"
+     ],
+     "rows": [
+      [
+       "Real premium for air  (26,658 − 10,637)",
+       "16,021"
+      ],
+      [
+       "Days saved  (28 − 3)",
+       "25 days"
+      ],
+      [
+       "BREAK-EVEN COST OF DELAY",
+       "640.82 per day"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "How to use the break-even figure"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Below about 641 dollars a day, ocean is the cheaper choice overall. Above it, air is.",
+      "On freight alone the premium looks like 21,500. Including in-transit inventory it is 16,021 — so a quarter of the apparent gap was being paid in financed inventory rather than in freight.",
+      "The break-even converts an argument into a threshold. Instead of debating whether a shipment is urgent, ask a single answerable question: does a day of delay on this item cost more or less than 641 dollars?"
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "Most people find the threshold lower than expected — which means the faster mode is justified more often than the freight rate alone suggests, and less often than the person raising the request believes. Both halves of that sentence matter."
+    }
+   ]
+  },
+  {
+   "title": "Section E · Module 10 — worked answer",
+   "blocks": [
+    {
+     "type": "caseTable",
+     "head": [
+      "Element",
+      "Basis",
+      "Amount"
+     ],
+     "rows": [
+      [
+       "Goods value (FOB)",
+       "Commercial invoice",
+       "250,000"
+      ],
+      [
+       "Freight",
+       "",
+       "18,000"
+      ],
+      [
+       "Insurance",
+       "",
+       "4,000"
+      ],
+      [
+       "CIF VALUE",
+       "250,000 + 18,000 + 4,000",
+       "272,000"
+      ],
+      [
+       "Import duty at 7%",
+       "7% of 272,000",
+       "19,040"
+      ],
+      [
+       "Value-added tax at 15%",
+       "15% of (272,000 + 19,040) = 15% of 291,040",
+       "43,656"
+      ],
+      [
+       "Customs and clearance fees",
+       "",
+       "1,200"
+      ],
+      [
+       "TOTAL CASH AT THE BORDER",
+       "272,000 + 19,040 + 43,656 + 1,200",
+       "335,896"
+      ],
+      [
+       "TRUE LANDED COST",
+       "cash less the recoverable VAT",
+       "292,240"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Two things to check in your working"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "VAT is calculated on the CIF value plus the duty, not on the CIF value alone. Calculating it on 272,000 gives 40,800 and understates the cash requirement by 2,856 — which matters, because somebody has to fund it before the goods are released.",
+      "The true landed cost is 292,240, not 335,896. VAT is recoverable by a registered business, so it is a cash flow item rather than a cost. Treating it as a cost overstates the cost of importing by about 15% and can distort a sourcing comparison badly — which takes you straight back to module 1."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "DAP versus EXW"
+    },
+    {
+     "type": "prose",
+     "text": "Under DAP the seller delivers to the named place, bearing carriage and risk to that point. Under EXW the buyer becomes responsible at the seller's premises."
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "We would arrange and pay for carriage from the supplier's factory gate — including the inland leg in their country, where we have no presence.",
+      "We would become responsible for export clearance in the seller's country, which is where we have the least ability to act and the least visibility.",
+      "Risk would transfer at the factory gate rather than on delivery, so damage in transit becomes ours from the moment the goods are made available.",
+      "The quoted unit price would fall, because the seller is doing less — which is precisely how the term quietly transfers cost and risk while appearing to save money."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "That last point is the Incoterms lesson in one line. The term is agreed at quotation stage, long before anyone at a border sees it — and a lower price under a term that hands us the risk is not a lower cost."
+    },
+    {
+     "type": "callout",
+     "text": "Content derived from the CSCP body of knowledge, Module 2 Section A, rewritten in NESR's own words with NESR examples. Internal training use."
+    }
+   ]
+  }
+ ]
+}

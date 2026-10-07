@@ -1,0 +1,1184 @@
+{
+ "key": "l3-r2",
+ "level": "Level 3 — Advanced",
+ "title": "Design the Supply Chain",
+ "courseTitle": "Supply Chain Expert",
+ "moduleTitle": "Supply Chain and Product Design",
+ "intro": "Three tasks, all of them calculations, and all three decide whether money gets spent. Keep a calculator or spreadsheet to hand. The figures are different from the ones worked in the video, deliberately — and each task contains one thing that is not in the headline numbers. Work each task before you look at the answers document.",
+ "sections": [
+  {
+   "id": "s1",
+   "title": "Task 1 · Net present value and discounted payback",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "NESR is considering an automated pipe-handling and inspection cell at a regional base. The equipment has a stated useful life of five years, after which it is expected to be fully written down with no residual value. The cost of capital is 12%."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Element",
+      "Figure"
+     ],
+     "rows": [
+      [
+       "Initial investment, at time zero",
+       "USD 1,800,000"
+      ],
+      [
+       "Expected net cash inflow, each year for five years",
+       "USD 500,000"
+      ],
+      [
+       "Cost of capital (discount rate)",
+       "12%"
+      ],
+      [
+       "Stated useful life of the equipment",
+       "5 years"
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s1.q-complete-the-discounting-table-carry-the-cumulative-present-",
+     "mark": "a)",
+     "text": "Complete the discounting table. Carry the cumulative present value forward as you go — you will need it for the discounted payback.",
+     "field": null,
+     "answeredBy": "s1.g-year"
+    },
+    {
+     "type": "grid",
+     "id": "s1.g-year",
+     "head": [
+      "Year",
+      "Net cash flow",
+      "Discount factor at 12%",
+      "Present value",
+      "Cumulative PV"
+     ],
+     "rows": [
+      [
+       {
+        "v": "0"
+       },
+       {
+        "v": "(1,800,000)"
+       },
+       {
+        "v": "1.0000"
+       },
+       {
+        "v": "(1,800,000)"
+       },
+       {
+        "v": "(1,800,000)"
+       }
+      ],
+      [
+       {
+        "v": "1"
+       },
+       {
+        "v": "500,000"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "2"
+       },
+       {
+        "v": "500,000"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "3"
+       },
+       {
+        "v": "500,000"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "4"
+       },
+       {
+        "v": "500,000"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "5"
+       },
+       {
+        "v": "500,000"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s1.q-state-the-total-present-value-of-the-inflows-and-the-net-pre",
+     "mark": "b)",
+     "text": "State the total present value of the inflows, and the net present value.",
+     "field": {
+      "id": "s1.q-state-the-total-present-value-of-the-inflows-and-the-net-pre",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "question",
+     "id": "s1.q-express-the-net-present-value-as-a-percentage-of-the-initial",
+     "mark": "c)",
+     "text": "Express the net present value as a percentage of the initial investment. Write the percentage, not just the amount.",
+     "field": {
+      "id": "s1.q-express-the-net-present-value-as-a-percentage-of-the-initial",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "question",
+     "id": "s1.q-calculate-the-simple-payback-period-and-the-discounted-payba",
+     "mark": "d)",
+     "text": "Calculate the simple payback period and the discounted payback period. Compare both against the equipment's five-year useful life.",
+     "field": {
+      "id": "s1.q-calculate-the-simple-payback-period-and-the-discounted-payba",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "question",
+     "id": "s1.q-your-recommendation-in-one-sentence-and-the-single-assumptio",
+     "mark": "e)",
+     "text": "Your recommendation, in one sentence — and the single assumption that would flip it if it were wrong by ten per cent.",
+     "field": {
+      "id": "s1.q-your-recommendation-in-one-sentence-and-the-single-assumptio",
+      "kind": "long_text",
+      "rows": 4
+     }
+    }
+   ]
+  },
+  {
+   "id": "s2",
+   "title": "Task 2 · A component commonality case",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "A product family currently uses 12 variants of one sealing component. Engineering proposes reducing this to 5. Annual demand across all variants is 30,000 units."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Element",
+      "Figure"
+     ],
+     "rows": [
+      [
+       "Unit price today, buying twelve variants in small lots",
+       "USD 28"
+      ],
+      [
+       "Unit price at the consolidated volume (supplier has indicated a tier)",
+       "USD 25"
+      ],
+      [
+       "Total annual demand across all variants",
+       "30,000 units"
+      ],
+      [
+       "Safety stock held today, across the twelve part numbers",
+       "4,800 units"
+      ],
+      [
+       "Inventory carrying rate",
+       "20% a year"
+      ],
+      [
+       "Estimated annual saving in changeover and handling",
+       "USD 9,000"
+      ],
+      [
+       "One-off engineering and requalification cost",
+       "USD 210,000"
+      ],
+      [
+       "One-off write-off of the discontinued variants' stock",
+       "USD 48,000"
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s2.q-work-the-case-as-proposed-12-variants-down-to-5",
+     "mark": "a)",
+     "text": "Work the case as proposed — 12 variants down to 5.",
+     "field": null,
+     "answeredBy": "s2.g-step"
+    },
+    {
+     "type": "grid",
+     "id": "s2.g-step",
+     "head": [
+      "Step",
+      "Your working",
+      "Result"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Annual purchase saving"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Safety stock after consolidation (square root law)"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "One-off cash released"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Annual carrying saving"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "TOTAL ANNUAL BENEFIT"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "One-off cost"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "PAYBACK (years)"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "TECHNICAL NOTE — read this only after you have completed part (a). Variant 7 serves a sour-service application and is qualified to a different material specification. It cannot take the common part and must be retained. Variant 7 accounts for 2,400 units a year of the 30,000, and it will continue to be bought at USD 28. The supplier's volume tier applies to the common part only, and the tier threshold is 25,000 units a year."
+    },
+    {
+     "type": "question",
+     "id": "s2.q-rework-whatever-the-note-changes-and-state-the-corrected-pay",
+     "mark": "b)",
+     "text": "Rework whatever the note changes, and state the corrected payback.",
+     "field": null,
+     "answeredBy": "s2.g-step-2"
+    },
+    {
+     "type": "grid",
+     "id": "s2.g-step-2",
+     "head": [
+      "Step",
+      "Your working",
+      "Result"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Number of part numbers after consolidation"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Volume of the common part — does it still clear the tier?"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Revised annual purchase saving"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Revised safety stock after consolidation"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Revised cash released, and carrying saving"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "REVISED TOTAL ANNUAL BENEFIT"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "CORRECTED PAYBACK (years)"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s2.q-how-many-months-apart-are-the-two-answers-and-name-the-singl",
+     "mark": "c)",
+     "text": "How many months apart are the two answers? And name the single commercial condition that must be confirmed in writing before any engineering money is committed.",
+     "field": {
+      "id": "s2.q-how-many-months-apart-are-the-two-answers-and-name-the-singl",
+      "kind": "long_text",
+      "rows": 3
+     }
+    }
+   ]
+  },
+  {
+   "id": "s3",
+   "title": "Task 3 · A technology benefit-cost case",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "A warehouse management system proposal, over four years. This is how it arrived — the benefits and the costs, with no ratios calculated."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Benefits over 4 years",
+      "USD",
+      "Costs over 4 years",
+      "USD"
+     ],
+     "rows": [
+      [
+       "Picking productivity improvement",
+       "380,000",
+       "Licence, 4 years",
+       "240,000"
+      ],
+      [
+       "Inventory accuracy — fewer write-offs",
+       "145,000",
+       "Implementation and configuration",
+       "195,000"
+      ],
+      [
+       "Reduced overtime",
+       "95,000",
+       "Hardware — scanners and RF infrastructure",
+       "110,000"
+      ],
+      [
+       "Improved customer service (estimated)",
+       "180,000",
+       "Training and change management",
+       "60,000"
+      ],
+      [
+       "Improved staff satisfaction (estimated)",
+       "40,000",
+       "Internal resource time",
+       "55,000"
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s3.q-total-the-benefits-and-the-costs-then-compute-the-benefit-co",
+     "mark": "a)",
+     "text": "Total the benefits and the costs, then compute the benefit-cost ratio and the return on investment over the four years.",
+     "field": null,
+     "answeredBy": "s3.g-measure"
+    },
+    {
+     "type": "grid",
+     "id": "s3.g-measure",
+     "head": [
+      "Measure",
+      "Your working",
+      "Result"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Total benefits"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Total costs"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Benefit-cost ratio"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Return on investment over 4 years"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s3.q-now-separate-the-tangible-benefits-from-the-intangible-ones-",
+     "mark": "b)",
+     "text": "Now separate the tangible benefits from the intangible ones, and recompute both figures using TANGIBLE benefits only. Write down what you find.",
+     "field": null,
+     "answeredBy": "s3.g-measure-2"
+    },
+    {
+     "type": "grid",
+     "id": "s3.g-measure-2",
+     "head": [
+      "Measure",
+      "Your working",
+      "Result"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Tangible benefits only"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Intangible benefits"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "TANGIBLE-ONLY benefit-cost ratio"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "TANGIBLE-ONLY return on investment"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s3.q-convert-the-total-four-year-return-into-an-annualised-figure",
+     "mark": "c)",
+     "text": "Convert the total four-year return into an annualised figure. Would it clear a hurdle rate of 8% a year?",
+     "field": {
+      "id": "s3.q-convert-the-total-four-year-return-into-an-annualised-figure",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "question",
+     "id": "s3.q-your-recommendation-and-the-one-cost-line-you-would-challeng",
+     "mark": "d)",
+     "text": "Your recommendation, and the one cost line you would challenge before approving anything — with the reason.",
+     "field": {
+      "id": "s3.q-your-recommendation-and-the-one-cost-line-you-would-challeng",
+      "kind": "long_text",
+      "rows": 4
+     }
+    }
+   ]
+  },
+  {
+   "id": "s4",
+   "title": "Notes",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Anything you want to raise with the training team, or a correction to any figure in this release. Corrections are welcome — every worked figure has been checked, and checked figures are still worth challenging."
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "s4.f-note",
+      "kind": "long_text",
+      "rows": 8
+     }
+    },
+    {
+     "type": "callout",
+     "text": "Derived from the CSCP body of knowledge and rewritten in NESR’s own words with NESR examples. Internal training use. Confirm ASCM licence terms before any external distribution."
+    }
+   ]
+  }
+ ],
+ "answers": [
+  {
+   "title": "Worked answers",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "NESR SUPPLY CHAIN TRAINING PROGRAMME"
+    },
+    {
+     "type": "prose",
+     "text": "Level 3 — Advanced"
+    },
+    {
+     "type": "prose",
+     "text": "Release 2 · Design the Supply Chain — worksheet answers"
+    },
+    {
+     "type": "callout",
+     "text": "Three tasks, worked in full. Every one of them has a headline answer that approves the spend and a second reading that does not, and the second reading is the point of the exercise. Work each task before reading its answer."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Task",
+      "What it tests",
+      "What the headline number hides"
+     ],
+     "rows": [
+      [
+       "1",
+       "Net present value and discounted payback",
+       "The NPV is positive by 0.13% of the investment, and discounted payback lands at 4.99 years against a 5-year life"
+      ],
+      [
+       "2",
+       "Component commonality",
+       "One technical exception in a footnote moves the payback by two and a half months — and 85% of the benefit rests on a price that is only \"indicated\""
+      ],
+      [
+       "3",
+       "Technology benefit-cost",
+       "On tangible benefits alone the ratio is BELOW 1.0 and the return is negative"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Task 1 · Net present value and discounted payback — worked",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "a)  The discounting table"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Year",
+      "Net cash flow",
+      "Discount factor at 12%",
+      "Present value",
+      "Cumulative PV"
+     ],
+     "rows": [
+      [
+       "0",
+       "(1,800,000)",
+       "1.0000",
+       "(1,800,000)",
+       "(1,800,000)"
+      ],
+      [
+       "1",
+       "500,000",
+       "0.8929",
+       "446,429",
+       "446,429"
+      ],
+      [
+       "2",
+       "500,000",
+       "0.7972",
+       "398,597",
+       "845,026"
+      ],
+      [
+       "3",
+       "500,000",
+       "0.7118",
+       "355,890",
+       "1,200,916"
+      ],
+      [
+       "4",
+       "500,000",
+       "0.6355",
+       "317,759",
+       "1,518,675"
+      ],
+      [
+       "5",
+       "500,000",
+       "0.5674",
+       "283,713",
+       "1,802,388"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "b)  Total present value and net present value"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Total present value of the inflows: 1,802,388.",
+      "Net present value: 1,802,388 − 1,800,000 = +2,388."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "c)  As a percentage of the investment"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "2,388 ÷ 1,800,000 = 0.13%."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "This is the whole task. The net present value is positive — so on the rule as normally stated, accept. But it is positive by one-eighth of one per cent of the investment. On a 1.8 million commitment the analysis has produced a margin of 2,388 dollars, which is less than the cost of the meeting that approves it."
+    },
+    {
+     "type": "prose",
+     "text": "d)  The two paybacks"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Measure",
+      "Calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       "Simple payback",
+       "1,800,000 ÷ 500,000",
+       "3.60 years"
+      ],
+      [
+       "Discounted payback — cumulative PV after year 4",
+       "1,518,675, still short by 281,325",
+       "—"
+      ],
+      [
+       "Year 5 contributes",
+       "283,713 of present value",
+       "—"
+      ],
+      [
+       "So the shortfall is covered",
+       "281,325 ÷ 283,713 = 99.2% of the way through year 5",
+       "—"
+      ],
+      [
+       "DISCOUNTED PAYBACK",
+       "4 + 0.992",
+       "4.99 years"
+      ],
+      [
+       "Against the stated useful life",
+       "5.00 years",
+       "clears by 3 days"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "e)  The recommendation"
+    },
+    {
+     "type": "prose",
+     "text": "Refuse, or send it back for better numbers. The correct one-sentence version:"
+    },
+    {
+     "type": "callout",
+     "text": "\"The net present value is positive by 2,388 on an investment of 1.8 million, and the discounted payback is 4.99 years against a stated five-year life — so on these figures the project breaks even three days before the asset is written off, and I cannot recommend committing capital on that margin without a firmer estimate of the annual cash inflow.\""
+    },
+    {
+     "type": "prose",
+     "text": "The assumption that flips it"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The annual net cash inflow of 500,000. If it is 10% low — 450,000 — the total present value falls to about 1,622,000 and the net present value becomes roughly negative 178,000. If it is 10% high, the NPV rises to about 182,000. A ten per cent estimating error swings the answer by 360,000, which is 150 times the margin the analysis produced.",
+      "Note also that the discount rate does the same thing. At 14% rather than 12%, the same cash flows are worth about 1,716,000, and the NPV is negative."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "The general lesson, and the reason this task exists. \"NPV is positive, therefore accept\" is a rule that only works when the NPV is comfortably positive. When it is marginal, the right response is not to approve or refuse on the number — it is to go back and reduce the uncertainty in the input that dominates it. A decision that a ten per cent estimating error would reverse has not actually been made by the analysis. It has been made by the estimate."
+    }
+   ]
+  },
+  {
+   "title": "Task 2 · Component commonality — worked",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "a)  The case as proposed: 12 variants down to 5"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Step",
+      "Calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       "Annual purchase saving",
+       "30,000 × (28 − 25)",
+       "90,000"
+      ],
+      [
+       "Square root law factor",
+       "√(5 ÷ 12) = √0.4167",
+       "0.6455"
+      ],
+      [
+       "Safety stock after consolidation",
+       "4,800 × 0.6455",
+       "3,098 units"
+      ],
+      [
+       "One-off cash released",
+       "(4,800 − 3,098) × 25",
+       "42,540"
+      ],
+      [
+       "Annual carrying saving",
+       "42,540 × 0.20",
+       "8,508"
+      ],
+      [
+       "Changeover and handling saving",
+       "given",
+       "9,000"
+      ],
+      [
+       "TOTAL ANNUAL BENEFIT",
+       "90,000 + 8,508 + 9,000",
+       "107,508"
+      ],
+      [
+       "One-off cost",
+       "210,000 + 48,000",
+       "258,000"
+      ],
+      [
+       "PAYBACK",
+       "258,000 ÷ 107,508",
+       "2.40 years"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "b)  Reworked for the technical note"
+    },
+    {
+     "type": "prose",
+     "text": "Variant 7 cannot take the common part, so the consolidation is 12 → 6, not 12 → 5. Three things change."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Step",
+      "Calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       "Part numbers after consolidation",
+       "5 common + variant 7 retained",
+       "6"
+      ],
+      [
+       "Volume of the common part",
+       "30,000 − 2,400",
+       "27,600 units"
+      ],
+      [
+       "Does it still clear the 25,000 tier?",
+       "27,600 > 25,000",
+       "Yes — the tier holds"
+      ],
+      [
+       "Revised purchase saving",
+       "27,600 × (28 − 25); variant 7 stays at 28",
+       "82,800"
+      ],
+      [
+       "Revised safety stock",
+       "4,800 × √(6 ÷ 12) = 4,800 × 0.7071",
+       "3,394 units"
+      ],
+      [
+       "Revised cash released",
+       "(4,800 − 3,394) × 25",
+       "35,147"
+      ],
+      [
+       "Revised carrying saving",
+       "35,147 × 0.20",
+       "7,029"
+      ],
+      [
+       "REVISED TOTAL ANNUAL BENEFIT",
+       "82,800 + 7,029 + 9,000",
+       "98,829"
+      ],
+      [
+       "CORRECTED PAYBACK",
+       "258,000 ÷ 98,829",
+       "2.61 years"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "c)  The gap, and the condition"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "2.61 years against 2.40 years is a difference of 0.21 years, or about two and a half months.",
+      "The three things the footnote changed: 2,400 units a year keep paying the old price, so the purchase saving falls by 7,200; the pooling benefit is smaller because six part numbers pool less than five, so the carrying saving falls by about 1,479; and the engineering cost does NOT fall, because the work to qualify the common part is the same."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "The commercial condition: the supplier's volume tier. The data says the supplier \"has indicated\" a tier at 25,000 units. Indicated is not agreed. The purchase saving is 82,800 of a 98,829 annual benefit — 84% of the case — and it exists only if that price is honoured at the consolidated quantity. Get it in writing, at the 27,600 figure rather than the 30,000 figure, before any part of the 210,000 engineering spend is committed."
+    },
+    {
+     "type": "prose",
+     "text": "What to do if the tier does not hold"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Without the price reduction the annual benefit falls to 7,029 + 9,000 = 16,029, and the payback goes from 2.6 years to about 16 years. The project is not marginal at that point. It is dead.",
+      "Which is the real finding: this is not an engineering business case with a commercial input. It is a commercial business case with an engineering cost attached, and it should be presented in that order."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "Two general lessons. First, one technical exception in a footnote moved the answer — and there is almost always a variant 7. Ask for the exceptions before you build the model, not after. Second, when one line is more than 80% of the benefit, the business case is really about that line, and everything else on the page is detail."
+    }
+   ]
+  },
+  {
+   "title": "Task 3 · Technology benefit-cost — worked",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "a)  The headline figures"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Measure",
+      "Calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       "Total benefits",
+       "380,000 + 145,000 + 95,000 + 180,000 + 40,000",
+       "840,000"
+      ],
+      [
+       "Total costs",
+       "240,000 + 195,000 + 110,000 + 60,000 + 55,000",
+       "660,000"
+      ],
+      [
+       "BENEFIT-COST RATIO",
+       "840,000 ÷ 660,000",
+       "1.27"
+      ],
+      [
+       "RETURN ON INVESTMENT over 4 years",
+       "(840,000 − 660,000) ÷ 660,000",
+       "27.3%"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "On those figures, approve. For every dollar invested, 1.27 is returned."
+    },
+    {
+     "type": "prose",
+     "text": "b)  Tangible benefits only"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Measure",
+      "Calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       "Tangible benefits",
+       "380,000 + 145,000 + 95,000",
+       "620,000"
+      ],
+      [
+       "Intangible benefits",
+       "180,000 + 40,000",
+       "220,000"
+      ],
+      [
+       "TANGIBLE-ONLY BENEFIT-COST RATIO",
+       "620,000 ÷ 660,000",
+       "0.94"
+      ],
+      [
+       "TANGIBLE-ONLY RETURN ON INVESTMENT",
+       "(620,000 − 660,000) ÷ 660,000",
+       "−6.1%"
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "This is the trap. On tangible benefits alone the ratio is BELOW 1.0 and the return is NEGATIVE. The project does not clear the bar on the money anybody can invoice — it clears it only because two estimated numbers, worth 220,000, were included. Those two lines are 26% of the benefits and 122% of the net gain."
+    },
+    {
+     "type": "prose",
+     "text": "c)  Annualised"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "27.3% over four years annualises to 1.2727 to the power of one quarter, minus one — which is 6.2% a year.",
+      "Against a hurdle rate of 8% a year, it does NOT clear. And on tangible benefits alone it is negative, so it does not clear any hurdle rate at all."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "d)  The recommendation"
+    },
+    {
+     "type": "prose",
+     "text": "Do not refuse it — refusing it on these figures would be as lazy as approving it on the headline. The correct answer is a conditional recommendation:"
+    },
+    {
+     "type": "callout",
+     "text": "\"The proposal returns 1.27 for every 1.00 invested over four years, which annualises to 6.2% — below our 8% hurdle. And on tangible benefits alone the ratio is 0.94 and the return is negative 6.1%, so the case rests entirely on two estimated benefits worth 220,000. I would not approve it until (a) those two estimates are re-derived by consensus across operations, commercial and finance rather than by one function, and (b) the hardware line is re-priced, because RF infrastructure for a live warehouse is the line that is understated in almost every proposal of this kind.\""
+    },
+    {
+     "type": "prose",
+     "text": "The cost line to challenge, and why"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Hardware — scanners and RF infrastructure at 110,000. This is a one-time project expense, and the source names exactly this category as the one that hides costs: fees to investigate alternatives, data conversion, and lost productivity during the learning curve. RF coverage surveys, cabling in a working warehouse, ruggedised devices and spares, and the device refresh that will fall inside a four-year window are all routinely omitted.",
+      "A defensible second challenge: internal resource time at 55,000 across four years is roughly a quarter of one full-time person. For a warehouse management system implementation with data cleansing and a live cutover, that is low — and the source is explicit that a salaried employee being a sunk cost does not mean the cost of reallocating them can be ignored."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "And what is legitimately in the project's favour, because a good review says this too: the intangible benefits are real, not invented. Improved customer service from accurate inventory is exactly the sort of benefit the source says should be estimated by consensus rather than dropped. The problem is not that they were included. It is that they were included without the tangible-only figure being shown alongside — and that is what turns an honest case into a misleading one."
+    }
+   ]
+  },
+  {
+   "title": "Source note",
+   "blocks": [
+    {
+     "type": "callout",
+     "text": "Derived from the CSCP body of knowledge and rewritten in NESR’s own words with NESR examples. Every figure in this document has been computed and verified independently of the slides. Internal training use. Confirm ASCM licence terms before any external distribution."
+    }
+   ]
+  }
+ ]
+}

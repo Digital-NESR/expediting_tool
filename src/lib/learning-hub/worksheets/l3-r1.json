@@ -1,0 +1,1617 @@
+{
+ "key": "l3-r1",
+ "level": "Level 3 — Advanced",
+ "title": "Develop the Strategy",
+ "courseTitle": "Supply Chain Expert",
+ "moduleTitle": "Supply Chain Strategy",
+ "intro": "Open this before module 1 and keep a calculator or spreadsheet to hand. Six numbered tasks plus one written reflection. Tasks 2 to 5 are calculations and use the data in sections B to E — the figures are different from the ones worked in the video, deliberately. The answers are in the companion answers document; work each task before you look at it.",
+ "sections": [
+  {
+   "id": "sa",
+   "title": "Section A · Task 1 and the module 9 reflection",
+   "blocks": [
+    {
+     "type": "task",
+     "id": "sa.t-task-1-where-is-your-chain-today-module-1-pause-about-8-minu",
+     "title": "Task 1 — Where is your chain today?   (module 1 · pause about 8 minutes)",
+     "pauseMinutes": null,
+     "prompts": [
+      "Name the process and its boundaries: where it starts, where it ends, who owns it.",
+      "Score it against the four stages using observable behaviour only — meetings, systems, who owns which data, what actually happens when something goes wrong.",
+      "One sentence: the single behaviour that would have to change for the LOWER of your two scores to move up one stage."
+     ],
+     "field": {
+      "id": "sa.t-task-1-where-is-your-chain-today-module-1-pause-about-8-minu",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "prose",
+     "text": "Take one NESR process you know well from the inside. Not the company as a whole."
+    },
+    {
+     "type": "grid",
+     "id": "sa.g-section-a-task-1-and-the-module-9-reflection",
+     "head": [
+      "",
+      "Stage 1 · multiple dysfunction",
+      "Stage 2 · semifunctional",
+      "Stage 3 · integrated",
+      "Stage 4 · extended"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Internal integration"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "External integration"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "freeNote",
+     "label": "Tick one box in each row, then write the evidence below.",
+     "field": {
+      "id": "sa.f-tick-one-box-in-each-row-then-write-the-evidence-below",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "sa.f-note",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-reflection-name-a-gap-module-9-pause-about-8-minutes",
+     "title": "Reflection — Name a gap   (module 9 · pause about 8 minutes)",
+     "pauseMinutes": null,
+     "prompts": [
+      "Which of the six factors caused it? Circle one: market conditions · business direction · disruptive technology · anticipated change in market · combination or merger · product life cycle",
+      "The evidence you would use to convince someone who disagrees. Not the argument — the evidence. Numbers, dates, incidents.",
+      "Is the gap unnoticed, or merely unreported? Circle one and say how you know.",
+      "The lever: one of the five resolving lessons, or complexity, or influence — and the first concrete step, something that could start next week."
+     ],
+     "field": {
+      "id": "sa.t-reflection-name-a-gap-module-9-pause-about-8-minutes",
+      "kind": "short_text",
+      "rows": 1
+     }
+    },
+    {
+     "type": "freeNote",
+     "label": "Same supply chain. Find one real misalignment in it — not a hypothetical one.",
+     "field": {
+      "id": "sa.f-same-supply-chain-find-one-real-misalignment-in-it-not-a-hyp",
+      "kind": "long_text",
+      "rows": 4
+     }
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "sa.f-note-2",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "sa.f-note-3",
+      "kind": "long_text",
+      "rows": 4
+     }
+    }
+   ]
+  },
+  {
+   "id": "sb",
+   "title": "Section B · Task 2 — price elasticity of a rental day rate",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "A downhole tool held for rental. The cost of goods sold — depreciation, redress, and the service crew allocation — is USD 40 per rental day. Commercial has tested four day rates and produced these demand estimates for the coming year."
+    },
+    {
+     "type": "grid",
+     "id": "sb.g-day-rate",
+     "head": [
+      "Day rate",
+      "Rental days",
+      "Elasticity coefficient",
+      "Revenue",
+      "Margin / day",
+      "Total margin"
+     ],
+     "rows": [
+      [
+       {
+        "v": "100"
+       },
+       {
+        "v": "500"
+       },
+       {
+        "v": "—"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "90"
+       },
+       {
+        "v": "600"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "80"
+       },
+       {
+        "v": "680"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "70"
+       },
+       {
+        "v": "720"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Complete every empty cell. Calculate each elasticity coefficient from the row above it: percentage change in quantity divided by percentage change in price.",
+      "At which day rate is total margin highest? Write down what you notice about the answer."
+     ]
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "sb.f-note",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Identify the step at which the coefficient crosses 1.0, and state in one sentence what that crossing means for any further rate reduction."
+     ]
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "sb.f-note-2",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Recommend a day rate, and give the reason. If the table does not settle it on its own, say what would."
+     ]
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "sb.f-note-3",
+      "kind": "long_text",
+      "rows": 3
+     }
+    }
+   ]
+  },
+  {
+   "id": "sc",
+   "title": "Section C · Task 3 — a backload offer",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "A scheduled run leaves the regional warehouse for a rig cluster every Tuesday. It is going regardless of this decision."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Element",
+      "Figure"
+     ],
+     "rows": [
+      [
+       "Cost of the scheduled run",
+       "USD 1,600"
+      ],
+      [
+       "Trailer payload",
+       "12,000 kg"
+      ],
+      [
+       "Offer received",
+       "2,000 kg at USD 0.09 per kg, from a different NESR entity"
+      ],
+      [
+       "Additional fuel for the extra weight",
+       "USD 15"
+      ],
+      [
+       "Additional handling at the extra stop",
+       "USD 60"
+      ],
+      [
+       "Customs entry — required because this cargo has a different consignee",
+       "USD 140"
+      ]
+     ]
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Calculate the average cost per kilogram of the run."
+     ]
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "sc.f-note",
+      "kind": "short_text",
+      "rows": 1
+     }
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Calculate the value of the offer, and the total marginal cost of accepting it."
+     ]
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "sc.f-note-2",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "State the marginal net effect, and your decision: accept or refuse."
+     ]
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "sc.f-note-3",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "List explicitly which costs you excluded as sunk — and name the one cost in the table that the average-cost view would have hidden completely."
+     ]
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "sc.f-note-4",
+      "kind": "long_text",
+      "rows": 3
+     }
+    }
+   ]
+  },
+  {
+   "id": "sd",
+   "title": "Section D · Task 4 — a standard overhead variance",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "A tool servicing operation at a different regional base. Read the total variance before you read the components, and notice your own reaction to it."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Element",
+      "Figure"
+     ],
+     "rows": [
+      [
+       "Total overhead expected for the base, this period",
+       "USD 600,000"
+      ],
+      [
+       "Direct labour hours expected, all operations at the base",
+       "15,000"
+      ],
+      [
+       "Hours expected for this operation (900 units)",
+       "1,800"
+      ],
+      [
+       "Hours actually used",
+       "1,500"
+      ],
+      [
+       "Actual overhead rate, determined at period end",
+       "USD 48 per direct labour hour"
+      ]
+     ]
+    },
+    {
+     "type": "grid",
+     "id": "sd.g-step",
+     "head": [
+      "Step",
+      "Your working",
+      "Result"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Overhead rate"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Standard overhead for the operation"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Actual overhead"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Total variance"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Usage variance"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Cost (rate) variance"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Check: components sum to total"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Write one sentence on what the total variance tells a manager, and one sentence on what the components tell a manager. If the two sentences differ, that is the point of the task."
+     ]
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "sd.f-note",
+      "kind": "long_text",
+      "rows": 4
+     }
+    }
+   ]
+  },
+  {
+   "id": "se",
+   "title": "Section E · Task 5 — ratios and the cash-to-cash cycle",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "A second NESR-style business unit. One year. All figures in USD thousands."
+    },
+    {
+     "type": "grid",
+     "id": "se.g-income-statement",
+     "head": [
+      "Income statement",
+      "",
+      "Balance sheet",
+      ""
+     ],
+     "rows": [
+      [
+       {
+        "v": "Revenue"
+       },
+       {
+        "v": "180,000"
+       },
+       {
+        "v": "Cash"
+       },
+       {
+        "v": "6,000"
+       }
+      ],
+      [
+       {
+        "v": "Cost of goods sold"
+       },
+       {
+        "v": "126,000"
+       },
+       {
+        "v": "Accounts receivable"
+       },
+       {
+        "v": "36,000"
+       }
+      ],
+      [
+       {
+        "v": "Gross profit"
+       },
+       {
+        "input": true
+       },
+       {
+        "v": "Inventory"
+       },
+       {
+        "v": "42,000"
+       }
+      ],
+      [
+       {
+        "v": "Operating expenses"
+       },
+       {
+        "v": "30,000"
+       },
+       {
+        "v": "Total current assets"
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Depreciation"
+       },
+       {
+        "v": "9,000"
+       },
+       {
+        "v": "Property, plant and equipment, net"
+       },
+       {
+        "v": "96,000"
+       }
+      ],
+      [
+       {
+        "v": "Operating profit"
+       },
+       {
+        "input": true
+       },
+       {
+        "v": "Total assets"
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Interest"
+       },
+       {
+        "v": "3,000"
+       },
+       {
+        "v": "Accounts payable"
+       },
+       {
+        "v": "21,000"
+       }
+      ],
+      [
+       {
+        "v": "Profit before tax"
+       },
+       {
+        "input": true
+       },
+       {
+        "v": "Short-term debt"
+       },
+       {
+        "v": "9,000"
+       }
+      ],
+      [
+       {
+        "v": "Tax at 25%"
+       },
+       {
+        "input": true
+       },
+       {
+        "v": "Other current liabilities"
+       },
+       {
+        "v": "6,000"
+       }
+      ],
+      [
+       {
+        "v": "Net income"
+       },
+       {
+        "input": true
+       },
+       {
+        "v": "Total current liabilities"
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "v": "Long-term debt"
+       },
+       {
+        "v": "44,000"
+       }
+      ],
+      [
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "v": "Owners’ equity"
+       },
+       {
+        "v": "100,000"
+       }
+      ]
+     ]
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Fill in the blanks, then check that the balance sheet balances before you go any further."
+     ]
+    },
+    {
+     "type": "grid",
+     "id": "se.g-measure",
+     "head": [
+      "Measure",
+      "Your working",
+      "Result"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Gross margin %"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Net margin %"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Working capital"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Current ratio"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Inventory turns"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Days of inventory"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Days sales outstanding"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Days payables outstanding"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Cash-to-cash cycle"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Return on assets"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Which of the three components of the cash-to-cash cycle is the problem in this business unit, and which one is already good? Say how you can tell."
+     ]
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "se.f-note",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The instinctive lever is to stretch payables. Say why that is the wrong first move here, in supply chain terms rather than finance terms."
+     ]
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "se.f-note-2",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Size one improvement: take inventory turns to 4.5. State the cash released, the new days of inventory, and the new cash-to-cash cycle."
+     ]
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "se.f-note-3",
+      "kind": "long_text",
+      "rows": 3
+     }
+    }
+   ]
+  },
+  {
+   "id": "sf",
+   "title": "Section F · Task 6 — a SWOT that would survive scrutiny",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Same supply chain as task 1 and the module 9 reflection. Every entry needs a source. Internal entries need at least one EXTERNAL source — a customer, a supplier, an auditor."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "",
+      "Positive",
+      "Negative"
+     ],
+     "rows": [
+      [
+       "Internal",
+       "STRENGTHS  (entry · evidence · source)",
+       "WEAKNESSES  (entry · evidence · source)"
+      ],
+      [
+       "External",
+       "OPPORTUNITIES  (entry · evidence · source)",
+       "THREATS  (entry · evidence · source)"
+      ]
+     ]
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Go back through the four quadrants and cross out every entry with no evidence source. A shorter SWOT with sources beats a full one without.",
+      "Mark any opportunity that has sat unactioned long enough that it is becoming a threat — and name who it is becoming a threat from."
+     ]
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "sf.f-note",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "One sentence: the single strategic implication you would take to a management meeting."
+     ]
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "sf.f-note-2",
+      "kind": "long_text",
+      "rows": 3
+     }
+    }
+   ]
+  },
+  {
+   "id": "sg",
+   "title": "Section G · Notes",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Anything you want to raise with the training team, or a correction to any figure in this release. Corrections are welcome — every worked figure has been checked, and checked figures are still worth challenging."
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "sg.f-note",
+      "kind": "long_text",
+      "rows": 8
+     }
+    },
+    {
+     "type": "callout",
+     "text": "Derived from the CSCP body of knowledge and rewritten in NESR’s own words with NESR examples. Internal training use. Confirm ASCM licence terms before any external distribution."
+    }
+   ]
+  }
+ ],
+ "answers": [
+  {
+   "title": "Worked answers",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "NESR SUPPLY CHAIN TRAINING PROGRAMME"
+    },
+    {
+     "type": "prose",
+     "text": "Level 3 — Advanced"
+    },
+    {
+     "type": "prose",
+     "text": "Release 1 · Develop the Supply Chain Strategy — worksheet answers"
+    },
+    {
+     "type": "callout",
+     "text": "Answers to all six numbered tasks and the module 9 reflection. Tasks 2 to 5 are calculations with definite answers, worked in full in sections B to E. Tasks 1 and 6 and the reflection ask about your own area, so what follows is what a good answer contains and the mistakes worth avoiding. Work each task before reading its answer — three of the four calculations contain a trap, and reading the answer first removes the whole point."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Task",
+      "What it tests",
+      "The trap in it"
+     ],
+     "rows": [
+      [
+       "1",
+       "Reading maturity by behaviour",
+       "Scoring the company instead of one process"
+      ],
+      [
+       "—",
+       "Recognising a gap",
+       "Confusing \"unnoticed\" with \"unreported\""
+      ],
+      [
+       "2",
+       "Price elasticity",
+       "Two prices give the SAME margin, and elasticity crosses 1.0"
+      ],
+      [
+       "3",
+       "Marginal analysis",
+       "A step cost triggered only by this decision"
+      ],
+      [
+       "4",
+       "Standard cost variance",
+       "The total variance is exactly ZERO"
+      ],
+      [
+       "5",
+       "Cash-to-cash cycle",
+       "The instinctive lever is the wrong one here"
+      ],
+      [
+       "6",
+       "SWOT",
+       "Entries with no evidence source"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Section A · The judgement tasks",
+   "blocks": [
+    {
+     "type": "subheading",
+     "text": "Task 1 — Where is your chain today?"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "A good answer scores ONE process, with named boundaries. If your answer starts \"NESR is at stage…\" it is not an answer — the company is too large a unit to score honestly, and the score will average away everything useful.",
+      "The two scores should differ. Internal integration ahead of external integration is by far the most common real result, and it is the finding, not a failure of the exercise. It says the next investment belongs at the supplier or customer interface rather than inside the four walls.",
+      "Watch for stage-2 signatures in an organisation that believes it is at stage 3: functions each improving separately, and new software in one department that does not talk to the software in the next. That pattern is extremely common and it is diagnostic.",
+      "Watch also for stage-4 language without stage-4 behaviour. Sharing a forecast is not the same as sharing a plan. The stage-4 test is whether at least one business process genuinely crosses the corporate boundary — whether a partner acts on our data without being asked."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "The last bullet of the task is the one that matters: one behaviour, not a programme. \"Invite the freight forwarder to the weekly planning call\" is a stage-2-to-3 move that costs nothing. \"Implement an integrated platform\" is not an answer to this question."
+    },
+    {
+     "type": "subheading",
+     "text": "Reflection — Name a gap"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The most common cause named at NESR is change in market conditions, and the most common cause actually present is change in business direction — a new service line, a new geography, or a contract structured differently from the ones the chain was built for. Both are legitimate; check which one your evidence actually supports.",
+      "The evidence test is deliberately harsh. \"Everyone knows\" is not evidence. A date, a quantity, an incident, or a trend in a metric is. If you cannot produce one, that is itself a finding: the gap may be real and currently unprovable, which changes what you do next.",
+      "On unnoticed versus unreported: in most organisations the honest answer is unreported, and the two need completely different responses. An unnoticed gap needs measurement. An unreported gap needs a culture in which the person who raises it is not punished for it — which is why the source puts the culture question first, ahead of any analytical tool.",
+      "Two instruments make reporting safer, and both are cheap: anonymous surveys, and a meeting in which everyone is asked for five reasons a strategy might fail. Note the construction of the second — it does not ask whether it might fail, which invites loyalty. It asks for five reasons, which makes participating the safe option.",
+      "On levers: complexity and influence are the two most often overlooked, because neither looks like a supply chain project. If the chain carries more variants than the demand justifies, the complexity lever is available immediately and costs nothing to start measuring."
+     ]
+    },
+    {
+     "type": "subheading",
+     "text": "Task 6 — A SWOT that would survive scrutiny"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The grading rule is the evidence column. A four-quadrant grid full of unsourced assertions is a workshop output, not an analysis, and it will not survive its first challenge in a management meeting.",
+      "Internal entries sourced only internally are systematically incomplete in one direction: they list the weaknesses the organisation is already comfortable admitting to. The ones that matter come from customers, suppliers and auditors — which is exactly why the source specifies external input as the ideal.",
+      "The unactioned-opportunity question is the most valuable one on the page. An opportunity that is ignored or improperly developed transforms into a threat, and it never transforms in the abstract — somebody else takes it. Naming who makes the entry actionable.",
+      "A good final sentence is a decision, not an observation. \"Our regional spares network is a strength that is eroding because the item master has not been cleaned since 2023\" is a sentence a manager can act on. \"We should improve data quality\" is not."
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Section B · Task 2 — price elasticity, worked",
+   "blocks": [
+    {
+     "type": "caseTable",
+     "head": [
+      "Day rate",
+      "Rental days",
+      "Elasticity coef.",
+      "Revenue",
+      "Margin / day",
+      "Total margin"
+     ],
+     "rows": [
+      [
+       "100",
+       "500",
+       "—",
+       "50,000",
+       "60",
+       "30,000"
+      ],
+      [
+       "90",
+       "600",
+       "2.00",
+       "54,000",
+       "50",
+       "30,000"
+      ],
+      [
+       "80",
+       "680",
+       "1.20",
+       "54,400",
+       "40",
+       "27,200"
+      ],
+      [
+       "70",
+       "720",
+       "0.47",
+       "50,400",
+       "30",
+       "21,600"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "The coefficients"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "100 → 90:  quantity +100 on a base of 500 = +20%.  Price −10 on a base of 100 = −10%.  20 ÷ 10 = 2.00 — elastic.",
+      "90 → 80:  +80 on 600 = +13.33%.  −10 on 90 = −11.11%.  13.33 ÷ 11.11 = 1.20 — still elastic, but barely.",
+      "80 → 70:  +40 on 680 = +5.88%.  −10 on 80 = −12.50%.  5.88 ÷ 12.50 = 0.47 — INELASTIC."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "The margins"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "At 100: (100 − 40) × 500 = 30,000.",
+      "At 90:  (90 − 40) × 600 = 30,000.",
+      "At 80:  (80 − 40) × 680 = 27,200.",
+      "At 70:  (70 − 40) × 720 = 21,600."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "The trap: 100 and 90 produce exactly the same total margin — 30,000 either way. The table does not settle the decision, and if your answer confidently named one of them without noticing the tie, go back and check the arithmetic."
+    },
+    {
+     "type": "prose",
+     "text": "What the tie actually means, and how to break it"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The two options are financially identical and operationally very different. At a rate of 90 you are committing 600 rental days of tool availability instead of 500 — 20% more asset utilisation, 20% more redress cycles, 20% more crew time, for exactly the same margin.",
+      "So the tie-breaker is not in the table. It is capacity, risk and market position. If the tool fleet is tight, price at 100 and earn the same money with less asset stress. If you are defending share against a competitor, or the fleet is under-utilised and the fixed cost is being carried anyway, price at 90 and take the volume and the presence.",
+      "And note that the 40 per day cost figure includes an allocation. If a meaningful part of that 40 is fixed cost being spread across rental days, then the extra 100 days at 90 carry a lower true incremental cost than the table shows, and 90 becomes the better answer. That is the same lesson as module 10's logistics column, arriving from a different direction."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "The crossing at 1.0"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Between 80 and 70 the coefficient falls to 0.47. Demand has become inelastic in that range: a further rate cut moves volume by proportionally less than it gives up in price, so it destroys margin with certainty.",
+      "This is the practical value of computing a coefficient at every step rather than once. A single coefficient measured at the top of the range would have reported 2.00 and implied that cutting was safe all the way down. It is not — coefficients hold only over a particular price range, and this good crosses from elastic to inelastic inside the range being considered."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "Recommended answer: 100 or 90, with the reason stated. 80 and 70 are both wrong and 70 is clearly wrong. An answer of \"90, because demand is elastic\" earns half marks — demand is elastic between 100 and 90, and the margin is identical, so elasticity is not the reason."
+    }
+   ]
+  },
+  {
+   "title": "Section C · Task 3 — the backload offer, worked",
+   "blocks": [
+    {
+     "type": "caseTable",
+     "head": [
+      "Step",
+      "Calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       "Average cost per kg",
+       "1,600 ÷ 12,000",
+       "0.1333 per kg"
+      ],
+      [
+       "Value of the offer",
+       "2,000 kg × 0.09",
+       "180"
+      ],
+      [
+       "Marginal cost — additional fuel",
+       "—",
+       "15"
+      ],
+      [
+       "Marginal cost — additional handling",
+       "—",
+       "60"
+      ],
+      [
+       "Marginal cost — customs entry",
+       "—",
+       "140"
+      ],
+      [
+       "TOTAL MARGINAL COST",
+       "15 + 60 + 140",
+       "215"
+      ],
+      [
+       "MARGINAL NET EFFECT",
+       "180 − 215",
+       "−35   ·   REFUSE"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Why this one is refused when the taught example was accepted"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The offer of 0.09 per kg is well above the taught example's 0.06, and it still fails. Nothing about the price level decides this — only the marginal cost does.",
+      "The deciding item is the customs entry at 140. It is a step cost: it exists only because this cargo has a different consignee, it does not scale with the 2,000 kg, and it would not be incurred at all if the offer were refused. That makes it unambiguously a marginal cost of this decision.",
+      "Without it the marginal cost would be 75 and the offer would produce a net benefit of 105 — a clear accept. One line item reverses the answer."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Costs correctly excluded as sunk"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The 1,600 cost of the run itself, and every component of it: the driver's time, the vehicle lease, insurance, depot overhead, and the fuel for the planned route. All of it is incurred whether or not this offer is accepted.",
+      "Therefore the average cost of 0.1333 per kg is not a valid test of the offer, in either direction. Here it happens to give the right answer — 0.09 is below 0.1333, so an average-cost view refuses — but it gives it for the wrong reason, and the same reasoning would have wrongly refused the profitable offer in the video."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "The cost the average-cost view hides completely is the customs entry. Average cost per kilogram treats the load as homogeneous. It has no way of representing a fixed charge triggered by one specific consignment, which is exactly the kind of cost that decides these questions. This is the answer to the last bullet of the task."
+    },
+    {
+     "type": "prose",
+     "text": "One more thing worth writing down"
+    },
+    {
+     "type": "prose",
+     "text": "If accepting the extra cargo would delay the primary delivery past its window, the marginal cost also includes whatever standby or non-productive time that causes at the rig — a number that would dwarf everything in the table. Marginal analysis is not an argument for saying yes. It is an instruction to count only the costs this decision actually causes, and sometimes this decision causes a very large one."
+    }
+   ]
+  },
+  {
+   "title": "Section D · Task 4 — the variance, worked",
+   "blocks": [
+    {
+     "type": "caseTable",
+     "head": [
+      "Step",
+      "Calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       "Overhead rate",
+       "600,000 ÷ 15,000 hours",
+       "40 per direct labour hour"
+      ],
+      [
+       "Standard overhead for the operation",
+       "1,800 × 40",
+       "72,000"
+      ],
+      [
+       "Actual overhead",
+       "1,500 × 48",
+       "72,000"
+      ],
+      [
+       "TOTAL VARIANCE",
+       "72,000 − 72,000",
+       "0"
+      ],
+      [
+       "Usage variance",
+       "(1,800 − 1,500) × 40",
+       "+12,000  favourable"
+      ],
+      [
+       "Cost (rate) variance",
+       "(40 − 48) × 1,500",
+       "−12,000  unfavourable"
+      ],
+      [
+       "Check",
+       "+12,000 − 12,000",
+       "0  ✓"
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "The trap: the total variance is exactly zero. Reported on its own it says nothing happened. Two variances of twelve thousand each, pulling in opposite directions, say a great deal happened."
+    },
+    {
+     "type": "prose",
+     "text": "What the total tells a manager, and what the components tell a manager"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The total says the operation cost precisely what was budgeted. On that basis it needs no attention, and in most reporting packs it would receive none.",
+      "The components say two significant and unrelated things happened at once. The operation used 300 fewer direct labour hours than standard — a 17% improvement worth 12,000. And the base's overhead rate came in at 48 rather than 40 — 20% above plan, costing 12,000.",
+      "Those two facts have different owners and different follow-up. The hours saving belongs to the operation, and the first question is whether it is a genuine productivity gain worth replicating and building into a revised standard, or whether work was left undone and will reappear later as rework.",
+      "The rate overrun belongs to the base, not to the operation, and it will affect every other operation at that base in the same period. If nobody looks at this operation because its total variance was zero, the rate problem is discovered in aggregate at period end, with no idea where it came from."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "The general rule this task exists to teach"
+    },
+    {
+     "type": "prose",
+     "text": "Report the components, never only the net. A netted variance conceals both a success worth repeating and a problem worth fixing, and it does so in the specific case where the reported number looks most reassuring. Note too that the two components have different controllers: usage is generally inside the operation's control and the overhead rate generally is not, so holding one manager accountable for the net figure is holding them accountable for something half of which they do not own."
+    },
+    {
+     "type": "callout",
+     "text": "And the standing caution from module 11: a variance is not automatically a performance problem. If material, labour and overhead prices are moving quickly, the standard itself may simply be stale, and the correct response is to revise the standard rather than to investigate the operation."
+    }
+   ]
+  },
+  {
+   "title": "Section E · Task 5 — the statements, worked",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "The completed statements  (USD thousands)"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Income statement",
+      "",
+      "Balance sheet",
+      ""
+     ],
+     "rows": [
+      [
+       "Revenue",
+       "180,000",
+       "Cash",
+       "6,000"
+      ],
+      [
+       "Cost of goods sold",
+       "126,000",
+       "Accounts receivable",
+       "36,000"
+      ],
+      [
+       "Gross profit",
+       "54,000",
+       "Inventory",
+       "42,000"
+      ],
+      [
+       "Operating expenses",
+       "30,000",
+       "Total current assets",
+       "84,000"
+      ],
+      [
+       "Depreciation",
+       "9,000",
+       "Property, plant and equipment, net",
+       "96,000"
+      ],
+      [
+       "Operating profit",
+       "15,000",
+       "Total assets",
+       "180,000"
+      ],
+      [
+       "Interest",
+       "3,000",
+       "Accounts payable",
+       "21,000"
+      ],
+      [
+       "Profit before tax",
+       "12,000",
+       "Short-term debt",
+       "9,000"
+      ],
+      [
+       "Tax at 25%",
+       "3,000",
+       "Other current liabilities",
+       "6,000"
+      ],
+      [
+       "Net income",
+       "9,000",
+       "Total current liabilities",
+       "36,000"
+      ],
+      [
+       "",
+       "",
+       "Long-term debt",
+       "44,000"
+      ],
+      [
+       "",
+       "",
+       "Owners’ equity",
+       "100,000"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Balance check: total liabilities 36,000 + 44,000 = 80,000, plus equity 100,000 = 180,000 = total assets.  ✓"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Measure",
+      "Calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       "Gross margin %",
+       "54,000 ÷ 180,000",
+       "30.0%"
+      ],
+      [
+       "Net margin %",
+       "9,000 ÷ 180,000",
+       "5.0%"
+      ],
+      [
+       "Working capital",
+       "84,000 − 36,000",
+       "48,000"
+      ],
+      [
+       "Current ratio",
+       "84,000 ÷ 36,000",
+       "2.33"
+      ],
+      [
+       "Inventory turns",
+       "126,000 ÷ 42,000",
+       "3.0 turns"
+      ],
+      [
+       "Days of inventory",
+       "365 ÷ 3.0",
+       "121.7 days"
+      ],
+      [
+       "Days sales outstanding",
+       "36,000 ÷ 180,000 × 365",
+       "73.0 days"
+      ],
+      [
+       "Days payables outstanding",
+       "21,000 ÷ 126,000 × 365",
+       "60.8 days"
+      ],
+      [
+       "CASH-TO-CASH CYCLE",
+       "121.7 + 73.0 − 60.8",
+       "133.8 days"
+      ],
+      [
+       "Return on assets",
+       "9,000 ÷ 180,000",
+       "5.0%"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Which component is the problem, and which is already good"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Inventory is the problem: 3.0 turns and 121.7 days. That is a full third of a year of cost of goods sold sitting on the shelf, and it is by a wide margin the largest of the three components.",
+      "Collections are already good: 73.0 days of sales outstanding. Compare that with the business unit worked in the video, which sat at 91.25 days. This unit invoices and collects better than that one, so the collections lever that produced the biggest prize in the taught example is largely spent here.",
+      "Payables at 60.8 days are unremarkable — broadly normal commercial terms, neither generous nor stretched."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "This is the trap in the task. The taught example concluded that days sales outstanding was the bigger prize. Applying that conclusion here without checking would send you after the one component that is already performing, and leave the actual problem untouched."
+    },
+    {
+     "type": "prose",
+     "text": "Why stretching payables is the wrong first move"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "It works on paper. Taking days payable from 60.8 to 90 would cut the cycle by 29 days for no operational effort at all, which is precisely why it gets proposed.",
+      "But it does not create any cash; it borrows it from suppliers, at a price that is not on the invoice. The price is paid in supplier priority, in lead-time performance, and in willingness to hold stock or accept a rush — all of which are the levers you need to fix the inventory problem that is the actual issue.",
+      "It is also self-defeating in the specific situation this unit is in. The route out of 121.7 days of inventory runs through shorter and more reliable supplier lead times, because lead time is what safety stock is bought to cover. Damaging supplier relationships to save 29 days makes the 122-day problem harder to solve.",
+      "And it moves working capital pressure onto partners who are typically smaller and financed more expensively than NESR. That is the \"gains must be distributed\" point from module 7 — a saving captured entirely at a partner's expense is not a saving for the chain, and the suppliers who leave first are the ones with somewhere better to go."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Sizing the inventory improvement"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "",
+      "Calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       "Inventory at 4.5 turns",
+       "126,000 ÷ 4.5",
+       "28,000"
+      ],
+      [
+       "CASH RELEASED",
+       "42,000 − 28,000",
+       "14,000"
+      ],
+      [
+       "New days of inventory",
+       "365 ÷ 4.5",
+       "81.1 days"
+      ],
+      [
+       "NEW CASH-TO-CASH CYCLE",
+       "81.1 + 73.0 − 60.8",
+       "93.3 days"
+      ],
+      [
+       "Improvement",
+       "133.8 − 93.3",
+       "40.5 days"
+      ]
+     ]
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Fourteen million dollars released, and 40.5 days off the cycle, from moving inventory turns from 3.0 to 4.5. For comparison, taking 15 days off days sales outstanding here would release 180,000 ÷ 365 × 15 = 7,397 — barely half as much, from the component that is already performing well.",
+      "Note also the leverage on profit. Net margin is 5.0%, so a 1% reduction in cost of goods sold — 1,260 — would raise net income from 9,000 to 10,260, a 14% increase. Thin net margins are exactly why supply chain efficiency moves the result so hard, in both directions."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "The general lesson: calculate all three components of the cycle before choosing a lever, every time. The right answer differs between two business units in the same company, and the component that mattered most last time is not evidence about this time."
+    }
+   ]
+  },
+  {
+   "title": "Source note",
+   "blocks": [
+    {
+     "type": "callout",
+     "text": "Derived from the CSCP body of knowledge and rewritten in NESR’s own words with NESR examples. Every figure in this document has been computed and verified independently of the slides. Internal training use. Confirm ASCM licence terms before any external distribution."
+    }
+   ]
+  }
+ ]
+}

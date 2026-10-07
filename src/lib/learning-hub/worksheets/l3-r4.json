@@ -1,0 +1,1195 @@
+{
+ "key": "l3-r4",
+ "level": "Level 3 — Advanced",
+ "title": "Measure, Analyse and Improve",
+ "courseTitle": "Supply Chain Expert",
+ "moduleTitle": "Metrics, Improvement and Change",
+ "intro": "Three tasks. The first two are arithmetic; the third is not, and it is the hardest. Keep a calculator or spreadsheet to hand for tasks 1 and 2. The figures are different from the ones worked in the video, deliberately — and each task contains one thing the headline numbers conceal. Work each task before you look at the answers document.",
+ "sections": [
+  {
+   "id": "s1",
+   "title": "Task 1 · Read the service line",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "An NESR service line, measured over one quarter. Note that FIVE gates were measured, not four."
+    },
+    {
+     "type": "question",
+     "id": "s1.q-compute-the-perfect-order-fulfilment-rate-filling-in-the-run",
+     "mark": "a)",
+     "text": "Compute the perfect order fulfilment rate, filling in the running product as you go.",
+     "field": null,
+     "answeredBy": "s1.g-gate"
+    },
+    {
+     "type": "grid",
+     "id": "s1.g-gate",
+     "head": [
+      "Gate",
+      "Performance",
+      "Running product"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Delivered on time, against the customer's requested date"
+       },
+       {
+        "v": "96%"
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "× delivered complete — all items, right quantities"
+       },
+       {
+        "v": "95%"
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "× documentation accurate and complete"
+       },
+       {
+        "v": "99%"
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "× condition perfect — undamaged, installed, accepted"
+       },
+       {
+        "v": "97%"
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "× invoiced accurately, first time"
+       },
+       {
+        "v": "98%"
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "PERFECT ORDER FULFILMENT"
+       },
+       {
+        "v": "—"
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s1.q-the-line-next-door-measures-only-the-first-four-gates-it-doe",
+     "mark": "b)",
+     "text": "The line next door measures only the first FOUR gates — it does not count invoicing. Compute what it would report on identical performance, and state the difference in percentage points.",
+     "field": {
+      "id": "s1.q-the-line-next-door-measures-only-the-first-four-gates-it-doe",
+      "kind": "short_text",
+      "rows": 1
+     }
+    },
+    {
+     "type": "question",
+     "id": "s1.q-you-have-budget-to-take-exactly-one-gate-to-99-5-compute-the",
+     "mark": "c)",
+     "text": "You have budget to take exactly ONE gate to 99.5%. Compute the resulting perfect order rate for the best candidate and for the worst candidate, and state the rule you used to choose.",
+     "field": null,
+     "answeredBy": "s1.g-option"
+    },
+    {
+     "type": "grid",
+     "id": "s1.g-option",
+     "head": [
+      "Option",
+      "Your working",
+      "New perfect order rate"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Best candidate — which gate?"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Worst candidate — which gate?"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "The rule you used to choose"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s1.q-using-the-amr-ratio-of-3-points-of-perfect-orders-to-1-per-c",
+     "mark": "d)",
+     "text": "Using the AMR ratio of 3 points of perfect orders to 1 per cent of profit, what is it worth to reach a 90% perfect order rate from where the line is today?",
+     "field": {
+      "id": "s1.q-using-the-amr-ratio-of-3-points-of-perfect-orders-to-1-per-c",
+      "kind": "short_text",
+      "rows": 1
+     }
+    },
+    {
+     "type": "question",
+     "id": "s1.q-the-line-reports-an-order-fulfilment-cycle-time-of-25-days-1",
+     "mark": "e)",
+     "text": "The line reports an order fulfilment cycle time of 25 days — 16 days process, 9 days dwell. State dwell as a percentage, and write ONE sentence on where you would look first for time, and why that is not where you would look if you only knew the 25-day total.",
+     "field": {
+      "id": "s1.q-the-line-reports-an-order-fulfilment-cycle-time-of-25-days-1",
+      "kind": "long_text",
+      "rows": 3
+     }
+    }
+   ]
+  },
+  {
+   "id": "s2",
+   "title": "Task 2 · Set the pace and count the defects",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "An NESR assembly and test cell. Two shifts a day. After breaks, changeover and planned maintenance, 660 productive minutes are available each day. Current demand is 110 units a day."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Element",
+      "Figure"
+     ],
+     "rows": [
+      [
+       "Available production time a day",
+       "660 minutes"
+      ],
+      [
+       "Current demand",
+       "110 units a day"
+      ],
+      [
+       "Forecast demand from next quarter",
+       "132 units a day"
+      ],
+      [
+       "Jobs passing through the cell each month",
+       "9,000"
+      ],
+      [
+       "Opportunities for a defect per job",
+       "5"
+      ],
+      [
+       "Three sigma defect rate",
+       "66,807 per million opportunities"
+      ],
+      [
+       "Six sigma defect rate",
+       "3.4 per million opportunities"
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s2.q-compute-takt-time-at-current-demand-in-minutes-and-in-second",
+     "mark": "a)",
+     "text": "Compute takt time at current demand, in minutes and in seconds.",
+     "field": null,
+     "answeredBy": "s2.g-measure"
+    },
+    {
+     "type": "grid",
+     "id": "s2.g-measure",
+     "head": [
+      "Measure",
+      "Your calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Takt time (minutes per unit)"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Takt time (seconds per unit)"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s2.q-recompute-takt-at-the-forecast-demand-and-state-by-what-perc",
+     "mark": "b)",
+     "text": "Recompute takt at the forecast demand, and state by what percentage capacity must rise if the available production time cannot be extended.",
+     "field": null,
+     "answeredBy": "s2.g-measure-2"
+    },
+    {
+     "type": "grid",
+     "id": "s2.g-measure-2",
+     "head": [
+      "Measure",
+      "Your calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Takt time at forecast demand (minutes)"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Takt time at forecast demand (seconds)"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Required capacity increase"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s2.q-compute-the-monthly-defect-count-at-three-sigma-and-at-six-s",
+     "mark": "c)",
+     "text": "Compute the monthly defect count at three sigma and at six sigma, using OPPORTUNITIES as the denominator.",
+     "field": null,
+     "answeredBy": "s2.g-measure-3"
+    },
+    {
+     "type": "grid",
+     "id": "s2.g-measure-3",
+     "head": [
+      "Measure",
+      "Your calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Opportunities a month"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Defects a month at three sigma"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Defects a month at six sigma"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Defects a year at six sigma"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "NOW READ THIS ONLY AFTER COMPLETING (c). A colleague has prepared the same analysis using JOBS as the denominator rather than opportunities — that is, 9,000 rather than the figure you computed. The actual number of defects is identical in both analyses."
+    },
+    {
+     "type": "question",
+     "id": "s2.q-suppose-the-cell-actually-produces-300-defects-in-a-month-co",
+     "mark": "d)",
+     "text": "Suppose the cell actually produces 300 defects in a month. Compute the defects-per-million figure BOTH ways, put them side by side, and state which sigma level each one implies.",
+     "field": null,
+     "answeredBy": "s2.g-denominator"
+    },
+    {
+     "type": "grid",
+     "id": "s2.g-denominator",
+     "head": [
+      "Denominator",
+      "Your calculation",
+      "Defects per million",
+      "Implied sigma level"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Opportunities"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Jobs"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s2.q-one-sentence-which-of-the-two-figures-would-you-put-in-a-sup",
+     "mark": "e)",
+     "text": "One sentence: which of the two figures would you put in a supplier quality report, and why? And one more sentence on what you would have to state alongside it for the number to mean anything.",
+     "field": {
+      "id": "s2.q-one-sentence-which-of-the-two-figures-would-you-put-in-a-sup",
+      "kind": "long_text",
+      "rows": 4
+     }
+    }
+   ]
+  },
+  {
+   "id": "s3",
+   "title": "Task 3 · Design the metric set",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "No arithmetic in this one. An NESR service line is introducing a new performance scorecard. Four metrics have been proposed by four different people, each of whom has a good reason. The data available to the line comes from the ERP system, the WMS, and the transport provider's monthly invoice."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "#",
+      "The proposed metric",
+      "Proposed by"
+     ],
+     "rows": [
+      [
+       "1",
+       "Purchase price variance against the standard cost, by buyer",
+       "Procurement"
+      ],
+      [
+       "2",
+       "Warehouse cost per order shipped",
+       "Operations"
+      ],
+      [
+       "3",
+       "Perfect order fulfilment, all five gates",
+       "The service line manager"
+      ],
+      [
+       "4",
+       "On-shelf-in-stock percentage at the customer's own rig site",
+       "The account director"
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s3.q-for-each-metric-state-the-behaviour-it-will-reward-and-the-b",
+     "mark": "a)",
+     "text": "For each metric, state the behaviour it will REWARD and the behaviour it will quietly SACRIFICE. Be specific — name what someone would actually do differently on Monday.",
+     "field": null,
+     "answeredBy": "s3.g-task-3-design-the-metric-set"
+    },
+    {
+     "type": "grid",
+     "id": "s3.g-task-3-design-the-metric-set",
+     "head": [
+      "#",
+      "What it rewards",
+      "What it sacrifices"
+     ],
+     "rows": [
+      [
+       {
+        "v": "1"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "2"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "3"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "4"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s3.q-identify-the-pair-that-pulls-hardest-against-each-other-then",
+     "mark": "b)",
+     "text": "Identify the pair that pulls hardest against each other. Then explain why that tension is the POINT of a balanced set rather than a fault to be designed out.",
+     "field": {
+      "id": "s3.q-identify-the-pair-that-pulls-hardest-against-each-other-then",
+      "kind": "long_text",
+      "rows": 4
+     }
+    },
+    {
+     "type": "question",
+     "id": "s3.q-one-of-the-four-cannot-be-gathered-from-the-data-sources-des",
+     "mark": "c)",
+     "text": "One of the four cannot be gathered from the data sources described. Say which one, explain why not, and state what you would use instead — or what it would take to make the original collectable.",
+     "field": {
+      "id": "s3.q-one-of-the-four-cannot-be-gathered-from-the-data-sources-des",
+      "kind": "long_text",
+      "rows": 4
+     }
+    },
+    {
+     "type": "question",
+     "id": "s3.q-write-the-one-metric-you-would-add-to-balance-the-set-then-n",
+     "mark": "d)",
+     "text": "Write the ONE metric you would ADD to balance the set. Then name the function that will object to it, and state their objection in a form they would recognise as fair.",
+     "field": {
+      "id": "s3.q-write-the-one-metric-you-would-add-to-balance-the-set-then-n",
+      "kind": "long_text",
+      "rows": 5
+     }
+    },
+    {
+     "type": "question",
+     "id": "s3.q-finally-which-of-the-four-is-the-only-true-supply-chain-metr",
+     "mark": "e)",
+     "text": "Finally: which of the four is the only true SUPPLY CHAIN metric by the test given in module 1 — and what makes the other three something else?",
+     "field": {
+      "id": "s3.q-finally-which-of-the-four-is-the-only-true-supply-chain-metr",
+      "kind": "long_text",
+      "rows": 3
+     }
+    }
+   ]
+  },
+  {
+   "id": "s4",
+   "title": "Notes",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Anything you want to raise with the training team, or a correction to any figure in this release — or in the programme as a whole, since this is the last release. Corrections are welcome: every worked figure has been checked, and checked figures are still worth challenging."
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "s4.f-note",
+      "kind": "long_text",
+      "rows": 8
+     }
+    },
+    {
+     "type": "callout",
+     "text": "Derived from the CSCP body of knowledge and rewritten in NESR’s own words with NESR examples. Internal training use. Confirm ASCM licence terms before any external distribution."
+    }
+   ]
+  }
+ ],
+ "answers": [
+  {
+   "title": "Worked answers",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "NESR SUPPLY CHAIN TRAINING PROGRAMME"
+    },
+    {
+     "type": "prose",
+     "text": "Level 3 — Advanced"
+    },
+    {
+     "type": "prose",
+     "text": "Release 4 · Measure, Analyse and Improve — worksheet answers"
+    },
+    {
+     "type": "callout",
+     "text": "Three tasks, worked in full. The first two are arithmetic and each contains one thing that changes the answer. The third has no single right answer — it has answers that name the side effect and answers that do not. Work each task before reading its answer."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Task",
+      "What it tests",
+      "What the headline number hides"
+     ],
+     "rows": [
+      [
+       "1",
+       "Perfect order fulfilment",
+       "Five gates all between 95 and 99 per cent give a perfect order rate of 85.8 — and the line next door reports 87.6 for identical performance, purely by measuring one gate fewer"
+      ],
+      [
+       "2",
+       "Takt time and six sigma",
+       "The same 300 defects are either 6,667 or 33,333 per million, depending on a definition chosen by the person being measured"
+      ],
+      [
+       "3",
+       "Metric design",
+       "Three of the four proposed metrics measure a silo, one cannot be gathered at all, and the best one is the one nobody in the room owns"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Task 1 · Read the service line — worked",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "a)  The perfect order rate"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Gate",
+      "Performance",
+      "Running product"
+     ],
+     "rows": [
+      [
+       "Delivered on time",
+       "96%",
+       "0.9600"
+      ],
+      [
+       "× delivered complete",
+       "95%",
+       "0.9120"
+      ],
+      [
+       "× documentation accurate",
+       "99%",
+       "0.9029"
+      ],
+      [
+       "× condition perfect",
+       "97%",
+       "0.8758"
+      ],
+      [
+       "× invoiced accurately",
+       "98%",
+       "0.8583"
+      ],
+      [
+       "PERFECT ORDER FULFILMENT",
+       "—",
+       "85.83%"
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "The average of the five gates is 97.0 per cent. The worst single gate is 95 per cent. The perfect order rate is 85.83 per cent. That gap is not a failure of any one gate — it is what multiplication does, and it is the single most important property of this metric."
+    },
+    {
+     "type": "prose",
+     "text": "b)  The line next door, measuring four gates"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Measure",
+      "Calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       "Four gates only — invoicing not counted",
+       "0.96 × 0.95 × 0.99 × 0.97",
+       "87.58%"
+      ],
+      [
+       "Five gates — the honest figure",
+       "× 0.98",
+       "85.83%"
+      ],
+      [
+       "THE DIFFERENCE",
+       "87.58 − 85.83",
+       "1.75 points"
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "Identical performance. Identical customer experience. A 1.75-point difference in the reported number, produced entirely by a choice about what to measure. This is why perfect order rates cannot be compared between organisations, or between sites, without first establishing how many gates each one counts — and it is why the honest answer is always the lower one. Adding a gate to your measurement will always make your number worse and your organisation better."
+    },
+    {
+     "type": "prose",
+     "text": "c)  Which gate to take to 99.5%"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Option",
+      "Calculation",
+      "New rate"
+     ],
+     "rows": [
+      [
+       "BEST candidate — \"delivered complete\", the WORST gate at 95%",
+       "0.8583 ÷ 0.95 × 0.995",
+       "89.89%"
+      ],
+      [
+       "Worst candidate — \"documentation\", the BEST gate at 99%",
+       "0.8583 ÷ 0.99 × 0.995",
+       "86.26%"
+      ],
+      [
+       "The difference between choosing well and choosing badly",
+       "89.89 − 86.26",
+       "3.63 points"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "The rule:"
+    },
+    {
+     "type": "callout",
+     "text": "In a multiplicative metric, always fix the WORST component first. The improvement multiplier is the RATIO of the new value to the old one — 99.5 ÷ 95 is 1.0474, while 99.5 ÷ 99 is only 1.0051. The worst component has the most room in that ratio. This is the opposite of the instinct anyone trained on averages will bring, where a point gained is a point gained wherever you find it."
+    },
+    {
+     "type": "prose",
+     "text": "d)  What reaching 90% is worth"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Measure",
+      "Calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       "Points required",
+       "90.00 − 85.83",
+       "4.17 points"
+      ],
+      [
+       "At the AMR ratio of 3 points to 1% of profit",
+       "4.17 ÷ 3",
+       "+1.39% of profit"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Note that fixing the single worst gate to 99.5% — one intervention — reaches 89.89%, which is almost the whole of that 4.17-point gap on its own."
+    },
+    {
+     "type": "prose",
+     "text": "e)  Where to look for time"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Measure",
+      "Calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       "Process time",
+       "given",
+       "16 days"
+      ],
+      [
+       "Dwell time",
+       "given",
+       "9 days"
+      ],
+      [
+       "Order fulfilment cycle time",
+       "16 + 9",
+       "25 days"
+      ],
+      [
+       "DWELL AS A SHARE OF THE CYCLE",
+       "9 ÷ 25",
+       "36%"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "An acceptable answer:"
+    },
+    {
+     "type": "callout",
+     "text": "\"Thirty-six per cent of the cycle is dwell — time in which nothing is being done to the order at all. I would look there first, because dwell is usually removed by a decision rather than an investment: a credit release rule, a consolidation policy, a broker's paperwork. If I only knew the twenty-five-day total, I would go looking for speed inside the sixteen days of process time, which means faster equipment, more people or expedited freight — the expensive place to look, for the smaller share of the clock.\""
+    },
+    {
+     "type": "prose",
+     "text": "Marking notes."
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The point of separating process from dwell is not accounting precision. It is that the two have completely different remedies, and the cheaper remedy applies to the part most organisations never measure.",
+      "An answer that says \"reduce the cycle time to 20 days\" without saying which component it is coming from has not used the analysis at all."
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Task 2 · Set the pace and count the defects — worked",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "a) and b)  Takt time, now and next quarter"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Measure",
+      "Calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       "Takt at current demand",
+       "660 ÷ 110",
+       "6.0 min per unit"
+      ],
+      [
+       "In seconds",
+       "6.0 × 60",
+       "360 sec"
+      ],
+      [
+       "Takt at forecast demand",
+       "660 ÷ 132",
+       "5.0 min per unit"
+      ],
+      [
+       "In seconds",
+       "5.0 × 60",
+       "300 sec"
+      ],
+      [
+       "REQUIRED CAPACITY INCREASE",
+       "132 ÷ 110 − 1",
+       "20%"
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "One unit must leave the cell every six minutes today, and every five minutes from next quarter. Since available production time cannot be extended, capacity has to rise 20 per cent — and note that this is a REDESIGN of the cell, not an instruction to work faster. Producing faster than takt is overproduction, the most serious of the eight wastes; producing slower misses demand. Takt is a rate to be matched, not a target to be beaten."
+    },
+    {
+     "type": "prose",
+     "text": "c)  The defect counts at each sigma level"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Measure",
+      "Calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       "Opportunities a month",
+       "9,000 × 5",
+       "45,000"
+      ],
+      [
+       "Defects a month at three sigma",
+       "45,000 × 66,807 ÷ 1,000,000",
+       "3,006"
+      ],
+      [
+       "Defects a month at six sigma",
+       "45,000 × 3.4 ÷ 1,000,000",
+       "0.153"
+      ],
+      [
+       "Defects a YEAR at six sigma",
+       "0.153 × 12",
+       "about 2"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Three thousand defects a month against about two a year. That is the whole argument for six sigma, stated in units anybody can act on."
+    },
+    {
+     "type": "prose",
+     "text": "d)  The same 300 defects, two ways"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Denominator",
+      "Calculation",
+      "Defects per million",
+      "Implied sigma level"
+     ],
+     "rows": [
+      [
+       "OPPORTUNITIES (45,000)",
+       "300 ÷ 45,000 × 1,000,000",
+       "6,667",
+       "just under FOUR sigma"
+      ],
+      [
+       "JOBS (9,000)",
+       "300 ÷ 9,000 × 1,000,000",
+       "33,333",
+       "between THREE and FOUR"
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "For reference, the conventional benchmarks: three sigma is 66,807 defects per million opportunities; four sigma is 6,210; five sigma is 233; six sigma is 3.4."
+    },
+    {
+     "type": "prose",
+     "text": "THE TRAP, and note which direction it runs:"
+    },
+    {
+     "type": "callout",
+     "text": "Most people assume that a smaller denominator flatters the result. It does the opposite. Dividing the same 300 defects by 9,000 rather than 45,000 makes the rate FIVE TIMES WORSE. Which means the gaming incentive runs the other way: EXPANDING the opportunity count always improves the reported figure. Anyone under pressure to demonstrate a sigma level has a lever that requires no improvement at all — simply define more chances to get something wrong per unit of work. Five opportunities per job instead of one moves this cell from \"between three and four sigma\" to \"nearly four sigma\" without changing a single thing a customer would notice."
+    },
+    {
+     "type": "prose",
+     "text": "e)  Which figure goes in the report"
+    },
+    {
+     "type": "prose",
+     "text": "An acceptable answer:"
+    },
+    {
+     "type": "callout",
+     "text": "\"I would report the opportunities-based figure of six thousand six hundred and sixty-seven per million, because opportunities is the correct denominator for the metric as defined — a defect is any non-conformance and an opportunity is any chance for one, and this cell genuinely has five per job. But the number is meaningless on its own, so I would state alongside it exactly what we counted as a defect and exactly what we counted as the five opportunities, and I would hold both definitions fixed from period to period so that a change in the reported rate can only be caused by a change in performance.\""
+    },
+    {
+     "type": "prose",
+     "text": "Marking notes."
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Either figure is defensible arithmetically. Neither is defensible without its definitions published alongside it. An answer that picks a number and stops has missed the task.",
+      "The strongest answers add the period-to-period point: the greatest risk is not a wrong denominator, it is a denominator that CHANGES. If the opportunity count is widened between one quarter and the next, the reported improvement is arithmetic rather than quality, and nobody reading the trend line will be able to see it.",
+      "The source names this risk directly: it warns that the project team leader, or the executive sponsoring the project, may be tempted to set the limits of variability as wide as possible in order to achieve a six sigma level of defects. Setting the definitions is exactly that lever, and it sits with the person being measured.",
+      "A good answer may also note that not all opportunities are equally significant. The source makes this point with the cash machine: some wait time is acceptable to customers, but failure to deliver the correct amount of cash is not. Counting them as equal opportunities is arithmetically tidy and commercially wrong."
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Task 3 · Design the metric set — worked",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "There is no single right answer to this task. There are answers that name the side effect and answers that do not. What follows is a strong answer, not the only one."
+    },
+    {
+     "type": "prose",
+     "text": "a)  What each metric rewards, and what it sacrifices"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "#",
+      "Rewards",
+      "Sacrifices"
+     ],
+     "rows": [
+      [
+       "1  Purchase price variance by buyer",
+       "Buying at or below standard cost. Concretely: consolidating orders to reach discount tiers, and selecting the lowest bidder",
+       "Inventory and quality — exactly the case worked in module 2. Larger orders mean more stock and more obsolescence; the lowest bidder brings nonconformance costs that land in operations, not procurement"
+      ],
+      [
+       "2  Warehouse cost per order shipped",
+       "Fewer, larger, more efficient picks; higher labour productivity; consolidation of shipments",
+       "Customer responsiveness and the transport bill. Holding orders to build efficient picks and full loads increases DWELL time — and dwell does not appear anywhere in this metric"
+      ],
+      [
+       "3  Perfect order fulfilment, five gates",
+       "Getting the whole order right — on time, complete, documented, undamaged, invoiced correctly. It is the only one of the four the CUSTOMER would recognise",
+       "Very little, which is why it belongs. Its risk is not behavioural but definitional: the temptation to quietly drop a gate. It also says nothing about COST — a perfect order rate can be bought with expedited freight"
+      ],
+      [
+       "4  On-shelf-in-stock at the rig site",
+       "True end-customer availability — the thing fill rate cannot see. It measures across the last node, so it cannot be claimed by any single function",
+       "Nothing behaviourally. Its problem is feasibility, and it is (c)"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "b)  The pair that pulls hardest, and why that is the point"
+    },
+    {
+     "type": "prose",
+     "text": "Metrics 2 and 3 — warehouse cost per order, against perfect order fulfilment."
+    },
+    {
+     "type": "callout",
+     "text": "Warehouse cost per order falls when orders are batched, held for efficient picking, and consolidated into full loads. Perfect order fulfilment falls when orders are held, because \"on time\" is measured against the customer's requested date. One is improved by waiting; the other is destroyed by it. They are pulling on the same lever in opposite directions."
+    },
+    {
+     "type": "prose",
+     "text": "Why that tension is the point:"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "A single metric, however well chosen, can be driven to an extreme with nothing stopping it. Warehouse cost per order alone will be optimised until the service line is unusable. Perfect order alone will be optimised until it is unaffordable.",
+      "A balanced set cannot be driven to an extreme, because pushing any one member too far shows up immediately in another. The tension IS the control mechanism — it is not a design fault to be resolved by picking whichever metric matters more.",
+      "The source's own illustration works the same way: inventory turnover and cash-to-cash promote ordering in wise quantities, then are balanced with on-time delivery, purchase price and total cost. Every metric in that set pulls against at least one other.",
+      "The practical test: if your metric set contains no tensions, you do not have a balanced set. You have a direction — and eventually someone will follow it off the edge."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "c)  The one that cannot be gathered"
+    },
+    {
+     "type": "prose",
+     "text": "Metric 4 — on-shelf-in-stock at the customer's own rig site."
+    },
+    {
+     "type": "callout",
+     "text": "The three data sources described are the ERP system, the WMS, and the transport provider's invoice. All three stop at the point of delivery. None of them can see what is on the customer's shelf after the delivery has been made — that data belongs to the customer and is not currently shared."
+    },
+    {
+     "type": "prose",
+     "text": "What you do instead. Any of these is a good answer:"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Use a PROXY, which is exactly what module 1 instructs: assess data collection feasibility, and find alternative data sources as needed. Reorder frequency and emergency-order rate from the ERP are both visible to you and both correlate with the rig site running out.",
+      "Ask for the data as part of a collaboration project — module 1 lists \"planning and executing data collaboration projects when feasible\" as a step in gathering performance data. The account director proposing the metric is the person who can open that conversation.",
+      "Use a third party, per module 4: a third party can collect what is available, extrapolate the rest, and provide objective reports without either side handing commercial data to the other.",
+      "Or accept a periodic sample rather than a continuous measure — a quarterly site survey is worth considerably more than a continuous metric you cannot obtain."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "d)  The metric to add, and who will object"
+    },
+    {
+     "type": "prose",
+     "text": "A strong answer:"
+    },
+    {
+     "type": "callout",
+     "text": "\"I would add TOTAL COST TO SERVE for the service line — the full cost to plan, source, deliver and return, including the transport bill, expediting, returns and the nonconformance costs of cheap suppliers. Procurement will object, and their objection is fair: it makes their purchase price variance look worse by attributing to procurement the downstream costs of a low-price decision, and those costs are harder to measure and easier to dispute than a price. That is precisely why the metric is worth having — the costs are real whether or not anyone is charged with them, and today they land in operations where nobody chose them.\""
+    },
+    {
+     "type": "prose",
+     "text": "Other defensible additions:"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Cash-to-cash cycle time — it balances metric 1 by making the inventory consequence of bulk buying visible. Finance will object that it is their metric, not the service line's.",
+      "Order fulfilment cycle time split into process and dwell — it balances metric 2 by pricing the waiting that warehouse cost per order rewards. Operations will object that dwell is caused by credit and customs, which are not theirs.",
+      "The SUPPLIER PERFORMANCE INDEX from module 6 — it directly answers metric 1 by adding nonconformance costs back onto the purchase price. Procurement will object to the cost allocations, and some of their objections will be right."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "Note what every one of those objections has in common: the function that objects is the function whose existing metric the new one would expose. That is not a reason to avoid the metric. It is confirmation that the metric does something — and it is why the source insists that metrics must cut across functions and organisations, and why agreement has to be established at executive level rather than negotiated between the functions being measured."
+    },
+    {
+     "type": "prose",
+     "text": "e)  The only true supply chain metric"
+    },
+    {
+     "type": "prose",
+     "text": "Metric 4 — on-shelf-in-stock at the rig site."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Metric",
+      "The module 1 test: does the process it measures cross a node?"
+     ],
+     "rows": [
+      [
+       "1  Purchase price variance",
+       "NO. It measures a decision made inside procurement, by one buyer, at one moment. A functional measure"
+      ],
+      [
+       "2  Warehouse cost per order",
+       "NO. It measures activity inside one building. The source names this exact shape as a silo metric"
+      ],
+      [
+       "3  Perfect order fulfilment",
+       "PARTLY. It spans order entry, sourcing, warehouse, transport and finance — so it crosses functions. But it stops at YOUR delivery boundary"
+      ],
+      [
+       "4  On-shelf-in-stock at the rig site",
+       "YES. It measures a state that exists on the CUSTOMER'S site, produced by every node in the chain. No single function can move it alone — and no single function can claim it either"
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "Which is why it is also the one that cannot be gathered from your own systems, and the one that requires a conversation with the customer to obtain. Those two facts are the same fact. A metric that no function can claim is a metric no function can produce alone — and that difficulty is the price of measuring a chain rather than a department. The three easy metrics are easy precisely because they measure something small enough for one person to own."
+    }
+   ]
+  },
+  {
+   "title": "Source note",
+   "blocks": [
+    {
+     "type": "callout",
+     "text": "Derived from the CSCP body of knowledge and rewritten in NESR’s own words with NESR examples. Every figure in this document has been computed and verified independently of the slides. Internal training use. Confirm ASCM licence terms before any external distribution."
+    }
+   ]
+  }
+ ]
+}

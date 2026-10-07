@@ -106,9 +106,18 @@ export interface LessonOutline extends LearningLesson {
   locked: boolean;
 }
 
+/** The optional worksheet attached to a release, and where this learner has got to with it. */
+export interface ModuleWorksheet {
+  key: string;
+  title: string;
+  status: 'not_started' | 'draft' | 'submitted';
+}
+
 export interface ModuleOutline extends LearningModule {
   lessons: LessonOutline[];
   has_quiz: boolean;
+  /** Null for a release with no worksheet, which is most of the hub. */
+  worksheet: ModuleWorksheet | null;
 }
 
 export interface CourseDetailData {
@@ -118,6 +127,17 @@ export interface CourseDetailData {
   completed_count: number;
   lesson_count: number;
   progress_pct: number;
+  /**
+   * Every lesson finished, and every worksheet this course offers submitted.
+   *
+   * Two tiers on purpose. Worksheets are optional, so finishing the videos and quizzes is still
+   * "Completed" and nobody who skips them is shown as unfinished; this is the second badge for
+   * people who did the written work as well.
+   */
+  fully_complete: boolean;
+  /** How many of this course's releases offer a worksheet, and how many are submitted. */
+  worksheet_count: number;
+  worksheets_submitted: number;
 }
 
 export interface LessonNavRef {

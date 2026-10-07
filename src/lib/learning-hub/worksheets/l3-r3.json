@@ -1,0 +1,1180 @@
+{
+ "key": "l3-r3",
+ "level": "Level 3 — Advanced",
+ "title": "Technology and Projects",
+ "courseTitle": "Supply Chain Expert",
+ "moduleTitle": "Systems, Communication and Projects",
+ "intro": "Three tasks, all of them arithmetic, and all three are things you will be asked to do on a real project. Keep a calculator or spreadsheet to hand. The figures are different from the ones worked in the video, deliberately — and each task contains one thing the headline numbers conceal. Work each task before you look at the answers document.",
+ "sections": [
+  {
+   "id": "s1",
+   "title": "Task 1 · Size the communication load",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "An ERP upgrade is being planned across three NESR operating regions. The steering group has 7 members today: the sponsor, the IT director, one operations and one finance representative from each of the two live regions, and the implementation partner's account lead. The third region has now been brought into scope, and its operations lead, finance lead, country manager, a second partner consultant and an HSE representative all ask to join — taking the group to 12."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Element",
+      "Figure"
+     ],
+     "rows": [
+      [
+       "Steering group members today",
+       "7"
+      ],
+      [
+       "Steering group members after the third region joins",
+       "12"
+      ],
+      [
+       "Channel formula",
+       "n × (n − 1) ÷ 2"
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s1.q-compute-the-number-of-communication-channels-before-and-afte",
+     "mark": "a)",
+     "text": "Compute the number of communication channels before and after.",
+     "field": null,
+     "answeredBy": "s1.g-situation"
+    },
+    {
+     "type": "grid",
+     "id": "s1.g-situation",
+     "head": [
+      "Situation",
+      "Your calculation",
+      "Channels"
+     ],
+     "rows": [
+      [
+       {
+        "v": "7 members"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "12 members"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "The increase, in channels"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s1.q-express-the-increase-in-people-and-the-increase-in-channels-",
+     "mark": "b)",
+     "text": "Express the increase in PEOPLE and the increase in CHANNELS as percentages, and write the two side by side.",
+     "field": {
+      "id": "s1.q-express-the-increase-in-people-and-the-increase-in-channels-",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "question",
+     "id": "s1.q-suppose-instead-that-the-three-regions-each-appoint-one-auth",
+     "mark": "c)",
+     "text": "Suppose instead that the three regions each appoint ONE authorised representative who speaks for operations, finance and HSE in that region, and the sponsor, the IT director and the partner account lead remain — a group of 6. Compute the channels, and state the reduction against the 12-member group as a percentage.",
+     "field": null,
+     "answeredBy": "s1.g-situation-2"
+    },
+    {
+     "type": "grid",
+     "id": "s1.g-situation-2",
+     "head": [
+      "Situation",
+      "Your calculation",
+      "Channels"
+     ],
+     "rows": [
+      [
+       {
+        "v": "6 members"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Reduction against the 12-member group"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s1.q-two-sentences-what-would-you-propose-to-the-sponsor-and-what",
+     "mark": "d)",
+     "text": "Two sentences. What would you propose to the sponsor — and what does the organisation give up by adopting it? Be specific; there is always something.",
+     "field": {
+      "id": "s1.q-two-sentences-what-would-you-propose-to-the-sponsor-and-what",
+      "kind": "long_text",
+      "rows": 3
+     }
+    }
+   ]
+  },
+  {
+   "id": "s2",
+   "title": "Task 2 · Find the path, then buy the time",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "A transportation management system implementation. Eight activities, their predecessors and their durations in weeks."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Activity",
+      "Description",
+      "Predecessor",
+      "Weeks"
+     ],
+     "rows": [
+      [
+       "A",
+       "Requirements and carrier scoping",
+       "—",
+       "3"
+      ],
+      [
+       "B",
+       "Carrier onboarding and rate loading",
+       "A",
+       "7"
+      ],
+      [
+       "C",
+       "Integration build with the ERP",
+       "A",
+       "9"
+      ],
+      [
+       "D",
+       "Rate audit rules and testing",
+       "B",
+       "4"
+      ],
+      [
+       "E",
+       "User training material",
+       "A",
+       "3"
+      ],
+      [
+       "F",
+       "End-to-end testing",
+       "C, D",
+       "4"
+      ],
+      [
+       "G",
+       "Pilot lane go-live",
+       "E, F",
+       "2"
+      ],
+      [
+       "H",
+       "Full cutover",
+       "G",
+       "1"
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s2.q-list-every-path-through-the-network-calculate-its-duration-i",
+     "mark": "a)",
+     "text": "List every path through the network, calculate its duration, identify the critical path, and give the float on each of the others.",
+     "field": null,
+     "answeredBy": "s2.g-path"
+    },
+    {
+     "type": "grid",
+     "id": "s2.g-path",
+     "head": [
+      "Path",
+      "Calculation",
+      "Weeks",
+      "Float"
+     ],
+     "rows": [
+      [
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s2.q-the-sponsor-wants-the-project-delivered-three-weeks-earlier-",
+     "mark": "b)",
+     "text": "The sponsor wants the project delivered THREE WEEKS earlier than the critical path allows. These are the crash options available. Work out the cheapest way to get there.",
+     "field": null,
+     "answeredBy": "s2.g-step"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Activity",
+      "Cost to shorten by one week",
+      "Maximum weeks it can be shortened"
+     ],
+     "rows": [
+      [
+       "A",
+       "USD 15,000",
+       "1"
+      ],
+      [
+       "B",
+       "USD 8,000",
+       "3"
+      ],
+      [
+       "D",
+       "USD 11,000",
+       "2"
+      ],
+      [
+       "F",
+       "USD 19,000",
+       "2"
+      ],
+      [
+       "G",
+       "USD 25,000",
+       "1"
+      ]
+     ]
+    },
+    {
+     "type": "grid",
+     "id": "s2.g-step",
+     "head": [
+      "Step",
+      "Your working",
+      "Result"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Target duration"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "First crash — which activity, how many weeks, cost"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Recheck EVERY path at this point"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Further crash if needed — activity, weeks, cost"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "TOTAL CRASH COST"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "RESULTING PROJECT DURATION"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "CHECK BEFORE YOU MOVE ON. Recalculate every path with your crashed durations in place, not only the path you crashed. If the number you get is not the target you were given, the answer is not finished — and this is the single most common error in this calculation."
+    },
+    {
+     "type": "question",
+     "id": "s2.q-state-the-new-critical-path-or-paths-at-the-target-duration-",
+     "mark": "c)",
+     "text": "State the new critical path or paths at the target duration, and say what that means for any FURTHER reduction the sponsor might ask for.",
+     "field": {
+      "id": "s2.q-state-the-new-critical-path-or-paths-at-the-target-duration-",
+      "kind": "long_text",
+      "rows": 4
+     }
+    }
+   ]
+  },
+  {
+   "id": "s3",
+   "title": "Task 3 · Read the project",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "A supply chain planning system implementation. The budget at completion is USD 960,000 and the project is scheduled to run for 8 months, with cost planned evenly across the months. The work is divided into 8 workstreams of equal value. It is now the end of month 5. Two workstreams are complete; the rest are in progress or not started. USD 260,000 has been spent."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Element",
+      "Figure"
+     ],
+     "rows": [
+      [
+       "Budget at completion",
+       "USD 960,000"
+      ],
+      [
+       "Planned duration",
+       "8 months"
+      ],
+      [
+       "Workstreams, of equal value",
+       "8"
+      ],
+      [
+       "Months elapsed",
+       "5"
+      ],
+      [
+       "Workstreams complete",
+       "2"
+      ],
+      [
+       "Actual cost to date",
+       "USD 260,000"
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s3.q-compute-the-following-show-the-calculation-not-only-the-answ",
+     "mark": "a)",
+     "text": "Compute the following. Show the calculation, not only the answer.",
+     "field": null,
+     "answeredBy": "s3.g-measure"
+    },
+    {
+     "type": "grid",
+     "id": "s3.g-measure",
+     "head": [
+      "Measure",
+      "Your calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Planned value"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Earned value"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Actual cost"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Schedule variance"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Cost variance"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Schedule performance index"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Cost performance index"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Estimate at completion"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Forecast duration"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "question",
+     "id": "s3.q-compare-what-has-been-spent-with-what-was-planned-to-have-be",
+     "mark": "b)",
+     "text": "Compare what has been SPENT with what was PLANNED to have been spent by the end of month 5. Write down the difference — and then write the sentence a finance report based on that comparison alone would contain.",
+     "field": {
+      "id": "s3.q-compare-what-has-been-spent-with-what-was-planned-to-have-be",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "question",
+     "id": "s3.q-now-state-what-percentage-of-the-work-is-done-and-what-perce",
+     "mark": "c)",
+     "text": "Now state what percentage of the WORK is done, and what percentage of the TIME has elapsed. Put the two next to each other.",
+     "field": {
+      "id": "s3.q-now-state-what-percentage-of-the-work-is-done-and-what-perce",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "question",
+     "id": "s3.q-in-one-sentence-what-is-actually-happening-on-this-project-a",
+     "mark": "d)",
+     "text": "In one sentence: what is actually happening on this project? And which of the two indexes would you put in front of the steering committee first, and why?",
+     "field": {
+      "id": "s3.q-in-one-sentence-what-is-actually-happening-on-this-project-a",
+      "kind": "long_text",
+      "rows": 5
+     }
+    }
+   ]
+  },
+  {
+   "id": "s4",
+   "title": "Notes",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Anything you want to raise with the training team, or a correction to any figure in this release. Corrections are welcome — every worked figure has been checked, and checked figures are still worth challenging."
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "s4.f-note",
+      "kind": "long_text",
+      "rows": 8
+     }
+    },
+    {
+     "type": "callout",
+     "text": "Derived from the CSCP body of knowledge and rewritten in NESR’s own words with NESR examples. Internal training use. Confirm ASCM licence terms before any external distribution."
+    }
+   ]
+  }
+ ],
+ "answers": [
+  {
+   "title": "Worked answers",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "NESR SUPPLY CHAIN TRAINING PROGRAMME"
+    },
+    {
+     "type": "prose",
+     "text": "Level 3 — Advanced"
+    },
+    {
+     "type": "prose",
+     "text": "Release 3 · Technology Applications and Implementation — worksheet answers"
+    },
+    {
+     "type": "callout",
+     "text": "Three tasks, worked in full. Each has a headline answer that a competent person would produce in good faith, and a second reading that changes what you would do. The second reading is the point of the exercise. Work each task before reading its answer."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Task",
+      "What it tests",
+      "What the headline number hides"
+     ],
+     "rows": [
+      [
+       "1",
+       "Communication channels",
+       "Adding five people to a steering group adds 45 channels — the load grows more than three times faster than the headcount"
+      ],
+      [
+       "2",
+       "Critical path and crashing",
+       "The obvious crash costs less and does NOT hit the deadline: the second path becomes critical before you get there"
+      ],
+      [
+       "3",
+       "Earned value",
+       "The project is 340,000 UNDER the planned spend and is in serious trouble — because only a quarter of the work is done"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Task 1 · Size the communication load — worked",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "a)  Channels before and after"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Situation",
+      "Calculation",
+      "Channels"
+     ],
+     "rows": [
+      [
+       "7 members",
+       "7 × 6 ÷ 2",
+       "21"
+      ],
+      [
+       "12 members",
+       "12 × 11 ÷ 2",
+       "66"
+      ],
+      [
+       "THE INCREASE",
+       "66 − 21",
+       "+45 channels"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "b)  People against channels"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Measure",
+      "Calculation",
+      "Increase"
+     ],
+     "rows": [
+      [
+       "People",
+       "12 ÷ 7 = 1.714",
+       "+71%"
+      ],
+      [
+       "Channels",
+       "66 ÷ 21 = 3.143",
+       "+214%"
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "Five extra people — a 71 per cent increase in headcount — produced a 214 per cent increase in the communication load. The load grows roughly three times faster than the group. That ratio is why the formula is on the CSCP syllabus at all: nobody disputes it once they see it, and almost nobody anticipates it before they do."
+    },
+    {
+     "type": "prose",
+     "text": "c)  The representative model"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Situation",
+      "Calculation",
+      "Channels"
+     ],
+     "rows": [
+      [
+       "6 members",
+       "6 × 5 ÷ 2",
+       "15"
+      ],
+      [
+       "Against the 12-member group",
+       "15 ÷ 66 = 0.227",
+       "−77%"
+      ],
+      [
+       "And against the ORIGINAL 7-member group",
+       "15 vs 21",
+       "−29%"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Note the second row of that table carefully. A 6-member group covering three regions carries FEWER channels than the 7-member group covering two did. Adding a whole region and reducing the communication load at the same time is possible — it is a question of structure, not of size."
+    },
+    {
+     "type": "prose",
+     "text": "d)  The proposal, and what it costs"
+    },
+    {
+     "type": "prose",
+     "text": "An acceptable answer:"
+    },
+    {
+     "type": "callout",
+     "text": "\"I propose a six-member steering group with one authorised regional representative per region alongside the sponsor, the I T director and the partner lead. That takes the communication load from sixty-six channels to fifteen, a seventy-seven per cent reduction, while still giving all three regions a seat. What we give up is direct access: finance and H S E no longer hear things first-hand, so their input reaches the group filtered through one person — which means the regional representative has to be someone with the standing to speak for all three functions, and a regional pre-meeting has to be a real obligation rather than a courtesy.\""
+    },
+    {
+     "type": "prose",
+     "text": "Marking notes."
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The calculation alone is not a full answer. The task asked what you give up, and there is always something.",
+      "The honest cost is filtered information and a single point of failure per region. If the regional representative is weak, the region is effectively unrepresented — and the group will not know, because the channel that would have told them has been removed.",
+      "An answer that says \"nothing is lost, this is pure efficiency\" is wrong. The source is explicit that with each channel, costs and risks increase and productivity is reduced — but it is equally explicit that identifying stakeholders and their information needs is a planning obligation. Cutting channels without redistributing the information need is not a saving; it is a deferred failure.",
+      "A strong answer names the mitigation as well as the cost: a written regional pre-meeting, a standing agenda item for H S E, or a read-only distribution of the minutes to the people who left the group. Distribution is a channel too — but a one-way one, and the formula counts two-way interactions."
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Task 2 · Find the path, then buy the time — worked",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "a)  Every path, and the float"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Path",
+      "Calculation",
+      "Weeks",
+      "Float"
+     ],
+     "rows": [
+      [
+       "A-B-D-F-G-H",
+       "3 + 7 + 4 + 4 + 2 + 1",
+       "21",
+       "0 — CRITICAL"
+      ],
+      [
+       "A-C-F-G-H",
+       "3 + 9 + 4 + 2 + 1",
+       "19",
+       "2"
+      ],
+      [
+       "A-E-G-H",
+       "3 + 3 + 2 + 1",
+       "9",
+       "12"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "The critical path is 21 weeks. Note how close the second path is: two weeks of float, on a project where the sponsor is about to ask for three. That proximity is the whole task."
+    },
+    {
+     "type": "prose",
+     "text": "b)  Getting to 18 weeks"
+    },
+    {
+     "type": "prose",
+     "text": "The answer most people produce first:"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "The obvious move",
+      "Calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       "Crash B by 3 weeks — it is the cheapest activity on the critical path",
+       "3 × 8,000",
+       "24,000"
+      ],
+      [
+       "A-B-D-F-G-H now runs",
+       "3 + 4 + 4 + 4 + 2 + 1",
+       "18"
+      ],
+      [
+       "But A-C-F-G-H still runs",
+       "3 + 9 + 4 + 2 + 1",
+       "19"
+      ],
+      [
+       "PROJECT DURATION",
+       "the longest path",
+       "19 weeks — NOT 18"
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "This is the error the task is built around, and it is the most common error in this calculation. Crashing the critical path shortens the critical path — it does not shorten the project once another path overtakes it. B had 3 weeks available to crash, but only 2 of them were USEFUL, because after two weeks the A-C-F-G-H path became critical too. The third week of B cost 8,000 and bought nothing."
+    },
+    {
+     "type": "prose",
+     "text": "The correct answer:"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Step",
+      "Calculation",
+      "Cost"
+     ],
+     "rows": [
+      [
+       "Crash B by 2 weeks — takes the critical path to 19",
+       "2 × 8,000",
+       "16,000"
+      ],
+      [
+       "A-C-F-G-H is now also 19. Any further reduction must shorten BOTH.",
+       "—",
+       "—"
+      ],
+      [
+       "A is on both paths. Crash A by 1 week",
+       "1 × 15,000",
+       "15,000"
+      ],
+      [
+       "TOTAL CRASH COST",
+       "16,000 + 15,000",
+       "31,000"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "The check — every path recalculated"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Path",
+      "With A at 2 and B at 5",
+      "Weeks"
+     ],
+     "rows": [
+      [
+       "A-B-D-F-G-H",
+       "2 + 5 + 4 + 4 + 2 + 1",
+       "18"
+      ],
+      [
+       "A-C-F-G-H",
+       "2 + 9 + 4 + 2 + 1",
+       "18"
+      ],
+      [
+       "A-E-G-H",
+       "2 + 3 + 2 + 1",
+       "8"
+      ],
+      [
+       "PROJECT DURATION",
+       "the longest path",
+       "18 weeks — target met"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Why the alternatives cost more, for completeness:"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Crash B by 3 (24,000) then A by 1 (15,000) = 39,000. It reaches 18, but the third week of B was wasted — you paid 8,000 for a week the second path had already absorbed.",
+      "Crash F by 2 (38,000) — F is on both paths, so both come down. But it leaves A-B-D-F-G-H at 19, needing one more week of B: 46,000 in total.",
+      "Crash D (11,000 a week) is on the critical path but NOT on A-C-F-G-H, so it has exactly the same ceiling as B and costs more per week.",
+      "31,000 is the cheapest. The general rule the example demonstrates: once two paths are tied, only an activity COMMON to both buys time — and it is worth paying more per week for a shared activity than less per week for one that is not."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "c)  The new critical paths, and what they mean"
+    },
+    {
+     "type": "prose",
+     "text": "An acceptable answer:"
+    },
+    {
+     "type": "callout",
+     "text": "\"At eighteen weeks there are two critical paths: A-B-D-F-G-H and A-C-F-G-H. Neither has any float. That means any further reduction has to come from an activity on both — A, F, G or H — and A is already fully crashed. The next cheapest common activity is F at nineteen thousand a week, so week nineteen costs more than twice what week eighteen cost. It also means the project has become far more fragile: with two critical paths, a delay anywhere on either one delays the whole project immediately, and there is no longer any slack anywhere to absorb it.\""
+    },
+    {
+     "type": "prose",
+     "text": "Marking notes."
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The fragility point is worth as much as the arithmetic. Crashing does not only cost money — it removes float, and float is what absorbs the problems nobody has thought of yet.",
+      "The cost per week rises as you go. Weeks 20 and 19 cost 8,000 each; week 18 cost 15,000; week 17 would cost 19,000. A sponsor who asks for \"one more week\" after this point should be shown that curve."
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Task 3 · Read the project — worked",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "a)  The eight measures"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Measure",
+      "Calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       "Planned value",
+       "960,000 × 5 ÷ 8",
+       "600,000"
+      ],
+      [
+       "Earned value",
+       "960,000 × 2 ÷ 8",
+       "240,000"
+      ],
+      [
+       "Actual cost",
+       "spent to date",
+       "260,000"
+      ],
+      [
+       "SCHEDULE VARIANCE",
+       "240,000 − 600,000",
+       "(360,000)"
+      ],
+      [
+       "COST VARIANCE",
+       "240,000 − 260,000",
+       "(20,000)"
+      ],
+      [
+       "Schedule performance index",
+       "240,000 ÷ 600,000",
+       "0.40"
+      ],
+      [
+       "Cost performance index",
+       "240,000 ÷ 260,000",
+       "0.92"
+      ],
+      [
+       "Estimate at completion",
+       "960,000 ÷ 0.92",
+       "1,040,000"
+      ],
+      [
+       "Forecast duration",
+       "8 ÷ 0.40",
+       "20 months"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "b)  Spent against planned — and the finance report"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Measure",
+      "Calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       "Planned to have been spent by month 5",
+       "960,000 × 5 ÷ 8",
+       "600,000"
+      ],
+      [
+       "Actually spent",
+       "given",
+       "260,000"
+      ],
+      [
+       "DIFFERENCE",
+       "600,000 − 260,000",
+       "340,000 UNDER"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "The sentence a finance report based on that comparison alone would contain:"
+    },
+    {
+     "type": "callout",
+     "text": "\"The project is 340,000 dollars under budget at the five-month mark, representing 57 per cent of planned expenditure against 62 per cent of elapsed time.\""
+    },
+    {
+     "type": "callout",
+     "text": "Every figure in that sentence is arithmetically correct, and the conclusion it invites is completely wrong. This is not a hypothetical. A budget-versus-actual comparison is the standard monthly report in most organisations, and on a project that has stalled it produces good news — because a project that is not doing work is also not spending money. The variance is favourable precisely BECAUSE nothing is happening."
+    },
+    {
+     "type": "prose",
+     "text": "c)  Work against time"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Measure",
+      "Calculation",
+      "Result"
+     ],
+     "rows": [
+      [
+       "Work complete",
+       "2 of 8 workstreams",
+       "25%"
+      ],
+      [
+       "Time elapsed",
+       "5 of 8 months",
+       "62.5%"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "A quarter of the work has been done in nearly two-thirds of the time. That comparison takes one line and needs no framework at all — but it is the comparison the budget report does not make, and earned value exists precisely to force it."
+    },
+    {
+     "type": "prose",
+     "text": "d)  What is actually happening, and which index goes first"
+    },
+    {
+     "type": "prose",
+     "text": "An acceptable answer:"
+    },
+    {
+     "type": "callout",
+     "text": "\"This project is not under budget, it is stalled: a quarter of the work has been delivered in nearly two-thirds of the schedule, the schedule performance index is zero point four zero, and at the current rate the eight-month project will take twenty months and finish at one point zero four million against a budget of nine hundred and sixty thousand. I would put the schedule performance index in front of the committee first, because at zero point four zero it is the number that explains the apparently favourable spend — the money has not been saved, it has simply not been spent yet, and it will all still be needed.\""
+    },
+    {
+     "type": "prose",
+     "text": "Marking notes."
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The schedule performance index is the right answer to \"which index first\", and the reason matters more than the choice. At 0.40 it is catastrophic; the cost performance index at 0.92 looks almost respectable and, taken alone, would produce a conversation about tightening up rather than a conversation about rescuing.",
+      "The cost variance is only 20,000 and is NOT the real cost story. The real cost story is the estimate at completion: 1,040,000 against a 960,000 budget, an 80,000 overrun forecast from a project that has spent 340,000 less than planned. If the work rate does not recover, that forecast worsens every month.",
+      "An answer that says \"cost variance is small, so cost is fine\" has fallen into the second half of the trap. The cost performance index is measured against EARNED value, not against elapsed time — 0.92 means every dollar spent has bought 92 cents of value, and that inefficiency applies to the whole remaining budget too.",
+      "Contrast this deliberately with the case worked in the video. There the cost variance was the larger problem; here the schedule variance is, by a wide margin. Which one dominates is an empirical question that has to be computed each time. There is no rule of thumb, and any instinct that says \"it is usually cost\" or \"it is usually schedule\" should be distrusted."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "The general lesson, and the reason this task exists. Earned value is not an accounting technique — it is the only one of the standard reports that compares work done against money spent instead of comparing money spent against money planned. A project can only look good on a budget report by spending, and a stalled project spends nothing. If your organisation reports projects on budget-versus-actual alone, the projects in the most trouble will be the ones with the best-looking reports."
+    }
+   ]
+  },
+  {
+   "title": "Source note",
+   "blocks": [
+    {
+     "type": "callout",
+     "text": "Derived from the CSCP body of knowledge and rewritten in NESR’s own words with NESR examples. Every figure in this document has been computed and verified independently of the slides. Internal training use. Confirm ASCM licence terms before any external distribution."
+    }
+   ]
+  }
+ ]
+}

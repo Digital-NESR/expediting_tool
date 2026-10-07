@@ -27,6 +27,7 @@ import type {
 import type { LaptopAdminData, LaptopAnalyticsData } from '@/types/laptopProcurement';
 import type { LearningHubAdminData } from '@/types/learning-hub';
 import type { LearningHubAnalytics } from '@/types/learning-hub';
+import type { WorksheetReport } from '@/app/actions/learning-hub-worksheets';
 import type { ExpeditingAnalytics } from '@/app/actions/adminAnalytics';
 
 /* Same shape as ./loading.tsx — the skeleton the route already shows
@@ -161,6 +162,7 @@ export interface AdminAppContentProps {
   laptopAnalyticsData?: LaptopAnalyticsData | null;
   learningHubAdminData?: LearningHubAdminData;
   learningHubAnalytics?: LearningHubAnalytics;
+  learningHubWorksheets?: WorksheetReport[];
 }
 
 /* Badges live in the sidebar (server-fetched in the layout), so the access
@@ -255,7 +257,12 @@ export default function AdminAppContent(props: AdminAppContentProps) {
     case 'learning-hub/admin':
       return <LearningHubAdminClient data={props.learningHubAdminData!} />;
     case 'learning-hub/analytics':
-      return <LearningHubAnalyticsClient data={props.learningHubAnalytics!} />;
+      return (
+        <LearningHubAnalyticsClient
+          data={props.learningHubAnalytics!}
+          worksheets={props.learningHubWorksheets ?? []}
+        />
+      );
 
     default:
       return <div className="text-sm text-slate-500">Unknown section.</div>;

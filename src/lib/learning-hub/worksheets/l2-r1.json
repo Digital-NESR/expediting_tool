@@ -1,0 +1,1811 @@
+{
+ "key": "l2-r1",
+ "level": "Level 2 — Practitioner",
+ "title": "Plan the Demand",
+ "courseTitle": "Supply Chain Professional",
+ "moduleTitle": "Demand Management & Forecasting",
+ "intro": "Open this before you start module 1, and keep a calculator or a spreadsheet to hand. Six of the ten tasks are calculations. Nothing here is collected or scored — the answers are in the companion answers document, but work each task before you look.",
+ "sections": [
+  {
+   "id": "sa",
+   "title": "Section A · Module tasks",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Tasks 5 to 8 use the data in sections B, C and D. Work them there."
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-1-audit-your-own-demand-plan",
+     "title": "Module 1 — Audit your own demand plan",
+     "pauseMinutes": 6,
+     "prompts": [
+      "Which of the six plan elements does it contain, and which are missing? (item, quantity, time bucket, location, horizon, confidence)",
+      "Of the six inputs, which ones actually reach the planner — and how late?",
+      "What is the planning horizon, and what is the cumulative lead time of your longest-lead item? Is the horizon long enough?",
+      "Who publishes it, to whom, on what day, in what format?"
+     ],
+     "field": {
+      "id": "sa.t-module-1-audit-your-own-demand-plan",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-2-pick-one-collaboration-candidate",
+     "title": "Module 2 — Pick one collaboration candidate",
+     "pauseMinutes": 6,
+     "prompts": [
+      "Choose one item. State its annual consumption value and how steady its consumption is.",
+      "Which model fits — quick response, continuous replenishment, or vendor-managed inventory? Why?",
+      "Test it against the five conditions. Which is weakest?",
+      "What would we have to fix before approaching the supplier at all?"
+     ],
+     "field": {
+      "id": "sa.t-module-2-pick-one-collaboration-candidate",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-3-read-your-own-data",
+     "title": "Module 3 — Read your own data",
+     "pauseMinutes": 7,
+     "prompts": [
+      "Plot one item family, at least two years, in the bucket you plan in.",
+      "Work the five diagnostic steps. Which components are present — level, trend, season, event, noise?",
+      "List any spikes you can explain, and the cause of each.",
+      "Which of the five components does your current forecasting method actually capture?"
+     ],
+     "field": {
+      "id": "sa.t-module-3-read-your-own-data",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-4-match-method-to-item",
+     "title": "Module 4 — Match method to item",
+     "pauseMinutes": 7,
+     "prompts": [
+      "Take four items with genuinely different demand behaviour. Name the components present in each.",
+      "Choose the method from the decision table, and say why.",
+      "For any item you would forecast associatively, name the indicator and how far ahead it moves.",
+      "For each item, name one judgement adjustment — and the information that justifies it."
+     ],
+     "field": {
+      "id": "sa.t-module-4-match-method-to-item",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-5-build-a-seasonal-index",
+     "title": "Module 5 — Build a seasonal index",
+     "pauseMinutes": 8,
+     "prompts": [
+      "Use the history in section B. Average each quarter across the three years.",
+      "Average the four quarter averages to get the year average.",
+      "Divide each quarter average by the year average to get the four indices.",
+      "Check: the indices should sum to 4.00. Then deseasonalise year 3."
+     ],
+     "field": null,
+     "redirect": "Work this one in the relevant section below."
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-6-forecast-three-ways",
+     "title": "Module 6 — Forecast three ways",
+     "pauseMinutes": 10,
+     "prompts": [
+      "Four-period simple moving average of the deseasonalised year 3.",
+      "Weighted moving average, weights 1, 2, 3, 4 — divide by the sum of the weights.",
+      "Exponential smoothing, α = 0.3, starting from the year 2 deseasonalised average.",
+      "Reseasonalise all three into year 4 quarterly forecasts in units."
+     ],
+     "field": null,
+     "redirect": "Work this one in the relevant section below."
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-7-measure-a-forecast",
+     "title": "Module 7 — Measure a forecast",
+     "pauseMinutes": 10,
+     "prompts": [
+      "Use the forecast and actuals in section C. Calculate the error and absolute error per quarter.",
+      "Calculate MAD, MSE and MAPE.",
+      "Calculate the running sum of forecast errors and the tracking signal.",
+      "Size problem, bias problem, both or neither — and what would you do about it?"
+     ],
+     "field": null,
+     "redirect": "Work this one in the relevant section below."
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-8-answer-the-customer",
+     "title": "Module 8 — Answer the customer",
+     "pauseMinutes": 10,
+     "prompts": [
+      "Use the grid in section D. Complete the projected available balance row.",
+      "Complete the available-to-promise row.",
+      "A customer asks for 60 units in week 5. Can you promise it? Show which number you used.",
+      "A second, separate customer asks for 90 units in week 3. What do you tell them, and which time-fence zone is that?"
+     ],
+     "field": null,
+     "redirect": "Work this one in the relevant section below."
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-9-place-the-decision",
+     "title": "Module 9 — Place the decision",
+     "pauseMinutes": 8,
+     "prompts": [
+      "List five real planning decisions from the last quarter, with dates.",
+      "For each, name the level it belongs to, and the level it was actually made at.",
+      "Where those differ, what did the mismatch cost — money, time or credibility?",
+      "Which one decision would most improve things if moved to its proper level?"
+     ],
+     "field": {
+      "id": "sa.t-module-9-place-the-decision",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-10-diagnose-your-own-cycle",
+     "title": "Module 10 — Diagnose your own cycle",
+     "pauseMinutes": 8,
+     "prompts": [
+      "Which of the five S&OP process steps does your forum perform, and which does it skip?",
+      "Which meetings exist, and who attends each?",
+      "Which of the six symptoms apply to your cycle?",
+      "The single change with the largest effect — and who would have to agree to it."
+     ],
+     "field": {
+      "id": "sa.t-module-10-diagnose-your-own-cycle",
+      "kind": "long_text",
+      "rows": 6
+     }
+    }
+   ]
+  },
+  {
+   "id": "sb",
+   "title": "Section B · History for the module 5 and 6 tasks",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Filter elements, units, by quarter, three years."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "",
+      "Q1",
+      "Q2",
+      "Q3",
+      "Q4",
+      "Year total"
+     ],
+     "rows": [
+      [
+       "Year 1",
+       "400",
+       "440",
+       "330",
+       "290",
+       "1,460"
+      ],
+      [
+       "Year 2",
+       "440",
+       "480",
+       "360",
+       "320",
+       "1,600"
+      ],
+      [
+       "Year 3",
+       "480",
+       "520",
+       "390",
+       "350",
+       "1,740"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Module 5 · a — quarter averages"
+    },
+    {
+     "type": "grid",
+     "id": "sb.g-quarter",
+     "head": [
+      "Quarter",
+      "Year 1",
+      "Year 2",
+      "Year 3",
+      "Sum",
+      "÷ 3 = quarter average"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Q1"
+       },
+       {
+        "v": "400"
+       },
+       {
+        "v": "440"
+       },
+       {
+        "v": "480"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Q2"
+       },
+       {
+        "v": "440"
+       },
+       {
+        "v": "480"
+       },
+       {
+        "v": "520"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Q3"
+       },
+       {
+        "v": "330"
+       },
+       {
+        "v": "360"
+       },
+       {
+        "v": "390"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Q4"
+       },
+       {
+        "v": "290"
+       },
+       {
+        "v": "320"
+       },
+       {
+        "v": "350"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Module 5 · b and c — year average and seasonal index"
+    },
+    {
+     "type": "prose",
+     "text": "Year average  =  (sum of the four quarter averages) ÷ 4  =  ______________"
+    },
+    {
+     "type": "grid",
+     "id": "sb.g-section-b-history-for-the-module-5-and-6-tasks",
+     "head": [
+      "",
+      "Q1",
+      "Q2",
+      "Q3",
+      "Q4",
+      "Sum (check = 4.00)"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Quarter average"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Seasonal index"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Module 5 · d — deseasonalise year 3   (actual ÷ index)"
+    },
+    {
+     "type": "grid",
+     "id": "sb.g-section-b-history-for-the-module-5-and-6-tasks-2",
+     "head": [
+      "",
+      "Q1",
+      "Q2",
+      "Q3",
+      "Q4"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Year 3 actual"
+       },
+       {
+        "v": "480"
+       },
+       {
+        "v": "520"
+       },
+       {
+        "v": "390"
+       },
+       {
+        "v": "350"
+       }
+      ],
+      [
+       {
+        "v": "Year 3 deseasonalised"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Module 6 — forecast three ways"
+    },
+    {
+     "type": "grid",
+     "id": "sb.g-method",
+     "head": [
+      "Method",
+      "Working",
+      "Deseasonalised forecast"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Simple moving average (4 periods)"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Weighted moving average (1, 2, 3, 4)"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Exponential smoothing, α = 0.3, start 400.0"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Exponential smoothing — work it one quarter at a time:"
+    },
+    {
+     "type": "grid",
+     "id": "sb.g-period",
+     "head": [
+      "Period",
+      "Previous forecast",
+      "Actual (deseasonalised)",
+      "Error",
+      "α × error",
+      "New forecast"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Y3 Q1"
+       },
+       {
+        "v": "400.0"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Y3 Q2"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Y3 Q3"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Y3 Q4"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Module 6 · reseasonalise   (deseasonalised forecast × index)"
+    },
+    {
+     "type": "grid",
+     "id": "sb.g-year-4-forecast-units",
+     "head": [
+      "Year 4 forecast, units",
+      "Q1",
+      "Q2",
+      "Q3",
+      "Q4",
+      "Year total"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Simple moving average"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Weighted moving average"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Exponential smoothing"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "sc",
+   "title": "Section C · Forecast and actuals for the module 7 task",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "The same item, year 4. Forecast produced at the end of year 3; actuals now known."
+    },
+    {
+     "type": "grid",
+     "id": "sc.g-year-4",
+     "head": [
+      "Year 4",
+      "Q1",
+      "Q2",
+      "Q3",
+      "Q4",
+      "Total"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Forecast (F)"
+       },
+       {
+        "v": "480"
+       },
+       {
+        "v": "520"
+       },
+       {
+        "v": "390"
+       },
+       {
+        "v": "350"
+       },
+       {
+        "v": "1,740"
+       }
+      ],
+      [
+       {
+        "v": "Actual (A)"
+       },
+       {
+        "v": "505"
+       },
+       {
+        "v": "548"
+       },
+       {
+        "v": "410"
+       },
+       {
+        "v": "372"
+       },
+       {
+        "v": "1,835"
+       }
+      ],
+      [
+       {
+        "v": "Error (A − F)"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Absolute error |A − F|"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Error squared"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Absolute % error (|A−F| ÷ A)"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "grid",
+     "id": "sc.g-measure",
+     "head": [
+      "Measure",
+      "Formula",
+      "Your answer"
+     ],
+     "rows": [
+      [
+       {
+        "v": "MAD"
+       },
+       {
+        "v": "sum of absolute errors ÷ number of periods"
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "MSE"
+       },
+       {
+        "v": "sum of squared errors ÷ number of periods"
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "MAPE"
+       },
+       {
+        "v": "sum of the absolute % errors ÷ number of periods"
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "RSFE"
+       },
+       {
+        "v": "running sum of the signed errors"
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Tracking signal"
+       },
+       {
+        "v": "RSFE ÷ MAD"
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "freeNote",
+     "label": "Size problem, bias problem, both or neither — and what would you do about it?",
+     "field": {
+      "id": "sc.f-size-problem-bias-problem-both-or-neither-and-what-would-you",
+      "kind": "long_text",
+      "rows": 3
+     }
+    }
+   ]
+  },
+  {
+   "id": "sd",
+   "title": "Section D · Master scheduling grid for the module 8 task",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Opening stock 100. Forecast 50 per week. Demand time fence at the end of week 2; planning time fence at the end of week 5."
+    },
+    {
+     "type": "grid",
+     "id": "sd.g-week",
+     "head": [
+      "Week",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Forecast"
+       },
+       {
+        "v": "50"
+       },
+       {
+        "v": "50"
+       },
+       {
+        "v": "50"
+       },
+       {
+        "v": "50"
+       },
+       {
+        "v": "50"
+       },
+       {
+        "v": "50"
+       },
+       {
+        "v": "50"
+       },
+       {
+        "v": "50"
+       }
+      ],
+      [
+       {
+        "v": "Booked orders"
+       },
+       {
+        "v": "50"
+       },
+       {
+        "v": "40"
+       },
+       {
+        "v": "30"
+       },
+       {
+        "v": "25"
+       },
+       {
+        "v": "20"
+       },
+       {
+        "v": "10"
+       },
+       {
+        "v": "5"
+       },
+       {
+        "v": "0"
+       }
+      ],
+      [
+       {
+        "v": "Master schedule (MPS)"
+       },
+       {
+        "v": "—"
+       },
+       {
+        "v": "100"
+       },
+       {
+        "v": "—"
+       },
+       {
+        "v": "100"
+       },
+       {
+        "v": "—"
+       },
+       {
+        "v": "100"
+       },
+       {
+        "v": "—"
+       },
+       {
+        "v": "100"
+       }
+      ],
+      [
+       {
+        "v": "Projected available balance"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Available-to-promise"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Treat the two customer questions as separate, independent enquiries against this grid."
+    },
+    {
+     "type": "freeNote",
+     "label": "1 · A customer asks for 60 units in week 5. Can you promise it? Which number did you use?",
+     "field": {
+      "id": "sd.f-1-a-customer-asks-for-60-units-in-week-5-can-you-promise-it-",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "prose",
+     "text": "2 · A separate customer asks for 90 units in week 3. What do you tell them, and which zone is week 3 in?"
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "sd.f-note",
+      "kind": "long_text",
+      "rows": 3
+     }
+    }
+   ]
+  },
+  {
+   "id": "se",
+   "title": "Section E · Your first actions",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Release 1 produced two things you can act on. Write them here, with dates."
+    },
+    {
+     "type": "prose",
+     "text": "The measure I will start tracking (from module 7 — MAPE or tracking signal, on which family?)"
+    },
+    {
+     "type": "freeNote",
+     "label": null,
+     "field": {
+      "id": "se.f-note",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "freeNote",
+     "label": "The one change to our planning cycle I will propose (from module 10), and to whom",
+     "field": {
+      "id": "se.f-the-one-change-to-our-planning-cycle-i-will-propose-from-mod",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "callout",
+     "text": "Content derived from the CSCP body of knowledge, Module 2 Section A, rewritten in NESR's own words with NESR examples. Internal training use."
+    }
+   ]
+  }
+ ],
+ "answers": [
+  {
+   "title": "Worked answers",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "NESR SUPPLY CHAIN TRAINING PROGRAMME"
+    },
+    {
+     "type": "prose",
+     "text": "Level 2 — Practitioner"
+    },
+    {
+     "type": "prose",
+     "text": "Release 1 · Plan the Demand — worksheet answers"
+    },
+    {
+     "type": "callout",
+     "text": "Answers to all ten module tasks. Tasks 5 to 8 are calculations with definite answers, worked in full in sections B, C and D. Tasks 1, 2, 3, 4, 9 and 10 ask about your own area, so those sections set out what a good answer looks like and the traps to avoid. Work the task before reading the answer — the calculation tasks in particular teach nothing if you read the worked version first."
+    }
+   ]
+  },
+  {
+   "title": "Section A · The judgement tasks",
+   "blocks": [
+    {
+     "type": "subheading",
+     "text": "Module 1 — Audit your own demand plan"
+    },
+    {
+     "type": "prose",
+     "text": "What a good answer looks like"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The element most often missing is confidence — the split between firm orders and forecast, and the expected error. Its absence has a direct cost: without it you cannot size safety stock, so it gets guessed.",
+      "On inputs, the usual finding is that historical demand arrives reliably and the other five arrive irregularly, informally or late. That is not a criticism of anyone; it is the normal state of an organisation that has never designed the routine.",
+      "On horizon, if your planning horizon is shorter than your cumulative lead time, the plan is decorative for that item — it cannot influence any order that matters.",
+      "On publication, if you could not answer all four parts (who, to whom, what day, what format), that is the cheapest thing on this list to fix."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "A useful follow-up: extend the horizon before you try to improve the forecast. An accurate forecast that arrives after the ordering decision has been made changes nothing."
+    },
+    {
+     "type": "subheading",
+     "text": "Module 2 — Pick one collaboration candidate"
+    },
+    {
+     "type": "prose",
+     "text": "What a good answer looks like"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "A high-volume consumable — a chemical, a cement additive, personal protective equipment. Those are where collaboration pays and where the administrative load is heaviest today.",
+      "Quick response is the right first model for almost every candidate. It needs the least trust, and it exposes data problems early and cheaply.",
+      "The weakest condition is almost always data accuracy. Consumption is recorded late, issues are not transacted, or the stock record does not match the shelf.",
+      "So the answer to \"what would we fix first\" is nearly always the consumption data — and that project has value on its own, because accurate consumption data improves your own forecasting whether or not you ever approach the supplier."
+     ]
+    },
+    {
+     "type": "subheading",
+     "text": "Module 3 — Read your own data"
+    },
+    {
+     "type": "prose",
+     "text": "What a good answer looks like"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Seasonality is present far more often than people expect. In our business it comes from weather windows, access seasons, client budget cycles and end-of-year activity. Plot three years side by side and it is usually unmistakable.",
+      "Most organisations run a method that captures the level and nothing else. If your answer to question 4 was \"the average\", your forecasts lag every trend and miss every season.",
+      "Spikes you can explain should be listed with their cause. A spike left unexplained in the history teaches the method to expect it again every year — and it will."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "The gap between the components present in your data and the components your method captures is, quite precisely, the error that safety stock is currently absorbing on your behalf."
+    },
+    {
+     "type": "subheading",
+     "text": "Module 4 — Match method to item"
+    },
+    {
+     "type": "prose",
+     "text": "What a good answer looks like"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Four genuinely different items, not four similar consumables. If all four got the same answer, the selection was too narrow.",
+      "Adjustments justified by information are legitimate: \"add 15% in Q3 because a contract has been awarded that is not in the history\" will improve the forecast.",
+      "Adjustments justified by feeling are not: \"I think it will be higher\" adds bias, and because it is untraceable it can never be corrected. Section C shows exactly what that bias looks like once it accumulates.",
+      "If you nominated a leading indicator, check the timing test: does the indicator move further ahead of demand than your item's lead time? If not, it is genuinely leading and still useless."
+     ]
+    },
+    {
+     "type": "subheading",
+     "text": "Module 9 — Place the decision"
+    },
+    {
+     "type": "prose",
+     "text": "The pattern almost everyone finds"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Decisions get made lower than they belong, and later than they should. A capacity question that belonged in resource planning gets settled in a Tuesday scheduling meeting, by expediting.",
+      "The cost has a consistent shape: an expensive option chosen because the cheap options had already expired.",
+      "The reverse mismatch is less common but real — a routine execution decision escalated to a senior forum because nobody has been given authority to make it. That is slower, and it consumes attention the strategic questions needed."
+     ]
+    },
+    {
+     "type": "subheading",
+     "text": "Module 10 — Diagnose your own cycle"
+    },
+    {
+     "type": "prose",
+     "text": "What a good answer looks like"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Almost every organisation skips step 1, review performance. If that was your answer you are in the majority — and it is the cheapest item on the list to fix: one comparison per family per cycle, and fifteen minutes of agenda time.",
+      "Only one of the six symptoms is technical. If you identified three or four, expect most of them to be about who attends, what gets measured, and what is safe to say.",
+      "For the final question, name a person and a date. Changes owned by a department do not happen; changes owned by a named person sometimes do."
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Section B · Modules 5 and 6 — worked answer",
+   "blocks": [
+    {
+     "type": "subheading",
+     "text": "Module 5 · a and b — quarter averages and the year average"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Quarter",
+      "Year 1",
+      "Year 2",
+      "Year 3",
+      "Sum",
+      "÷ 3 = quarter average"
+     ],
+     "rows": [
+      [
+       "Q1",
+       "400",
+       "440",
+       "480",
+       "1,320",
+       "440"
+      ],
+      [
+       "Q2",
+       "440",
+       "480",
+       "520",
+       "1,440",
+       "480"
+      ],
+      [
+       "Q3",
+       "330",
+       "360",
+       "390",
+       "1,080",
+       "360"
+      ],
+      [
+       "Q4",
+       "290",
+       "320",
+       "350",
+       "960",
+       "320"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Year average  =  (440 + 480 + 360 + 320) ÷ 4  =  1,600 ÷ 4  =  400 units"
+    },
+    {
+     "type": "subheading",
+     "text": "Module 5 · c — the seasonal index"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "",
+      "Q1",
+      "Q2",
+      "Q3",
+      "Q4",
+      "Sum"
+     ],
+     "rows": [
+      [
+       "Calculation",
+       "440 ÷ 400",
+       "480 ÷ 400",
+       "360 ÷ 400",
+       "320 ÷ 400",
+       ""
+      ],
+      [
+       "Seasonal index",
+       "1.10",
+       "1.20",
+       "0.90",
+       "0.80",
+       "4.00 ✓"
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "If your indices do not sum to 4.00, the usual cause is dividing by one year's average instead of by the average of the four quarter averages. Go back to step b."
+    },
+    {
+     "type": "subheading",
+     "text": "Module 5 · d — deseasonalise year 3"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "",
+      "Q1 (÷ 1.10)",
+      "Q2 (÷ 1.20)",
+      "Q3 (÷ 0.90)",
+      "Q4 (÷ 0.80)"
+     ],
+     "rows": [
+      [
+       "Year 3 actual",
+       "480",
+       "520",
+       "390",
+       "350"
+      ],
+      [
+       "Year 3 deseasonalised",
+       "436.36",
+       "433.33",
+       "433.33",
+       "437.50"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Check: year 2 deseasonalises to exactly 400.00 in all four quarters, because year 2 sits exactly on the average the index was built from. If yours does not, the index is wrong."
+    },
+    {
+     "type": "subheading",
+     "text": "Module 6 — the three forecasts"
+    },
+    {
+     "type": "prose",
+     "text": "Simple moving average, 4 periods"
+    },
+    {
+     "type": "prose",
+     "text": "(436.36 + 433.33 + 433.33 + 437.50) ÷ 4  =  1,740.52 ÷ 4  =  435.13"
+    },
+    {
+     "type": "prose",
+     "text": "Weighted moving average, weights 1, 2, 3, 4"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Period",
+      "Value",
+      "Weight",
+      "Value × weight"
+     ],
+     "rows": [
+      [
+       "Y3 Q1 (oldest)",
+       "436.36",
+       "1",
+       "436.36"
+      ],
+      [
+       "Y3 Q2",
+       "433.33",
+       "2",
+       "866.66"
+      ],
+      [
+       "Y3 Q3",
+       "433.33",
+       "3",
+       "1,299.99"
+      ],
+      [
+       "Y3 Q4 (most recent)",
+       "437.50",
+       "4",
+       "1,750.00"
+      ],
+      [
+       "Sum",
+       "",
+       "10",
+       "4,353.01"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "4,353.01 ÷ 10  =  435.30"
+    },
+    {
+     "type": "callout",
+     "text": "If your answer came out near 1,088 you divided by 4 instead of by 10. That is the single most common error in this calculation."
+    },
+    {
+     "type": "prose",
+     "text": "Exponential smoothing, α = 0.3, starting from 400.0"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Period",
+      "Previous forecast",
+      "Actual (deseasonalised)",
+      "Error",
+      "α × error",
+      "New forecast"
+     ],
+     "rows": [
+      [
+       "Y3 Q1",
+       "400.00",
+       "436.36",
+       "+36.36",
+       "+10.91",
+       "410.91"
+      ],
+      [
+       "Y3 Q2",
+       "410.91",
+       "433.33",
+       "+22.42",
+       "+6.73",
+       "417.63"
+      ],
+      [
+       "Y3 Q3",
+       "417.63",
+       "433.33",
+       "+15.70",
+       "+4.71",
+       "422.34"
+      ],
+      [
+       "Y3 Q4",
+       "422.34",
+       "437.50",
+       "+15.16",
+       "+4.55",
+       "426.89"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Note that every error is positive. Exponential smoothing is trailing the trend, exactly as it did in the taught example — and that is why its result (426.89) sits below both moving averages."
+    },
+    {
+     "type": "prose",
+     "text": "Reseasonalise — deseasonalised forecast × seasonal index"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Year 4 forecast, units",
+      "Q1 × 1.10",
+      "Q2 × 1.20",
+      "Q3 × 0.90",
+      "Q4 × 0.80",
+      "Year total"
+     ],
+     "rows": [
+      [
+       "Simple moving average (435.13)",
+       "479",
+       "522",
+       "392",
+       "348",
+       "1,741"
+      ],
+      [
+       "Weighted moving average (435.30)",
+       "479",
+       "522",
+       "392",
+       "348",
+       "1,741"
+      ],
+      [
+       "Exponential smoothing (426.89)",
+       "470",
+       "512",
+       "384",
+       "342",
+       "1,708"
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "The two moving averages agree to the unit here. With a steady, gentle trend the weighting makes almost no difference — weights earn their keep when the trend is steeper, or when recent periods carry information the older ones do not."
+    }
+   ]
+  },
+  {
+   "title": "Section C · Module 7 — worked answer",
+   "blocks": [
+    {
+     "type": "caseTable",
+     "head": [
+      "Year 4",
+      "Q1",
+      "Q2",
+      "Q3",
+      "Q4",
+      "Total"
+     ],
+     "rows": [
+      [
+       "Forecast (F)",
+       "480",
+       "520",
+       "390",
+       "350",
+       "1,740"
+      ],
+      [
+       "Actual (A)",
+       "505",
+       "548",
+       "410",
+       "372",
+       "1,835"
+      ],
+      [
+       "Error (A − F)",
+       "+25",
+       "+28",
+       "+20",
+       "+22",
+       "+95"
+      ],
+      [
+       "Absolute error",
+       "25",
+       "28",
+       "20",
+       "22",
+       "95"
+      ],
+      [
+       "Error squared",
+       "625",
+       "784",
+       "400",
+       "484",
+       "2,293"
+      ],
+      [
+       "Absolute % error",
+       "4.95%",
+       "5.11%",
+       "4.88%",
+       "5.91%",
+       "20.85%"
+      ]
+     ]
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Measure",
+      "Calculation",
+      "Answer"
+     ],
+     "rows": [
+      [
+       "MAD",
+       "95 ÷ 4",
+       "23.75 units"
+      ],
+      [
+       "MSE",
+       "2,293 ÷ 4",
+       "573.25"
+      ],
+      [
+       "MAPE",
+       "20.85% ÷ 4",
+       "5.21%"
+      ],
+      [
+       "RSFE",
+       "+25 +28 +20 +22",
+       "+95"
+      ],
+      [
+       "Tracking signal",
+       "95 ÷ 23.75",
+       "4.00"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "The diagnosis"
+    },
+    {
+     "type": "prose",
+     "text": "Both — but the bias is the real problem, and it is the one to act on."
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Size: MAPE of 5.21% is not disastrous on its own. Whether it is acceptable depends on the service level you are holding and the buffer you are carrying.",
+      "Bias: every single error is positive. The forecast under-called demand in all four quarters. That is systematic, not random.",
+      "The tracking signal is exactly 4.00, which is the conventional action threshold. This forecast requires intervention."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "Why exactly 4.00? Because when every error in the window carries the same sign, the running sum equals the sum of the absolute errors — so the tracking signal equals the number of periods. Four consecutive same-direction errors reach the threshold on their own, regardless of how large they are. That is the point of the measure: it detects direction, not size."
+    },
+    {
+     "type": "prose",
+     "text": "Why it happened, and what to do"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Look at the forecast row: 480, 520, 390, 350. Those are year 3's actuals. The forecast was, in effect, \"the same as last year\" — a method that ignores trend entirely.",
+      "Demand is growing about 5% a year, so a no-trend method must under-forecast, every period, permanently.",
+      "The fix is to change the method, not to add safety stock. Use a weighted moving average or exponential smoothing with a higher α, or a trend-adjusted model.",
+      "Adding safety stock to cover a known systematic bias means paying for a buffer every year in order to avoid correcting something you already understand."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "Worth checking: the section B simple moving average forecast (479, 522, 392, 348) produces errors of +26, +26, +18, +24 against the same actuals — MAD 23.5, and a tracking signal of 4.00 as well. The moving average lags the trend too. Only a trend-aware method fixes this properly."
+    }
+   ]
+  },
+  {
+   "title": "Section D · Module 8 — worked answer",
+   "blocks": [
+    {
+     "type": "caseTable",
+     "head": [
+      "Week",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8"
+     ],
+     "rows": [
+      [
+       "Forecast",
+       "50",
+       "50",
+       "50",
+       "50",
+       "50",
+       "50",
+       "50",
+       "50"
+      ],
+      [
+       "Booked orders",
+       "50",
+       "40",
+       "30",
+       "25",
+       "20",
+       "10",
+       "5",
+       "0"
+      ],
+      [
+       "Master schedule (MPS)",
+       "—",
+       "100",
+       "—",
+       "100",
+       "—",
+       "100",
+       "—",
+       "100"
+      ],
+      [
+       "Projected available balance",
+       "50",
+       "100",
+       "50",
+       "100",
+       "50",
+       "100",
+       "50",
+       "100"
+      ],
+      [
+       "Available-to-promise",
+       "50",
+       "30",
+       "",
+       "55",
+       "",
+       "85",
+       "",
+       "100"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "How the two rows are built"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "PAB week 1: 100 opening + 0 supply − 50 (the greater of forecast 50 and orders 50) = 50.",
+      "PAB week 2: 50 + 100 − 50 = 100. The forecast of 50 is greater than the 40 booked, so 50 is the figure subtracted. The pattern then alternates 50 / 100 — the item is in balance.",
+      "ATP week 1: opening stock of 100, less the 50 already booked in week 1, leaves 50 free to promise. The next receipt arrives in week 2, so only week 1 orders are deducted here.",
+      "ATP week 2: the 100 arriving, less the orders booked before the next receipt — 40 in week 2 and 30 in week 3 — leaves 30.",
+      "ATP week 4: 100 less 25 and 20, leaves 55. Week 6: 100 less 10 and 5, leaves 85. Week 8: 100 less nothing, leaves 100.",
+      "ATP is calculated only in weeks where supply arrives. In between there is nothing new to promise."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "1 · Can we promise 60 units in week 5?"
+    },
+    {
+     "type": "prose",
+     "text": "Yes."
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Week 5 has no receipt of its own, so there is no discrete ATP figure for it. The supply available by week 5 is whatever remains uncommitted from the receipts up to and including week 4.",
+      "Cumulative available-to-promise through week 4 = 50 + 30 + 55 = 135 units.",
+      "135 is comfortably more than 60, so the order can be promised for week 5.",
+      "The number you used must be available-to-promise, not projected available balance. The PAB in week 5 is 50, which would have led you to refuse an order you can actually fill — the PAB is depressed by forecast demand that has not been booked."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "2 · A separate customer asks for 90 units in week 3"
+    },
+    {
+     "type": "prose",
+     "text": "No — not for week 3. Offer week 4."
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Week 3 has no receipt. Cumulative available-to-promise through week 2 is 50 + 30 = 80 units, which is less than 90.",
+      "The earliest date the full 90 can be promised is week 4, where cumulative ATP reaches 135.",
+      "Week 3 sits between the demand time fence (end of week 2) and the planning time fence (end of week 5), so it is in the slushy zone.",
+      "In the slushy zone the answer is not a flat refusal. Capacity and materials are not as strongly committed as inside the frozen zone, and the master scheduler is the person allowed to negotiate trade-offs. So the professional answer is: not from current available supply, here is what a trade-off would cost, and here is the date I can commit to without one."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "The two questions together are the module in miniature. Question 1 shows that available-to-promise and projected available balance answer different questions. Question 2 shows that a date question inside a time fence is a negotiation with a named owner, not a yes-or-no lookup."
+    },
+    {
+     "type": "callout",
+     "text": "Content derived from the CSCP body of knowledge, Module 2 Section A, rewritten in NESR's own words with NESR examples. Internal training use."
+    }
+   ]
+  }
+ ]
+}

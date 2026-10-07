@@ -17,7 +17,13 @@ import {
   Flame,
   ChevronRight,
   Info,
+  NotebookPen,
+  Download,
+  ChevronDown,
+  Pencil,
 } from 'lucide-react';
+import type { WorksheetReport } from '@/app/actions/learning-hub-worksheets';
+import { worksheetByKey, worksheetFields } from '@/lib/learning-hub/worksheet-content';
 import type {
   LearningHubAnalytics,
   LhCourseAnalytics,
@@ -30,10 +36,17 @@ const GREEN = '#307c4c';
 
 type Tab = { id: string; label: string };
 
-export default function LearningHubAnalyticsClient({ data }: { data: LearningHubAnalytics }) {
+export default function LearningHubAnalyticsClient({
+  data,
+  worksheets = [],
+}: {
+  data: LearningHubAnalytics;
+  worksheets?: WorksheetReport[];
+}) {
   const tabs: Tab[] = [
     { id: 'overview', label: 'Overview' },
     ...data.tracks.map((t) => ({ id: `track:${t.key}`, label: t.name })),
+    { id: 'worksheets', label: 'Worksheets' },
     { id: 'redbull', label: 'Red Bull Game' },
   ];
   const [tab, setTab] = useState<string>('overview');
@@ -82,6 +95,7 @@ export default function LearningHubAnalyticsClient({ data }: { data: LearningHub
       {data.tracks.map((t) =>
         tab === `track:${t.key}` ? <TrackPanel key={t.key} track={t} /> : null,
       )}
+      {tab === 'worksheets' && <WorksheetsPanel reports={worksheets} />}
       {tab === 'redbull' && <RedBullPanel stats={data.redBull} />}
     </div>
   );
@@ -755,6 +769,256 @@ function TrackPanel({ track }: { track: LhTrackAnalytics }) {
       </section>
     </div>
   );
+}
+
+/* ─── Worksheets ──────────────────────────────────────────────── */
+
+/**
+ * Who filled in what.
+ *
+ * Nothing on a worksheet is marked, so there is no score to report and no league table to build.
+ * The value is the writing itself: an admin reads what people made of the case studies, and the
+ * numbers above it only say how many got that far. Hence a reader rather than a dashboard.
+ */
+function WorksheetsPanel({ reports }: { reports: WorksheetReport[] }) {
+  const [open, setOpen] = useState<string | null>(null);
+
+  const started = reports.reduce((n, r) => n + r.started, 0);
+  const submitted = reports.reduce((n, r) => n + r.submitted, 0);
+  const people = new Set(reports.flatMap((r) => r.rows.map((x) => x.email))).size;
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatTile
+          icon={<NotebookPen className="h-3.5 w-3.5" />}
+          label="Worksheets"
+          value={reports.length}
+        />
+        <StatTile icon={<Users className="h-3.5 w-3.5" />} label="People" value={people} />
+        <StatTile icon={<Pencil className="h-3.5 w-3.5" />} label="Started" value={started} />
+        <StatTile
+          icon={<CheckCircle2 className="h-3.5 w-3.5" />}
+          label="Submitted"
+          value={submitted}
+        />
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-slate-700">By worksheet</h3>
+        <button
+          type="button"
+          onClick={() => exportWorksheets(reports)}
+          disabled={started === 0}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50"
+        >
+          <Download className="h-3.5 w-3.5" /> Export CSV
+        </button>
+      </div>
+
+      <div className="space-y-2.5">
+        {reports.map((r) => {
+          const isOpen = open === r.key;
+          return (
+            <div
+              key={r.key}
+              className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+            >
+              <button
+                type="button"
+                onClick={() => setOpen(isOpen ? null : r.key)}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50"
+              >
+                <ChevronDown
+                  className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-slate-900">
+                    {r.title}
+                    <span className="ml-2 text-[11px] font-normal text-slate-400">{r.level}</span>
+                  </p>
+                  <p className="truncate text-[11px] text-slate-400">
+                    {r.courseTitle} · {r.moduleTitle} · {r.fieldCount} questions
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-4 text-right">
+                  <span className="text-xs text-slate-500">
+                    {r.started} started
+                  </span>
+                  <span className="text-xs font-semibold" style={{ color: GREEN }}>
+                    {r.submitted} submitted
+                  </span>
+                  <span className="w-20 text-xs text-slate-400">
+                    {r.avgAnswered == null
+                      ? '—'
+                      : `${r.avgAnswered}/${r.fieldCount} filled`}
+                  </span>
+                </div>
+              </button>
+
+              {isOpen && (
+                <div className="border-t border-slate-100 bg-slate-50/60 px-4 py-3">
+                  {r.rows.length === 0 ? (
+                    <p className="py-4 text-center text-sm text-slate-400">
+                      Nobody has opened this worksheet yet.
+                    </p>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {r.rows.map((row) => (
+                        <ResponseCard key={row.email} report={r} row={row} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {reports.length === 0 && (
+          <div className="rounded-xl border border-slate-200 bg-white px-5 py-10 text-center text-sm text-slate-400 shadow-sm">
+            No worksheets are defined yet.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ResponseCard({
+  report,
+  row,
+}: {
+  report: WorksheetReport;
+  row: WorksheetReport['rows'][number];
+}) {
+  const [open, setOpen] = useState(false);
+  const sheet = worksheetByKey(report.key);
+  const fields = sheet ? worksheetFields(sheet) : [];
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-slate-50"
+      >
+        <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-slate-800">
+          {row.email}
+        </span>
+        <span
+          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+            row.status === 'submitted'
+              ? 'bg-emerald-50 text-emerald-700'
+              : 'bg-amber-50 text-amber-700'
+          }`}
+        >
+          {row.status}
+        </span>
+        <span className="w-24 shrink-0 text-right text-[11px] text-slate-400">
+          {row.answered}/{report.fieldCount} filled
+        </span>
+        <span className="w-20 shrink-0 text-right text-[11px] text-slate-400">
+          {shortDate(row.submittedAt ?? row.updatedAt)}
+        </span>
+      </button>
+
+      {open && (
+        <div className="space-y-3 border-t border-slate-100 px-3.5 py-3">
+          {fields.map((f) => {
+            const v = row.answers[f.id];
+            /* A grid's answer is a map of "row:col" to text. Printed as a plain list rather than
+               rebuilt into its table: the admin is reading what somebody worked out, and the
+               surrounding grid is identical on every response. */
+            const text =
+              f.kind === 'grid'
+                ? v && typeof v === 'object'
+                  ? Object.entries(v as Record<string, string>)
+                      .sort()
+                      .map(([k, cell]) => `${k} ${cell}`)
+                      .join('   ·   ')
+                  : ''
+                : String(v ?? '');
+            if (!text.trim()) return null;
+            return (
+              <div key={f.id}>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  {f.section}
+                </p>
+                <p className="text-[12.5px] font-semibold text-slate-700">{f.label}</p>
+                <p className="mt-0.5 whitespace-pre-wrap text-[13px] leading-relaxed text-slate-600">
+                  {text}
+                </p>
+              </div>
+            );
+          })}
+          {row.answered === 0 && (
+            <p className="text-[13px] text-slate-400">Opened, nothing written yet.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One CSV: a row per learner per worksheet, a column per question.
+ *
+ * CSV rather than a styled workbook because what is being exported is long free text that somebody
+ * will read in a filter or paste into a report, and a column of prose gains nothing from banding.
+ * Built in the browser from data already on the page, so there is no second round trip.
+ */
+function exportWorksheets(reports: WorksheetReport[]) {
+  const lines: string[] = [];
+  for (const report of reports) {
+    if (report.rows.length === 0) continue;
+    const sheet = worksheetByKey(report.key);
+    const fields = sheet ? worksheetFields(sheet) : [];
+
+    lines.push(cells([`${report.level} — ${report.title}`]));
+    lines.push(
+      cells(['Learner', 'Status', 'Submitted', 'Answered', ...fields.map((f) => f.label)]),
+    );
+    for (const row of report.rows) {
+      lines.push(
+        cells([
+          row.email,
+          row.status,
+          row.submittedAt ? shortDate(row.submittedAt) : '',
+          `${row.answered}/${report.fieldCount}`,
+          ...fields.map((f) => {
+            const v = row.answers[f.id];
+            if (f.kind === 'grid' && v && typeof v === 'object')
+              return Object.entries(v as Record<string, string>)
+                .sort()
+                .map(([k, cell]) => `${k}=${cell}`)
+                .join('; ');
+            return String(v ?? '');
+          }),
+        ]),
+      );
+    }
+    lines.push('');
+  }
+
+  // The BOM is what makes Excel read it as UTF-8 rather than as the local codepage, which is the
+  // difference between "Jafza" and mojibake in every name with an accent.
+  const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'learning-hub-worksheets.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** RFC 4180 quoting: double the quotes, wrap anything with a comma, quote or newline in them. */
+function cells(values: string[]): string {
+  return values
+    .map((v) => {
+      const t = String(v ?? '');
+      return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+    })
+    .join(',');
 }
 
 /* ─── Red Bull game ───────────────────────────────────────────── */

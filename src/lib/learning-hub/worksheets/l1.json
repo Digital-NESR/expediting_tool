@@ -1,0 +1,1807 @@
+{
+ "key": "l1",
+ "level": "Level 1 — Foundation",
+ "title": "Foundation",
+ "courseTitle": "Supply Chain Fundamentals",
+ "moduleTitle": "Level 1",
+ "intro": "Download and open this before you start module 1. Each module ends with a task, and the video will tell you to pause while you complete it here. Nothing on this sheet is collected or scored — it is yours. Keep it: the last task becomes your first action after the course.",
+ "sections": [
+  {
+   "id": "sa",
+   "title": "Section A · Module tasks",
+   "blocks": [
+    {
+     "type": "task",
+     "id": "sa.t-module-1-map-your-own-link",
+     "title": "Module 1 — Map your own link",
+     "pauseMinutes": 5,
+     "prompts": [
+      "Take one recent job or delivery that did not go to plan.",
+      "Draw the chain for it: who were the supplier, producer and customer at each stage?",
+      "Mark where each of the four flows broke down — information, product, cash or reverse.",
+      "Identify the single hand-off that cost the most time.",
+      "Name one thing your own function could have done differently."
+     ],
+     "field": {
+      "id": "sa.t-module-1-map-your-own-link",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-2-where-are-we-honestly",
+     "title": "Module 2 — Where are we, honestly?",
+     "pauseMinutes": 5,
+     "prompts": [
+      "Score your own area 1–4 on each of the six rows from the maturity chart: unit of focus, information, metrics, planning, suppliers, typical result.",
+      "Note the rows where you were least certain of your own score.",
+      "Settle on a single score for the row where your area is weakest.",
+      "Name the one specific change that would move that row up by one stage. Be specific enough that someone could start it on Monday."
+     ],
+     "field": {
+      "id": "sa.t-module-2-where-are-we-honestly",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-3-which-strategy-are-we-running",
+     "title": "Module 3 — Which strategy are we running?",
+     "pauseMinutes": 5,
+     "prompts": [
+      "Which generic business strategy does your unit compete on: low cost, differentiation or focus?",
+      "Which organisational strategy is it actually using — what triggers the work?",
+      "Where does it sit on efficiency versus responsiveness, on a scale of 1 to 10?",
+      "Name one decision made in the last month that contradicts your answers above."
+     ],
+     "field": {
+      "id": "sa.t-module-3-which-strategy-are-we-running",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-4-choose-the-fulfilment-strategy",
+     "title": "Module 4 — Choose the fulfilment strategy",
+     "pauseMinutes": 4,
+     "prompts": [
+      "Case 1 — A standard cement additive used on almost every job in-country, steady monthly consumption, six-week import lead time.",
+      "Case 2 — A downhole tool needed on roughly two jobs a year, high value, twelve-week lead time, single qualified supplier.",
+      "Case 3 — A tool string assembled to job-specific configurations from a common set of held components.",
+      "Case 4 — A client asks for a solution to a well problem that no standard product addresses.",
+      "For each: which fulfilment strategy, and which risk did you choose to carry?"
+     ],
+     "field": {
+      "id": "sa.t-module-4-choose-the-fulfilment-strategy",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-5-find-the-bullwhip",
+     "title": "Module 5 — Find the bullwhip",
+     "pauseMinutes": 5,
+     "prompts": [
+      "Identify one item where orders upstream swing more than actual field consumption.",
+      "Trace the amplification: which tier added margin, batched, or hoarded?",
+      "Which of the four causes is dominant in your example?",
+      "Propose one information change — not an inventory change — that would dampen it."
+     ],
+     "field": {
+      "id": "sa.t-module-5-find-the-bullwhip",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-6-read-the-plan",
+     "title": "Module 6 — Read the plan",
+     "pauseMinutes": 6,
+     "prompts": [
+      "Use the planning table in section B.",
+      "Identify the month where demand exceeds available supply.",
+      "List the three options: change the demand, change the supply, change the promise.",
+      "Choose one. What does it cost, and who has to approve it?",
+      "What would you have needed to know earlier to avoid the situation entirely?"
+     ],
+     "field": {
+      "id": "sa.t-module-6-read-the-plan",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-7-classify-and-decide",
+     "title": "Module 7 — Classify and decide",
+     "pauseMinutes": 6,
+     "prompts": [
+      "Use the item list in section C.",
+      "Calculate annual consumption value and rank the items.",
+      "Assign A, B and C classes.",
+      "Which items must be managed above their class because they are job-critical?",
+      "For two class C items: what simple policy would you apply, and what would you stop doing?"
+     ],
+     "field": {
+      "id": "sa.t-module-7-classify-and-decide",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-8-what-did-we-forget",
+     "title": "Module 8 — What did we forget?",
+     "pauseMinutes": 6,
+     "prompts": [
+      "Use the two quotations in section D.",
+      "List every cost not shown on either quotation but which will be incurred.",
+      "Which costs change between A and B?",
+      "Which quotation is genuinely cheaper in total? State your assumptions.",
+      "Whose budget does each additional cost land in today?"
+     ],
+     "field": {
+      "id": "sa.t-module-8-what-did-we-forget",
+      "kind": "long_text",
+      "rows": 7
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-9-two-metrics-and-one-waste",
+     "title": "Module 9 — Two metrics and one waste",
+     "pauseMinutes": 6,
+     "prompts": [
+      "Choose two metrics for your own function: one customer-facing, one cost or asset.",
+      "For each, what behaviour will it encourage — and what might it unintentionally discourage?",
+      "Which of the eight wastes is visible in your area right now?",
+      "What is the first measurement you would take to establish its baseline?"
+     ],
+     "field": {
+      "id": "sa.t-module-9-two-metrics-and-one-waste",
+      "kind": "long_text",
+      "rows": 7
+     }
+    }
+   ]
+  },
+  {
+   "id": "sb",
+   "title": "Section B · Planning table for the module 6 task",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Simplified four-month position for a single product family. All figures in units."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Line",
+      "Month 1",
+      "Month 2",
+      "Month 3",
+      "Month 4"
+     ],
+     "rows": [
+      [
+       "Forecast demand",
+       "420",
+       "460",
+       "610",
+       "480"
+      ],
+      [
+       "Firm client commitments (of that forecast)",
+       "380",
+       "400",
+       "560",
+       "210"
+      ],
+      [
+       "Available supply capacity",
+       "500",
+       "500",
+       "500",
+       "500"
+      ],
+      [
+       "Opening inventory",
+       "150",
+       "230",
+       "270",
+       "160"
+      ],
+      [
+       "Closing inventory (calculated)",
+       "230",
+       "270",
+       "160",
+       "180"
+      ],
+      [
+       "Supplier lead time for replenishment",
+       "8 weeks",
+       "8 weeks",
+       "8 weeks",
+       "8 weeks"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Also true:"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The month 3 increase comes from a contract awarded in month 1 and communicated to planning in month 2.",
+      "Capacity can be increased by roughly 12% at four weeks' notice, at a cost premium of about 30%.",
+      "One client job in month 3, worth 90 units of demand, has schedule flexibility of plus or minus 3 weeks."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "sc",
+   "title": "Section C · Item list for the module 7 task",
+   "blocks": [
+    {
+     "type": "grid",
+     "id": "sc.g-section-c-item-list-for-the-module-7-task",
+     "head": [
+      "#",
+      "Item",
+      "Unit price (USD)",
+      "Annual usage",
+      "Job-critical?",
+      "Annual value",
+      "Class"
+     ],
+     "rows": [
+      [
+       {
+        "v": "1"
+       },
+       {
+        "v": "Cement additive, standard grade"
+       },
+       {
+        "v": "18"
+       },
+       {
+        "v": "9,400"
+       },
+       {
+        "v": "No"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "2"
+       },
+       {
+        "v": "Downhole tool — specialised"
+       },
+       {
+        "v": "96,000"
+       },
+       {
+        "v": "2"
+       },
+       {
+        "v": "Yes"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "3"
+       },
+       {
+        "v": "O-ring, high-pressure seal"
+       },
+       {
+        "v": "4"
+       },
+       {
+        "v": "850"
+       },
+       {
+        "v": "Yes — stops the job"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "4"
+       },
+       {
+        "v": "Drill pipe dope"
+       },
+       {
+        "v": "65"
+       },
+       {
+        "v": "1,200"
+       },
+       {
+        "v": "No"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "5"
+       },
+       {
+        "v": "Pressure gauge assembly"
+       },
+       {
+        "v": "2,400"
+       },
+       {
+        "v": "38"
+       },
+       {
+        "v": "Yes"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "6"
+       },
+       {
+        "v": "Hand tools, general"
+       },
+       {
+        "v": "30"
+       },
+       {
+        "v": "600"
+       },
+       {
+        "v": "No"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "7"
+       },
+       {
+        "v": "Chemical package — friction reducer"
+       },
+       {
+        "v": "210"
+       },
+       {
+        "v": "3,100"
+       },
+       {
+        "v": "No"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "8"
+       },
+       {
+        "v": "Wireline cable"
+       },
+       {
+        "v": "14,000"
+       },
+       {
+        "v": "11"
+       },
+       {
+        "v": "Yes"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "9"
+       },
+       {
+        "v": "PPE consumables"
+       },
+       {
+        "v": "22"
+       },
+       {
+        "v": "4,800"
+       },
+       {
+        "v": "No"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "10"
+       },
+       {
+        "v": "Spare pump fluid end"
+       },
+       {
+        "v": "31,000"
+       },
+       {
+        "v": "3"
+       },
+       {
+        "v": "Yes"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "11"
+       },
+       {
+        "v": "Filter elements"
+       },
+       {
+        "v": "48"
+       },
+       {
+        "v": "2,600"
+       },
+       {
+        "v": "No"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "12"
+       },
+       {
+        "v": "Calibration service kit"
+       },
+       {
+        "v": "1,700"
+       },
+       {
+        "v": "9"
+       },
+       {
+        "v": "No"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "sd",
+   "title": "Section D · Two quotations for the module 8 task",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Same specified item. 40 units required per year."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "",
+      "Quotation A",
+      "Quotation B"
+     ],
+     "rows": [
+      [
+       "Unit price",
+       "USD 4,100",
+       "USD 5,000"
+      ],
+      [
+       "Lead time",
+       "12 weeks",
+       "4 weeks"
+      ],
+      [
+       "Terms",
+       "Ex works, supplier's factory",
+       "Delivered to our base, duty paid"
+      ],
+      [
+       "Certification",
+       "Not included — about USD 240 per unit",
+       "Included, certified on delivery"
+      ],
+      [
+       "Regional support",
+       "None — factory support only, different time zone",
+       "Local technical support, 24-hour response"
+      ],
+      [
+       "Minimum order quantity",
+       "10 units",
+       "1 unit"
+      ],
+      [
+       "Warranty",
+       "6 months",
+       "18 months"
+      ],
+      [
+       "Supplier qualification",
+       "New supplier — not yet qualified",
+       "Approved supplier"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "se",
+   "title": "Section E · Knowledge check",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Fifteen questions. Not scored — it tells you what to revisit. Answers are given on the final slides of the course."
+    },
+    {
+     "type": "question",
+     "id": "se.q-name-the-three-minimum-entities-in-a-supply-chain",
+     "mark": "1.",
+     "text": "Name the three minimum entities in a supply chain.",
+     "field": {
+      "id": "se.q-name-the-three-minimum-entities-in-a-supply-chain",
+      "kind": "short_text",
+      "rows": 1
+     }
+    },
+    {
+     "type": "question",
+     "id": "se.q-list-the-four-flows-which-one-is-most-often-forgotten",
+     "mark": "2.",
+     "text": "List the four flows. Which one is most often forgotten?",
+     "field": {
+      "id": "se.q-list-the-four-flows-which-one-is-most-often-forgotten",
+      "kind": "short_text",
+      "rows": 1
+     }
+    },
+    {
+     "type": "question",
+     "id": "se.q-what-is-the-difference-between-vertical-and-lateral-integrat",
+     "mark": "3.",
+     "text": "What is the difference between vertical and lateral integration?",
+     "field": {
+      "id": "se.q-what-is-the-difference-between-vertical-and-lateral-integrat",
+      "kind": "short_text",
+      "rows": 1
+     }
+    },
+    {
+     "type": "question",
+     "id": "se.q-name-the-four-stages-of-supply-chain-maturity-in-order",
+     "mark": "4.",
+     "text": "Name the four stages of supply chain maturity, in order.",
+     "field": {
+      "id": "se.q-name-the-four-stages-of-supply-chain-maturity-in-order",
+      "kind": "short_text",
+      "rows": 1
+     }
+    },
+    {
+     "type": "question",
+     "id": "se.q-which-stage-is-characterised-by-competent-functions-with-con",
+     "mark": "5.",
+     "text": "Which stage is characterised by competent functions with conflicting metrics?",
+     "field": {
+      "id": "se.q-which-stage-is-characterised-by-competent-functions-with-con",
+      "kind": "short_text",
+      "rows": 1
+     }
+    },
+    {
+     "type": "question",
+     "id": "se.q-name-the-three-generic-business-strategies",
+     "mark": "6.",
+     "text": "Name the three generic business strategies.",
+     "field": {
+      "id": "se.q-name-the-three-generic-business-strategies",
+      "kind": "short_text",
+      "rows": 1
+     }
+    },
+    {
+     "type": "question",
+     "id": "se.q-state-the-central-trade-off-that-runs-through-supply-chain-d",
+     "mark": "7.",
+     "text": "State the central trade-off that runs through supply chain design.",
+     "field": {
+      "id": "se.q-state-the-central-trade-off-that-runs-through-supply-chain-d",
+      "kind": "short_text",
+      "rows": 1
+     }
+    },
+    {
+     "type": "question",
+     "id": "se.q-what-is-the-push-pull-boundary-and-what-happens-if-you-move-",
+     "mark": "8.",
+     "text": "What is the push–pull boundary, and what happens if you move it upstream?",
+     "field": {
+      "id": "se.q-what-is-the-push-pull-boundary-and-what-happens-if-you-move-",
+      "kind": "short_text",
+      "rows": 1
+     }
+    },
+    {
+     "type": "question",
+     "id": "se.q-name-the-four-fulfilment-strategies-and-give-an-example-of-e",
+     "mark": "9.",
+     "text": "Name the four fulfilment strategies and give an example of each.",
+     "field": {
+      "id": "se.q-name-the-four-fulfilment-strategies-and-give-an-example-of-e",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "question",
+     "id": "se.q-state-three-of-the-five-principles-of-forecasting",
+     "mark": "10.",
+     "text": "State three of the five principles of forecasting.",
+     "field": {
+      "id": "se.q-state-three-of-the-five-principles-of-forecasting",
+      "kind": "short_text",
+      "rows": 1
+     }
+    },
+    {
+     "type": "question",
+     "id": "se.q-what-is-the-bullwhip-effect-and-name-two-of-its-causes",
+     "mark": "11.",
+     "text": "What is the bullwhip effect, and name two of its causes.",
+     "field": {
+      "id": "se.q-what-is-the-bullwhip-effect-and-name-two-of-its-causes",
+      "kind": "short_text",
+      "rows": 1
+     }
+    },
+    {
+     "type": "question",
+     "id": "se.q-what-are-the-two-questions-every-plan-must-answer",
+     "mark": "12.",
+     "text": "What are the two questions every plan must answer?",
+     "field": {
+      "id": "se.q-what-are-the-two-questions-every-plan-must-answer",
+      "kind": "short_text",
+      "rows": 1
+     }
+    },
+    {
+     "type": "question",
+     "id": "se.q-name-three-functions-inventory-performs-and-the-three-famili",
+     "mark": "13.",
+     "text": "Name three functions inventory performs and the three families of inventory cost.",
+     "field": {
+      "id": "se.q-name-three-functions-inventory-performs-and-the-three-famili",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "question",
+     "id": "se.q-what-does-abc-analysis-classify-by-and-what-should-override-",
+     "mark": "14.",
+     "text": "What does ABC analysis classify by — and what should override it?",
+     "field": {
+      "id": "se.q-what-does-abc-analysis-classify-by-and-what-should-override-",
+      "kind": "short_text",
+      "rows": 1
+     }
+    },
+    {
+     "type": "question",
+     "id": "se.q-name-the-six-scor-level-1-processes-and-one-metric-from-each",
+     "mark": "15.",
+     "text": "Name the six SCOR Level 1 processes and one metric from each metric family.",
+     "field": {
+      "id": "se.q-name-the-six-scor-level-1-processes-and-one-metric-from-each",
+      "kind": "long_text",
+      "rows": 3
+     }
+    }
+   ]
+  },
+  {
+   "id": "sf",
+   "title": "Section F · Your first action",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "From the module 9 task. Write it here, and put a date on it."
+    },
+    {
+     "type": "freeNote",
+     "label": "The metric I will start tracking",
+     "field": {
+      "id": "sf.f-the-metric-i-will-start-tracking",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "freeNote",
+     "label": "The waste I will measure a baseline for",
+     "field": {
+      "id": "sf.f-the-waste-i-will-measure-a-baseline-for",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "freeNote",
+     "label": "The first measurement I will take, and when",
+     "field": {
+      "id": "sf.f-the-first-measurement-i-will-take-and-when",
+      "kind": "long_text",
+      "rows": 3
+     }
+    }
+   ]
+  }
+ ],
+ "answers": [
+  {
+   "title": "Worked answers",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "NESR SUPPLY CHAIN TRAINING PROGRAMME"
+    },
+    {
+     "type": "prose",
+     "text": "Level 1 — Foundation"
+    },
+    {
+     "type": "prose",
+     "text": "Learner worksheet — answers"
+    },
+    {
+     "type": "callout",
+     "text": "Answers to every task in the Level 1 learner worksheet. Work through the worksheet first — reading the answers before attempting a task removes almost all of its value. Five of the nine module tasks have no single correct answer, because they ask about your own area; for those, this document sets out what a good answer looks like and the traps to avoid."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Task",
+      "Type of answer"
+     ],
+     "rows": [
+      [
+       "Modules 1, 2, 3, 5 and 9",
+       "No fixed answer — your own area. Judge yourself against the \"what a good answer looks like\" notes."
+      ],
+      [
+       "Modules 4, 6, 7 and 8",
+       "Definite answers, worked in full in sections B, C and D."
+      ],
+      [
+       "Knowledge check",
+       "Definite answers, section E."
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Section A · Module task answers",
+   "blocks": [
+    {
+     "type": "subheading",
+     "text": "Module 1 — Map your own link"
+    },
+    {
+     "type": "prose",
+     "text": "No fixed answer. Judge your own against these."
+    },
+    {
+     "type": "prose",
+     "text": "What a good answer looks like"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The chain is drawn as more than three boxes. If your drawing has only supplier, NESR and client, you have drawn the teaching model rather than what actually happened — most real chains have a forwarder, a customs step, a base and a field location in between.",
+      "The breakdown is placed on a specific hand-off, not on an organisation. \"It failed between the base and the field location\" is useful. \"Logistics failed\" is not.",
+      "The flow you identified is information. Across every cohort that has run this exercise, information dominates by a wide margin.",
+      "Your own function appears in the answer to the last question. If you could not name anything your function could have done differently, you have almost certainly not looked hard enough."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "The trap"
+    },
+    {
+     "type": "callout",
+     "text": "If you wrote that a truck, vessel or flight was late, ask one more question: was the transport late, or was the transport booked late? Those are completely different problems, with different owners and different fixes. Most \"transport failures\" are booking failures, and booking failures are information failures."
+    },
+    {
+     "type": "subheading",
+     "text": "Module 2 — Where are we, honestly?"
+    },
+    {
+     "type": "prose",
+     "text": "No fixed answer. Judge your own against these."
+    },
+    {
+     "type": "prose",
+     "text": "What a good answer looks like"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Scores between 2 and 3 on most rows. That is where most organisations genuinely sit, and it is a working diagnosis rather than a failing grade. Straight 4s mean you scored the intention rather than the reality; straight 1s usually mean you scored a bad week.",
+      "The rows do not all have the same score. Maturity is uneven — an organisation can run stage 3 systems with stage 2 metrics. That unevenness is the useful finding.",
+      "The weakest row is most often metrics or information. Those two are also the ones you can most affect.",
+      "Your named change passes the Monday test: someone could start it next week, one person owns it, and you would be able to see whether it had happened."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Examples of the difference"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Not an answer",
+      "An answer"
+     ],
+     "rows": [
+      [
+       "\"Improve communication between functions\"",
+       "\"Give field locations read access to the inbound shipment status screen so they stop telephoning the planner\""
+      ],
+      [
+       "\"Better data quality\"",
+       "\"Book goods receipts the same day they arrive, and report the exception list weekly\""
+      ],
+      [
+       "\"More alignment on priorities\"",
+       "\"Publish the allocation rule for constrained items so that escalation stops being the deciding factor\""
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "Stages are not a judgement on people. Stage 2 organisations are full of competent, hard-working individuals. Structure and measurement determine the stage, not effort."
+    },
+    {
+     "type": "subheading",
+     "text": "Module 3 — Which strategy are we running?"
+    },
+    {
+     "type": "prose",
+     "text": "No fixed answer. The fourth question is the exercise; the first three are the warm-up."
+    },
+    {
+     "type": "prose",
+     "text": "What a good answer looks like"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "You named one generic strategy, not all three. If you wrote all three, ask which one wins when they conflict — that question usually produces the real answer.",
+      "Your organisational strategy answer came from asking what triggers the work, not from what the strategy document says.",
+      "You found a genuine contradiction in question 4. Everyone has one. If you found none, you looked at the stated strategy rather than at last month's decisions."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "The contradictions people usually find"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "A unit that says it competes on responsiveness, sourcing everything from the lowest bidder with the longest lead time.",
+      "A unit that says it competes on cost, air-freighting routinely.",
+      "A unit that claims to be demand-driven, building stock against a forecast nobody reviews.",
+      "A unit that promises mobilisation in days while holding no pre-positioned stock at the base nearest the client."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "None of these are scandals. They are the normal result of decisions taken at different times, by different people, against different measures. The useful question is never \"who decided that\" — it is \"what measurement or process produced that decision\"."
+    },
+    {
+     "type": "subheading",
+     "text": "Module 4 — Choose the fulfilment strategy"
+    },
+    {
+     "type": "prose",
+     "text": "Definite answers."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Case",
+      "Answer",
+      "Why"
+     ],
+     "rows": [
+      [
+       "1 · Cement additive",
+       "Make to stock",
+       "High volume, predictable consumption, and a six-week import lead time that cannot be pulled against. Hold it and optimise the replenishment."
+      ],
+      [
+       "2 · Downhole tool",
+       "Make to order",
+       "Two jobs a year, high value, single source. Do not hold it — invest in the source relationship and a contracted lead time instead. That is a procurement investment substituting for an inventory investment."
+      ],
+      [
+       "3 · Tool string",
+       "Assemble to order",
+       "A common component set, configured per job. Hold the components, not every finished configuration. This is the case most people miss, and recognising it is what stops us trying to stock every variant."
+      ],
+      [
+       "4 · Novel well problem",
+       "Engineer to order",
+       "Design begins on receipt of the order. This one is true by definition."
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "If you argued for holding case 2 anyway"
+    },
+    {
+     "type": "prose",
+     "text": "That is a legitimate argument, and it is the right instinct for a genuinely job-critical item. But test it honestly: can you compare the cost of a stopped job against the annual cost of holding, using actual numbers? For most items, most of the time, we cannot — and that inability is itself the finding. It is what module 7 is for."
+    },
+    {
+     "type": "callout",
+     "text": "The label is a memory test. The justification is the competence. What the exercise is really asking is: which risk did you choose to carry — inventory risk, or waiting risk?"
+    },
+    {
+     "type": "subheading",
+     "text": "Module 5 — Find the bullwhip"
+    },
+    {
+     "type": "prose",
+     "text": "No fixed answer. One rule decides whether your answer is a good one."
+    },
+    {
+     "type": "prose",
+     "text": "The rule"
+    },
+    {
+     "type": "callout",
+     "text": "If your proposal was to hold more stock, you have described the symptom rather than the cause. Adding inventory at every tier is the instinctive response to the bullwhip effect, and it makes the effect worse, not better. The cure is information."
+    },
+    {
+     "type": "prose",
+     "text": "Answers that work"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Give the base visibility of actual field consumption rather than requisition volume, so it is forecasting from reality rather than from someone else's already-padded order.",
+      "Reduce the ordering batch size, accepting some additional freight cost, so that smooth consumption stops becoming lumpy orders.",
+      "Publish agreed allocation rules for constrained items, so that hoarding stops being rational behaviour.",
+      "Share consumption data with a key supplier so they plan against real demand rather than against our order pattern.",
+      "Stop end-of-period buying incentives that create demand unrelated to consumption."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "The bullwhip effect is an information-flow failure, with a product-flow symptom, and a cash-flow cost. If you made that connection back to module 1 unprompted, the course is working."
+    },
+    {
+     "type": "subheading",
+     "text": "Module 6 — Read the plan"
+    },
+    {
+     "type": "prose",
+     "text": "Definite answer, worked in full in section B."
+    },
+    {
+     "type": "subheading",
+     "text": "Module 7 — Classify and decide"
+    },
+    {
+     "type": "prose",
+     "text": "Definite answer, worked in full in section C."
+    },
+    {
+     "type": "subheading",
+     "text": "Module 8 — What did we forget?"
+    },
+    {
+     "type": "prose",
+     "text": "Definite answer, worked in full in section D."
+    },
+    {
+     "type": "subheading",
+     "text": "Module 9 — Two metrics and one waste"
+    },
+    {
+     "type": "prose",
+     "text": "No fixed answer. The second question is the one that matters."
+    },
+    {
+     "type": "prose",
+     "text": "What a good answer looks like"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Your two metrics are a pair, not two of the same kind. One reflects the customer's experience; one reflects cost or asset use. Single metrics drive single behaviours.",
+      "You predicted an unintended consequence for each. Anyone can name a metric. Predicting the behaviour it produces — including the part nobody wanted — is the actual skill.",
+      "Your baseline measurement is small, concrete and doable next week. \"Log the date and time on every goods receipt for one month\" is a baseline. \"Improve receiving\" is not."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Pairs that work"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Customer-facing",
+      "Cost or asset",
+      "The tension it keeps visible"
+     ],
+     "rows": [
+      [
+       "On-time delivery to field",
+       "Inventory days of supply",
+       "Availability against working capital"
+      ],
+      [
+       "Requisition-to-delivery cycle time",
+       "Total landed cost per order",
+       "Speed against cost"
+      ],
+      [
+       "Goods receipt timeliness",
+       "Receiving accuracy",
+       "Throughput against quality"
+      ],
+      [
+       "Perfect order fulfilment",
+       "Total supply chain cost",
+       "Promise kept against cost to keep it"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "The trap"
+    },
+    {
+     "type": "prose",
+     "text": "Watch for metrics that measure only our own convenience. \"Number of purchase orders processed\" measures activity rather than outcome, and it rewards volume over value. If you chose one, do not cross it out — ask what behaviour it would encourage, and you will see the problem yourself."
+    }
+   ]
+  },
+  {
+   "title": "Section B · Planning table — worked answer",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "The table balances as follows. Closing inventory = opening + capacity − demand."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Line",
+      "Month 1",
+      "Month 2",
+      "Month 3",
+      "Month 4"
+     ],
+     "rows": [
+      [
+       "Forecast demand",
+       "420",
+       "460",
+       "610",
+       "480"
+      ],
+      [
+       "Available capacity",
+       "500",
+       "500",
+       "500",
+       "500"
+      ],
+      [
+       "Demand vs capacity",
+       "−80",
+       "−40",
+       "+110",
+       "−20"
+      ],
+      [
+       "Opening inventory",
+       "150",
+       "230",
+       "270",
+       "160"
+      ],
+      [
+       "Closing inventory",
+       "230",
+       "270",
+       "160",
+       "180"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "1 · Where demand exceeds available supply"
+    },
+    {
+     "type": "prose",
+     "text": "Month 3, and only month 3. Demand of 610 exceeds capacity of 500 by 110 units."
+    },
+    {
+     "type": "prose",
+     "text": "Note what does and does not happen. The plan does not fail — inventory absorbs the excess, and closing inventory stays positive at 160. What it does is consume the buffer, dropping it from 270 to 160, a reduction of roughly 40 per cent, at exactly the moment demand is highest."
+    },
+    {
+     "type": "callout",
+     "text": "That is the real answer, and it is more interesting than \"there is a shortfall\". The plan is feasible on paper and fragile in practice. The buffer exists to absorb variability; having spent it, any forecast error or supply slip in month 3 or 4 produces a stockout — and the eight-week replenishment lead time means the buffer cannot be rebuilt inside the horizon."
+    },
+    {
+     "type": "prose",
+     "text": "2 and 3 · The three options, with numbers"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Option",
+      "What it does",
+      "Cost",
+      "Approval"
+     ],
+     "rows": [
+      [
+       "Change the demand",
+       "Move the flexible 90-unit job from month 3 into month 4. Month 3 demand becomes 520, month 4 becomes 570. The month 3 trough rises from 160 to 250, and month 4 still closes at 180.",
+       "Nothing, beyond a conversation",
+       "The client, and whoever owns the client relationship"
+      ],
+      [
+       "Change the supply",
+       "Add the available 12% capacity in month 3, taking capacity from 500 to 560. Closing inventory rises from 160 to 220.",
+       "A 30% premium on the additional 60 units",
+       "Operations, and whoever holds the cost budget"
+      ],
+      [
+       "Change the promise",
+       "Tell the client a different date for part of the month 3 requirement.",
+       "No cash cost; a real cost to the relationship",
+       "Sales or the account owner"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Changing the demand is the best answer here, and it is the option people reach for least often — because it is the only one that requires a conversation outside supply chain. It costs nothing and it produces the shallowest trough of the three."
+    },
+    {
+     "type": "prose",
+     "text": "4 · What you needed to know earlier"
+    },
+    {
+     "type": "prose",
+     "text": "The contract driving the month 3 increase was awarded in month 1 and reached planning in month 2. The information existed inside the organisation a full month before planning could act on it."
+    },
+    {
+     "type": "callout",
+     "text": "This is module 5's lesson arriving from a different direction. The failure was not forecasting. It was travel of information. And it will be reported as a forecasting failure, because the consequence shows up in supply chain's numbers."
+    }
+   ]
+  },
+  {
+   "title": "Section C · ABC classification — worked answer",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Annual consumption value = unit price × annual usage. Ranked from highest to lowest. Total annual value across the twelve items: USD 1,695,500."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "#",
+      "Item",
+      "Annual value (USD)",
+      "% of total",
+      "Cumulative",
+      "Class",
+      "Critical"
+     ],
+     "rows": [
+      [
+       "7",
+       "Chemical package — friction reducer",
+       "651,000",
+       "38.4%",
+       "38.4%",
+       "A",
+       ""
+      ],
+      [
+       "2",
+       "Downhole tool — specialised",
+       "192,000",
+       "11.3%",
+       "49.7%",
+       "A",
+       "Yes"
+      ],
+      [
+       "1",
+       "Cement additive, standard grade",
+       "169,200",
+       "10.0%",
+       "59.7%",
+       "A",
+       ""
+      ],
+      [
+       "8",
+       "Wireline cable",
+       "154,000",
+       "9.1%",
+       "68.8%",
+       "A",
+       "Yes"
+      ],
+      [
+       "11",
+       "Filter elements",
+       "124,800",
+       "7.4%",
+       "76.1%",
+       "A",
+       ""
+      ],
+      [
+       "9",
+       "PPE consumables",
+       "105,600",
+       "6.2%",
+       "82.4%",
+       "B",
+       ""
+      ],
+      [
+       "10",
+       "Spare pump fluid end",
+       "93,000",
+       "5.5%",
+       "87.9%",
+       "B",
+       "Yes"
+      ],
+      [
+       "5",
+       "Pressure gauge assembly",
+       "91,200",
+       "5.4%",
+       "93.2%",
+       "B",
+       "Yes"
+      ],
+      [
+       "4",
+       "Drill pipe dope",
+       "78,000",
+       "4.6%",
+       "97.8%",
+       "B",
+       ""
+      ],
+      [
+       "6",
+       "Hand tools, general",
+       "18,000",
+       "1.1%",
+       "98.9%",
+       "C",
+       ""
+      ],
+      [
+       "12",
+       "Calibration service kit",
+       "15,300",
+       "0.9%",
+       "99.8%",
+       "C",
+       ""
+      ],
+      [
+       "3",
+       "O-ring, high-pressure seal",
+       "3,400",
+       "0.2%",
+       "100.0%",
+       "C",
+       "Yes"
+      ]
+     ]
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Class",
+      "Items",
+      "Annual value",
+      "Share of value"
+     ],
+     "rows": [
+      [
+       "A",
+       "5 items — 7, 2, 1, 8, 11",
+       "USD 1,291,000",
+       "76.1%"
+      ],
+      [
+       "B",
+       "4 items — 9, 10, 5, 4",
+       "USD 367,800",
+       "21.7%"
+      ],
+      [
+       "C",
+       "3 items — 6, 12, 3",
+       "USD 36,700",
+       "2.2%"
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "A twelve-item list cannot reproduce a real ABC curve. In a range of several thousand items, class A would be 10 to 20 per cent of the items rather than 5 out of 12. What carries across is the shape: one item here is 38 per cent of the value, and the bottom three together are 2 per cent."
+    },
+    {
+     "type": "prose",
+     "text": "The four results worth noticing"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Item",
+      "Instinct",
+      "Actual",
+      "Why it matters"
+     ],
+     "rows": [
+      [
+       "1 · Cement additive",
+       "Cheap, so class C",
+       "Class A — USD 169,200 a year",
+       "Classify by annual consumption value, never by unit price. Volume alone puts this in the top three."
+      ],
+      [
+       "10 · Spare pump fluid end",
+       "USD 31,000 each, so class A",
+       "Class B — USD 93,000 a year",
+       "Bought three times a year. High unit price is not high annual value."
+      ],
+      [
+       "12 · Calibration service kit",
+       "USD 1,700 each, so class B at least",
+       "Class C — USD 15,300 a year",
+       "Same point again. Nine units a year does not justify expensive management attention."
+      ],
+      [
+       "3 · O-ring",
+       "Class C, so manage it loosely",
+       "Class C by value, class A in practice",
+       "USD 3,400 a year, and its absence stops a job worth orders of magnitude more. Value classifies; criticality overrides."
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Criticality overrides"
+    },
+    {
+     "type": "prose",
+     "text": "Five items are marked job-critical: 2, 3, 5, 8 and 10. Two of them — items 2 and 8 — are already class A, so nothing changes. The other three have to be managed above their value class:"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Item 3, the O-ring — class C by value, managed as class A. Frequent counting, guaranteed availability, a qualified second source.",
+      "Item 10, the spare pump fluid end — class B by value, but a stopped pump is a stopped job. Manage the supply relationship at class A intensity even if the counting frequency stays at B.",
+      "Item 5, the pressure gauge assembly — same reasoning, at lower value."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "The practical form of this is a two-dimensional grid: value on one axis, criticality on the other, with a different policy in each cell. Level 2 builds that properly."
+    },
+    {
+     "type": "prose",
+     "text": "The class C question — what you should stop doing"
+    },
+    {
+     "type": "prose",
+     "text": "This is the task most people get wrong, by adding control to class A items and removing none from class C. If you only add, you have increased the workload without improving anything. For items 6 and 12 (not item 3, which the criticality override protects), defensible answers include:"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Order once or twice a year in large quantities instead of replenishing continuously.",
+      "Count them annually rather than in the cycle-counting rotation.",
+      "Apply a simple min–max rule instead of forecasting them individually.",
+      "Delegate approval to a lower threshold, so they stop consuming approval time.",
+      "Stop reviewing them in the monthly stock review altogether."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "The purpose of the classification is differentiated policies. If class A and class C items end up managed identically, the exercise has produced a report rather than a management system."
+    }
+   ]
+  },
+  {
+   "title": "Section D · Two quotations — worked answer",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Quotation A is 18 per cent cheaper on unit price. Once the whole cost is assembled, it is roughly 10 per cent more expensive. Below is one defensible way to get there — the point is the structure of the calculation, not these exact figures."
+    },
+    {
+     "type": "prose",
+     "text": "Assumptions used"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "40 units required per year.",
+      "Inventory carrying cost of 25 per cent of landed value per year.",
+      "Freight, insurance and clearance on the ex-works quotation: 8 per cent of unit price.",
+      "Duty: 5 per cent of price plus freight.",
+      "Quotation A slips its twelve-week lead time roughly once a year, requiring one expedited recovery at USD 8,000.",
+      "Supplier qualification for the new supplier: USD 4,000, spread over three years.",
+      "The twelve-month warranty gap produces about one chargeable failure a year at USD 3,000."
+     ]
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Cost element",
+      "Quotation A",
+      "Quotation B",
+      "Note"
+     ],
+     "rows": [
+      [
+       "Unit price",
+       "4,100",
+       "5,000",
+       "A is 18% cheaper here — and only here"
+      ],
+      [
+       "Freight, insurance, clearance",
+       "328",
+       "included",
+       "A is ex works; B is delivered"
+      ],
+      [
+       "Duty",
+       "221",
+       "included",
+       "B is duty paid"
+      ],
+      [
+       "Certification",
+       "240",
+       "included",
+       "A is certified separately"
+      ],
+      [
+       "Inbound handling",
+       "30",
+       "30",
+       "Same for both"
+      ],
+      [
+       "Extra cycle stock (MOQ 10 vs 1)",
+       "102",
+       "—",
+       "A forces a quarter of annual usage into one order"
+      ],
+      [
+       "Extra pipeline and safety stock",
+       "189",
+       "—",
+       "Cover for 8 additional weeks of lead time"
+      ],
+      [
+       "Expediting",
+       "200",
+       "—",
+       "One recovery per year, spread across 40 units"
+      ],
+      [
+       "Supplier qualification",
+       "33",
+       "—",
+       "One-off, amortised"
+      ],
+      [
+       "Warranty gap",
+       "75",
+       "—",
+       "6 months versus 18"
+      ],
+      [
+       "TOTAL PER UNIT",
+       "USD 5,518",
+       "USD 5,030",
+       "A costs 9.7% more"
+      ],
+      [
+       "TOTAL PER YEAR",
+       "USD 220,720",
+       "USD 201,200",
+       "A costs USD 19,520 more"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Costs that belong in the decision but were not quantified here"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Local technical support with a 24-hour response, against factory support in a different time zone. This is the difference between a fault resolved in a day and a fault resolved in a week.",
+      "Single-source risk on an unqualified new supplier, against an approved one.",
+      "Obsolescence exposure on the minimum order quantity if the specification changes mid-year.",
+      "Management attention spent chasing a twelve-week order — real, and never invoiced."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "If you stopped at freight and duty, you were not wrong — you were incomplete, and in the same way most real decisions are incomplete. The prompt that unlocks the rest is: what does a twelve-week lead time require you to hold? That single question connects this task back to module 7."
+    },
+    {
+     "type": "prose",
+     "text": "4 · Whose budget each cost lands in"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Cost",
+      "Lands in"
+     ],
+     "rows": [
+      [
+       "The purchase price saving of USD 900 per unit",
+       "Procurement — and it is visible, immediate and attributable"
+      ],
+      [
+       "Freight, duty and clearance",
+       "Logistics"
+      ],
+      [
+       "Safety and cycle stock carrying cost",
+       "Inventory, and ultimately the balance sheet"
+      ],
+      [
+       "Expediting and premium freight",
+       "Logistics"
+      ],
+      [
+       "Certification",
+       "Quality or operations"
+      ],
+      [
+       "Downtime when the item is unavailable",
+       "Operations — and the client feels it"
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "This is why the wrong quotation gets chosen in real life. Every function behaves rationally against its own measure, and the company loses. Telling buyers to consider total cost does not fix it if they are measured on price variance — the fix is structural: make total cost visible at the point of decision, and measure against it."
+    }
+   ]
+  },
+  {
+   "title": "Section E · Knowledge check answers",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Fifteen questions. Not scored by anyone else — mark your own."
+    },
+    {
+     "type": "prose",
+     "text": "1.  Supplier, producer, customer."
+    },
+    {
+     "type": "prose",
+     "text": "2.  Information, product, cash and reverse. The reverse flow is the one most often forgotten."
+    },
+    {
+     "type": "prose",
+     "text": "3.  Vertical integration brings the chain inside one organisation. Lateral (horizontal) integration keeps what you are best at and outsources the rest to specialists, then coordinates them."
+    },
+    {
+     "type": "prose",
+     "text": "4.  Multiple dysfunction, semifunctional enterprise, integrated enterprise, extended enterprise."
+    },
+    {
+     "type": "prose",
+     "text": "5.  Stage 2, the semifunctional enterprise — functions are defined and individually competent, but each has its own conflicting metrics."
+    },
+    {
+     "type": "prose",
+     "text": "6.  Low cost, differentiation, focus."
+    },
+    {
+     "type": "prose",
+     "text": "7.  Efficiency versus responsiveness."
+    },
+    {
+     "type": "prose",
+     "text": "8.  The last point at which we are working to a forecast; everything downstream of it is triggered by real demand. Moving it upstream means holding less stock but responding more slowly."
+    },
+    {
+     "type": "prose",
+     "text": "9.  Make to stock (a standard consumable held at the base) · assemble to order (a tool string configured from held components) · make to order (a specialised item procured against a confirmed job) · engineer to order (a solution designed for a specific well problem)."
+    },
+    {
+     "type": "prose",
+     "text": "10.  Any three of: forecasts are always wrong · they are more accurate for groups than for single items · they are more accurate for nearer periods than distant ones · every forecast should include an estimate of its own error · forecasts are no substitute for known demand."
+    },
+    {
+     "type": "prose",
+     "text": "11.  The amplification of demand variability as it travels upstream. Any two causes of: demand signal processing, order batching, price and promotion, rationing and hoarding."
+    },
+    {
+     "type": "prose",
+     "text": "12.  What should we do first (priority), and can we actually do it (capacity)."
+    },
+    {
+     "type": "prose",
+     "text": "13.  Any three functions of: safety/buffer, anticipation, lot-size/cycle, transportation/pipeline, hedge, decoupling. The three cost families are carrying, ordering and stockout."
+    },
+    {
+     "type": "prose",
+     "text": "14.  Annual consumption value — unit price multiplied by annual usage. Job criticality overrides the classification."
+    },
+    {
+     "type": "prose",
+     "text": "15.  Plan, source, make, deliver, return, enable. One metric from each family, for example perfect order fulfilment (customer), cash-to-cash cycle time (financial), inventory turns (operational)."
+    },
+    {
+     "type": "callout",
+     "text": "If you missed more than four, the fastest fix is to rewatch the specific modules those questions came from, rather than the whole course. Questions 1–3 are module 1 · 4–5 module 2 · 6–7 module 3 · 8–9 module 4 · 10–11 module 5 · 12 module 6 · 13–14 module 7 · 15 module 9."
+    }
+   ]
+  },
+  {
+   "title": "Section F · Your first action",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "There is no answer to check here — but there is a standard to hold yourself to."
+    },
+    {
+     "type": "prose",
+     "text": "A first action that works"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "It is a measurement, not an improvement. You cannot improve what you have not baselined, and baselines frequently show the problem is not where everyone assumed.",
+      "It takes less than an hour a week.",
+      "It runs for a defined period — a month is usually right — before anything changes.",
+      "One named person owns it. You.",
+      "It has a date on it."
+     ]
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Too vague",
+      "A first action"
+     ],
+     "rows": [
+      [
+       "\"Reduce waiting time\"",
+       "\"Log the date and time of every purchase order approval for one month, and report the median and the worst case\""
+      ],
+      [
+       "\"Improve inventory accuracy\"",
+       "\"Count the ten highest-value items weekly for four weeks and record the variance and its cause\""
+      ],
+      [
+       "\"Get better visibility\"",
+       "\"List every shipment that arrived without its documentation this quarter, and where the documentation originated\""
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "Most learning from a training course evaporates because nothing concrete leaves the room. One measurement, owned by one person, with a date on it, is what makes the difference between finishing this course with intentions and finishing it with a change."
+    }
+   ]
+  }
+ ]
+}

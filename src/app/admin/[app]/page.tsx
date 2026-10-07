@@ -11,6 +11,7 @@ import {
 } from '@/app/actions/procureGuard';
 import { getLaptopAdminAnalyticsData, getLaptopAdminData } from '@/app/actions/laptopProcurement';
 import { getLearningHubAdminData, getLearningHubAnalytics } from '@/app/actions/learning-hub';
+import { getWorksheetReport } from '@/app/actions/learning-hub-worksheets';
 
 /* Server actions invoked from this page inherit its budget, and one of them is genuinely slow:
    SOA's extract aggregates every PO transaction in an 18-month window and writes a few thousand
@@ -85,9 +86,16 @@ export default async function AdminAppPage({
     case 'learning-hub/admin':
       base.learningHubAdminData = await getLearningHubAdminData();
       break;
-    case 'learning-hub/analytics':
-      base.learningHubAnalytics = await getLearningHubAnalytics();
+    case 'learning-hub/analytics': {
+      // Independent reads; the panel renders both and used to wait for them one after the other.
+      const [analytics, worksheets] = await Promise.all([
+        getLearningHubAnalytics(),
+        getWorksheetReport(),
+      ]);
+      base.learningHubAnalytics = analytics;
+      base.learningHubWorksheets = worksheets;
       break;
+    }
     default:
       // Access-approvals, SourceGuide, Catalog, SNS, laptop cost centers, TI-TE
       // migration / default-notifiers: the panels self-fetch — no server data needed.

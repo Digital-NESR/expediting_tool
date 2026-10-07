@@ -17,6 +17,7 @@ import learningHubPool from '@/lib/db-learning-hub';
 import { createSqlHelpers } from '@/lib/db/sql';
 import { withTransaction, lockForTransaction } from '@/lib/db/tx';
 import { requireSchema } from '@/lib/db/schema-version';
+import { worksheetForModule } from '@/lib/learning-hub/worksheet-content';
 import { currentActor, normalizeEmail } from '@/lib/require-access';
 import { logger } from '@/lib/logger';
 import { SEED_TRACKS, type SeedTrack } from '@/lib/learning-hub-seed-content';
@@ -929,6 +930,15 @@ export async function getCourseDetail(
 
   const moduleIds = modules.map((m) => m.id);
 
+  /* Which of this course's releases have a worksheet, and how far this learner has got with each.
+     The definitions are matched by module title, so a release that is renamed loses its worksheet
+     rather than acquiring somebody else's. */
+  const sheetByModule = new Map(
+    modules.map((m) => [Number(m.id), worksheetForModule(String(m.title))] as const),
+  );
+  const sheetKeys = [...sheetByModule.values()].filter((w) => w != null).map((w) => w!.key);
+  const sheetStatus = await worksheetStatusFor(userEmail, sheetKeys);
+
   // Completion, gating, module-quiz flags and EVERY module's lessons in one parallel batch: these
   // four reads only depend on the course/module ids, and the lesson query replaces the per-module
   // loop (was 3 + N sequential round trips for an N-module course).
@@ -978,12 +988,23 @@ export async function getCourseDetail(
     }));
     lessonCount += lessons.length;
     completedCount += lessonsWithCompletion.filter((l) => l.completed).length;
+    const sheet = sheetByModule.get(Number(mod.id));
     moduleOutlines.push({
       ...mod,
       lessons: lessonsWithCompletion,
       has_quiz: quizModuleIds.has(mod.id),
+      worksheet: sheet
+        ? {
+            key: sheet.key,
+            title: sheet.title,
+            status: sheetStatus.get(sheet.key) ?? 'not_started',
+          }
+        : null,
     });
   }
+
+  const worksheetCount = sheetKeys.length;
+  const worksheetsSubmitted = sheetKeys.filter((k) => sheetStatus.get(k) === 'submitted').length;
 
   return {
     track,
@@ -992,7 +1013,45 @@ export async function getCourseDetail(
     lesson_count: lessonCount,
     completed_count: completedCount,
     progress_pct: progressPct(completedCount, lessonCount),
+    /* A course with no worksheets cannot be "fully" complete beyond being complete, so the two
+       tiers collapse into one rather than handing out a second badge for nothing. */
+    fully_complete:
+      lessonCount > 0 &&
+      completedCount >= lessonCount &&
+      worksheetCount > 0 &&
+      worksheetsSubmitted >= worksheetCount,
+    worksheet_count: worksheetCount,
+    worksheets_submitted: worksheetsSubmitted,
   };
+}
+
+/**
+ * How far one learner has got with a set of worksheets.
+ *
+ * Worksheets arrived in migration 004, after the hub had been live for months, and the course
+ * outline must keep rendering on a database that has not had it yet — so a missing table is "no
+ * worksheets started", not a broken course page. The same read is on the hot path for every course
+ * view, which is why it is one query over a key list rather than one per release.
+ */
+async function worksheetStatusFor(
+  userEmail: string,
+  keys: string[],
+): Promise<Map<string, 'draft' | 'submitted'>> {
+  const out = new Map<string, 'draft' | 'submitted'>();
+  if (keys.length === 0) return out;
+  try {
+    await requireSchema(learningHubPool, DB_KEY, '004_worksheets');
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT worksheet_key, status FROM learning_worksheet_responses
+        WHERE user_email = ? AND worksheet_key = ANY(?)`,
+      [userEmail, keys],
+    );
+    for (const r of rows)
+      out.set(String(r.worksheet_key), r.status === 'submitted' ? 'submitted' : 'draft');
+  } catch {
+    // Nothing to report yet.
+  }
+  return out;
 }
 
 /* ── Lesson viewer (content + prev/next nav) ─────────────────────────── */

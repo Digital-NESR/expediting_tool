@@ -1,0 +1,1259 @@
+{
+ "key": "l2-r2",
+ "level": "Level 2 — Practitioner",
+ "title": "Plan the Supply",
+ "courseTitle": "Supply Chain Professional",
+ "moduleTitle": "Supply Planning & Inventory Control",
+ "intro": "Open this before module 1 and keep a calculator or spreadsheet to hand. Six of the ten tasks are calculations. The answers are in the companion answers document — work each task before you look.",
+ "sections": [
+  {
+   "id": "sa",
+   "title": "Section A · Module tasks",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Tasks 2, 6, 9 and 10 use the data in sections B to E. Work them there."
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-1-test-your-own-master-schedule",
+     "title": "Module 1 — Test your own master schedule",
+     "pauseMinutes": 7,
+     "prompts": [
+      "Which of the five grid rows exist in it, and which are missing?",
+      "Is there one schedule, or does more than one version circulate?",
+      "Take one long-lead item. Does the schedule reach far enough forward to release its orders on time?",
+      "At which of the three stages, if any, is capacity actually verified?"
+     ],
+     "field": {
+      "id": "sa.t-module-1-test-your-own-master-schedule",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-2-complete-an-mrp-grid",
+     "title": "Module 2 — Complete an MRP grid",
+     "pauseMinutes": 10,
+     "prompts": [
+      "Use the grid in section B. Complete the projected on hand row for all eight weeks.",
+      "Identify the net requirements and the periods they fall in.",
+      "Place the planned order receipts, using lot-for-lot.",
+      "Offset by the lead time for the planned order releases — then state which release date is a problem, and why."
+     ],
+     "field": null,
+     "redirect": "Work this one in the relevant section below."
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-3-lot-size-and-stability",
+     "title": "Module 3 — Lot size and stability",
+     "pauseMinutes": 7,
+     "prompts": [
+      "Take one A-class and one C-class item. Which lot-sizing rule does each use today — and is it right?",
+      "Estimate the ordering cost and annual carrying cost for the C-class item. Which is larger?",
+      "Does your planning run produce changes people act on, or changes they ignore? What is the evidence?",
+      "Which of the five nervousness controls are actually in place?"
+     ],
+     "field": {
+      "id": "sa.t-module-3-lot-size-and-stability",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-4-find-your-constraint",
+     "title": "Module 4 — Find your constraint",
+     "pauseMinutes": 7,
+     "prompts": [
+      "Name the resource that currently constrains throughput in your area. How do you know?",
+      "What is its lead time to change?",
+      "At which of the four horizons is it currently managed?",
+      "If demand rose 30% next quarter, at which horizon would you find out, and what options would still be open?"
+     ],
+     "field": {
+      "id": "sa.t-module-4-find-your-constraint",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-5-rate-your-own-resource",
+     "title": "Module 5 — Rate your own resource",
+     "pauseMinutes": 8,
+     "prompts": [
+      "Calculate rated capacity: available time × utilisation × efficiency.",
+      "Calculate demonstrated capacity from the last six periods of actual output.",
+      "How far apart are the two? What does the gap tell you?",
+      "Compare the next four periods of planned load against the demonstrated figure."
+     ],
+     "field": {
+      "id": "sa.t-module-5-rate-your-own-resource",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-6-balance-a-load",
+     "title": "Module 6 — Balance a load",
+     "pauseMinutes": 8,
+     "prompts": [
+      "Use the load profile in section C. Calculate the over or under position for each week.",
+      "Identify the total excess across the four weeks, and how much is timing rather than volume.",
+      "Propose a solution using only free options.",
+      "For any excess remaining, choose a paid option and state its cost and who approves it."
+     ],
+     "field": null,
+     "redirect": "Work this one in the relevant section below."
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-7-test-your-policy",
+     "title": "Module 7 — Test your policy",
+     "pauseMinutes": 7,
+     "prompts": [
+      "Which of the six policy elements does your inventory policy contain?",
+      "Does it state a service level by class? Does anyone use it to set buffers?",
+      "What is the rule for removing an item from stock, and when was it last applied?",
+      "Take three items: managed by policy, or by habit?"
+     ],
+     "field": {
+      "id": "sa.t-module-7-test-your-policy",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-8-cost-your-own-inventory",
+     "title": "Module 8 — Cost your own inventory",
+     "pauseMinutes": 8,
+     "prompts": [
+      "Find average inventory value and annual cost of goods sold. Calculate turns and days of supply.",
+      "Estimate your carrying cost rate from storage, capital and risk. If you cannot, use 25%.",
+      "What does your current inventory cost per year to hold?",
+      "What would a 10% reduction release in cash and save per year — and from which items?"
+     ],
+     "field": {
+      "id": "sa.t-module-8-cost-your-own-inventory",
+      "kind": "long_text",
+      "rows": 6
+     }
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-9-calculate-an-eoq",
+     "title": "Module 9 — Calculate an EOQ",
+     "pauseMinutes": 10,
+     "prompts": [
+      "Use the inputs in section D. Calculate the carrying cost per unit per year.",
+      "Calculate the economic order quantity.",
+      "Cost out the EOQ, half of it and double it. Confirm which is cheapest.",
+      "Compare the EOQ with the quantity actually ordered today. What is the annual difference?"
+     ],
+     "field": null,
+     "redirect": "Work this one in the relevant section below."
+    },
+    {
+     "type": "task",
+     "id": "sa.t-module-10-set-a-complete-policy",
+     "title": "Module 10 — Set a complete policy",
+     "pauseMinutes": 10,
+     "prompts": [
+      "Use the data in section E. Calculate demand during the lead time.",
+      "Calculate safety stock at 95% service, then at 99%.",
+      "Calculate the order point at each service level, and the difference in units and dollars.",
+      "Recommend a service level for this item, and justify it against the cost of a stockout."
+     ],
+     "field": null,
+     "redirect": "Work this one in the relevant section below."
+    }
+   ]
+  },
+  {
+   "id": "sb",
+   "title": "Section B · MRP grid for the module 2 task",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Pump seal kit. On hand 40. Lead time 3 weeks. One scheduled receipt of 50 in week 3. Lot-for-lot ordering."
+    },
+    {
+     "type": "grid",
+     "id": "sb.g-week",
+     "head": [
+      "Week",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Gross requirements"
+       },
+       {
+        "v": "20"
+       },
+       {
+        "v": "60"
+       },
+       {
+        "v": "—"
+       },
+       {
+        "v": "30"
+       },
+       {
+        "v": "—"
+       },
+       {
+        "v": "50"
+       },
+       {
+        "v": "—"
+       },
+       {
+        "v": "40"
+       }
+      ],
+      [
+       {
+        "v": "Scheduled receipts"
+       },
+       {
+        "v": "—"
+       },
+       {
+        "v": "—"
+       },
+       {
+        "v": "50"
+       },
+       {
+        "v": "—"
+       },
+       {
+        "v": "—"
+       },
+       {
+        "v": "—"
+       },
+       {
+        "v": "—"
+       },
+       {
+        "v": "—"
+       }
+      ],
+      [
+       {
+        "v": "Projected on hand  (40)"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Net requirements"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Planned order receipts"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Planned order releases"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "freeNote",
+     "label": "Which release date is a problem, and what would you do about it?",
+     "field": {
+      "id": "sb.f-which-release-date-is-a-problem-and-what-would-you-do-about-",
+      "kind": "long_text",
+      "rows": 3
+     }
+    }
+   ]
+  },
+  {
+   "id": "sc",
+   "title": "Section C · Load profile for the module 6 task",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "One work centre. Demonstrated capacity 118.0 standard hours per week."
+    },
+    {
+     "type": "grid",
+     "id": "sc.g-week",
+     "head": [
+      "Week",
+      "1",
+      "2",
+      "3",
+      "4"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Load from the schedule (std hrs)"
+       },
+       {
+        "v": "95.0"
+       },
+       {
+        "v": "140.0"
+       },
+       {
+        "v": "105.0"
+       },
+       {
+        "v": "132.0"
+       }
+      ],
+      [
+       {
+        "v": "Demonstrated capacity (std hrs)"
+       },
+       {
+        "v": "118.0"
+       },
+       {
+        "v": "118.0"
+       },
+       {
+        "v": "118.0"
+       },
+       {
+        "v": "118.0"
+       }
+      ],
+      [
+       {
+        "v": "Over / (under)"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Total load across the four weeks ____________   Total capacity ____________"
+    },
+    {
+     "type": "freeNote",
+     "label": "How much of the overload is timing, and how much is volume?",
+     "field": {
+      "id": "sc.f-how-much-of-the-overload-is-timing-and-how-much-is-volume",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "freeNote",
+     "label": "Your solution, free options first:",
+     "field": {
+      "id": "sc.f-your-solution-free-options-first",
+      "kind": "long_text",
+      "rows": 3
+     }
+    }
+   ]
+  },
+  {
+   "id": "sd",
+   "title": "Section D · EOQ inputs for the module 9 task",
+   "blocks": [
+    {
+     "type": "grid",
+     "id": "sd.g-input",
+     "head": [
+      "Input",
+      "Symbol",
+      "Value"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Annual demand"
+       },
+       {
+        "v": "D"
+       },
+       {
+        "v": "7,200 units"
+       }
+      ],
+      [
+       {
+        "v": "Cost per order"
+       },
+       {
+        "v": "S"
+       },
+       {
+        "v": "150 dollars"
+       }
+      ],
+      [
+       {
+        "v": "Unit cost (landed)"
+       },
+       {
+        "v": "C"
+       },
+       {
+        "v": "25 dollars"
+       }
+      ],
+      [
+       {
+        "v": "Carrying cost rate"
+       },
+       {
+        "v": "i"
+       },
+       {
+        "v": "24% per year"
+       }
+      ],
+      [
+       {
+        "v": "Carrying cost per unit per year"
+       },
+       {
+        "v": "H = C × i"
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Currently ordered in quantities of"
+       },
+       {
+        "v": "—"
+       },
+       {
+        "v": "1,800 units (quarterly)"
+       }
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Economic order quantity  =  ____________ units"
+    },
+    {
+     "type": "grid",
+     "id": "sd.g-order-quantity",
+     "head": [
+      "Order quantity",
+      "Orders per year",
+      "Annual ordering cost",
+      "Average stock",
+      "Annual carrying cost",
+      "Total annual cost"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Half the EOQ"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "The EOQ"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Double the EOQ"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Current: 1,800"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Annual difference between the current quantity and the EOQ:  ____________ dollars"
+    }
+   ]
+  },
+  {
+   "id": "se",
+   "title": "Section E · Inventory policy data for the module 10 task",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "The same item as section D."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Input",
+      "Value"
+     ],
+     "rows": [
+      [
+       "Annual demand",
+       "7,200 units"
+      ],
+      [
+       "Working weeks per year",
+       "50"
+      ],
+      [
+       "Lead time",
+       "4 weeks"
+      ],
+      [
+       "Standard deviation of weekly demand",
+       "30 units"
+      ],
+      [
+       "Unit cost (landed)",
+       "25 dollars"
+      ],
+      [
+       "Service factor at 95%",
+       "z = 1.65"
+      ],
+      [
+       "Service factor at 99%",
+       "z = 2.33"
+      ]
+     ]
+    },
+    {
+     "type": "grid",
+     "id": "se.g-section-e-inventory-policy-data-for-the-module-10-task",
+     "head": [
+      "",
+      "At 95% service",
+      "At 99% service"
+     ],
+     "rows": [
+      [
+       {
+        "v": "Weekly demand"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Demand during lead time"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "σ over the lead time"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "Safety stock"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ],
+      [
+       {
+        "v": "ORDER POINT"
+       },
+       {
+        "input": true
+       },
+       {
+        "input": true
+       }
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Difference between the two order points:  ____________ units  =  ____________ dollars"
+    },
+    {
+     "type": "freeNote",
+     "label": "Your recommended service level for this item, and why:",
+     "field": {
+      "id": "se.f-your-recommended-service-level-for-this-item-and-why",
+      "kind": "long_text",
+      "rows": 3
+     }
+    },
+    {
+     "type": "callout",
+     "text": "Content derived from the CSCP body of knowledge, Module 2 Section A, rewritten in NESR's own words with NESR examples. Internal training use."
+    }
+   ]
+  }
+ ],
+ "answers": [
+  {
+   "title": "Worked answers",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "NESR SUPPLY CHAIN TRAINING PROGRAMME"
+    },
+    {
+     "type": "prose",
+     "text": "Level 2 — Practitioner"
+    },
+    {
+     "type": "prose",
+     "text": "Release 2 · Plan the Supply — worksheet answers"
+    },
+    {
+     "type": "callout",
+     "text": "Answers to all ten module tasks. Tasks 2, 6, 9 and 10 are calculations with definite answers, worked in full in sections B to E. The other six ask about your own area, so those set out what a good answer looks like. Work the task before reading the answer."
+    }
+   ]
+  },
+  {
+   "title": "Section A · The judgement tasks",
+   "blocks": [
+    {
+     "type": "subheading",
+     "text": "Module 1 — Test your own master schedule"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The available-to-promise row is usually missing. Most organisations calculate the projected balance and stop — which means sales cannot answer a date question without telephoning a planner.",
+      "More than one version circulating is common and always costly. If a spreadsheet is maintained alongside the system output, the spreadsheet is the real schedule and the system is decoration.",
+      "If the horizon does not reach the cumulative lead time of your longest-lead item, that item is not being planned — it is being expedited.",
+      "If capacity is verified at none of the three stages, the schedule is a demand statement rather than a plan. Modules 4 to 6 are the ones to watch."
+     ]
+    },
+    {
+     "type": "subheading",
+     "text": "Module 3 — Lot size and stability"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "For a genuine C-class item, ordering cost usually dominates carrying cost — so larger, less frequent orders are correct, and effort spent optimising the quantity is wasted.",
+      "The honest evidence on the third question is behavioural. Ask a buyer how many rescheduling messages they actioned last week. If the answer is none and the system produced two hundred, the plan is not being used.",
+      "Most organisations have time fences in the system and nothing else. Firm planned orders and exception filters are the two cheapest additions."
+     ]
+    },
+    {
+     "type": "subheading",
+     "text": "Module 4 — Find your constraint"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "If you were not sure which resource is binding, that is a genuine finding — managing the wrong constraint produces no improvement in throughput at all.",
+      "If your answer to the fourth question was that you would find out at execution, the constraint is being managed at the bottom row of the horizon table, where nothing can be changed.",
+      "Lead time to change is the number that decides which horizon owns the resource. Anything longer than a quarter belongs in resource planning, not in S&OP."
+     ]
+    },
+    {
+     "type": "subheading",
+     "text": "Module 5 — Rate your own resource"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "If you could not find utilisation and efficiency figures, you are not unusual. They are often set once at implementation and never revisited — and planning has been running on them ever since.",
+      "A demonstrated capacity well below rated capacity is far more often a parameter problem than a performance problem. Update the parameters first.",
+      "If demonstrated capacity cannot be calculated at all, the cause is upstream: production activity control is not reporting actual output, so the loop is open."
+     ]
+    },
+    {
+     "type": "subheading",
+     "text": "Module 7 — Test your policy"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The removal rule usually does not exist, or exists and has never been used. That is why item ranges only ever grow.",
+      "Habit usually beats policy on the fourth question — not because anyone ignores the policy, but because it was never translated into the ordering parameters in the system.",
+      "A service level stated in a document and never converted into a safety stock figure changes nothing. Module 10 is that conversion."
+     ]
+    },
+    {
+     "type": "subheading",
+     "text": "Module 8 — Cost your own inventory"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The annual holding cost is almost always larger than people expect. It converts \"we hold rather a lot of that\" into a figure with a currency symbol.",
+      "Naming the percentage reduction is easy; naming the items is the work. \"The slow-moving ones\" is not an answer until it is a list.",
+      "Remember the two separate values: the one-off cash release, and the recurring annual carrying saving. Over three years the recurring saving is the larger of the two."
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Section B · Module 2 — worked answer",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Pump seal kit. On hand 40. Lead time 3 weeks. Scheduled receipt of 50 in week 3."
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Week",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8"
+     ],
+     "rows": [
+      [
+       "Gross requirements",
+       "20",
+       "60",
+       "—",
+       "30",
+       "—",
+       "50",
+       "—",
+       "40"
+      ],
+      [
+       "Scheduled receipts",
+       "—",
+       "—",
+       "50",
+       "—",
+       "—",
+       "—",
+       "—",
+       "—"
+      ],
+      [
+       "Projected on hand  (40)",
+       "20",
+       "0",
+       "50",
+       "20",
+       "20",
+       "0",
+       "0",
+       "0"
+      ],
+      [
+       "Net requirements",
+       "—",
+       "40",
+       "—",
+       "—",
+       "—",
+       "30",
+       "—",
+       "40"
+      ],
+      [
+       "Planned order receipts",
+       "—",
+       "40",
+       "—",
+       "—",
+       "—",
+       "30",
+       "—",
+       "40"
+      ],
+      [
+       "Planned order releases",
+       "—",
+       "—",
+       "30",
+       "—",
+       "40",
+       "—",
+       "—",
+       "—"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Reading it through"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Week 1: 40 on hand less 20 gross leaves 20.",
+      "Week 2: 20 on hand against 60 gross — a shortfall of 40. That is a net requirement of 40, so a planned receipt of 40 goes in week 2 and the balance closes at zero.",
+      "Week 3: the scheduled receipt of 50 arrives with no requirement against it, so the balance rises to 50.",
+      "Week 4: 50 less 30 leaves 20. Week 5: unchanged at 20.",
+      "Week 6: 20 against 50 gross — net requirement of 30, planned receipt of 30, balance zero.",
+      "Week 8: nothing on hand against 40 gross — net requirement of 40, planned receipt of 40."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "The releases, and the problem"
+    },
+    {
+     "type": "prose",
+     "text": "Offsetting each receipt by the three-week lead time gives releases in week −1, week 3 and week 5."
+    },
+    {
+     "type": "callout",
+     "text": "The week 2 receipt requires a release in week minus one — a week that has already passed. That is the exception message, and it is a fact rather than an opinion. The correct response is not to enter it anyway. It is to escalate: either the need date moves, or the lead time is compressed by expediting, and somebody has to decide which and pay for it. Entering an impossible release date simply moves the discovery of the problem to the week the material fails to arrive."
+    }
+   ]
+  },
+  {
+   "title": "Section C · Module 6 — worked answer",
+   "blocks": [
+    {
+     "type": "caseTable",
+     "head": [
+      "Week",
+      "1",
+      "2",
+      "3",
+      "4",
+      "Total"
+     ],
+     "rows": [
+      [
+       "Load (std hrs)",
+       "95.0",
+       "140.0",
+       "105.0",
+       "132.0",
+       "472.0"
+      ],
+      [
+       "Capacity (std hrs)",
+       "118.0",
+       "118.0",
+       "118.0",
+       "118.0",
+       "472.0"
+      ],
+      [
+       "Over / (under)",
+       "(23.0)",
+       "22.0",
+       "(13.0)",
+       "14.0",
+       "0.0"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Timing or volume?"
+    },
+    {
+     "type": "prose",
+     "text": "Entirely timing. Total load is 472 standard hours and total capacity is 472 standard hours — they are exactly equal."
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Weeks 2 and 4 are over by 22.0 and 14.0 hours, a total of 36.0 hours of overload.",
+      "Weeks 1 and 3 are under by 23.0 and 13.0 hours, a total of 36.0 hours of spare capacity.",
+      "The overload and the spare capacity match exactly, and the spare capacity comes earlier than the overload — which is the condition that makes moving work possible."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "The free solution"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "Move 22.0 standard hours of week 2 work into week 1, which has 23.0 hours spare.",
+      "Move 14.0 standard hours of week 4 work into week 3, which has 13.0 hours spare — leaving 1.0 hour to absorb in week 4 or move into week 1's remaining 1.0 hour of slack.",
+      "Cost: nothing. No overtime, no subcontracting, no change to any promise."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "This is why the timing-versus-volume split is the first step. Had you gone straight to a paid option, you would have bought 36 standard hours of overtime that the schedule did not need. And had the totals not matched, the difference would have been genuine volume — and only that difference should ever reach the person who approves the spend."
+    },
+    {
+     "type": "prose",
+     "text": "One caveat worth stating: moving work earlier requires the material and the released order to be available earlier. If they are not, the free option is not available, and this becomes a volume problem after all."
+    }
+   ]
+  },
+  {
+   "title": "Section D · Module 9 — worked answer",
+   "blocks": [
+    {
+     "type": "prose",
+     "text": "Carrying cost per unit per year  =  25 dollars × 24%  =  6 dollars"
+    },
+    {
+     "type": "prose",
+     "text": "EOQ  =  √( 2 × 7,200 × 150 ) ÷ 6  =  √( 2,160,000 ÷ 6 )  =  √360,000  =  600 units"
+    },
+    {
+     "type": "caseTable",
+     "head": [
+      "Order quantity",
+      "Orders per year",
+      "Annual ordering cost",
+      "Average stock",
+      "Annual carrying cost",
+      "Total annual cost"
+     ],
+     "rows": [
+      [
+       "300  (half the EOQ)",
+       "24",
+       "3,600",
+       "150",
+       "900",
+       "4,500"
+      ],
+      [
+       "600  (the EOQ)",
+       "12",
+       "1,800",
+       "300",
+       "1,800",
+       "3,600"
+      ],
+      [
+       "1,200  (double the EOQ)",
+       "6",
+       "900",
+       "600",
+       "3,600",
+       "4,500"
+      ],
+      [
+       "1,800  (current practice)",
+       "4",
+       "600",
+       "900",
+       "5,400",
+       "6,000"
+      ]
+     ]
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "At the EOQ, ordering cost and carrying cost are both 1,800 — equal, which is the arithmetic check that the answer is right.",
+      "Half and double both give 4,500. The penalty is symmetrical, and being wrong by a factor of two costs 900 dollars a year — 25% above optimal.",
+      "Current practice of ordering 1,800 units quarterly costs 6,000 dollars a year against 3,600 at the EOQ."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "The annual difference is 2,400 dollars for this one item — and note where it comes from. Ordering quarterly saves 1,200 dollars of ordering cost and costs 3,600 dollars of extra carrying cost. The saving is visible on the transaction count; the cost is invisible on the shelf. That is Level 1's point about optimising the cost you can see, arriving with a number attached."
+    }
+   ]
+  },
+  {
+   "title": "Section E · Module 10 — worked answer",
+   "blocks": [
+    {
+     "type": "caseTable",
+     "head": [
+      "",
+      "Calculation",
+      "At 95%",
+      "At 99%"
+     ],
+     "rows": [
+      [
+       "Weekly demand",
+       "7,200 ÷ 50",
+       "144 units",
+       "144 units"
+      ],
+      [
+       "Demand during lead time",
+       "144 × 4",
+       "576 units",
+       "576 units"
+      ],
+      [
+       "σ over the lead time",
+       "30 × √4  =  30 × 2",
+       "60 units",
+       "60 units"
+      ],
+      [
+       "Service factor",
+       "from the table",
+       "z = 1.65",
+       "z = 2.33"
+      ],
+      [
+       "Safety stock",
+       "z × 60",
+       "99 units",
+       "140 units"
+      ],
+      [
+       "ORDER POINT",
+       "576 + safety stock",
+       "675 units",
+       "716 units"
+      ]
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "The difference"
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "41 units of additional safety stock — a 41% increase in the buffer.",
+      "At a landed cost of 25 dollars, that is 1,025 dollars of additional inventory investment.",
+      "And at a 24% carrying rate, it costs a further 246 dollars a year to hold."
+     ]
+    },
+    {
+     "type": "prose",
+     "text": "Recommending a service level"
+    },
+    {
+     "type": "prose",
+     "text": "There is no single correct answer — but there is a correct method."
+    },
+    {
+     "type": "prompts",
+     "items": [
+      "The additional cost of 99% over 95% is now known exactly: 1,025 dollars of capital, plus 246 dollars a year.",
+      "The question is whether the expected cost of the additional stockouts at 95% exceeds that. At 95%, roughly one replenishment cycle in twenty is expected to run short — with 12 cycles a year, that is about one short cycle every twenty months.",
+      "If a stockout on this item delays a job, the cost of one such event almost certainly exceeds 1,271 dollars, and 99% is justified.",
+      "If the item is a general consumable with a substitute available, 95% is the better use of capital, and the difference is better spent on an item that does stop jobs."
+     ]
+    },
+    {
+     "type": "callout",
+     "text": "That is the whole argument of Level 2 in one decision. The cost of the buffer is calculable to the dollar. The cost of the stockout has to be estimated. But the comparison is now between two numbers rather than between a number and a feeling — which is the difference between an inventory policy and an inventory preference."
+    },
+    {
+     "type": "callout",
+     "text": "A common error to check for: scaling the variability by the lead time rather than by its square root. Using 30 × 4 = 120 instead of 30 × 2 = 60 gives a safety stock of 198 units at 95% — roughly double what is needed, and an expensive mistake to make across a whole range."
+    },
+    {
+     "type": "callout",
+     "text": "Content derived from the CSCP body of knowledge, Module 2 Section A, rewritten in NESR's own words with NESR examples. Internal training use."
+    }
+   ]
+  }
+ ]
+}

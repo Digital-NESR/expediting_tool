@@ -1,7 +1,16 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { CheckCircle2, Circle, Clock, ExternalLink, ClipboardCheck, Lock } from 'lucide-react';
+import {
+  CheckCircle2,
+  Circle,
+  Clock,
+  ExternalLink,
+  ClipboardCheck,
+  Lock,
+  NotebookPen,
+  Sparkles,
+} from 'lucide-react';
 import { getCourseDetail, getCourseTabTitle } from '@/lib/learning-hub-queries';
 import LearningHubShell from '../../components/LearningHubShell';
 import LearningHubHero from '../../components/LearningHubHero';
@@ -24,7 +33,17 @@ export default async function CourseDetailPage({ params }: PageProps) {
   const data = await getCourseDetail(trackKey, numericId);
   if (!data) notFound();
 
-  const { track, course, modules, completed_count, lesson_count, progress_pct } = data;
+  const {
+    track,
+    course,
+    modules,
+    completed_count,
+    lesson_count,
+    progress_pct,
+    fully_complete,
+    worksheet_count,
+    worksheets_submitted,
+  } = data;
   const color = track.color || DEFAULT_TRACK_COLOR;
 
   // First not-yet-completed lesson across the whole course, for a "Resume" CTA.
@@ -91,7 +110,13 @@ export default async function CourseDetailPage({ params }: PageProps) {
           <span className="font-medium text-slate-500">
             {completed_count} / {lesson_count} lessons complete
           </span>
-          {courseComplete ? (
+          {fully_complete ? (
+            /* The second tier. Worksheets are optional, so this is an upgrade on "Completed"
+               rather than a bar anybody failed to clear. */
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-amber-700">
+              <Sparkles className="h-3.5 w-3.5" /> Fully complete
+            </span>
+          ) : courseComplete ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700">
               <CheckCircle2 className="h-3.5 w-3.5" /> Completed
             </span>
@@ -107,6 +132,16 @@ export default async function CourseDetailPage({ params }: PageProps) {
             style={{ width: `${progress_pct}%`, background: courseComplete ? '#059669' : color }}
           />
         </div>
+        {/* Only worth saying when there is something to say: a course with no worksheets has
+            nothing to add, and one already fully complete has been told above. */}
+        {worksheet_count > 0 && !fully_complete && (
+          <p className="mt-2.5 flex items-center gap-1.5 text-[11.5px] text-slate-500">
+            <NotebookPen className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+            {courseComplete
+              ? `Submit ${worksheet_count - worksheets_submitted === worksheet_count ? 'the' : 'the remaining'} ${worksheet_count - worksheets_submitted === 1 ? 'worksheet' : `${worksheet_count - worksheets_submitted} worksheets`} to earn full completion.`
+              : `${worksheets_submitted} of ${worksheet_count} worksheets submitted. They are optional, and finishing them all earns full completion.`}
+          </p>
+        )}
       </div>
 
       {/* Learner-facing label note: a `learning_modules` row (level 3) is shown
@@ -206,6 +241,34 @@ export default async function CourseDetailPage({ params }: PageProps) {
                 );
               })}
             </div>
+            {mod.worksheet && (
+              <Link
+                href={`/learning-hub/${track.key}/${course.id}/worksheet/${mod.id}`}
+                className="flex items-center gap-3 border-t border-slate-100 bg-amber-50/40 px-5 py-3.5 transition-colors hover:bg-amber-50"
+              >
+                <NotebookPen className="h-5 w-5 shrink-0 text-amber-600" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-slate-800">
+                    Worksheet
+                    <span className="ml-2 rounded-full bg-white px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-400 ring-1 ring-inset ring-slate-200">
+                      Optional
+                    </span>
+                  </p>
+                  <p className="truncate text-xs text-slate-500">
+                    The case studies and tasks for this release, as a form.
+                  </p>
+                </div>
+                {mod.worksheet.status === 'submitted' ? (
+                  <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-emerald-600">
+                    <CheckCircle2 className="h-4 w-4" /> Submitted
+                  </span>
+                ) : (
+                  <span className="shrink-0 text-xs font-semibold text-amber-700">
+                    {mod.worksheet.status === 'draft' ? 'Continue →' : 'Start →'}
+                  </span>
+                )}
+              </Link>
+            )}
             {mod.has_quiz && (
               <Link
                 href={`/learning-hub/${track.key}/${course.id}/quiz/${mod.id}`}
