@@ -13,6 +13,7 @@ import {
   getRequiredPermissionForStage,
   laptopHasAssignedUnit,
   laptopIsProcureNewFlow,
+  laptopStagesPassedByOverride,
 } from '@/lib/laptopProcurement-utils';
 import type { LaptopPermissionKey } from '@/lib/laptopProcurement-utils';
 import { logger } from '@/lib/logger';
@@ -438,6 +439,168 @@ export async function updateLaptopRequestStatus(
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to update request status.',
+    };
+  }
+}
+
+/** Statuses that mean the request was refused, for routing the requester's email. */
+const REJECTED_STATUSES: readonly LaptopRequestStatus[] = [
+  'Rejected',
+  'Rejected by CM',
+  'Rejected by ITD',
+  'Rejected by SCD',
+];
+
+/**
+ * An admin setting a request's status directly, outside the workflow.
+ *
+ * Deliberately NOT a relaxation of `updateLaptopRequestStatus`. That function is the workflow: it
+ * refuses any move that is not the legal next step and checks the acting user against the stage
+ * they are deciding, and both of those are the point of it. What an admin needs is the opposite —
+ * a request stuck in the wrong place, or approved against the wrong row, moved to where it should
+ * have been, including backwards. Putting that behind the same function would have meant weakening
+ * the checks that protect every ordinary approval.
+ *
+ * So the rules here are different and few:
+ *
+ *  - Any status is reachable from any status, because an override that cannot go backwards cannot
+ *    fix the mistake people actually make.
+ *  - A reason is required, and goes in the activity log. An override with no explanation is
+ *    indistinguishable from a bug a month later.
+ *  - Stages the request has now passed are stamped with the admin's name, so a jumped-to status
+ *    does not read as half-approved — but only the stages this flow really includes, and only
+ *    where nobody has already signed. A real approver's name is never overwritten.
+ *  - Notifications fire for the NEW status, as they would have if the request had arrived there
+ *    normally, unless the admin turns them off. Correcting a data error at nine in the evening
+ *    should not have to mail four approvers.
+ */
+export async function overrideLaptopRequestStatus(
+  id: number,
+  status: LaptopRequestStatus,
+  options: { reason: string; notify: boolean },
+): Promise<ActionResult> {
+  try {
+    const actor = await requireAdminActor();
+    /* The same flag that governs editing laptop data, not the delete flag: this changes a record
+       rather than destroying one, and an admin who may not delete may still need to unstick. */
+    if (!actor.permissions.canManageData) {
+      return { success: false, error: 'Manage data access is required to override a status.' };
+    }
+
+    const reason = typeof options.reason === 'string' ? options.reason.trim() : '';
+    if (!reason) return { success: false, error: 'A reason is required to override a status.' };
+
+    await ensureLaptopSchema();
+    const rows = await sql<QueryResultRow[]>(`SELECT * FROM laptop_requests WHERE id = ? LIMIT 1`, [
+      id,
+    ]);
+    const row = rows[0];
+    if (!row) return { success: false, error: 'Request not found.' };
+
+    const currentStatus = row.status as LaptopRequestStatus;
+    if (currentStatus === status) {
+      return { success: false, error: `${row.reference_number} is already ${status}.` };
+    }
+
+    const passed = laptopStagesPassedByOverride(
+      currentStatus,
+      status,
+      laptopHasAssignedUnit(row),
+      laptopIsProcureNewFlow(row),
+    );
+
+    /* One assignment per stage the jump signed off. COALESCE on the date and NULLIF on the name
+       mean an approver who really did approve keeps their record; only the blanks are filled. */
+    const stageAssignments: string[] = [];
+    const stageParams: QueryParam[] = [];
+    for (const stage of passed) {
+      const dateColumn = STAGE_APPROVED_DATE_COLUMN[stage];
+      if (dateColumn) stageAssignments.push(`, ${dateColumn} = COALESCE(${dateColumn}, CURRENT_TIMESTAMP)`);
+      const nameColumn = STAGE_APPROVER_NAME_COLUMN[stage];
+      if (nameColumn) {
+        stageAssignments.push(`, ${nameColumn} = COALESCE(NULLIF(${nameColumn}, ''), ?)`);
+        stageParams.push(actor.name);
+      }
+    }
+
+    const isRejection = REJECTED_STATUSES.includes(status);
+
+    const params: QueryParams = [
+      status,
+      getPendingWithLabel(status),
+      actor.name,
+      actor.email,
+      // The reason belongs in rejection_reason only when the new status is a refusal; anywhere
+      // else it is an administrative note and goes to review_comments, where the UI reads it.
+      isRejection ? reason : blankToNull(row.rejection_reason as string | null),
+      reason,
+      ...stageParams,
+      id,
+    ];
+
+    const updatedRow = await withTransaction(laptopProcurementPool, async (client) => {
+      const updated = await sqlTx<QueryResultRow[]>(
+        client,
+        `UPDATE laptop_requests SET
+           status = ?,
+           pending_with = ?,
+           reviewed_by_name = ?,
+           reviewed_by_email = ?,
+           reviewed_at = CURRENT_TIMESTAMP,
+           rejection_reason = ?,
+           review_comments = ?${stageAssignments.join('')},
+           updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?
+         RETURNING *`,
+        params,
+      );
+
+      /* "Status updated to X" is what the ordinary transition writes, and the request timeline is
+         replayed from these rows elsewhere in the hub. Keeping that prefix means an override still
+         reads as a status change to anything parsing the log, while the word "overridden" and the
+         from-status make it obvious to a human that nobody walked the chain. */
+      await writeActivity({
+        requestId: id,
+        referenceNumber: row.reference_number,
+        action: `Status updated to ${status}`,
+        actor,
+        notes:
+          `Overridden from ${currentStatus} by ${actor.name} (admin). Reason: ${reason}` +
+          (passed.length ? ` Stages stamped: ${passed.join(', ')}.` : '') +
+          (options.notify ? '' : ' Notifications suppressed.'),
+        client,
+      });
+      return updated[0];
+    });
+
+    revalidateLaptopPaths();
+    revalidatePath(`/laptop-procurement/requests/${id}`);
+
+    if (options.notify) {
+      // The committed row, not the pre-update snapshot — same reasoning as the ordinary
+      // transition: a webhook cannot be rolled back, and it must describe what is actually true.
+      const updatedRequest = asSerialised<LaptopRequest>(updatedRow ?? { ...row, status });
+      deferLaptopNotifications('status-override', async () => {
+        // Each of these self-guards on the status, so the new status alone decides which fire.
+        await notifyLaptopNextApprover(updatedRequest);
+        await notifyLaptopFinalApproval(updatedRequest);
+        const nextStage = getLaptopApprovalStage(status);
+        await notifyLaptopRequesterUpdate(updatedRequest, {
+          kind: isRejection ? 'rejected' : nextStage ? 'forwarded' : 'final_approved',
+          actorName: actor.name,
+          actorEmail: actor.email,
+          comment: reason,
+          nextOwnerLabel: nextStage,
+        });
+      });
+    }
+
+    return { success: true };
+  } catch (err) {
+    log.error('overrideLaptopRequestStatus.failed', err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to override request status.',
     };
   }
 }

@@ -378,6 +378,72 @@ export function getNextApprovalStatus(
 }
 
 /**
+ * Every status, in the order a request would meet them. The admin override offers all of them.
+ *
+ * Declared here rather than derived from the `LaptopRequestStatus` union, because a union is a
+ * type and vanishes at runtime: a dropdown needs values. The order is the workflow's, not
+ * alphabetical, so the list reads as a journey — the four terminal rejections sit together at the
+ * end rather than scattered through the approvals.
+ *
+ * Separate from `STATUS_OPTIONS`, which is the learner-facing filter and deliberately omits the two
+ * intermediate states ('Procure New Details', 'CM Confirm Device') that nobody would filter a list
+ * by. An admin unsticking a request needs to be able to put it in exactly those states, so this
+ * list is complete and that one is not; a test holds this as a superset of it.
+ */
+export const LAPTOP_STATUS_ORDER: readonly LaptopRequestStatus[] = [
+  'Submitted',
+  'IT Approval',
+  'CM Approval',
+  'Procure New Details',
+  'CM Confirm Device',
+  'IT Director Approval',
+  'Supply Chain Director Approval',
+  'Approved',
+  'Assign from Inventory',
+  'Procure New',
+  'Assign from Inventory & Closed',
+  'Repaired & Closed',
+  'Rejected',
+  'Rejected by CM',
+  'Rejected by ITD',
+  'Rejected by SCD',
+  'Cancelled',
+];
+
+/**
+ * The stages a request passes through when an admin jumps it from one status to another.
+ *
+ * An override that moves a request forward has, in effect, signed off every stage between where it
+ * was and where it now is, and those stages are stamped with the admin's name so the request does
+ * not read as half-approved. Which stages those are depends on the flow: assigning from inventory
+ * ends the chain at the Country Manager, so an inventory request that reaches a closing status has
+ * never passed IT Director or Supply Chain Director and must not be stamped as though it had.
+ * Walking `getNextApprovalStatus` rather than slicing a flat list is what keeps that honest.
+ *
+ * Returns an empty list for a move that is not forward along the chain — backwards, to a rejection,
+ * or to a status this flow never reaches. None of those is an approval, so none of them stamps.
+ */
+export function laptopStagesPassedByOverride(
+  from: LaptopRequestStatus,
+  to: LaptopRequestStatus,
+  hasAssignedUnit: boolean,
+  isProcureNewFlow: boolean,
+): LaptopRequestStatus[] {
+  if (from === to) return [];
+  const passed: LaptopRequestStatus[] = [];
+  let current = from;
+  // The chain is five stages at its longest; the bound is a cycle guard, not a real limit.
+  for (let step = 0; step < 8; step += 1) {
+    const next = getNextApprovalStatus(current, hasAssignedUnit, isProcureNewFlow);
+    if (!next) return [];
+    passed.push(current);
+    if (next === to) return passed;
+    current = next;
+  }
+  return [];
+}
+
+/**
  * Where a rejection sends the request.
  *
  * Every approver downstream of IT bounces it back to the IT Manager to fix and
