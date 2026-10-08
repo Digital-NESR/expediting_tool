@@ -42,3 +42,11 @@ next-env.d.ts
 
 # migration data files
 scripts/data/
+
+# Source workbooks and documents dropped in the repo root while building content.
+# The content itself is committed (database/content, src/lib/learning-hub/worksheets); these are
+# the originals they were generated from, and they belong with the author rather than in git.
+# Ignored rather than deleted: they are somebody's working copy, not build output.
+/*.xlsx
+/*.docx
+/~$*

@@ -163,6 +163,7 @@ export interface AdminAppContentProps {
   learningHubAdminData?: LearningHubAdminData;
   learningHubAnalytics?: LearningHubAnalytics;
   learningHubWorksheets?: WorksheetReport[];
+  learningHubRoles?: { roleKey: string; label: string; learners: number }[];
 }
 
 /* Badges live in the sidebar (server-fetched in the layout), so the access
@@ -261,6 +262,7 @@ export default function AdminAppContent(props: AdminAppContentProps) {
         <LearningHubAnalyticsClient
           data={props.learningHubAnalytics!}
           worksheets={props.learningHubWorksheets ?? []}
+          roles={props.learningHubRoles ?? []}
         />
       );
 
