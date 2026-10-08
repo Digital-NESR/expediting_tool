@@ -480,12 +480,13 @@ export async function overrideLaptopRequestStatus(
   options: { reason: string; notify: boolean },
 ): Promise<ActionResult> {
   try {
+    /* Reaching the admin console IS the permission. There is no second check, deliberately:
+       `requireAdminActor` admits someone with the laptop Admin role and also someone listed in
+       LAPTOP_PROCUREMENT_ADMIN_EMAILS, and for the latter it strips every write flag including
+       canManageData. Gating on that flag therefore locked out precisely the people who are admins
+       by virtue of being on the list — they could see the Requests tab and not use it. Anyone who
+       can open this screen can change a status on it. */
     const actor = await requireAdminActor();
-    /* The same flag that governs editing laptop data, not the delete flag: this changes a record
-       rather than destroying one, and an admin who may not delete may still need to unstick. */
-    if (!actor.permissions.canManageData) {
-      return { success: false, error: 'Manage data access is required to override a status.' };
-    }
 
     const reason = typeof options.reason === 'string' ? options.reason.trim() : '';
     if (!reason) return { success: false, error: 'A reason is required to override a status.' };
