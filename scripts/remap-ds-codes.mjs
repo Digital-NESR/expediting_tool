@@ -1,5 +1,18 @@
 #!/usr/bin/env node
 /**
+ * SUPERSEDED - DO NOT RUN. Ran once on 15 Sep 2026 and was wrong.
+ *
+ * It renumbered onto a believed-official 18-code list. The official list has nineteen codes and
+ * does include "PO Acknowledged - No response" at DS07, so the numbering this script replaced had
+ * been correct. `scripts/remap-ds-codes-official.mjs` moved the data back on 8 Oct 2026; running
+ * this again would undo that.
+ *
+ * Kept because its `_bak_dsremap` tables are the only record of the state before 15 Sep, and
+ * because its reasoning is worth reading: the mapping-by-meaning and the one-pass CASE are both
+ * right. Only its premise about the official list was wrong.
+ *
+ * ---- original header follows ----
+ *
  * One-off: renumber stored Delivery Status codes onto the official list.
  *
  *   node scripts/remap-ds-codes.mjs            # dry run, prints the row counts it would move
