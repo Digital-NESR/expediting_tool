@@ -49,4 +49,5 @@ scripts/data/
 # Ignored rather than deleted: they are somebody's working copy, not build output.
 /*.xlsx
 /*.docx
+/*.pptx
 /~$*
