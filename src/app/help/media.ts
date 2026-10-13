@@ -62,6 +62,11 @@ export const TRAVEL_TRAINING_VIDEO_EMBED_URL =
  * The two Travel Portal manuals, previewed inline and offered as a download. Served from /public
  * like the TI-TE and ProcureGuard guides; an absolute URL works just as well.
  */
+/** SOA Consolidation walkthrough, played inline on /help/soa-consolidation. */
+export const SOA_TRAINING_VIDEO_EMBED_URL =
+  process.env.NEXT_PUBLIC_HELP_SOA_TRAINING_VIDEO_EMBED_URL ??
+  'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=230966b5-d370-42db-8fdf-e2d7e993f7f9&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create';
+
 export const TRAVEL_USER_GUIDE_DOC_URL =
   process.env.NEXT_PUBLIC_HELP_TRAVEL_USER_GUIDE_DOC_URL ?? '/help/travel-portal-user-guide.pdf';
 

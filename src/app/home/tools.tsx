@@ -410,6 +410,7 @@ export const TOOLS: ToolDef[] = [
     accent: NESR_GREEN,
     tone: 'live',
     route: '/soa-consolidation',
+    helpHref: '/help/soa-consolidation',
     /* `always` rather than `adminPreview`: the tool has a real access-request flow, and the
        gate in its own layout does the enforcing — anyone without a grant is shown the request
        page. An adminPreview card would be inert for everyone else, so an approved champion
