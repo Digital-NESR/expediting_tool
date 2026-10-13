@@ -206,74 +206,74 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
                 Laptop / desktop procurement and purchase exception requests.
               </p>
             </div>
-            {/* A column, so the export sits on its own line beneath the
-                filters rather than competing with them for the same row. */}
-            <div className="flex flex-col gap-2.5">
-              <div className="flex flex-wrap items-end gap-2">
-                <div>
-                  {/* The search box explains itself through its placeholder; the
+            {/* A grid rather than a wrapping flex row: the three filters hold
+                one line and the export sits in the third column directly under
+                Request Type. Flex wrap dropped Request Type onto a line of its
+                own as soon as the three ran a few pixels over. */}
+            <div className="grid items-end gap-x-2 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-[auto_auto_auto]">
+              <div>
+                {/* The search box explains itself through its placeholder; the
                       two dropdowns both read "All" and did not. */}
-                  <label className={FILTER_LABEL} htmlFor="laptop-search">
-                    Search
-                  </label>
-                  <input
-                    id="laptop-search"
-                    value={search}
-                    onChange={(e) => {
-                      setSearch(e.target.value);
-                      setPage(0);
-                    }}
-                    placeholder="Search ref, requester, model..."
-                    className={`${INPUT} w-full sm:w-72`}
-                  />
-                </div>
-                <div>
-                  <label className={FILTER_LABEL} htmlFor="laptop-status-filter">
-                    Request Status
-                  </label>
-                  <select
-                    id="laptop-status-filter"
-                    value={status}
-                    onChange={(e) => {
-                      setStatus(e.target.value);
-                      setPage(0);
-                    }}
-                    className={INPUT}
-                  >
-                    <option value="All">All</option>
-                    {STATUS_OPTIONS.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className={FILTER_LABEL} htmlFor="laptop-type-filter">
-                    Request Type
-                  </label>
-                  <select
-                    id="laptop-type-filter"
-                    value={requestType}
-                    onChange={(e) => {
-                      setRequestType(e.target.value);
-                      setPage(0);
-                    }}
-                    className={INPUT}
-                  >
-                    <option value="All">All</option>
-                    {requestTypes.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <label className={FILTER_LABEL} htmlFor="laptop-search">
+                  Search
+                </label>
+                <input
+                  id="laptop-search"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(0);
+                  }}
+                  placeholder="Search ref, requester, model..."
+                  className={`${INPUT} w-full sm:w-64`}
+                />
+              </div>
+              <div>
+                <label className={FILTER_LABEL} htmlFor="laptop-status-filter">
+                  Request Status
+                </label>
+                <select
+                  id="laptop-status-filter"
+                  value={status}
+                  onChange={(e) => {
+                    setStatus(e.target.value);
+                    setPage(0);
+                  }}
+                  className={INPUT}
+                >
+                  <option value="All">All</option>
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={FILTER_LABEL} htmlFor="laptop-type-filter">
+                  Request Type
+                </label>
+                <select
+                  id="laptop-type-filter"
+                  value={requestType}
+                  onChange={(e) => {
+                    setRequestType(e.target.value);
+                    setPage(0);
+                  }}
+                  className={INPUT}
+                >
+                  <option value="All">All</option>
+                  {requestTypes.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
               </div>
               {/* Exports `filtered`, not `requests` — what comes out is what the
                   filters have left on screen, which is the only behaviour that
                   is not surprising straight after narrowing the list. */}
-              <div className="flex justify-end">
+              <div className="flex justify-end sm:col-start-2 lg:col-start-3">
                 <button
                   type="button"
                   onClick={runExport}
