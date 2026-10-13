@@ -34,6 +34,26 @@ const INP =
 
 type DetailValue = string | number | null | undefined;
 
+/** A page with a downward arrow, matching the Excel export on the list. */
+function PdfIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      className="h-3.5 w-3.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M9 1.5H4.25A1.25 1.25 0 0 0 3 2.75v10.5a1.25 1.25 0 0 0 1.25 1.25h7.5A1.25 1.25 0 0 0 13 13.25V5.5z" />
+      <path d="M9 1.5V5.5H13" />
+      <path d="M8 8.25v3.5M6.5 10.25 8 11.75l1.5-1.5" />
+    </svg>
+  );
+}
+
 function textValue(value: DetailValue) {
   if (value === null || value === undefined || value === '') return '-';
   return String(value);
@@ -1260,17 +1280,19 @@ export default function LaptopRequestDetailClient({
               )}
               <StatusPill status={request.status} />
               {isFullyApproved && (
-                <button
-                  type="button"
-                  onClick={runPdfExport}
-                  disabled={pdfBusy}
-                  // On its own line under the status pill, which is where the
-                  // request was asked for and where it does not compete with
-                  // the decision buttons.
-                  className="basis-full text-right text-xs font-bold text-[#307c4c] underline-offset-2 transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {pdfBusy ? 'Preparing PDF...' : 'Export PDF'}
-                </button>
+                /* Its own line under the status pill — where it was asked for,
+                   and where it does not compete with the decision buttons. */
+                <div className="flex basis-full justify-end">
+                  <button
+                    type="button"
+                    onClick={runPdfExport}
+                    disabled={pdfBusy}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#307c4c]/30 bg-white px-3.5 py-2 text-xs font-bold text-[#307c4c] shadow-sm transition hover:bg-[#307c4c]/5 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <PdfIcon />
+                    {pdfBusy ? 'Preparing PDF...' : 'Export PDF'}
+                  </button>
+                </div>
               )}
             </div>
           </div>

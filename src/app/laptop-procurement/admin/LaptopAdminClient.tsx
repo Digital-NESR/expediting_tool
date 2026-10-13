@@ -1373,119 +1373,121 @@ export default function LaptopAdminClient({
                   const isOverriding = overrideId === r.id;
                   return (
                     <Fragment key={r.id}>
-                    <tr className="transition-colors hover:bg-white">
-                      <td className="px-5 py-3">
-                        <Link
-                          href={`/laptop-procurement/requests/${r.id}`}
-                          className="font-bold text-[#307c4c] hover:underline"
-                        >
-                          {r.reference_number}
-                        </Link>
-                      </td>
-                      <td className="px-5 py-3 text-slate-600">
-                        {r.requested_by_name || r.requested_by_email}
-                      </td>
-                      <td className="px-5 py-3">
-                        <span
-                          className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${badge.className}`}
-                        >
-                          {badge.label}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3 text-xs text-slate-500">{fmtDate(r.created_at)}</td>
-                      <td className="px-5 py-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() =>
-                              isOverriding ? closeOverride() : openOverride(r.id, r.status)
-                            }
-                            disabled={isPending}
-                            className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                      <tr className="transition-colors hover:bg-white">
+                        <td className="px-5 py-3">
+                          <Link
+                            href={`/laptop-procurement/requests/${r.id}`}
+                            className="font-bold text-[#307c4c] hover:underline"
                           >
-                            {isOverriding ? 'Cancel' : 'Change status'}
-                          </button>
-                          <button
-                            onClick={() => removeRequest(r.id)}
-                            disabled={isPending}
-                            className="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60"
+                            {r.reference_number}
+                          </Link>
+                        </td>
+                        <td className="px-5 py-3 text-slate-600">
+                          {r.requested_by_name || r.requested_by_email}
+                        </td>
+                        <td className="px-5 py-3">
+                          <span
+                            className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${badge.className}`}
                           >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                    {isOverriding && (
-                      <tr className="bg-amber-50/50">
-                        <td colSpan={5} className="px-5 py-4">
-                          <div className="flex flex-wrap items-end gap-3">
-                            <label className="flex flex-col gap-1">
-                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                                New status
-                              </span>
-                              <select
-                                value={overrideStatus}
-                                onChange={(e) =>
-                                  setOverrideStatus(e.target.value as LaptopRequestStatus)
-                                }
-                                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800"
-                              >
-                                {LAPTOP_STATUS_ORDER.map((st) => (
-                                  <option key={st} value={st}>
-                                    {st}
-                                    {st === r.status ? ' (current)' : ''}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-
-                            <label className="flex min-w-[240px] flex-1 flex-col gap-1">
-                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                                Reason (recorded in the activity log)
-                              </span>
-                              <input
-                                type="text"
-                                value={overrideReason}
-                                onChange={(e) => setOverrideReason(e.target.value)}
-                                placeholder="Why this is being changed by hand"
-                                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800"
-                              />
-                            </label>
-
-                            <label className="flex items-center gap-2 pb-2 text-xs font-semibold text-slate-600">
-                              <input
-                                type="checkbox"
-                                checked={overrideNotify}
-                                onChange={(e) => setOverrideNotify(e.target.checked)}
-                                className="h-4 w-4 accent-[#307c4c]"
-                              />
-                              Send the notification for the new status
-                            </label>
-
+                            {badge.label}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-xs text-slate-500">
+                          {fmtDate(r.created_at)}
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
                             <button
-                              onClick={() => applyOverride(r.id)}
-                              disabled={
-                                isPending ||
-                                !overrideReason.trim() ||
-                                !overrideStatus ||
-                                overrideStatus === r.status
+                              onClick={() =>
+                                isOverriding ? closeOverride() : openOverride(r.id, r.status)
                               }
-                              className={`${CTA} px-4 py-1.5 text-xs disabled:opacity-50`}
+                              disabled={isPending}
+                              className="rounded-lg border border-slate-300 bg-white px-3 py-1 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
                             >
-                              Apply
+                              {isOverriding ? 'Cancel' : 'Change status'}
+                            </button>
+                            <button
+                              onClick={() => removeRequest(r.id)}
+                              disabled={isPending}
+                              className="rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-bold text-red-800 transition hover:bg-red-100 disabled:opacity-60"
+                            >
+                              Delete
                             </button>
                           </div>
-                          <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
-                            This sets the status directly, outside the approval chain — forwards or
-                            backwards. Stages the request passes are stamped with your name where
-                            nobody has signed them yet; an approver who really approved keeps their
-                            record.
-                            {overrideNotify
-                              ? ' The email that status normally sends will go out.'
-                              : ' No email will be sent.'}
-                          </p>
                         </td>
                       </tr>
-                    )}
+                      {isOverriding && (
+                        <tr className="bg-amber-50/50">
+                          <td colSpan={5} className="px-5 py-4">
+                            <div className="flex flex-wrap items-end gap-3">
+                              <label className="flex flex-col gap-1">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                  New status
+                                </span>
+                                <select
+                                  value={overrideStatus}
+                                  onChange={(e) =>
+                                    setOverrideStatus(e.target.value as LaptopRequestStatus)
+                                  }
+                                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800"
+                                >
+                                  {LAPTOP_STATUS_ORDER.map((st) => (
+                                    <option key={st} value={st}>
+                                      {st}
+                                      {st === r.status ? ' (current)' : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+
+                              <label className="flex min-w-[240px] flex-1 flex-col gap-1">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                  Reason (recorded in the activity log)
+                                </span>
+                                <input
+                                  type="text"
+                                  value={overrideReason}
+                                  onChange={(e) => setOverrideReason(e.target.value)}
+                                  placeholder="Why this is being changed by hand"
+                                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800"
+                                />
+                              </label>
+
+                              <label className="flex items-center gap-2 pb-2 text-xs font-semibold text-slate-600">
+                                <input
+                                  type="checkbox"
+                                  checked={overrideNotify}
+                                  onChange={(e) => setOverrideNotify(e.target.checked)}
+                                  className="h-4 w-4 accent-[#307c4c]"
+                                />
+                                Send the notification for the new status
+                              </label>
+
+                              <button
+                                onClick={() => applyOverride(r.id)}
+                                disabled={
+                                  isPending ||
+                                  !overrideReason.trim() ||
+                                  !overrideStatus ||
+                                  overrideStatus === r.status
+                                }
+                                className={`${CTA} px-4 py-1.5 text-xs disabled:opacity-50`}
+                              >
+                                Apply
+                              </button>
+                            </div>
+                            <p className="mt-2 text-[11px] leading-relaxed text-slate-500">
+                              This sets the status directly, outside the approval chain — forwards
+                              or backwards. Stages the request passes are stamped with your name
+                              where nobody has signed them yet; an approver who really approved
+                              keeps their record.
+                              {overrideNotify
+                                ? ' The email that status normally sends will go out.'
+                                : ' No email will be sent.'}
+                            </p>
+                          </td>
+                        </tr>
+                      )}
                     </Fragment>
                   );
                 })}

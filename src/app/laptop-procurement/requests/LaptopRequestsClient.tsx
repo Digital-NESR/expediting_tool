@@ -21,6 +21,26 @@ const INPUT =
 const FILTER_LABEL =
   'mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500';
 
+/** A sheet with a downward arrow — enough to mark the button as an export. */
+function ExcelIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      className="h-3.5 w-3.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M9 1.5H4.25A1.25 1.25 0 0 0 3 2.75v10.5a1.25 1.25 0 0 0 1.25 1.25h7.5A1.25 1.25 0 0 0 13 13.25V5.5z" />
+      <path d="M9 1.5V5.5H13" />
+      <path d="M8 8.25v3.5M6.5 10.25 8 11.75l1.5-1.5" />
+    </svg>
+  );
+}
+
 function StatusPill({ status }: { status: string }) {
   const badge = getStatusBadge(status);
   return (
@@ -186,77 +206,84 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
                 Laptop / desktop procurement and purchase exception requests.
               </p>
             </div>
-            <div className="flex flex-wrap items-end gap-2">
-              <div>
-                {/* The search box explains itself through its placeholder; the
-                    two dropdowns both read "All" and did not. */}
-                <label className={FILTER_LABEL} htmlFor="laptop-search">
-                  Search
-                </label>
-                <input
-                  id="laptop-search"
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    setPage(0);
-                  }}
-                  placeholder="Search ref, requester, model..."
-                  className={`${INPUT} w-full sm:w-72`}
-                />
-              </div>
-              <div>
-                <label className={FILTER_LABEL} htmlFor="laptop-status-filter">
-                  Request Status
-                </label>
-                <select
-                  id="laptop-status-filter"
-                  value={status}
-                  onChange={(e) => {
-                    setStatus(e.target.value);
-                    setPage(0);
-                  }}
-                  className={INPUT}
-                >
-                  <option value="All">All</option>
-                  {STATUS_OPTIONS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className={FILTER_LABEL} htmlFor="laptop-type-filter">
-                  Request Type
-                </label>
-                <select
-                  id="laptop-type-filter"
-                  value={requestType}
-                  onChange={(e) => {
-                    setRequestType(e.target.value);
-                    setPage(0);
-                  }}
-                  className={INPUT}
-                >
-                  <option value="All">All</option>
-                  {requestTypes.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
+            {/* A column, so the export sits on its own line beneath the
+                filters rather than competing with them for the same row. */}
+            <div className="flex flex-col gap-2.5">
+              <div className="flex flex-wrap items-end gap-2">
+                <div>
+                  {/* The search box explains itself through its placeholder; the
+                      two dropdowns both read "All" and did not. */}
+                  <label className={FILTER_LABEL} htmlFor="laptop-search">
+                    Search
+                  </label>
+                  <input
+                    id="laptop-search"
+                    value={search}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setPage(0);
+                    }}
+                    placeholder="Search ref, requester, model..."
+                    className={`${INPUT} w-full sm:w-72`}
+                  />
+                </div>
+                <div>
+                  <label className={FILTER_LABEL} htmlFor="laptop-status-filter">
+                    Request Status
+                  </label>
+                  <select
+                    id="laptop-status-filter"
+                    value={status}
+                    onChange={(e) => {
+                      setStatus(e.target.value);
+                      setPage(0);
+                    }}
+                    className={INPUT}
+                  >
+                    <option value="All">All</option>
+                    {STATUS_OPTIONS.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={FILTER_LABEL} htmlFor="laptop-type-filter">
+                    Request Type
+                  </label>
+                  <select
+                    id="laptop-type-filter"
+                    value={requestType}
+                    onChange={(e) => {
+                      setRequestType(e.target.value);
+                      setPage(0);
+                    }}
+                    className={INPUT}
+                  >
+                    <option value="All">All</option>
+                    {requestTypes.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
               {/* Exports `filtered`, not `requests` — what comes out is what the
                   filters have left on screen, which is the only behaviour that
                   is not surprising straight after narrowing the list. */}
-              <button
-                type="button"
-                onClick={runExport}
-                disabled={exporting}
-                className="rounded-lg border border-[#307c4c]/30 bg-white px-3.5 py-2 text-xs font-bold text-[#307c4c] shadow-sm transition hover:bg-[#307c4c]/5 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {exporting ? 'Preparing...' : `Export Excel (${filtered.length})`}
-              </button>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={runExport}
+                  disabled={exporting}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#307c4c]/30 bg-white px-3.5 py-2 text-xs font-bold text-[#307c4c] shadow-sm transition hover:bg-[#307c4c]/5 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <ExcelIcon />
+                  {exporting ? 'Preparing...' : `Export Excel (${filtered.length})`}
+                </button>
+              </div>
             </div>
           </div>
           {exportError && (
