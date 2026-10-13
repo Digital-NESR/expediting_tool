@@ -3,19 +3,32 @@
  *
  * There used to be four, and they disagreed. The PO dashboard, the supplier portal dropdown,
  * `src/lib/constants.ts` and the reconciliation screen each carried their own copy, and the
- * dashboard filed DS15 to DS18 under "complete" while reconciliation coloured the same codes
- * amber. Every consumer now reads this file: the dashboard pills, the reference modal, the
+ * dashboard filed the in-transit codes under "complete" while reconciliation coloured the same
+ * codes amber. Every consumer now reads this file: the dashboard pills, the reference modal, the
  * supplier dropdown and its server-side validation, reconciliation's traffic light, and the
  * analytics tooltips.
  *
- * THE NUMBERING CHANGED ON 15 SEP 2026. The old list carried an extra status,
- * "PO Acknowledged - No response", at DS07, which pushed every code above it up by one and
- * produced a DS19 that does not exist in the official list. Because the supplier portal was the
- * only writer of these codes, roughly 4,400 live line items and 5,900 audit rows had been stored
- * under the shifted numbering. `scripts/remap-ds-codes.mjs` rewrote them by MEANING, so a row
- * the supplier submitted as "Delivered & Invoiced" moved from DS12 to DS11 and still means
- * "Delivered & Invoiced". Read that script before touching anything here: the codes in the
- * database and the codes in this file have to move together or history silently changes meaning.
+ * THIS LIST WAS WRONG BETWEEN 15 SEP AND 8 OCT 2026, AND THIS IS THE CORRECTION.
+ *
+ * On 15 Sep the list was renumbered onto what was believed to be NESR's official 18-code list:
+ * "PO Acknowledged - No response" was treated as an app invention with no official equivalent,
+ * retired to DS07L, and every code above it was pulled down by one, which removed DS19. The
+ * supplier portal's stored history was migrated to match by `scripts/remap-ds-codes.mjs`.
+ *
+ * The official list actually has NINETEEN codes and does include "PO Acknowledged - No response",
+ * at DS07 — so the numbering that was replaced had been right all along. The evidence was in the
+ * database the whole time and was read as a symptom rather than as the answer: `sap_open_po_master`
+ * is loaded from SAP by n8n, nothing in this app writes it, and it has always arrived carrying
+ * DS19 and no DS07L. The September note called that a job that needed fixing. It was SAP telling
+ * us what the official list is.
+ *
+ * The visible bug was DS19 rendering blank on the dashboard: 85 open PO lines sat at a code this
+ * file did not have, so `dsName` returned null and the pill showed an empty label.
+ *
+ * `scripts/remap-ds-codes-official.mjs` moves the portal's stored codes back, by meaning, and
+ * deliberately does NOT touch `sap_open_po_master` — that table is already correct and is
+ * rewritten nightly anyway. Read it before changing anything here: the codes in the database and
+ * the codes in this file have to move together or history silently changes meaning.
  */
 
 /** Broad grouping. Drives the pill colour on the dashboard and the legend in the reference modal. */
@@ -78,22 +91,26 @@ export const DS_CODES: readonly DsCode[] = [
     description: 'Pending Import permit to be provided',
     category: 'hold',
   },
+  /* The code the September renumbering deleted. It is on the official list, it is selectable,
+     and it is the reason every code below it is one higher than that version had it. Filed as an
+     issue rather than a hold: nothing is holding the delivery, the supplier has gone quiet, and
+     chasing that is what this tool is for. Red either way, so no screen changes colour. */
   {
     code: 'DS07',
+    name: 'PO Acknowledged - No response',
+    description: 'No response has been received from the supplier',
+    category: 'issue',
+  },
+  {
+    code: 'DS08',
     name: 'Delivery On Hold - Pending LC',
     description: 'Pending confirmation Letter of Credit',
     category: 'hold',
   },
   {
-    code: 'DS08',
+    code: 'DS09',
     name: 'Delivery On Hold - Pending Advance Payment',
     description: 'Pending advance payment to be confirmed',
-    category: 'hold',
-  },
-  {
-    code: 'DS09',
-    name: 'Delivery On Hold - Others',
-    description: 'Delivery on Hold due to reasons provided by Supplier',
     category: 'hold',
   },
   {
@@ -104,70 +121,64 @@ export const DS_CODES: readonly DsCode[] = [
   },
   {
     code: 'DS11',
+    name: 'Delivery On Hold - Others',
+    description: 'Delivery on Hold due to reasons provided by Supplier',
+    category: 'hold',
+  },
+  {
+    code: 'DS12',
     name: 'Delivered & Invoiced',
     description: 'The PO has been delivered and Invoiced',
     category: 'complete',
   },
   {
-    code: 'DS12',
+    code: 'DS13',
     name: 'Service Ongoing',
     description: 'The services related to the process is ongoing.',
     category: 'complete',
   },
   {
-    code: 'DS13',
+    code: 'DS14',
     name: 'Service Completed',
     description: 'The service has been completed and awaiting goods receipt',
     category: 'complete',
   },
-  /* DS14 to DS17 are the journey, not the end of it. The dashboard used to file all four under
+  /* DS15 to DS18 are the journey, not the end of it. The dashboard used to file all four under
      "complete" while reconciliation coloured them amber; the amber reading is the correct one,
-     so they have their own category and the two screens finally agree. */
+     so they have their own category and the two screens agree. */
   {
-    code: 'DS14',
+    code: 'DS15',
     name: 'Shipped - In Transit',
     description:
       'The items are currently in transit, meaning they are being transported from one location to another, but they have not yet reached their final destination.',
     category: 'transit',
   },
   {
-    code: 'DS15',
+    code: 'DS16',
     name: 'Ready for Collection',
     description:
       'The items are prepared and available for pickup by the freight forwarder or carrier.',
     category: 'transit',
   },
   {
-    code: 'DS16',
+    code: 'DS17',
     name: 'Collected by Freight Forwarder',
     description:
       'The items have been picked up by the freight forwarder or carrier and are en route to the next destination.',
     category: 'transit',
   },
   {
-    code: 'DS17',
+    code: 'DS18',
     name: 'Customs Clearance',
     description:
       'The items have reached the customs checkpoint and the necessary customs procedures and documentation are being processed for clearance before the items can continue their journey.',
     category: 'transit',
   },
   {
-    code: 'DS18',
+    code: 'DS19',
     name: 'Products Delivered to Base',
     description: 'The items have been successfully delivered to the designated base or destination',
     category: 'complete',
-  },
-  /* Retired. This was DS07 under the old numbering and has no equivalent in the official list,
-     so the remap could not fold it into another status without inventing a meaning for 535
-     rows. It keeps its own id and its own label instead: old submissions still read correctly,
-     and no supplier can choose it again. Delete it only once those rows are gone. */
-  {
-    code: 'DS07L',
-    name: 'PO Acknowledged - No response',
-    description:
-      'Retired status, kept so historical submissions still read correctly. No response was received from the supplier. Not selectable.',
-    category: 'hold',
-    retired: true,
   },
 ];
 
@@ -185,7 +196,7 @@ export function dsName(code: string | null | undefined): string | null {
   return getDsCode(code)?.name ?? null;
 }
 
-/** "DS11 - Delivered & Invoiced", falling back to the raw value so unknown codes still show. */
+/** "DS12 - Delivered & Invoiced", falling back to the raw value so unknown codes still show. */
 export function dsLabel(code: string | null | undefined, separator = '-'): string {
   const raw = (code ?? '').trim();
   const entry = getDsCode(raw);

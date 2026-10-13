@@ -17,6 +17,7 @@ import {
   Flame,
   ChevronRight,
   Info,
+  Compass,
   NotebookPen,
   Download,
   ChevronDown,
@@ -36,12 +37,20 @@ const GREEN = '#307c4c';
 
 type Tab = { id: string; label: string };
 
+export interface LearnerRoleCount {
+  roleKey: string;
+  label: string;
+  learners: number;
+}
+
 export default function LearningHubAnalyticsClient({
   data,
   worksheets = [],
+  roles = [],
 }: {
   data: LearningHubAnalytics;
   worksheets?: WorksheetReport[];
+  roles?: LearnerRoleCount[];
 }) {
   const tabs: Tab[] = [
     { id: 'overview', label: 'Overview' },
@@ -93,7 +102,9 @@ export default function LearningHubAnalyticsClient({
 
       {tab === 'overview' && <Overview data={data} onOpenTrack={(k) => setTab(`track:${k}`)} />}
       {data.tracks.map((t) =>
-        tab === `track:${t.key}` ? <TrackPanel key={t.key} track={t} /> : null,
+        tab === `track:${t.key}` ? (
+          <TrackPanel key={t.key} track={t} roles={t.key === 'supply_chain' ? roles : []} />
+        ) : null,
       )}
       {tab === 'worksheets' && <WorksheetsPanel reports={worksheets} />}
       {tab === 'redbull' && <RedBullPanel stats={data.redBull} />}
@@ -412,6 +423,58 @@ function InsightCards({ items }: { items: Insight[] }) {
   );
 }
 
+/* ─── Who the learners say they are ───────────────────────────── */
+
+/**
+ * The roles learners picked for themselves in "Find my path".
+ *
+ * The only self-reported thing the hub holds — everything else on these screens is inferred from
+ * what people clicked. It answers a different question from the completion figures: not how far
+ * the audience got, but who the audience turned out to be, which is worth knowing before writing
+ * the next level for an audience that may not be taking this one.
+ *
+ * Hidden entirely until somebody has chosen, rather than shown as twelve zeroes.
+ */
+function RolesPanel({ roles, color }: { roles: LearnerRoleCount[]; color: string }) {
+  const total = roles.reduce((n, r) => n + r.learners, 0);
+  if (total === 0) return null;
+  const peak = Math.max(...roles.map((r) => r.learners));
+
+  return (
+    <section>
+      <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+        <Compass className="h-4 w-4" style={{ color }} /> How learners describe themselves
+      </h3>
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="divide-y divide-slate-100">
+          {roles
+            .filter((r) => r.learners > 0)
+            .map((r) => (
+              <div key={r.roleKey} className="flex items-center gap-3 px-4 py-2">
+                <span className="w-56 shrink-0 truncate text-[13px] font-medium text-slate-800">
+                  {r.label}
+                </span>
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${(r.learners / peak) * 100}%`, background: color }}
+                  />
+                </div>
+                <span className="w-16 shrink-0 text-right text-xs font-semibold text-slate-600">
+                  {r.learners} ({pct(r.learners, total)}%)
+                </span>
+              </div>
+            ))}
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-slate-400">
+        {total} {total === 1 ? 'person has' : 'people have'} chosen a path. Roles nobody picked are
+        left out.
+      </p>
+    </section>
+  );
+}
+
 /* ─── Course drill-down ───────────────────────────────────────── */
 
 function CourseDetail({ course, color }: { course: LhCourseAnalytics; color: string }) {
@@ -639,7 +702,13 @@ function LearnerTable({ track }: { track: LhTrackAnalytics }) {
 
 /* ─── Per-module (track) ──────────────────────────────────────── */
 
-function TrackPanel({ track }: { track: LhTrackAnalytics }) {
+function TrackPanel({
+  track,
+  roles = [],
+}: {
+  track: LhTrackAnalytics;
+  roles?: LearnerRoleCount[];
+}) {
   const [open, setOpen] = useState<number | null>(null);
   const color = track.color || GREEN;
 
@@ -676,6 +745,8 @@ function TrackPanel({ track }: { track: LhTrackAnalytics }) {
       </div>
 
       <InsightCards items={insightsFor(track)} />
+
+      <RolesPanel roles={roles} color={color} />
 
       <section>
         <h3 className="mb-2 text-sm font-semibold text-slate-700">Courses</h3>

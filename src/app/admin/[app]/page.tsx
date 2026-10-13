@@ -12,6 +12,7 @@ import {
 import { getLaptopAdminAnalyticsData, getLaptopAdminData } from '@/app/actions/laptopProcurement';
 import { getLearningHubAdminData, getLearningHubAnalytics } from '@/app/actions/learning-hub';
 import { getWorksheetReport } from '@/app/actions/learning-hub-worksheets';
+import { getLearnerRoleCounts } from '@/app/actions/learning-hub-role';
 
 /* Server actions invoked from this page inherit its budget, and one of them is genuinely slow:
    SOA's extract aggregates every PO transaction in an 18-month window and writes a few thousand
@@ -88,12 +89,15 @@ export default async function AdminAppPage({
       break;
     case 'learning-hub/analytics': {
       // Independent reads; the panel renders both and used to wait for them one after the other.
-      const [analytics, worksheets] = await Promise.all([
+      const [analytics, worksheets, roles] = await Promise.all([
         getLearningHubAnalytics(),
         getWorksheetReport(),
+        // Only General Supply Chain has a guide, so only it has roles to count.
+        getLearnerRoleCounts('supply_chain'),
       ]);
       base.learningHubAnalytics = analytics;
       base.learningHubWorksheets = worksheets;
+      base.learningHubRoles = roles;
       break;
     }
     default:

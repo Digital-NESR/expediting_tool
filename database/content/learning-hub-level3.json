@@ -4408,7 +4408,7 @@
           "order": 2,
           "title": "2 - Advanced Planning and Scheduling",
           "durationMinutes": 10,
-          "videoUrl": null,
+          "videoUrl": "https://nesrcorp.sharepoint.com/sites/M365ProcessImprovementTaskForce-SupplyChainTraining-PreperationRepo/_layouts/15/embed.aspx?UniqueId=bbc9fee5-6035-4293-9ec0-3296195e12a3&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22Embed%22%7D",
           "body": "Watch the video, then take the knowledge check below. You need 70% to pass, and you can retake it as many times as you like.",
           "quiz": {
             "title": "Advanced Planning and Scheduling",
@@ -8232,7 +8232,7 @@
           "order": 11,
           "title": "11 - Lean, Waste and Six Sigma",
           "durationMinutes": 26,
-          "videoUrl": null,
+          "videoUrl": "https://nesrcorp.sharepoint.com/sites/M365ProcessImprovementTaskForce-SupplyChainTraining-PreperationRepo/_layouts/15/embed.aspx?UniqueId=3ab30770-c269-4cef-b791-3df46704f685&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22Embed%22%7D",
           "body": "Watch the video, then take the knowledge check below. You need 70% to pass, and you can retake it as many times as you like.",
           "quiz": {
             "title": "Lean, Waste and Six Sigma",
@@ -8329,7 +8329,7 @@
           "order": 12,
           "title": "12 - Theory of Constraints and Just-in-Time",
           "durationMinutes": 23,
-          "videoUrl": null,
+          "videoUrl": "https://nesrcorp.sharepoint.com/sites/M365ProcessImprovementTaskForce-SupplyChainTraining-PreperationRepo/_layouts/15/embed.aspx?UniqueId=0eed2ae3-0f7c-4297-9126-ad4b0f451684&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22Embed%22%7D",
           "body": "Watch the video, then take the knowledge check below. You need 70% to pass, and you can retake it as many times as you like.",
           "quiz": {
             "title": "Theory of Constraints and Just-in-Time",
@@ -8614,21 +8614,5 @@
       ]
     }
   ],
-  "missingVideos": [
-    {
-      "release": 3,
-      "index": 2,
-      "title": "Advanced Planning and Scheduling"
-    },
-    {
-      "release": 4,
-      "index": 11,
-      "title": "Lean, Waste and Six Sigma"
-    },
-    {
-      "release": 4,
-      "index": 12,
-      "title": "Theory of Constraints and Just-in-Time"
-    }
-  ]
+  "missingVideos": []
 }

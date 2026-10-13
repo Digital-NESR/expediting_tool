@@ -16,10 +16,13 @@ import {
 } from '@/lib/ds-codes';
 
 /**
- * NESR's official Delivery Status list, transcribed from the source document rather than from
- * the module under test, so this file fails if the catalogue is edited to disagree with it.
- * Eighteen codes, no DS19, and DS07 is "Pending LC" — the app's old list had an extra status at
- * DS07 which pushed everything above it up by one.
+ * NESR's official Delivery Status list, transcribed from the source document rather than from the
+ * module under test, so this file fails if the catalogue is edited to disagree with it.
+ *
+ * NINETEEN codes. An earlier version of this file asserted eighteen and no DS19, which is how the
+ * wrong list survived three weeks of green tests: it had been transcribed from the same mistaken
+ * reading as the module, so the two agreed with each other and not with NESR. A fixture is only
+ * worth having when it comes from the source, and this one now does.
  */
 const OFFICIAL: ReadonlyArray<readonly [string, string]> = [
   ['DS01', 'PO Copy Not Received'],
@@ -28,22 +31,23 @@ const OFFICIAL: ReadonlyArray<readonly [string, string]> = [
   ['DS04', 'PO Acknowledged - Delivery On time'],
   ['DS05', 'PO Acknowledged - Delivery Delay'],
   ['DS06', 'Delivery On Hold - Pending Import Permit'],
-  ['DS07', 'Delivery On Hold - Pending LC'],
-  ['DS08', 'Delivery On Hold - Pending Advance Payment'],
-  ['DS09', 'Delivery On Hold - Others'],
+  ['DS07', 'PO Acknowledged - No response'],
+  ['DS08', 'Delivery On Hold - Pending LC'],
+  ['DS09', 'Delivery On Hold - Pending Advance Payment'],
   ['DS10', 'Delivery On-Hold - Payment Issues'],
-  ['DS11', 'Delivered & Invoiced'],
-  ['DS12', 'Service Ongoing'],
-  ['DS13', 'Service Completed'],
-  ['DS14', 'Shipped - In Transit'],
-  ['DS15', 'Ready for Collection'],
-  ['DS16', 'Collected by Freight Forwarder'],
-  ['DS17', 'Customs Clearance'],
-  ['DS18', 'Products Delivered to Base'],
+  ['DS11', 'Delivery On Hold - Others'],
+  ['DS12', 'Delivered & Invoiced'],
+  ['DS13', 'Service Ongoing'],
+  ['DS14', 'Service Completed'],
+  ['DS15', 'Shipped - In Transit'],
+  ['DS16', 'Ready for Collection'],
+  ['DS17', 'Collected by Freight Forwarder'],
+  ['DS18', 'Customs Clearance'],
+  ['DS19', 'Products Delivered to Base'],
 ];
 
 describe('the catalogue matches the official list', () => {
-  it('offers exactly the eighteen official codes, in order', () => {
+  it('offers exactly the nineteen official codes, in order', () => {
     expect(SELECTABLE_DS_CODES.map((c) => [c.code, c.name])).toEqual(
       OFFICIAL.map(([code, name]) => [code, name]),
     );
@@ -53,21 +57,32 @@ describe('the catalogue matches the official list', () => {
     expect(dsName(code)).toBe(name);
   });
 
-  /* The four numbers the old list got wrong, called out one by one. Each of these carried a
-     different meaning before 15 Sep 2026, and scripts/remap-ds-codes.mjs moved the stored rows
-     to match. If one of these ever flips back, history silently changes meaning again. */
+  /* The codes the 15 Sep renumbering moved and this change moved back, called out one by one.
+     Each carried a different meaning for three weeks, and scripts/remap-ds-codes-official.mjs
+     moved the stored rows to match. If one of these flips again, history changes meaning. */
   it.each([
-    ['DS07', 'Delivery On Hold - Pending LC', 'was PO Acknowledged - No response'],
-    ['DS11', 'Delivered & Invoiced', 'was Delivery On Hold - Others'],
-    ['DS14', 'Shipped - In Transit', 'was Service Completed'],
-    ['DS18', 'Products Delivered to Base', 'was Customs Clearance'],
+    ['DS07', 'PO Acknowledged - No response', 'was Pending LC between 15 Sep and 8 Oct'],
+    ['DS11', 'Delivery On Hold - Others', 'was Delivered & Invoiced'],
+    ['DS12', 'Delivered & Invoiced', 'was Service Ongoing'],
+    ['DS15', 'Shipped - In Transit', 'was Ready for Collection'],
+    ['DS19', 'Products Delivered to Base', 'did not exist at all'],
   ])('%s is %s (%s)', (code, name) => {
     expect(dsName(code)).toBe(name);
   });
 
-  it('has no DS19: the old list invented one by shifting everything up', () => {
-    expect(getDsCode('DS19')).toBeNull();
-    expect(DS_DESCRIPTIONS.DS19).toBeUndefined();
+  /* The bug a user could actually see: 85 open PO lines sat at DS19, the catalogue stopped at
+     DS18, and the dashboard rendered a pill with no label. */
+  it('knows DS19, which the dashboard was showing blank', () => {
+    expect(getDsCode('DS19')).not.toBeNull();
+    expect(DS_DESCRIPTIONS.DS19).toBe('Products Delivered to Base');
+    expect(DS_DISPLAY_LABELS.DS19).toBe('DS19 - Products Delivered to Base');
+  });
+
+  /* DS07L only ever existed because the official DS07 was mistakenly thought not to exist. The
+     remap sends those rows back to DS07, so nothing should answer to it. */
+  it('no longer carries the retired DS07L', () => {
+    expect(getDsCode('DS07L')).toBeNull();
+    expect(DS_CODES.some((c) => c.retired)).toBe(false);
   });
 
   it('has no duplicate codes', () => {
@@ -84,42 +99,25 @@ describe('the catalogue matches the official list', () => {
   });
 });
 
-describe('the retired code', () => {
-  /* Old DS07 has no equivalent on the official list. It keeps its own id so the 535 rows that
-     carry it still read correctly, and it must never reappear in a supplier dropdown. */
-  it('renders with its original label', () => {
-    expect(dsName('DS07L')).toBe('PO Acknowledged - No response');
-  });
-
-  it('is not selectable', () => {
-    expect(SELECTABLE_DS_CODES.some((c) => c.code === 'DS07L')).toBe(false);
-    expect(getDsCode('DS07L')?.retired).toBe(true);
-  });
-
-  it('is the only retired code', () => {
-    expect(DS_CODES.filter((c) => c.retired).map((c) => c.code)).toEqual(['DS07L']);
-  });
-});
-
 describe('tone', () => {
   /**
    * Reconciliation used to hold three hand-written sets and the dashboard a separate category
-   * list, and they disagreed: the dashboard filed DS15 to DS18 under "complete" while
-   * reconciliation coloured the same codes amber. These are reconciliation's old sets,
-   * translated code-by-code through the remap, and they are now what the shared catalogue
-   * produces — so the fix preserved reconciliation's reading rather than the dashboard's.
+   * list, and they disagreed: the dashboard filed the in-transit codes under "complete" while
+   * reconciliation coloured them amber. These are reconciliation's old sets, translated
+   * code-by-code onto the official numbering, and they are what the shared catalogue produces —
+   * so the fix preserved reconciliation's reading rather than the dashboard's.
    */
   it.each([
     ['DS04', 'green'],
-    ['DS11', 'green'],
     ['DS12', 'green'],
     ['DS13', 'green'],
-    ['DS18', 'green'],
+    ['DS14', 'green'],
+    ['DS19', 'green'],
     ['DS05', 'amber'],
-    ['DS14', 'amber'],
     ['DS15', 'amber'],
     ['DS16', 'amber'],
     ['DS17', 'amber'],
+    ['DS18', 'amber'],
     ['DS01', 'red'],
     ['DS02', 'red'],
     ['DS03', 'red'],
@@ -128,7 +126,7 @@ describe('tone', () => {
     ['DS08', 'red'],
     ['DS09', 'red'],
     ['DS10', 'red'],
-    ['DS07L', 'red'],
+    ['DS11', 'red'],
   ])('%s reads %s', (code, tone) => {
     expect(dsTone(code)).toBe(tone);
   });
@@ -149,12 +147,12 @@ describe('tone', () => {
 
 describe('lookup and labels', () => {
   it('builds the display label the dashboard filter shows', () => {
-    expect(dsLabel('DS11')).toBe('DS11 - Delivered & Invoiced');
-    expect(DS_DISPLAY_LABELS.DS11).toBe('DS11 - Delivered & Invoiced');
+    expect(dsLabel('DS12')).toBe('DS12 - Delivered & Invoiced');
+    expect(DS_DISPLAY_LABELS.DS12).toBe('DS12 - Delivered & Invoiced');
   });
 
   it('takes a separator, for the supplier dropdown that uses an en dash', () => {
-    expect(dsLabel('DS11', '–')).toBe('DS11 – Delivered & Invoiced');
+    expect(dsLabel('DS12', '–')).toBe('DS12 – Delivered & Invoiced');
   });
 
   /* An unrecognised code still has to appear. The dashboard renders whatever SAP sent, and a
@@ -169,11 +167,11 @@ describe('lookup and labels', () => {
   });
 
   it('trims before looking up', () => {
-    expect(dsName('  DS11  ')).toBe('Delivered & Invoiced');
+    expect(dsName('  DS12  ')).toBe('Delivered & Invoiced');
   });
 
   it('is case sensitive, because every writer stores upper case', () => {
-    expect(dsName('ds11')).toBeNull();
+    expect(dsName('ds12')).toBeNull();
   });
 });
 
@@ -184,8 +182,8 @@ describe('pill classes', () => {
   });
 
   it('routes a code through its category', () => {
-    expect(dsPillClass('DS14')).toBe(dsCategoryPillClass('transit'));
-    expect(dsPillClass('DS11')).toBe(dsCategoryPillClass('complete'));
+    expect(dsPillClass('DS15')).toBe(dsCategoryPillClass('transit'));
+    expect(dsPillClass('DS12')).toBe(dsCategoryPillClass('complete'));
   });
 
   it.each([null, undefined, 'DS99'])('falls back to slate for %j', (code) => {

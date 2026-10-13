@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   APPROVAL_ACTIVE_STATUSES,
+  LAPTOP_STATUS_ORDER,
+  laptopStagesPassedByOverride,
   APPROVER_MATRIX_ROLES,
   COUNTRY_OPTIONS,
   IT_MANAGER_STATUSES,
@@ -496,5 +498,81 @@ describe('safeNum', () => {
     expect(safeNum('abc')).toBe(0);
     expect(safeNum(Number.NaN)).toBe(0);
     expect(safeNum(Number.POSITIVE_INFINITY)).toBe(0);
+  });
+});
+
+/**
+ * The admin status override.
+ *
+ * What is pinned here is the stamping rule, because it is the one that can lie. An override that
+ * jumps a request forward fills in the stages it has just passed with the admin's name — and the
+ * stages a request passes depend on its flow. An assign-from-inventory request never meets the IT
+ * Director or the Supply Chain Director, so stamping those would put two approvals in the record
+ * that nobody gave, on a request that was never supposed to need them.
+ */
+describe('the admin status override', () => {
+  it('offers every status, including the two the learner filter leaves out', () => {
+    expect(LAPTOP_STATUS_ORDER).toHaveLength(17);
+    expect(LAPTOP_STATUS_ORDER).toContain('Procure New Details');
+    expect(LAPTOP_STATUS_ORDER).toContain('CM Confirm Device');
+    expect(new Set(LAPTOP_STATUS_ORDER).size).toBe(LAPTOP_STATUS_ORDER.length);
+  });
+
+  /* The two lists are allowed to differ, but only by those intermediate states — anything the
+     filter offers must also be reachable by an override, or an admin cannot undo a filterable
+     state they can see. */
+  it('is a superset of the learner-facing filter', () => {
+    for (const status of STATUS_OPTIONS) expect(LAPTOP_STATUS_ORDER).toContain(status);
+  });
+
+  describe('which stages a jump has signed off', () => {
+    const procureNew = (from: LaptopRequestStatus, to: LaptopRequestStatus) =>
+      laptopStagesPassedByOverride(from, to, false, true);
+    const fromInventory = (from: LaptopRequestStatus, to: LaptopRequestStatus) =>
+      laptopStagesPassedByOverride(from, to, true, false);
+
+    it('stamps the single stage of an ordinary one-step move', () => {
+      expect(procureNew('IT Approval', 'CM Approval')).toEqual(['IT Approval']);
+    });
+
+    it('stamps every stage a multi-step jump skipped over', () => {
+      expect(procureNew('IT Approval', 'Supply Chain Director Approval')).toEqual([
+        'IT Approval',
+        'CM Approval',
+        'IT Director Approval',
+      ]);
+    });
+
+    /* The whole reason this walks the chain instead of slicing a list: an inventory request's
+       chain ends at the Country Manager, so the two director stages are not "skipped", they are
+       not part of it at all. */
+    it('never stamps a director on a request that assigns from inventory', () => {
+      expect(fromInventory('IT Approval', 'Assign from Inventory')).toEqual([
+        'IT Approval',
+        'CM Approval',
+      ]);
+      expect(fromInventory('IT Approval', 'Supply Chain Director Approval')).toEqual([]);
+    });
+
+    it('stamps nothing going backwards', () => {
+      expect(procureNew('Supply Chain Director Approval', 'IT Approval')).toEqual([]);
+      expect(procureNew('CM Approval', 'Submitted')).toEqual([]);
+    });
+
+    /* A rejection and a cancellation are not approvals, so neither one signs anything off. */
+    it('stamps nothing for a rejection or a cancellation', () => {
+      expect(procureNew('CM Approval', 'Rejected by CM')).toEqual([]);
+      expect(procureNew('IT Approval', 'Cancelled')).toEqual([]);
+    });
+
+    it('stamps nothing when the status is unchanged', () => {
+      expect(procureNew('CM Approval', 'CM Approval')).toEqual([]);
+    });
+
+    /* A status outside the chain entirely — the request would never arrive there by approving. */
+    it('stamps nothing for a status the flow never reaches', () => {
+      expect(procureNew('IT Approval', 'Repaired & Closed')).toEqual([]);
+      expect(procureNew('IT Approval', 'CM Confirm Device')).toEqual([]);
+    });
   });
 });
