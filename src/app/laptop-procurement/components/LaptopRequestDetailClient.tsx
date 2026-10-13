@@ -21,6 +21,7 @@ import type {
 } from '@/types/laptopProcurement';
 import type { LaptopWorkflowStep } from '@/lib/laptopProcurement-utils';
 import LaptopShell, { CTA_QUIET, GLASS } from './LaptopShell';
+import { exportRequestPdf } from '../lib/exportRequestPdf';
 import {
   rejectLaptopRequest,
   submitProcureNewDetails,
@@ -555,6 +556,7 @@ export default function LaptopRequestDetailClient({
   const [reviewComment, setReviewComment] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [pdfBusy, setPdfBusy] = useState(false);
   const [highlightDecision, setHighlightDecision] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
@@ -680,6 +682,32 @@ export default function LaptopRequestDetailClient({
     request.status === 'Assign from Inventory' ||
     request.status === 'Approved';
   const ownerLabel = isFullyApproved ? 'Approved — Liaise with IT PoC' : actions.ownerLabel;
+
+  /* Offered only once the chain has finished. Before that the document would be
+     a snapshot of a decision still being made, and the one thing it must not
+     become is a piece of paper that reads like an approval while the request is
+     still moving. */
+  async function runPdfExport() {
+    setError('');
+    setPdfBusy(true);
+    try {
+      await exportRequestPdf({
+        request,
+        documents,
+        stageAssignees,
+        ownerLabel,
+        // Carried in rather than re-derived inside the exporter: the PDF must
+        // not show the person exporting it anything this page hid from them.
+        includeExistingDevice: canSeeExistingDevice,
+      });
+    } catch {
+      // jspdf is loaded on demand, so this is usually a chunk that never
+      // arrived rather than anything wrong with the request.
+      setError('Could not build the PDF. Check your connection and try again.');
+    } finally {
+      setPdfBusy(false);
+    }
+  }
 
   function jumpToDecision() {
     decisionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1212,7 +1240,7 @@ export default function LaptopRequestDetailClient({
                 by {requester}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               {canEditRequest && (
                 <Link
                   href={editHref}
@@ -1231,6 +1259,19 @@ export default function LaptopRequestDetailClient({
                 </button>
               )}
               <StatusPill status={request.status} />
+              {isFullyApproved && (
+                <button
+                  type="button"
+                  onClick={runPdfExport}
+                  disabled={pdfBusy}
+                  // On its own line under the status pill, which is where the
+                  // request was asked for and where it does not compete with
+                  // the decision buttons.
+                  className="basis-full text-right text-xs font-bold text-[#307c4c] underline-offset-2 transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {pdfBusy ? 'Preparing PDF...' : 'Export PDF'}
+                </button>
+              )}
             </div>
           </div>
 

@@ -14,9 +14,12 @@ import {
   laptopIsProcureNewFlow,
 } from '@/lib/laptopProcurement-utils';
 import type { LaptopRequest, LaptopRequestListData } from '@/types/laptopProcurement';
+import { exportRequestsXlsx } from '../lib/exportRequestsXlsx';
 
 const INPUT =
   'rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/25';
+const FILTER_LABEL =
+  'mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500';
 
 function StatusPill({ status }: { status: string }) {
   const badge = getStatusBadge(status);
@@ -67,6 +70,8 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
   const [status, setStatus] = useState('All');
   const [requestType, setRequestType] = useState('All');
   const [page, setPage] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
   const router = useRouter();
 
   const actor = data?.actor ?? null;
@@ -123,6 +128,20 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
     new Set(requests.map((r) => r.request_type).filter(Boolean)),
   ) as string[];
 
+  async function runExport() {
+    setExportError('');
+    setExporting(true);
+    try {
+      await exportRequestsXlsx(filtered, { search, status, requestType });
+    } catch {
+      // exceljs is loaded on demand, so this is usually a chunk that failed to
+      // arrive rather than anything wrong with the data.
+      setExportError('Could not build the spreadsheet. Check your connection and try again.');
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <LaptopShell
       title="Requests"
@@ -167,48 +186,84 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
                 Laptop / desktop procurement and purchase exception requests.
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <input
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(0);
-                }}
-                placeholder="Search ref, requester, model..."
-                className={`${INPUT} w-full sm:w-72`}
-              />
-              <select
-                value={status}
-                onChange={(e) => {
-                  setStatus(e.target.value);
-                  setPage(0);
-                }}
-                className={INPUT}
+            <div className="flex flex-wrap items-end gap-2">
+              <div>
+                {/* The search box explains itself through its placeholder; the
+                    two dropdowns both read "All" and did not. */}
+                <label className={FILTER_LABEL} htmlFor="laptop-search">
+                  Search
+                </label>
+                <input
+                  id="laptop-search"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(0);
+                  }}
+                  placeholder="Search ref, requester, model..."
+                  className={`${INPUT} w-full sm:w-72`}
+                />
+              </div>
+              <div>
+                <label className={FILTER_LABEL} htmlFor="laptop-status-filter">
+                  Request Status
+                </label>
+                <select
+                  id="laptop-status-filter"
+                  value={status}
+                  onChange={(e) => {
+                    setStatus(e.target.value);
+                    setPage(0);
+                  }}
+                  className={INPUT}
+                >
+                  <option value="All">All</option>
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={FILTER_LABEL} htmlFor="laptop-type-filter">
+                  Request Type
+                </label>
+                <select
+                  id="laptop-type-filter"
+                  value={requestType}
+                  onChange={(e) => {
+                    setRequestType(e.target.value);
+                    setPage(0);
+                  }}
+                  className={INPUT}
+                >
+                  <option value="All">All</option>
+                  {requestTypes.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {/* Exports `filtered`, not `requests` — what comes out is what the
+                  filters have left on screen, which is the only behaviour that
+                  is not surprising straight after narrowing the list. */}
+              <button
+                type="button"
+                onClick={runExport}
+                disabled={exporting}
+                className="rounded-lg border border-[#307c4c]/30 bg-white px-3.5 py-2 text-xs font-bold text-[#307c4c] shadow-sm transition hover:bg-[#307c4c]/5 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <option value="All">All</option>
-                {STATUS_OPTIONS.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={requestType}
-                onChange={(e) => {
-                  setRequestType(e.target.value);
-                  setPage(0);
-                }}
-                className={INPUT}
-              >
-                <option value="All">All</option>
-                {requestTypes.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+                {exporting ? 'Preparing...' : `Export Excel (${filtered.length})`}
+              </button>
             </div>
           </div>
+          {exportError && (
+            <div className="border-b border-red-200 bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-900">
+              {exportError}
+            </div>
+          )}
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -247,6 +302,9 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
                       <td className="px-5 py-4 align-top">
                         <p className="font-semibold text-slate-900">{r.requested_by_name || '—'}</p>
                         <p className="text-xs text-slate-500">{r.company_name || 'No company'}</p>
+                        <p className="text-xs text-slate-500/70">
+                          {r.department || 'No department'}
+                        </p>
                       </td>
                       <td className="px-5 py-4 align-top">
                         <p className="font-semibold text-slate-900">{r.type_of_device || '—'}</p>
