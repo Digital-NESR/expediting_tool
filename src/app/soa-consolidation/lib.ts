@@ -2,6 +2,11 @@ import { shortDateTime, shortDateUTC } from '@/lib/format';
 import { complianceCriteria } from '@/lib/soa/compliance';
 import { formatPct, spendShares } from '@/lib/soa/spend-share';
 import { countsTowardCoverage, isAwaitingVerification, isResolved } from '@/lib/soa/status';
+import {
+  filedByChampion,
+  filedBySupplier,
+  matchesUploadSource,
+} from '@/lib/soa/upload-source';
 import type {
   AppState,
   Country,
@@ -27,7 +32,9 @@ import type {
   StatusBarSegVM,
   TableControlsVM,
   Vendor,
+  SourceTabVM,
   SpendShareVM,
+  UploadSource,
   VendorEnrichedVM,
   VendorRowVM,
   VendorStatus,
@@ -365,6 +372,7 @@ export function deriveViewModel(
   const {
     screen,
     filterStatus,
+    filterSource,
     modal,
     toasts,
     expandedVendor,
@@ -649,6 +657,29 @@ export function deriveViewModel(
     onClick: () => handlers.setFilterStatus(t.status),
   }));
 
+  /* A second filter rather than three more status pills, because it asks a different question
+     about the same rows: who filed it, not where the vendor stands. Both narrow the table, so
+     they compose, and a champion can ask for their own uploads among the received. */
+  const SOURCES: { label: string; source: UploadSource; count: number }[] = [
+    { label: 'Anyone', source: 'all', count: totalCount },
+    {
+      label: 'Uploaded by a champion',
+      source: 'champion',
+      count: vendors.filter((v) => filedByChampion(v.submissions)).length,
+    },
+    {
+      label: 'Filed by the supplier',
+      source: 'supplier_portal',
+      count: vendors.filter((v) => filedBySupplier(v.submissions)).length,
+    },
+  ];
+  const sourceTabs: SourceTabVM[] = SOURCES.map((t) => ({
+    ...t,
+    isSelected: t.source === filterSource,
+    onClick: () => handlers.setFilterSource(t.source),
+  }));
+  const matchesSource = (v: Vendor) => matchesUploadSource(v.submissions, filterSource);
+
   /* Each supplier's weight in the country, computed once for every screen that shows it, against
      the same denominator the coverage figure divides by. Computed here rather than per screen
      because a supplier reading 12% on Response Tracking and 11% on Consolidation is a bug nobody
@@ -687,6 +718,7 @@ export function deriveViewModel(
   // Response Tracking, status filter, then text filter, then one page of rows.
   const trackingMatched = vendors
     .filter((v) => filterStatus === 'all' || v.status === filterStatus)
+    .filter(matchesSource)
     .filter((v) => matchesSearch(v, search));
   /* The refused sends, by vendor, so a failure shows on the row it belongs to rather than in a
      panel above the table listing the same vendors a second time. Retryable ones only: a refusal
@@ -726,7 +758,13 @@ export function deriveViewModel(
       ...enrichVendorRow(v),
       isExpanded: v.id === expandedVendor,
       isReceived: v.status === 'received',
-      canAccept: canAct && v.status !== 'received',
+      /* `canAct` already stops at the handoff, which is exactly the line the champion asked for:
+         their own upload stays editable until the country goes to Finance, and not after. It used
+         to also stop at `received`, so the button disappeared the moment there was something to
+         correct. */
+      canAccept: canAct,
+      acceptLabel: v.status === 'received' ? 'Replace SOA upload' : 'Accept SOA Upload',
+      uploadedByChampion: filedByChampion(v.submissions),
       canChase,
       chaseLabel: chaseKind === 'request' ? 'Send request' : 'Send reminder',
       canResolve: canAct && (v.status === 'reminded' || v.status === 'requested'),
@@ -1201,6 +1239,7 @@ export function deriveViewModel(
     onRetryFailed: handlers.retryFailed,
 
     filterTabs,
+    sourceTabs,
     vendorsEnriched,
     trackingTable,
     sendProgress,
@@ -1247,6 +1286,10 @@ export function deriveViewModel(
     modalVendorNo: modalVendor?.no ?? '',
     modalVendorAmt: modalVendor ? fmtM(modalVendor.openPO) : '',
     modalVendorCurrency: modalVendor?.currency ?? '',
+    modalIsReplacement: modalVendor?.status === 'received',
+    modalCurrentFiles: (modalVendor?.submissions ?? [])
+      .filter((f) => !f.superseded)
+      .map((f) => ({ kind: f.kind, fileName: f.fileName })),
     onCloseModal: handlers.closeModal,
     onAcceptSOA: handlers.acceptSOA,
     onRemoveSubmission: handlers.removeSubmission,

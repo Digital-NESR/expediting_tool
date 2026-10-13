@@ -86,7 +86,7 @@ function VendorDetail({
             disabled={busy}
             className="bg-sns-green text-white border-none px-3 py-[7px] rounded-md text-[11px] font-bold disabled:opacity-50"
           >
-            Accept SOA Upload
+            {v.acceptLabel}
           </button>
         )}
         {v.canResolve && (
@@ -129,6 +129,15 @@ function VendorDetail({
               >
                 {file.fileName}
               </a>
+              {/* Who filed it, because that is what decides whether a champion may second-guess
+                  it, and the filter above is only readable if the rows say the same thing. */}
+              <span
+                className={`text-[9px] font-bold uppercase tracking-[0.4px] ${
+                  file.source === 'champion' ? 'text-[#8A4B00]' : 'text-sns-grey'
+                }`}
+              >
+                {file.source === 'champion' ? 'uploaded' : 'supplier'}
+              </span>
               {file.superseded ? (
                 <span className="font-bold text-[10px] text-sns-grey">replaced</span>
               ) : (
@@ -342,6 +351,28 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
         ))}
       </div>
 
+      {/* Who filed the statement, asked separately from where the vendor stands, so the two
+          compose: a champion chasing their own corrections wants them across every status. */}
+      <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+        <span className="text-[10px] font-bold uppercase tracking-[0.5px] text-sns-grey mr-0.5">
+          Filed by
+        </span>
+        {vm.sourceTabs.map((tab) => (
+          <button
+            type="button"
+            key={tab.source}
+            onClick={tab.onClick}
+            className={`px-3 py-1.5 rounded-[20px] cursor-pointer text-[11px] font-bold border-2 whitespace-nowrap ${
+              tab.isSelected
+                ? 'border-sns-green bg-sns-green/10 text-sns-green'
+                : 'border-transparent bg-[#F0F0F0] text-sns-grey'
+            }`}
+          >
+            {tab.label} ({tab.count})
+          </button>
+        ))}
+      </div>
+
       <KpiCards cards={vm.kpiCards} />
       <TableToolbar table={vm.trackingTable} placeholder="Filter by vendor name or number" />
 
@@ -377,6 +408,10 @@ export default function ResponseTrackingScreen({ vm }: ScreenProps) {
                 <div className="text-[10px] text-sns-grey font-[family-name:monospace] mt-px">
                   {v.no}
                   {v.isUnreachable && <span className="text-[#B71C1C]"> · no email</span>}
+                  {/* Said on the closed row, not only inside it: the "Filed by" filter narrows
+                      this table, and a filtered list whose rows do not say why they matched
+                      leaves a champion opening every one of them to find out. */}
+                  {v.uploadedByChampion && <span className="text-[#8A4B00]"> · uploaded</span>}
                 </div>
               </div>
               {/* A refused send is shown here rather than in a panel above the table, which

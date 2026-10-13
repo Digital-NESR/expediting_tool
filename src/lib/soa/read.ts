@@ -72,6 +72,13 @@ export interface VendorRow {
     superseded: boolean;
     /** `email` is filed correspondence: an answer on record that parses into no invoice rows. */
     kind: 'workbook' | 'email';
+    /**
+     * Who filed it: the supplier through their own upload link, or a champion on their behalf.
+     *
+     * The distinction is the one a champion filters by - their own uploads are the ones they may
+     * still need to correct, and a supplier's is not theirs to second-guess.
+     */
+    source: 'supplier_portal' | 'champion';
   }[];
 }
 
@@ -352,7 +359,8 @@ export async function loadSoa(
        hundred vendors, and a per-row lookup would be a few hundred round trips for a list that is
        usually almost empty. */
     sql<QueryResultRow[]>(
-      `SELECT s.id, s.vendor_cycle_entry_id, s.file_name, s.uploaded_at, s.superseded_at, s.kind
+      `SELECT s.id, s.vendor_cycle_entry_id, s.file_name, s.uploaded_at, s.superseded_at, s.kind,
+              s.source
          FROM soa_submissions s
          JOIN vendor_cycle_entries vce ON vce.id = s.vendor_cycle_entry_id
         WHERE vce.country_cycle_id = ?
@@ -388,6 +396,7 @@ export async function loadSoa(
       // to know which one the coverage number came from.
       superseded: r.superseded_at !== null,
       kind: String(r.kind) === 'email' ? 'email' : 'workbook',
+      source: String(r.source) === 'champion' ? 'champion' : 'supplier_portal',
     });
     submissionsByEntry.set(key, list);
   }

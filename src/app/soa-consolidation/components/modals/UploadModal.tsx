@@ -171,7 +171,9 @@ export default function UploadModal({ vm }: ScreenProps) {
   return (
     <>
       <div className="bg-sns-green px-5 py-4 flex items-center justify-between">
-        <div className="text-white font-bold text-[14px]">Accept SOA, {vm.modalVendorName}</div>
+        <div className="text-white font-bold text-[14px]">
+          {vm.modalIsReplacement ? 'Replace SOA' : 'Accept SOA'}, {vm.modalVendorName}
+        </div>
         <button
           type="button"
           onClick={vm.onCloseModal}
@@ -189,6 +191,26 @@ export default function UploadModal({ vm }: ScreenProps) {
             {vm.modalVendorCurrency}
           </div>
         </div>
+
+        {/* Reopening the box on an answered vendor is a correction, so it has to say what the
+            correction costs: the file already on record is kept and marked replaced, not deleted,
+            and only a file of the same kind retires one. A champion who drops an email beside a
+            spreadsheet keeps both. */}
+        {vm.modalIsReplacement && (
+          <div className="mb-3.5 rounded-[7px] border border-[#E8D9B8] bg-[#FDF8EC] px-3.5 py-2.5 text-[12px] text-sns-ink">
+            <div className="font-bold mb-0.5">This supplier has already answered.</div>
+            <div className="text-sns-grey">
+              {vm.modalCurrentFiles.length > 0 && (
+                <>
+                  On file:{' '}
+                  {vm.modalCurrentFiles.map((f) => f.fileName).join(', ')}. A new file of the same
+                  kind marks the old one replaced rather than deleting it,{' '}
+                </>
+              )}
+              and the coverage figure is recomputed from whatever is current.
+            </div>
+          </div>
+        )}
 
         <DropZone
           label="Statement spreadsheet"

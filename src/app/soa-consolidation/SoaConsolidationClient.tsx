@@ -48,6 +48,7 @@ const NO_SELECTION: ReadonlySet<string> = new Set<string>();
 const INITIAL: AppState = {
   screen: 'dashboard',
   filterStatus: 'all',
+  filterSource: 'all',
   modal: null,
   toasts: [],
   expandedVendor: null,
@@ -297,6 +298,9 @@ export default function SoaConsolidationClient({
     setFilterStatus(status) {
       // A filter that left the pager on page 6 would show an empty table with no explanation.
       patch({ filterStatus: status, page: 0 });
+    },
+    setFilterSource(source) {
+      patch({ filterSource: source, page: 0 });
     },
     setSearch(value) {
       patch({ search: value, page: 0 });

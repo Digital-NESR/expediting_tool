@@ -1,5 +1,6 @@
 import type { ApplyScopeSummary } from '@/app/actions/soa/scoping';
 import type { DeliveryFailure } from '@/lib/soa/delivery';
+import type { UploadSource } from '@/lib/soa/upload-source';
 import type { VendorCycleStatus } from '@/lib/soa/status';
 import type { ScopeCandidate, ScopeCandidates } from '@/lib/soa/candidates';
 import type { CountryOption, SoaPayload } from '@/lib/soa/read';
@@ -135,6 +136,12 @@ export type OutreachFailure = DeliveryFailure;
 export interface AppState {
   screen: ScreenId;
   filterStatus: 'all' | VendorStatus;
+  /**
+   * Who filed the statement on a row, which is a second question about the same table and so a
+   * second filter rather than another status pill: a champion looking for the uploads they made
+   * by hand wants them whatever status the supplier is sitting at.
+   */
+  filterSource: UploadSource;
   modal: ModalState;
   toasts: Toast[];
   expandedVendor: string | null;
@@ -207,6 +214,16 @@ export interface FilterTabVM {
   onClick: () => void;
 }
 
+export type { UploadSource };
+
+export interface SourceTabVM {
+  label: string;
+  source: UploadSource;
+  count: number;
+  isSelected: boolean;
+  onClick: () => void;
+}
+
 export interface VendorRowVM extends Vendor {
   statusLabel: string;
   fmtOpenPO: string;
@@ -227,7 +244,18 @@ export interface SpendShareVM {
 export interface VendorEnrichedVM extends VendorRowVM, SpendShareVM {
   isExpanded: boolean;
   isReceived: boolean;
+  /**
+   * Whether the upload box opens for this vendor.
+   *
+   * True until the country is handed off, including after a statement has been accepted: a
+   * champion who uploaded the wrong file, or a better one arrived by email, has to be able to
+   * put it right, and before this the button simply vanished at the moment it was needed.
+   */
   canAccept: boolean;
+  /** "Accept" the first time, "Replace" once something is already on file. */
+  acceptLabel: string;
+  /** A statement on file that a champion uploaded by hand rather than the supplier filing it. */
+  uploadedByChampion: boolean;
   /** This vendor can be chased on its own, now, from its row. */
   canChase: boolean;
   /** What that press would send: the first letter for a vendor never written to, else a reminder. */
@@ -516,6 +544,7 @@ export interface ViewModel {
   onRetryFailed: () => void;
 
   filterTabs: FilterTabVM[];
+  sourceTabs: SourceTabVM[];
   vendorsEnriched: VendorEnrichedVM[];
   trackingTable: TableControlsVM;
   /** The collection deadline has passed, so silence is now a finding rather than a wait. */
@@ -563,6 +592,10 @@ export interface ViewModel {
   modalVendorNo: string;
   modalVendorAmt: string;
   modalVendorCurrency: string;
+  /** This vendor already has a statement on file, so the box is being reopened to correct it. */
+  modalIsReplacement: boolean;
+  /** The live files, named, so the modal can say what dropping a new one would retire. */
+  modalCurrentFiles: { kind: 'workbook' | 'email'; fileName: string }[];
   onCloseModal: () => void;
   onAcceptSOA: (files: AcceptSoaFiles) => void;
   onRemoveSubmission: (entryId: string, kind: 'workbook' | 'email', fileName: string) => void;
@@ -597,6 +630,7 @@ export interface ScreenProps {
 export interface Handlers {
   setScreen: (screen: ScreenId) => void;
   setFilterStatus: (status: 'all' | VendorStatus) => void;
+  setFilterSource: (source: UploadSource) => void;
   setSearch: (value: string) => void;
   setPage: (page: number) => void;
   setScopeSearch: (value: string) => void;

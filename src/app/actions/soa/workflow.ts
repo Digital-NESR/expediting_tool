@@ -62,7 +62,16 @@ interface EntryContext {
   status: string;
   cycleLabel: string;
   submissionDeadline: string;
+  /** True once the country cycle has been handed off to Finance. */
+  handedOff: boolean;
 }
+
+/* Said the same way by both actions, because a champion who hits it has done nothing wrong -
+   they are looking at a tab opened before the handoff - and the message has to explain the state
+   rather than just refuse. */
+const HANDED_OFF_MESSAGE =
+  'This country has been handed off to Finance, so its statements can no longer be changed. ' +
+  'Ask an administrator to reopen the cycle if something needs correcting.';
 
 /**
  * Resolve an entry id to its country, and refuse a caller who does not hold that country.
@@ -76,7 +85,8 @@ async function loadEntry(entryId: number, min: 'champion' | 'viewer' = 'champion
     `SELECT vce.id, vce.country_cycle_id, vce.open_po_amount, vce.currency, vce.status::text AS status,
             v.id AS vendor_id, v.name AS vendor_name, v.vendor_no,
             vce.upload_token,
-            cc.country_id, c.name AS country_name, cy.label, cy.submission_deadline
+            cc.country_id, cc.status::text AS country_cycle_status,
+            c.name AS country_name, cy.label, cy.submission_deadline
        FROM vendor_cycle_entries vce
        JOIN vendors v        ON v.id = vce.vendor_id
        JOIN country_cycles cc ON cc.id = vce.country_cycle_id
@@ -104,6 +114,10 @@ async function loadEntry(entryId: number, min: 'champion' | 'viewer' = 'champion
     vendorId: Number(r.vendor_id),
     uploadToken: String(r.upload_token),
     status: String(r.status),
+    /* The cycle is finished and with Finance. Every write against a vendor in it has to refuse
+       from here on, and the screens already hide the buttons, but the screens are not the guard:
+       these are public POST endpoints and a stale tab is enough to reach them. */
+    handedOff: String(r.country_cycle_status) === 'handed_off',
     cycleLabel: String(r.label),
     submissionDeadline:
       r.submission_deadline instanceof Date
@@ -500,6 +514,7 @@ export async function acceptSoaSubmission(
 ): Promise<SoaResult<{ lines: number; needingReview: number }>> {
   try {
     const { actor, context } = await loadEntry(entryId);
+    if (context.handedOff) return { success: false, error: HANDED_OFF_MESSAGE };
 
     /* Two named parts rather than one anonymous `file`. A champion usually holds the supplier's
        reply and the spreadsheet attached to it, and the single field could only carry one of
@@ -641,6 +656,7 @@ export async function removeSoaSubmission(
 ): Promise<SoaResult<{ remaining: number; status: string }>> {
   try {
     const { actor, context } = await loadEntry(entryId);
+    if (context.handedOff) return { success: false, error: HANDED_OFF_MESSAGE };
     if (kind !== 'workbook' && kind !== 'email') {
       return { success: false, error: 'Unknown kind of statement.' };
     }
