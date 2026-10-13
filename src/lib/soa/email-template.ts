@@ -184,6 +184,8 @@ export function handoffNoticeEmail(input: {
   vendors: number;
   statementsReceived: number;
   coveragePct: number;
+  /** Closed short because the collection window ran out, rather than because it was complete. */
+  shortOfTarget: { targetPct: number; windowClosedOn: string | null } | null;
   closedBy: string;
   portalUrl: string | null;
   attachmentName: string | null;
@@ -197,6 +199,20 @@ export function handoffNoticeEmail(input: {
     'Statement of Account',
     `<h2 style="font-size:20px;color:#1D4F31;margin:0">${escapeHtml(input.countryName)} is closed and ready for you</h2>
 <p style="font-size:14px;line-height:1.6">The ${escapeHtml(input.cycleLabel)} statement of account cycle for <strong>${escapeHtml(input.countryName)}</strong> has been reconciled against the statements collected and handed over by ${escapeHtml(input.closedBy)}.</p>
+
+${
+  input.shortOfTarget
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:8px 0">
+<tr><td style="background-color:#FFF3E0;border:1px solid #E65100;border-radius:8px;padding:16px 18px">
+<div style="font-size:13px;font-weight:bold;color:#8A4B00">Closed below the ${escapeHtml(String(input.shortOfTarget.targetPct))}% coverage target</div>
+<div style="font-size:13px;line-height:1.6;padding-top:4px;color:#5B4A33">${
+        input.shortOfTarget.windowClosedOn
+          ? `The window suppliers were given closed on ${escapeHtml(input.shortOfTarget.windowClosedOn)}, and the balance of them did not answer. `
+          : `The collection window has closed and the balance of suppliers did not answer. `
+      }This file is what was collected, not what was asked for. The suppliers missing from it were chased and did not reply, so there is no fuller version coming; the Response Tracking tab names every one of them.</div>
+</td></tr></table>`
+    : ''
+}
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:8px 0">
 <tr>${figure('Vendors in scope', String(input.vendors))}<td width="8"></td>${figure('Statements received', String(input.statementsReceived))}<td width="8"></td>${figure('Coverage', `${input.coveragePct}%`)}</tr>

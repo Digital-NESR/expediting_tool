@@ -373,6 +373,7 @@ export function deriveViewModel(
     screen,
     filterStatus,
     filterSource,
+    consolidationSource,
     modal,
     toasts,
     expandedVendor,
@@ -659,25 +660,38 @@ export function deriveViewModel(
 
   /* A second filter rather than three more status pills, because it asks a different question
      about the same rows: who filed it, not where the vendor stands. Both narrow the table, so
-     they compose, and a champion can ask for their own uploads among the received. */
-  const SOURCES: { label: string; source: UploadSource; count: number }[] = [
-    { label: 'Anyone', source: 'all', count: totalCount },
-    {
-      label: 'Uploaded by a champion',
-      source: 'champion',
-      count: vendors.filter((v) => filedByChampion(v.submissions)).length,
-    },
-    {
-      label: 'Filed by the supplier',
-      source: 'supplier_portal',
-      count: vendors.filter((v) => filedBySupplier(v.submissions)).length,
-    },
-  ];
-  const sourceTabs: SourceTabVM[] = SOURCES.map((t) => ({
-    ...t,
-    isSelected: t.source === filterSource,
-    onClick: () => handlers.setFilterSource(t.source),
-  }));
+     they compose, and a champion can ask for their own uploads among the received.
+
+     Built once for both screens that offer it. The counts are always of the rows that screen
+     lists, so the pills on Consolidation count the suppliers in the file and the pills on
+     Response Tracking count everyone in scope; a pill whose number did not match the table under
+     it would be read as the filter being broken. */
+  const sourceTabsFor = (
+    subset: Vendor[],
+    selected: UploadSource,
+    onPick: (source: UploadSource) => void,
+  ): SourceTabVM[] =>
+    (
+      [
+        { label: 'Anyone', source: 'all', count: subset.length },
+        {
+          label: 'Uploaded by a champion',
+          source: 'champion',
+          count: subset.filter((v) => filedByChampion(v.submissions)).length,
+        },
+        {
+          label: 'Filed by the supplier',
+          source: 'supplier_portal',
+          count: subset.filter((v) => filedBySupplier(v.submissions)).length,
+        },
+      ] as { label: string; source: UploadSource; count: number }[]
+    ).map((t) => ({
+      ...t,
+      isSelected: t.source === selected,
+      onClick: () => onPick(t.source),
+    }));
+
+  const sourceTabs = sourceTabsFor(vendors, filterSource, handlers.setFilterSource);
   const matchesSource = (v: Vendor) => matchesUploadSource(v.submissions, filterSource);
 
   /* Each supplier's weight in the country, computed once for every screen that shows it, against
@@ -1037,12 +1051,28 @@ export function deriveViewModel(
   const consolidatedCount = consolidatedVendors.length;
   const consolidatedBalance = consolidatedVendors.reduce((sum, v) => sum + v.openPO, 0);
 
-  const consolidatedRows = consolidatedVendors.map((v, i) => ({
-    ...v,
-    num: i + 1,
-    fmtOpenPO: fmtM(v.openPO),
-    ...consolidatedShareLabels(v),
-  }));
+  const consolidationSourceTabs = sourceTabsFor(
+    consolidatedVendors,
+    consolidationSource,
+    handlers.setConsolidationSource,
+  );
+
+  /* Numbered and accumulated over the whole file, then filtered.
+     This screen describes a file rather than a population: the row number is that supplier's line
+     in the workbook AP receives, and the cumulative column runs to the coverage figure printed
+     above it. Renumbering under a filter would make both say something the file does not, so the
+     filter hides rows and the gaps in the numbering are the honest signal that it is on. It is
+     the opposite choice from Response Tracking, which has no file behind it and whose filter does
+     define the population. */
+  const consolidatedRows = consolidatedVendors
+    .map((v, i) => ({
+      ...v,
+      num: i + 1,
+      fmtOpenPO: fmtM(v.openPO),
+      ...consolidatedShareLabels(v),
+    }))
+    .filter((v) => matchesUploadSource(v.submissions, consolidationSource));
+  const consolidationFiltered = consolidationSource !== 'all';
 
   const evidenceEnriched: EvidenceRowVM[] = evidence.map((e) => {
     const typeKey: EvidenceType = e.type in EVIDENCE_TYPE_LABEL ? (e.type as EvidenceType) : 'info';
@@ -1256,13 +1286,22 @@ export function deriveViewModel(
     complianceItems: items,
     consolidatedRows,
     consolidatedCount,
+    consolidationSourceTabs,
+    consolidationShownCount: consolidatedRows.length,
+    consolidationFiltered,
     fmtConsolidatedBalance: fmtM(consolidatedBalance),
     /* The same figure as the KPI tile and the rollup, written once. */
     fmtCoveragePct: formatPct(coveragePct),
     allPass,
     allPassLabel,
     handedOff: payload.handedOff,
-    canHandoff: canAct && coverageMet,
+    /* The target gates the handoff only while suppliers can still answer it. Past the date they
+       were given, a champion who chased everyone cannot collect their way to the threshold, and
+       holding the cycle open produces no statements: it only keeps AP waiting for a file that is
+       as complete as it is going to get. The action applies the same rule, from the same
+       module, so this button is never offered where the server would refuse it. */
+    canHandoff: canAct && (coverageMet || pastCollectionDeadline),
+    handoffShortOfTarget: !coverageMet && pastCollectionDeadline,
     onGenerateExport: handlers.generateExport,
     onOpenHandoffModal: handlers.openHandoffModal,
 

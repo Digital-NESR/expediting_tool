@@ -49,6 +49,7 @@ const INITIAL: AppState = {
   screen: 'dashboard',
   filterStatus: 'all',
   filterSource: 'all',
+  consolidationSource: 'all',
   modal: null,
   toasts: [],
   expandedVendor: null,
@@ -301,6 +302,9 @@ export default function SoaConsolidationClient({
     },
     setFilterSource(source) {
       patch({ filterSource: source, page: 0 });
+    },
+    setConsolidationSource(source) {
+      patch({ consolidationSource: source });
     },
     setSearch(value) {
       patch({ search: value, page: 0 });

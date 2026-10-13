@@ -142,6 +142,9 @@ export interface AppState {
    * by hand wants them whatever status the supplier is sitting at.
    */
   filterSource: UploadSource;
+  /* Consolidation keeps its own, like Vendor Scoping does, so narrowing one screen's table does
+     not silently narrow another's. */
+  consolidationSource: UploadSource;
   modal: ModalState;
   toasts: Toast[];
   expandedVendor: string | null;
@@ -560,7 +563,12 @@ export interface ViewModel {
   complianceItems: ComplianceItemVM[];
   consolidatedRows: ConsolidatedRowVM[];
   /** The rows this page lists: everything that counts towards coverage, not only the spreadsheets. */
+  /** Every vendor in the file. The filter below narrows what is listed, never what is exported. */
   consolidatedCount: number;
+  consolidationSourceTabs: SourceTabVM[];
+  /** How many of those rows the filter is showing. Equal to `consolidatedCount` when it is off. */
+  consolidationShownCount: number;
+  consolidationFiltered: boolean;
   /** Their balance, already written, so the page can state what the coverage figure is made of. */
   fmtConsolidatedBalance: string;
   /** Coverage, at the same precision as the Cumulative column. */
@@ -569,6 +577,14 @@ export interface ViewModel {
   allPassLabel: string;
   handedOff: boolean;
   canHandoff: boolean;
+  /**
+   * The handoff is allowed although coverage is short, because the collection window has closed.
+   *
+   * Drives the warning the champion reads before confirming: closing short is a legitimate end to
+   * a cycle nobody answered, but it is not the same act as closing a complete one and the dialog
+   * has to say which one is about to happen.
+   */
+  handoffShortOfTarget: boolean;
   onGenerateExport: () => void;
   onOpenHandoffModal: () => void;
 
@@ -631,6 +647,7 @@ export interface Handlers {
   setScreen: (screen: ScreenId) => void;
   setFilterStatus: (status: 'all' | VendorStatus) => void;
   setFilterSource: (source: UploadSource) => void;
+  setConsolidationSource: (source: UploadSource) => void;
   setSearch: (value: string) => void;
   setPage: (page: number) => void;
   setScopeSearch: (value: string) => void;

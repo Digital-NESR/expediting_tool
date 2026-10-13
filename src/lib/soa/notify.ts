@@ -45,6 +45,14 @@ export async function notifySoaHandoff(input: {
   vendors: number;
   statementsReceived: number;
   coveragePct: number;
+  /**
+   * Set when the cycle closed below its coverage target because the collection window ran out.
+   *
+   * AP cannot tell that from the percentage alone, and it changes what they do: the suppliers
+   * missing from the file are ones who were asked and did not answer, not ones still being
+   * chased, so waiting for a fuller file would be waiting for nothing.
+   */
+  shortOfTarget: { targetPct: number; windowClosedOn: string | null } | null;
   portalUrl: string | null;
 }): Promise<boolean> {
   if (!input.apEmails.length) {
@@ -83,7 +91,12 @@ export async function notifySoaHandoff(input: {
     ['Cycle', input.cycleLabel],
     ['Vendors in scope', String(input.vendors)],
     ['Statements received', String(input.statementsReceived)],
-    ['Coverage', `${input.coveragePct}%`],
+    [
+      'Coverage',
+      input.shortOfTarget
+        ? `${input.coveragePct}% (below the ${input.shortOfTarget.targetPct}% target)`
+        : `${input.coveragePct}%`,
+    ],
     ['Closed by', input.closedBy],
   ];
 
@@ -93,6 +106,7 @@ export async function notifySoaHandoff(input: {
     vendors: input.vendors,
     statementsReceived: input.statementsReceived,
     coveragePct: input.coveragePct,
+    shortOfTarget: input.shortOfTarget,
     closedBy: input.closedBy,
     portalUrl: input.portalUrl,
     attachmentName,
@@ -104,7 +118,9 @@ export async function notifySoaHandoff(input: {
       kind: 'soa.handoff',
       to: input.apEmails,
       cc: input.championEmails,
-      subject: `SOA ${input.cycleLabel} closed, ${input.countryName}`,
+      subject: input.shortOfTarget
+      ? `SOA ${input.cycleLabel} closed below target, ${input.countryName}`
+      : `SOA ${input.cycleLabel} closed, ${input.countryName}`,
       bodyHtml,
       bodyText: rows.map(([k, v]) => `${k}: ${v}`).join('\n'),
       attachments,

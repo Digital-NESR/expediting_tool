@@ -5,6 +5,7 @@ import {
   countsTowardCoverage,
   isAwaitingReply,
   isAwaitingVerification,
+  isCollectionWindowClosed,
   isResolved,
 } from '@/lib/soa/status';
 
@@ -55,6 +56,39 @@ describe('isResolved', () => {
     for (const status of ['scoped', 'requested', 'reminded']) {
       expect(isResolved(status), status).toBe(false);
     }
+  });
+});
+
+/**
+ * Whether suppliers can still answer.
+ *
+ * Two things turn on this now and they have to turn together: a silent supplier becomes awaiting
+ * verification, and the handoff stops enforcing the coverage target. The button is drawn in the
+ * browser and the refusal is written in a server action, so a disagreement between them would
+ * show as an action that refuses the champion it just invited.
+ */
+describe('isCollectionWindowClosed', () => {
+  it('is open before the date suppliers were given', () => {
+    expect(isCollectionWindowClosed(DEADLINE, BEFORE)).toBe(false);
+  });
+
+  it('is closed after it', () => {
+    expect(isCollectionWindowClosed(DEADLINE, AFTER)).toBe(true);
+  });
+
+  /* The safe reading. A cycle with no deadline on it leaves the coverage target enforced, rather
+     than letting a missing date open the handoff on every country at once. */
+  it('is open when the cycle carries no deadline', () => {
+    expect(isCollectionWindowClosed(null, AFTER)).toBe(false);
+    expect(isCollectionWindowClosed(new Date('nonsense'), AFTER)).toBe(false);
+  });
+
+  /* The reason it is one function rather than the same comparison in both places. */
+  it('is the same rule awaiting verification is built on', () => {
+    expect(isAwaitingVerification('reminded', DEADLINE, AFTER)).toBe(true);
+    expect(isAwaitingVerification('reminded', DEADLINE, BEFORE)).toBe(false);
+    // ...and it never turns a status that is already settled into one that is waiting.
+    expect(isAwaitingVerification('received', DEADLINE, AFTER)).toBe(false);
   });
 });
 

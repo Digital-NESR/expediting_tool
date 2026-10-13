@@ -51,6 +51,22 @@ export function isAwaitingReply(status: string): boolean {
 }
 
 /**
+ * The date suppliers were given has passed, so nothing further is being waited for.
+ *
+ * One definition, because two things now turn on it and they must turn together: the screens call
+ * a silent supplier awaiting verification, and the handoff stops enforcing the coverage target. A
+ * server that measured the window differently from the button would show a champion an action
+ * that refuses them.
+ *
+ * A cycle with no deadline on it has not closed. That is the safe reading: it leaves the target
+ * enforced rather than letting a missing date open the gate.
+ */
+export function isCollectionWindowClosed(deadline: Date | null, now: Date): boolean {
+  if (!deadline || Number.isNaN(deadline.getTime())) return false;
+  return now.getTime() > deadline.getTime();
+}
+
+/**
  * Past the date suppliers were given, and still silent.
  *
  * Derived, never written. Nothing flips a status on a schedule: there is no job to install or
@@ -58,6 +74,5 @@ export function isAwaitingReply(status: string): boolean {
  * overwritten to say the supplier had gone quiet.
  */
 export function isAwaitingVerification(status: string, deadline: Date | null, now: Date): boolean {
-  if (!deadline || Number.isNaN(deadline.getTime())) return false;
-  return isAwaitingReply(status) && now.getTime() > deadline.getTime();
+  return isAwaitingReply(status) && isCollectionWindowClosed(deadline, now);
 }

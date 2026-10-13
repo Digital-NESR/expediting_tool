@@ -34,7 +34,8 @@ import {
 import { AppUrlNotConfiguredError, soaPortalUrl, uploadLinkFor } from '@/lib/soa/links';
 import { notifySoaHandoff } from '@/lib/soa/notify';
 import { resolvedContactsFor, setVendorContactList } from '@/lib/soa/recipients';
-import { COVERED_STATUS_SQL } from '@/lib/soa/status';
+import { shortDateUTC } from '@/lib/format';
+import { COVERED_STATUS_SQL, isCollectionWindowClosed } from '@/lib/soa/status';
 import { letterContext, loadTemplate } from '@/lib/soa/templates';
 import { MailNotConfiguredError, sendMail, type MailMessage } from '@/lib/soa/mail';
 import { MAX_SOA_BYTES, StatementRejected, storeStatement } from '@/lib/soa/submission-store';
@@ -64,6 +65,21 @@ interface EntryContext {
   submissionDeadline: string;
   /** True once the country cycle has been handed off to Finance. */
   handedOff: boolean;
+}
+
+/**
+ * A cycle's collection deadline as a date.
+ *
+ * `pg` hands a DATE column back as a Date or as a string depending on the driver's type parsing,
+ * and the screens read the same column as a `yyyy-mm-dd` string parsed at UTC midnight. Parsed
+ * the same way here so the server's reading of "the window has closed" is the browser's, and a
+ * champion is never shown a button the action then refuses.
+ */
+function deadlineDate(raw: unknown): Date | null {
+  if (raw instanceof Date) return raw;
+  if (typeof raw !== 'string' || !raw) return null;
+  const date = new Date(`${raw.slice(0, 10)}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 /* Said the same way by both actions, because a champion who hits it has done nothing wrong -
@@ -755,7 +771,7 @@ export async function handOffSoaCountry(
   try {
     const actor = await requireSoaCountry(countryId, 'champion');
     const rows = await sql<QueryResultRow[]>(
-      `SELECT cc.id, cy.coverage_target_pct, cy.label,
+      `SELECT cc.id, cy.coverage_target_pct, cy.label, cy.submission_deadline,
               COUNT(vce.id)::int AS vendor_count,
               COUNT(vce.id)
                 FILTER (WHERE vce.status::text IN (${COVERED_STATUS_SQL}))::int AS received_count,
@@ -778,10 +794,24 @@ export async function handOffSoaCountry(
     const received = Number(rows[0].received);
     const pct = total > 0 ? Math.round((received / total) * 100) : 0;
     const target = Number(rows[0].coverage_target_pct);
-    if (pct < target) {
+
+    /* The coverage target gates the handoff only while suppliers can still answer it.
+       A champion who has chased everyone and been ignored cannot collect their way past the
+       threshold, and holding the cycle open after the date the suppliers were given does not
+       produce the missing statements: it only keeps AP waiting for a file that is as complete as
+       it is ever going to be. Once the collection window has closed, the target becomes a finding
+       about the cycle rather than a condition on closing it. */
+    const deadline = deadlineDate(rows[0].submission_deadline);
+    const windowClosed = isCollectionWindowClosed(deadline, new Date());
+    /* Non-null exactly when the window has closed, which is the only branch that names the date. */
+    const closedOn = windowClosed && deadline ? shortDateUTC(deadline) : null;
+    const shortOfTarget = pct < target;
+    if (shortOfTarget && !windowClosed) {
       return {
         success: false,
-        error: `Coverage is ${pct}%, below the ${target}% threshold for ${rows[0].label}. Collect more statements before handing off.`,
+        error: deadline
+          ? `Coverage is ${pct}%, below the ${target}% threshold for ${rows[0].label}. Collect more statements, or hand off once the collection window closes on ${shortDateUTC(deadline)}.`
+          : `Coverage is ${pct}%, below the ${target}% threshold for ${rows[0].label}. Collect more statements before handing off.`,
       };
     }
 
@@ -799,7 +829,9 @@ export async function handOffSoaCountry(
         'handoff',
         'Handed off to Finance',
         actor.email,
-        `Consolidated statement file delivered for ${rows[0].label}. Coverage ${pct}% against a ${target}% threshold.`,
+        shortOfTarget
+          ? `Consolidated statement file delivered for ${rows[0].label}. Coverage ${pct}% against a ${target}% threshold, closed short because the collection window ended on ${closedOn} and the outstanding suppliers did not answer.`
+          : `Consolidated statement file delivered for ${rows[0].label}. Coverage ${pct}% against a ${target}% threshold.`,
       );
     });
 
@@ -818,6 +850,12 @@ export async function handOffSoaCountry(
       vendors: Number(rows[0].vendor_count),
       statementsReceived: Number(rows[0].received_count),
       coveragePct: pct,
+      /* Said to AP rather than only written to the evidence log: the figure alone does not tell
+         them whether it is the whole answer or the answer that arrived in time, and that changes
+         what they do with the suppliers who are missing from the file. */
+      shortOfTarget: shortOfTarget
+        ? { targetPct: target, windowClosedOn: closedOn }
+        : null,
       portalUrl: soaPortalUrl(),
     });
 
