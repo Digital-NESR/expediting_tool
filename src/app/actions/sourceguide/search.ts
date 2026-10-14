@@ -15,6 +15,7 @@ import type {
   Tier,
 } from '@/types/sourceguide';
 import { canRead, readUser } from '@/lib/sourceguide/access';
+import { familySql, subCategorySql } from '@/lib/sourceguide/taxonomy-levels';
 import { isCentrallyBlocked } from '@/lib/sourceguide/blocked';
 import { logUsage } from '@/lib/sourceguide/activity';
 import {
@@ -346,8 +347,8 @@ export async function getTaxonomyFacts(): Promise<SgTaxonomyRow[]> {
   try {
     const { rows } = await sourceGuidePool.query(`
       SELECT spend_type, category,
-             COALESCE(NULLIF(TRIM(sub_category),''),'General') AS sub,
-             COALESCE(NULLIF(TRIM(family),''),'General') AS fam,
+             ${subCategorySql()},
+             ${familySql()},
              name
       FROM sg_commodities
     `);
@@ -394,8 +395,8 @@ export async function getTaxonomy(): Promise<SgTaxonomyCategory[]> {
   try {
     const { rows } = await sourceGuidePool.query(`
       SELECT c.id, c.code, c.name, c.category, c.category_id,
-             COALESCE(c.sub_category, 'General') AS sub_category,
-             COALESCE(c.family, 'General') AS family,
+             ${subCategorySql('c.', 'sub_category')},
+             ${familySql('c.', 'family')},
              COALESCE(cc.cnt, 0)::int AS countries
       FROM sg_commodities c
       LEFT JOIN (

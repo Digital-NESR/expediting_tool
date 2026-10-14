@@ -1,6 +1,7 @@
 import type { QueryResultRow } from 'pg';
 import sourceGuidePool from '@/lib/db-sourceguide';
 import { logger } from '@/lib/logger';
+import { familySql, subCategorySql } from './taxonomy-levels';
 import type { SgTaxonomyRow } from './types';
 import type { TaxonomyExportRow } from './taxonomy-export';
 
@@ -27,8 +28,8 @@ export async function readSpendTaxonomyFacts(): Promise<SgTaxonomyRow[]> {
   try {
     const { rows } = await sourceGuidePool.query<QueryResultRow>(`
       SELECT spend_type, category,
-             COALESCE(NULLIF(TRIM(sub_category), ''), 'General') AS sub,
-             COALESCE(NULLIF(TRIM(family), ''), 'General')       AS fam,
+             ${subCategorySql()},
+             ${familySql()},
              name
         FROM sg_commodities
     `);
@@ -70,8 +71,8 @@ export function summariseTaxonomy(rows: SgTaxonomyRow[]): {
 export async function readSpendTaxonomyForExport(): Promise<TaxonomyExportRow[]> {
   const { rows } = await sourceGuidePool.query<QueryResultRow>(`
     SELECT spend_type, category,
-           COALESCE(NULLIF(TRIM(sub_category), ''), 'General') AS sub,
-           COALESCE(NULLIF(TRIM(family), ''), 'General')       AS fam,
+           ${subCategorySql()},
+           ${familySql()},
            name, COALESCE(code, '') AS code, COALESCE(description, '') AS description
       FROM sg_commodities
   `);

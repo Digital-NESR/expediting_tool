@@ -1,6 +1,7 @@
 /* ─── Row shaping and the small helpers every query path needs. ─── */
 
 import { logger } from '@/lib/logger';
+import { isRedundantFamily } from './taxonomy-levels';
 import type { SgCommodity } from '@/types/sourceguide';
 
 /* ─── helpers ────────────────────────────────────────────────── */
@@ -38,7 +39,11 @@ export function buildPath(c: {
   family: string | null;
   name: string;
 }): string[] {
-  return [c.category, c.subCategory, c.family, c.name].filter(Boolean) as string[];
+  /* A family that repeats its sub-category is dropped, the same way a null one always was: this
+     is a list rather than a column, so the way to say "no family here" is to not say it. Without
+     it the breadcrumb on a commodity read `Lubricants > Lubricants > Engine Oil`. */
+  const family = isRedundantFamily(c.family, c.subCategory) ? null : c.family;
+  return [c.category, c.subCategory, family, c.name].filter(Boolean) as string[];
 }
 
 export interface CommodityRow {
