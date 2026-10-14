@@ -8,6 +8,7 @@ import ProcureGuardLogo from '../../components/ProcureGuardLogo';
 import ProcureGuardHomeButton from '../../components/ProcureGuardHomeButton';
 import ProcureGuardHero from '../../components/ProcureGuardHero';
 import EmployeeAutocomplete from '../../components/EmployeeAutocomplete';
+import RequisitionPicker from '../../components/RequisitionPicker';
 import {
   createAdhocPayment,
   getProcureGuardNotificationPreview,
@@ -21,6 +22,7 @@ import {
   SPEND_CATEGORY_OPTIONS,
   usdEquivalentFmt,
 } from '@/lib/procureGuard-utils';
+import { requisitionError } from '@/lib/procure-guard/requisition';
 import type {
   AdhocPaymentRequest,
   CreateAdhocPaymentInput,
@@ -280,7 +282,10 @@ export default function AdhocPaymentFormClient(_props: {
 
   function validate() {
     const e: Record<string, string> = {};
-    if (!requisitionNumber.trim()) e.requisitionNumber = 'Requisition number is required.';
+    /* The same rule the server applies, from the same module: a browser check that disagreed
+       with the action would show a green form and a red toast. */
+    const requisitionProblem = requisitionError(requisitionNumber);
+    if (requisitionProblem) e.requisitionNumber = requisitionProblem;
     if (!country) e.country = 'Country is required.';
     if (!segment) e.segment = 'Segment is required.';
     if (!vendorName.trim()) e.vendorName = 'ADHOC vendor name is required.';
@@ -480,10 +485,11 @@ export default function AdhocPaymentFormClient(_props: {
           <section className="grid grid-cols-1 gap-x-10 gap-y-7 lg:grid-cols-4">
             <div className="lg:col-span-2">
               <Field label="Requisition Number" required error={errors.requisitionNumber}>
-                <input
-                  className={errors.requisitionNumber ? ERR : INP}
+                <RequisitionPicker
                   value={requisitionNumber}
-                  onChange={(e) => setRequisitionNumber(e.target.value)}
+                  onChange={setRequisitionNumber}
+                  country={country}
+                  invalid={Boolean(errors.requisitionNumber)}
                 />
               </Field>
             </div>

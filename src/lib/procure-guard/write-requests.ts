@@ -21,6 +21,7 @@ import type {
   ProcureGuardStatus,
 } from '@/types/procureGuard';
 import { exec } from './internals';
+import { requireRequisitionNumbers } from './requisition';
 import type { ExecResult } from './internals';
 import { insertProcureGuardPaymentRequest } from './schema';
 import {
@@ -77,7 +78,10 @@ export function normaliseAdhocInput(
 ): NormalisedAdhocInput {
   const amount = validateMoney(input.amount);
   const currency = validateCurrency(input.currency);
-  const requisitionNumber = requireText(input.requisition_number, 'Requisition number');
+  /* Adhoc only, deliberately. Advance payments puts 4.. and 5.. PO-range documents in the same
+     column and a ten-digit PR rule would reject most of them; what that field is for there is a
+     separate question. See `requisition.ts`. */
+  const requisitionNumber = requireRequisitionNumbers(input.requisition_number);
   const country = requireCountryOption(input.country);
   const segment = requireText(input.segment, 'Segment');
   const vendorName = requireText(input.vendor_name, 'ADHOC vendor name');

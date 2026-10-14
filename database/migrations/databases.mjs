@@ -17,7 +17,13 @@
 
 /** @typedef {'standard' | 'sns' | 'sourceguide'} EnvStyle */
 
-/** @type {Array<{ key: string, database: () => string | undefined, envStyle: EnvStyle }>} */
+/**
+ * `readOnly` marks a database another application owns, which this one only reads. The runner
+ * refuses to migrate it and the manifest test refuses to let it grow a migrations folder: the
+ * failure being prevented is this repo quietly altering another team's schema because somebody
+ * put a .sql file in a folder named after it.
+ */
+/** @type {Array<{ key: string, database: () => string | undefined, envStyle: EnvStyle, readOnly?: boolean }>} */
 export const DATABASES = [
   { key: 'default', database: () => process.env.DB_NAME, envStyle: 'standard' },
   {
@@ -70,6 +76,15 @@ export const DATABASES = [
     database: () =>
       process.env.SourceGuide_DB || process.env.SOURCEGUIDE_DB_NAME || 'sourceguide_db',
     envStyle: 'sourceguide',
+  },
+  {
+    /* RFx Officer's own database. ProcureGuard reads `released_prs` from it for the requisition
+       picker and writes nothing, so it is listed to satisfy the pool manifest and marked as not
+       ours to migrate. */
+    key: 'rfx-officer',
+    database: () => process.env.RFX_OFFICER_DB_NAME || 'rfx_officer',
+    envStyle: 'sourceguide',
+    readOnly: true,
   },
   { key: 'tite', database: () => process.env.TITE_DB_NAME || 'nesr_tite_db', envStyle: 'standard' },
 ];
