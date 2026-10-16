@@ -142,6 +142,8 @@ export interface AppState {
    * by hand wants them whatever status the supplier is sitting at.
    */
   filterSource: UploadSource;
+  /** The last upload refusal, held so the upload dialog can show it rather than a toast. */
+  uploadError: string;
   /* Consolidation keeps its own, like Vendor Scoping does, so narrowing one screen's table does
      not silently narrow another's. */
   consolidationSource: UploadSource;
@@ -610,6 +612,18 @@ export interface ViewModel {
   modalVendorCurrency: string;
   /** This vendor already has a statement on file, so the box is being reopened to correct it. */
   modalIsReplacement: boolean;
+  /**
+   * Why the last upload was refused, shown inside the box it was refused from.
+   *
+   * A refusal used to arrive only as a toast. The one that matters most - this is not the
+   * statement template - now explains which sheet was read and what columns were in it, and that
+   * is several lines of text beside a dialog still holding the rejected file. A toast is the
+   * wrong place for it: it is read once, at the top of the screen, away from the two boxes the
+   * reader has to act on, and it is gone before they have finished reading.
+   */
+  modalError: string;
+  /** This vendor's own blank template, for when the wrong workbook was sent. */
+  modalTemplateHref: string;
   /** The live files, named, so the modal can say what dropping a new one would retire. */
   modalCurrentFiles: { kind: 'workbook' | 'email'; fileName: string }[];
   onCloseModal: () => void;

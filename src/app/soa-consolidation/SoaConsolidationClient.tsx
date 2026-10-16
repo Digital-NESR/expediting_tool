@@ -49,6 +49,7 @@ const INITIAL: AppState = {
   screen: 'dashboard',
   filterStatus: 'all',
   filterSource: 'all',
+  uploadError: '',
   consolidationSource: 'all',
   modal: null,
   toasts: [],
@@ -124,22 +125,35 @@ export default function SoaConsolidationClient({
    * verbatim rather than replaced with a generic apology. `handOffSoaCountry` in particular
    * refuses below the coverage target and explains exactly how short the country is.
    */
+  /**
+   * `onFail` takes the refusal somewhere other than a toast.
+   *
+   * Most refusals are a sentence and a toast is the right home for them. The upload refusals are
+   * not: "this is not the statement template, it read the Sheet1 tab, the columns in it are..."
+   * is several lines, it belongs beside the file boxes it is about, and it has to still be there
+   * while the reader goes and finds the right workbook.
+   */
   async function run<T>(
     action: () => Promise<{ success: boolean; error?: string; data?: T }>,
     onSuccess: (data: T | undefined) => void,
     failTitle: string,
+    onFail?: (message: string) => void,
   ) {
     patch({ busy: true });
+    const fail = (message: string) => {
+      if (onFail) onFail(message);
+      else addToast('warning', failTitle, message);
+    };
     try {
       const result = await action();
       if (result.success) {
         onSuccess(result.data);
         router.refresh();
       } else {
-        addToast('warning', failTitle, result.error ?? 'The action did not complete.');
+        fail(result.error ?? 'The action did not complete.');
       }
     } catch (err) {
-      addToast('warning', failTitle, err instanceof Error ? err.message : 'The action failed.');
+      fail(err instanceof Error ? err.message : 'The action failed.');
     } finally {
       patch({ busy: false });
     }
@@ -331,10 +345,10 @@ export default function SoaConsolidationClient({
       patch((prev) => ({ expandedVendor: prev.expandedVendor === id ? null : id }));
     },
     openUploadModal(vendorId) {
-      patch({ modal: { type: 'upload', vendorId } });
+      patch({ modal: { type: 'upload', vendorId }, uploadError: '' });
     },
     closeModal() {
-      patch({ modal: null });
+      patch({ modal: null, uploadError: '' });
     },
 
     enrol() {
@@ -410,10 +424,11 @@ export default function SoaConsolidationClient({
       const formData = new FormData();
       if (workbook) formData.append('workbook', workbook);
       if (email) formData.append('email', email);
+      patch({ uploadError: '' });
       void run(
         () => acceptSoaSubmission(Number(modal.vendorId), formData),
         (data) => {
-          patch({ modal: null, expandedVendor: null });
+          patch({ modal: null, expandedVendor: null, uploadError: '' });
           const lines = data?.lines ?? 0;
           const flagged = data?.needingReview ?? 0;
           /* The counts come from the files. They used to be typed in beside the picker and then
@@ -430,6 +445,7 @@ export default function SoaConsolidationClient({
           );
         },
         'SOA not accepted',
+        (message) => patch({ uploadError: message }),
       );
     },
     removeSubmission(entryId, kind, fileName) {

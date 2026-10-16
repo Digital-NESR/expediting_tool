@@ -374,6 +374,7 @@ export function deriveViewModel(
     screen,
     filterStatus,
     filterSource,
+    uploadError,
     consolidationSource,
     modal,
     toasts,
@@ -1334,6 +1335,12 @@ export function deriveViewModel(
     modalVendorAmt: modalVendor ? fmtM(modalVendor.openPO) : '',
     modalVendorCurrency: modalVendor?.currency ?? '',
     modalIsReplacement: modalVendor?.status === 'received',
+    modalError: uploadError,
+    /* The template as this supplier was sent it, rebuilt on demand. Offered in the box rather
+       than only named in the refusal, because a champion holding the wrong file needs the right
+       one, and hunting back through a three-week-old email for it is the reason the wrong one
+       gets uploaded in the first place. */
+    modalTemplateHref: modalVendor ? `/api/soa/vendor-template/${modalVendor.id}` : '',
     modalCurrentFiles: (modalVendor?.submissions ?? [])
       .filter((f) => !f.superseded)
       .map((f) => ({ kind: f.kind, fileName: f.fileName })),

@@ -75,6 +75,25 @@ export class StatementRejected extends Error {
  * and nobody has read their invoices, so a figure here would be invented. The consolidated
  * workbook carries a line pointing AP at the attachment instead.
  */
+/**
+ * Where to get the right file, and the fact that nothing was kept.
+ *
+ * Split by who is uploading because the two have it in different places: a champion has the
+ * vendor's blank template a click away in the upload dialog, and a supplier has it attached to
+ * the request we emailed them and no portal to fetch it from. Telling either one to look where
+ * the other looks is how a refusal stops being actionable.
+ *
+ * Both are told nothing was filed, so nobody goes hunting for a half-saved statement or uploads
+ * it a second time to be sure.
+ */
+function nextStep(selfService: boolean): string {
+  return selfService
+    ? 'Use the Excel template attached to the statement request we emailed you, fill in the SOA ' +
+        'sheet and send that. Nothing has been saved.'
+    : "Download this vendor's own template from the link in this box, fill in the SOA sheet and " +
+        'upload that. Nothing has been filed.';
+}
+
 async function storeCorrespondence(input: StoreInput): Promise<StoreResult> {
   const submissionId = await withTransaction(soaPool, async (client: PoolClient) => {
     /* Only the previous EMAIL is retired, not the vendor's workbook.
@@ -143,7 +162,8 @@ async function storeCorrespondence(input: StoreInput): Promise<StoreResult> {
 export async function storeStatement(input: StoreInput): Promise<StoreResult> {
   if (input.kind !== 'email' && !/\.(xlsx|xlsm|xls)$/i.test(input.fileName)) {
     throw new StatementRejected(
-      'Statements must be the filled-in Excel template that came with the request.',
+      `${input.fileName} is not an Excel workbook, so there is nothing to read invoice rows ` +
+        `from. ${nextStep(input.selfService)}`,
     );
   }
 
@@ -160,11 +180,14 @@ export async function storeStatement(input: StoreInput): Promise<StoreResult> {
     const reason =
       err instanceof UnreadableStatementError ? err.message : 'That workbook could not be read.';
     log.warn('statement.unparsed', { entryId: input.entryId, file: input.fileName, reason });
-    throw new StatementRejected(reason);
+    throw new StatementRejected(`${reason} ${nextStep(input.selfService)}`);
   }
   if (!lines.length) {
+    /* The template, returned blank. A different mistake from the wrong file and worth naming as
+       one: the reader has the right workbook and has simply not filled it in. */
     throw new StatementRejected(
-      'That workbook has no invoice rows in it. Fill in the SOA sheet before sending it.',
+      'That is the statement template, but there are no invoice rows in it. Fill in one row per ' +
+        `outstanding invoice on the SOA sheet and upload it again. ${nextStep(input.selfService)}`,
     );
   }
 
