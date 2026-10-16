@@ -4,6 +4,7 @@ import { formatPct, spendShares } from '@/lib/soa/spend-share';
 import { countsTowardCoverage, isAwaitingVerification, isResolved } from '@/lib/soa/status';
 import {
   filedByChampion,
+  filedByNobody,
   filedBySupplier,
   matchesUploadSource,
 } from '@/lib/soa/upload-source';
@@ -683,6 +684,13 @@ export function deriveViewModel(
           label: 'Filed by the supplier',
           source: 'supplier_portal',
           count: subset.filter((v) => filedBySupplier(v.submissions)).length,
+        },
+        /* The fourth answer, without which the first three do not add up to the total above
+           them and choosing one silently drops every row that has no statement. */
+        {
+          label: 'Nothing on file',
+          source: 'none',
+          count: subset.filter((v) => filedByNobody(v.submissions)).length,
         },
       ] as { label: string; source: UploadSource; count: number }[]
     ).map((t) => ({

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   filedByChampion,
+  filedByNobody,
   filedBySupplier,
   matchesUploadSource,
   type SourcedFile,
@@ -47,10 +48,45 @@ describe('filing source', () => {
     expect(filedBySupplier(files)).toBe(true);
   });
 
-  it('holds nobody who has sent nothing', () => {
+  it('puts a vendor with nothing on file under its own answer, not nowhere', () => {
     expect(matchesUploadSource([], 'champion')).toBe(false);
     expect(matchesUploadSource([], 'supplier_portal')).toBe(false);
+    expect(matchesUploadSource([], 'none')).toBe(true);
+    expect(filedByNobody([])).toBe(true);
+  });
+
+  /* A superseded file is not a file. A vendor whose only upload was replaced and never redone
+     has nothing on file, which is the state HQ Dubai's Abu Dhabi National Takaful landed in. */
+  it('counts a vendor whose only file was removed as having nothing on file', () => {
+    expect(filedByNobody([file('champion', true)])).toBe(true);
+    expect(matchesUploadSource([file('champion', true)], 'none')).toBe(true);
     expect(matchesUploadSource([file('champion', true)], 'champion')).toBe(false);
+  });
+
+  /*
+   * The arithmetic the missing option broke.
+   *
+   * HQ Dubai's Consolidation screen lists 57 suppliers: 11 uploaded by a champion, 31 filed by
+   * the supplier, and 15 closed as having no pending invoices with no statement to collect.
+   * With three options the pills read 57 / 11 / 31 and picking either of the last two made 15
+   * rows vanish with nothing to say why. Every row must match exactly one of the three answers
+   * below 'Anyone', so the counts add up to what is shown above them.
+   */
+  it('accounts for every row across the three answers', () => {
+    const rows: SourcedFile[][] = [
+      [file('champion')],
+      [file('supplier_portal')],
+      [file('champion'), file('supplier_portal')],
+      [],
+      [file('supplier_portal', true)],
+    ];
+    for (const files of rows) {
+      const matched = (['champion', 'supplier_portal', 'none'] as const).filter((f) =>
+        matchesUploadSource(files, f),
+      );
+      expect(matched.length, `no answer holds ${JSON.stringify(files)}`).toBeGreaterThan(0);
+      expect(matchesUploadSource(files, 'all')).toBe(true);
+    }
   });
 
   /* "Anyone" is not a third route, it is the absence of this filter, so it must not quietly drop
