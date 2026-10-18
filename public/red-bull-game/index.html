@@ -30,17 +30,110 @@
   a:hover { color:#1F1F1D; text-decoration:underline; }
   input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
   input { font-family: 'Geist', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+
+  /*
+   * ── Phones and small tablets ───────────────────────────────────────────────
+   *
+   * The game is laid out in inline styles, which beat a stylesheet, so every rule here carries
+   * !important. That is not a shortcut around specificity: it is the only way to restyle this
+   * markup without rewriting 370 style attributes, and confining it to a media query means the
+   * desktop layout is not merely unchanged but unreachable from here. Below 760px these win;
+   * above it they do not exist.
+   *
+   * Nothing is hidden that carries information. What goes away on a phone is decoration: the
+   * little stack of cans beside the home title, which says the same thing as the title. Every
+   * number, note, label and table column stays and is reached by stacking, wrapping or
+   * scrolling instead.
+   */
+  @media (max-width: 760px) {
+    html { -webkit-text-size-adjust: 100%; }
+
+    .rbg-page { padding: 16px 12px 40px !important; }
+    /* Same rule as above, one level up: a flex item will not shrink below its content unless it
+       is told it may, and the screens are flex columns of cards. */
+    .rbg-page > div, .rbg-page > div > div { min-width: 0 !important; }
+    .rbg-card { padding: 18px 14px 22px !important; }
+    .rbg-h1 { font-size: 21px !important; line-height: 1.25 !important; }
+
+    /* The only thing dropped. Three coloured bars restating "energy drink". */
+    .rbg-deco { display: none !important; }
+
+    /* One column rather than three or two. Cards keep their full text.
+
+       `minmax(0, 1fr)` and not `1fr`, here and in every single-column rule below. A bare `1fr`
+       is `minmax(auto, 1fr)`, so the column refuses to shrink below the widest thing in it: the
+       order panel's content held this grid at 614px inside a 351px page, and the browser zoomed
+       the whole screen out to fit rather than letting the table scroll in its own box. */
+    .rbg-grid-3, .rbg-grid-2 { grid-template-columns: minmax(0, 1fr) !important; gap: 12px !important; }
+    .rbg-mode-card { min-height: 0 !important; padding: 16px !important; }
+
+    /* Two up where the content is a short label, which keeps four roles or four seats on one
+       screen instead of pushing the button below the fold. Falls to one column under ~320px. */
+    .rbg-grid-4, .rbg-seats { grid-template-columns: repeat(auto-fit, minmax(146px, 1fr)) !important; }
+    .rbg-seats { padding-left: 12px !important; padding-right: 12px !important; }
+    .rbg-kpis { grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)) !important; gap: 10px !important; }
+
+    .rbg-joinbar { gap: 12px !important; padding: 16px !important; }
+    /* `margin-left:auto` pushes "HOW TO PLAY" to the far right of a wide bar. Once the bar wraps
+       to one item per line it would push it to the right of its own row, away from everything. */
+    .rbg-joinbar > * { margin-left: 0 !important; }
+    .rbg-input-wide { width: 100% !important; box-sizing: border-box !important; }
+
+    /* Each run setting takes its own row, so its note is not squeezed into a 90px column. */
+    .rbg-settings { gap: 18px !important; padding: 14px !important; }
+    .rbg-settings > div { width: 100% !important; }
+
+    .rbg-btnrow { flex-wrap: wrap !important; }
+
+    .rbg-banner { padding: 16px !important; }
+    /* Right-aligned against the left-aligned block above it reads as a mistake once they stack. */
+    .rbg-banner-side { align-items: flex-start !important; width: 100% !important; }
+    /* 44px at 8px tracking is 300px of code; it overflows a 360px screen with padding. */
+    .rbg-code { font-size: 30px !important; letter-spacing: 5px !important; }
+
+    /* Sidebar over content rather than beside it: the roster, and the order panel. */
+    .rbg-side-grid { grid-template-columns: minmax(0, 1fr) !important; }
+
+    /* The chain diagram stacks, arrows and all. They still read as flow between the stages, and
+       the caption underneath still has something to refer to. */
+    .rbg-howchain { grid-template-columns: minmax(0, 1fr) !important; }
+    .rbg-howchain > div { padding-top: 2px !important; padding-bottom: 2px !important; }
+
+    /* The board itself stays horizontal and scrolls, because the chain IS horizontal: stacking
+       the four stages would lose the one thing the picture is for. Snapping lands each stage
+       square in view, and the next card peeking in at the edge is what says there is more. */
+    .rbg-chainstrip {
+      padding: 14px 12px 16px !important;
+      scroll-snap-type: x proximity;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
+    }
+    .rbg-chainstrip > div { scroll-snap-align: center; }
+
+    /* Give the bars the width the labels were taking. */
+    .rbg-bar-label { width: 66px !important; }
+    .rbg-bar-total { width: 44px !important; }
+
+    /* Wide tables scroll sideways inside their card rather than stretching the page. Every
+       column stays; none is dropped to make it fit. */
+    .rbg-table-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+    .rbg-table th, .rbg-table td { padding-left: 9px !important; padding-right: 9px !important; }
+
+    .rbg-score-grid { grid-template-columns: minmax(0, 1fr) !important; padding: 0 14px 16px !important; }
+    .rbg-score-head { padding: 14px !important; gap: 12px !important; }
+    .rbg-bignum { font-size: 34px !important; }
+  }
 </style>
 </helmet>
 
 <div style="min-height:100vh; display:flex; flex-direction:column; background:#F4F5F4;">
 
   <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
-    <div style="flex:1; display:flex; justify-content:center; padding:44px 24px 60px;">
+    <div class="rbg-page" style="flex:1; display:flex; justify-content:center; padding:44px 24px 60px;">
       <div style="width:100%; max-width:1080px;">
         <div style="display:flex; align-items:flex-end; gap:14px;">
-          <div style="font-size:32px; font-weight:bold;">Choose How You Play</div>
-          <div style="display:flex; gap:5px; align-items:flex-end; padding-bottom:6px;">
+          <div class="rbg-h1" style="font-size:32px; font-weight:bold;">Choose How You Play</div>
+          <div class="rbg-deco" style="display:flex; gap:5px; align-items:flex-end; padding-bottom:6px;">
             <div style="width:12px; height:22px; border-radius:3px; background:#C5E0D2; border:1px solid #307c4c;"></div>
             <div style="width:12px; height:30px; border-radius:3px; background:#6AAF8E; border:1px solid #307c4c;"></div>
             <div style="width:12px; height:26px; border-radius:3px; background:#307c4c; border:1px solid #1F1F1D;"></div>
@@ -50,9 +143,9 @@
           Four stages move cases of energy drink from the plant to the shelf: retailer, wholesaler, distributor, factory. Orders take time to travel up the chain and shipments take time to come back down, a lead time you set per stage (one week by default). Holding stock costs money, running out costs more. Nobody sees the whole picture.
         </div>
 
-        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:18px; margin-top:30px;">
+        <div class="rbg-grid-3" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:18px; margin-top:30px;">
           <sc-for list="{{ modes }}" as="m" hint-placeholder-count="3">
-            <div onClick="{{ m.pick }}" style="cursor:pointer; background:#FFFFFF; border-top:4px solid #307c4c; padding:22px 22px 24px; box-shadow:0 1px 3px rgba(31,31,29,0.12); display:flex; flex-direction:column; gap:12px; min-height:240px;" style-hover="{{ cardHover }}">
+            <div onClick="{{ m.pick }}" style="cursor:pointer; background:#FFFFFF; border-top:4px solid #307c4c; padding:22px 22px 24px; box-shadow:0 1px 3px rgba(31,31,29,0.12); display:flex; flex-direction:column; gap:12px; min-height:240px;" class="rbg-mode-card" style-hover="{{ cardHover }}">
               <div style="display:flex; align-items:center; justify-content:space-between;">
                 <div style="font-size:18px; font-weight:bold;">{{ m.name }}</div>
                 <div style="display:flex; gap:4px;">
@@ -68,7 +161,7 @@
           </sc-for>
         </div>
 
-        <div style="margin-top:26px; background:#FFFFFF; padding:20px 24px; border-left:4px solid #307c4c; display:flex; flex-wrap:wrap; gap:24px; align-items:center;">
+        <div class="rbg-joinbar" style="margin-top:26px; background:#FFFFFF; padding:20px 24px; border-left:4px solid #307c4c; display:flex; flex-wrap:wrap; gap:24px; align-items:center;">
           <div style="font-size:13px; font-weight:bold;">Already have a game code?</div>
           <div style="display:flex; gap:10px; align-items:center;">
             <input value="{{ codeInput }}" onChange="{{ onCode }}" placeholder="CODE" style="width:120px; font-size:15px; font-weight:bold; letter-spacing:2px; text-transform:uppercase; padding:10px 12px; border:1px solid #D1D3D4;" />
@@ -82,21 +175,21 @@
   </sc-if>
 
   <sc-if value="{{ isSetup }}" hint-placeholder-val="{{ false }}">
-    <div style="flex:1; display:flex; justify-content:center; padding:36px 24px 60px;">
-      <div style="width:100%; max-width:1000px; background:#FFFFFF; border-top:4px solid #307c4c; padding:30px 34px 36px; box-shadow:0 1px 3px rgba(31,31,29,0.12);">
-        <div style="font-size:24px; font-weight:bold;">{{ setupTitle }}</div>
+    <div class="rbg-page" style="flex:1; display:flex; justify-content:center; padding:36px 24px 60px;">
+      <div class="rbg-card" style="width:100%; max-width:1000px; background:#FFFFFF; border-top:4px solid #307c4c; padding:30px 34px 36px; box-shadow:0 1px 3px rgba(31,31,29,0.12);">
+        <div class="rbg-h1" style="font-size:24px; font-weight:bold;">{{ setupTitle }}</div>
         <div style="font-size:13px; color:#58595B; line-height:1.6; max-width:660px; margin-top:8px;">{{ setupBlurb }}</div>
 
         <sc-if value="{{ needsName }}" hint-placeholder-val="{{ false }}">
           <div style="margin-top:24px;">
             <div style="font-size:11px; color:#58595B; letter-spacing:0.5px; font-weight:bold;">YOUR NAME</div>
-            <input value="{{ nameInput }}" onChange="{{ onName }}" placeholder="Name shown to the group" style="margin-top:8px; width:280px; font-size:14px; padding:11px 12px; border:1px solid #D1D3D4;" />
+            <input value="{{ nameInput }}" onChange="{{ onName }}" placeholder="Name shown to the group" class="rbg-input-wide" style="margin-top:8px; width:280px; font-size:14px; padding:11px 12px; border:1px solid #D1D3D4;" />
           </div>
         </sc-if>
 
         <sc-if value="{{ showRolePick }}" hint-placeholder-val="{{ true }}">
           <div style="font-size:13px; font-weight:bold; color:#307c4c; margin-top:26px; letter-spacing:0.5px;">Your Position</div>
-          <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-top:12px;">
+          <div class="rbg-grid-4" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-top:12px;">
             <sc-for list="{{ setupRoles }}" as="r" hint-placeholder-count="4">
               <div onClick="{{ r.pick }}" style="{{ r.cardStyle }}" style-hover="{{ r.hoverStyle }}">
                 <div style="display:flex; align-items:center; gap:8px;">
@@ -111,7 +204,7 @@
         </sc-if>
 
         <div style="font-size:13px; font-weight:bold; color:#307c4c; margin-top:28px; letter-spacing:0.5px;">Run Settings</div>
-        <div style="display:flex; flex-wrap:wrap; gap:34px; margin-top:14px; align-items:flex-start;">
+        <div class="rbg-settings" style="display:flex; flex-wrap:wrap; gap:34px; margin-top:14px; align-items:flex-start;">
           <div>
             <div style="font-size:11px; color:#58595B; letter-spacing:0.5px; margin-bottom:8px; font-weight:bold;">CUSTOMER DEMAND</div>
             <div style="display:flex; gap:8px;">
@@ -177,7 +270,7 @@
           </div>
         </sc-if>
 
-        <div style="display:flex; gap:12px; align-items:center; margin-top:32px;">
+        <div class="rbg-btnrow" style="display:flex; gap:12px; align-items:center; margin-top:32px;">
           <div onClick="{{ setupGo }}" style="cursor:pointer; background:#307c4c; color:#FFFFFF; font-size:14px; font-weight:bold; letter-spacing:0.5px; padding:14px 32px;" style-hover="{{ ctaHover }}">{{ setupCta }}</div>
           <div onClick="{{ goHome }}" style="cursor:pointer; border:1px solid #D1D3D4; color:#58595B; font-size:13px; font-weight:bold; padding:13px 22px;" style-hover="{{ ghostHover }}">BACK</div>
           <div style="font-size:12px; color:#58595B;">{{ error }}</div>
@@ -187,17 +280,17 @@
   </sc-if>
 
   <sc-if value="{{ isLobby }}" hint-placeholder-val="{{ false }}">
-    <div style="flex:1; display:flex; justify-content:center; padding:30px 24px 60px;">
+    <div class="rbg-page" style="flex:1; display:flex; justify-content:center; padding:30px 24px 60px;">
       <div style="width:100%; max-width:1180px; display:flex; flex-direction:column; gap:18px;">
 
-        <div style="background:#1F1F1D; padding:24px 28px; display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap;">
+        <div class="rbg-banner" style="background:#1F1F1D; padding:24px 28px; display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap;">
           <div>
             <div style="font-size:11px; letter-spacing:1px; color:#C5E0D2; font-weight:bold;">SHARE THIS CODE</div>
-            <div style="font-size:44px; font-weight:900; letter-spacing:8px; color:#FFFFFF; line-height:1.1; margin-top:4px; -webkit-user-select:text; user-select:text;">{{ code }}</div>
+            <div class="rbg-code" style="font-size:44px; font-weight:900; letter-spacing:8px; color:#FFFFFF; line-height:1.1; margin-top:4px; -webkit-user-select:text; user-select:text;">{{ code }}</div>
             <div style="font-size:12px; color:#D1D3D4; margin-top:6px;">{{ lobbyHint }}</div>
             <div onClick="{{ copyInvite }}" style="cursor:pointer; display:inline-flex; align-items:center; gap:6px; margin-top:12px; background:#307c4c; color:#FFFFFF; font-size:11px; font-weight:bold; letter-spacing:0.5px; padding:8px 14px;" style-hover="{{ ctaHoverLight }}">COPY INVITE LINK</div>
           </div>
-          <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
+          <div class="rbg-banner-side" style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
             <div style="font-size:12px; color:#C5E0D2;">{{ lobbyConfigLine }}</div>
             <div style="font-size:12px; color:#C5E0D2;">{{ playerCountLine }}</div>
             <sc-if value="{{ amHost }}" hint-placeholder-val="{{ false }}">
@@ -209,7 +302,7 @@
         <sc-if value="{{ amHost }}" hint-placeholder-val="{{ false }}">
           <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
             <div style="background:#307c4c; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">Coordinator Controls</div>
-            <div style="padding:18px; display:flex; flex-wrap:wrap; gap:28px; align-items:flex-start;">
+            <div class="rbg-settings" style="padding:18px; display:flex; flex-wrap:wrap; gap:28px; align-items:flex-start;">
               <div>
                 <div style="font-size:11px; font-weight:bold; color:#58595B; letter-spacing:0.5px;">HOW TEAMS ARE FORMED</div>
                 <div style="display:flex; gap:8px; margin-top:10px;">
@@ -229,7 +322,7 @@
           </div>
         </sc-if>
 
-        <div style="display:grid; grid-template-columns:300px 1fr; gap:18px; align-items:start;">
+        <div class="rbg-side-grid" style="display:grid; grid-template-columns:300px 1fr; gap:18px; align-items:start;">
           <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
             <div style="background:#1F1F1D; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">In The Room</div>
             <div style="padding:12px 0;">
@@ -258,7 +351,7 @@
                     </sc-if>
                   </div>
                 </div>
-                <div style="padding:16px 18px 18px; display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
+                <div class="rbg-seats" style="padding:16px 18px 18px; display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
                   <sc-for list="{{ t.seats }}" as="s" hint-placeholder-count="4">
                     <div onClick="{{ s.take }}" style="cursor:pointer; border:1px solid #D1D3D4; padding:12px 12px 14px; display:flex; flex-direction:column; gap:8px; background:#FFFFFF;" style-hover="{{ s.hoverStyle }}">
                       <div style="display:flex; align-items:center; gap:8px;">
@@ -281,15 +374,15 @@
 
 
   <sc-if value="{{ isHowto }}" hint-placeholder-val="{{ false }}">
-    <div style="flex:1; display:flex; justify-content:center; padding:40px 24px 60px;">
+    <div class="rbg-page" style="flex:1; display:flex; justify-content:center; padding:40px 24px 60px;">
       <div style="width:100%; max-width:1000px; display:flex; flex-direction:column; gap:18px;">
 
-        <div style="background:#FFFFFF; border-top:4px solid #307c4c; padding:30px 34px 34px; box-shadow:0 1px 3px rgba(31,31,29,0.12);">
-          <div style="font-size:28px; font-weight:bold;">How To Play</div>
+        <div class="rbg-card" style="background:#FFFFFF; border-top:4px solid #307c4c; padding:30px 34px 34px; box-shadow:0 1px 3px rgba(31,31,29,0.12);">
+          <div class="rbg-h1" style="font-size:28px; font-weight:bold;">How To Play</div>
           <div style="font-size:14px; color:#58595B; line-height:1.7; max-width:700px; margin-top:10px;">
             You run one stage of a four-stage supply chain moving cases of energy drink from the plant to the shelf. Your job each week is simple to state and hard to do: decide how many cases to order from your supplier so the shelves stay stocked without burying yourself in stock.
           </div>
-          <div style="display:grid; grid-template-columns:1fr 30px 1fr 30px 1fr 30px 1fr 30px 1fr; align-items:center; gap:0; margin-top:26px;">
+          <div class="rbg-howchain" style="display:grid; grid-template-columns:1fr 30px 1fr 30px 1fr 30px 1fr 30px 1fr; align-items:center; gap:0; margin-top:26px;">
             <sc-for list="{{ howChain }}" as="h" hint-placeholder-count="9">
               <sc-if value="{{ h.isArrow }}" hint-placeholder-val="{{ false }}">
                 <div style="display:flex; flex-direction:column; gap:6px; padding:0 4px;">
@@ -314,7 +407,7 @@
           <div style="font-size:12px; color:#58595B; margin-top:10px;">Green arrow: cases moving down the chain. Gray arrow: orders moving up. Both take the lead time set for each stage.</div>
         </div>
 
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px;">
+        <div class="rbg-grid-2" style="display:grid; grid-template-columns:1fr 1fr; gap:18px;">
           <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
             <div style="background:#307c4c; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">What Happens Each Week</div>
             <div style="padding:18px 20px 22px; display:flex; flex-direction:column; gap:14px;">
@@ -334,7 +427,7 @@
             <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
               <div style="background:#1F1F1D; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">What It Costs</div>
               <div style="padding:0;">
-                <table style="width:100%; border-collapse:collapse; font-size:12px;">
+                <table class="rbg-table" style="width:100%; border-collapse:collapse; font-size:12px;">
                   <tbody>
                     <sc-for list="{{ howCosts }}" as="c" hint-placeholder-count="3">
                       <tr style="{{ c.style }}">
@@ -365,7 +458,7 @@
 
         <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
           <div style="background:#1F1F1D; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">Traps Everyone Falls Into</div>
-          <div style="padding:18px 20px 22px; display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+          <div class="rbg-grid-2" style="padding:18px 20px 22px; display:grid; grid-template-columns:1fr 1fr; gap:14px;">
             <sc-for list="{{ howTips }}" as="t" hint-placeholder-count="4">
               <div style="display:flex; gap:10px;">
                 <div style="flex:0 0 9px; height:18px; border-radius:2px; background:#307c4c; margin-top:2px;"></div>
@@ -383,10 +476,10 @@
   </sc-if>
 
   <sc-if value="{{ isPlaying }}" hint-placeholder-val="{{ false }}">
-    <div style="flex:1; display:flex; flex-direction:column; align-items:center; padding:22px 24px 60px;">
+    <div class="rbg-page" style="flex:1; display:flex; flex-direction:column; align-items:center; padding:22px 24px 60px;">
       <div style="width:100%; max-width:1240px; display:flex; flex-direction:column; gap:16px;">
 
-        <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:14px;">
+        <div class="rbg-kpis" style="display:grid; grid-template-columns:repeat(5, 1fr); gap:14px;">
           <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="5">
             <div style="background:#FFFFFF; border-top:4px solid #307c4c; padding:14px 16px 16px; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
               <div style="font-size:10px; letter-spacing:0.7px; color:#58595B; font-weight:bold;">{{ k.label }}</div>
@@ -401,7 +494,7 @@
             <div>{{ boardTitle }}</div>
             <div style="font-size:11px; font-weight:normal; color:#C5E0D2;">{{ boardSub }}</div>
           </div>
-          <div style="padding:20px 18px 22px; display:flex; align-items:stretch; gap:0; overflow-x:auto;">
+          <div class="rbg-chainstrip" style="padding:20px 18px 22px; display:flex; align-items:stretch; gap:0; overflow-x:auto;">
             <sc-for list="{{ chain }}" as="n" hint-placeholder-count="4">
               <sc-if value="{{ n.isConn }}" hint-placeholder-val="{{ false }}">
                 <div style="flex:0 0 46px; display:flex; flex-direction:column; justify-content:center; gap:14px; padding:0 4px;">
@@ -542,7 +635,7 @@
           </div>
         </div>
 
-        <div style="display:grid; grid-template-columns:360px 1fr; gap:18px; align-items:start;">
+        <div class="rbg-side-grid" style="display:grid; grid-template-columns:360px 1fr; gap:18px; align-items:start;">
           <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
             <div style="background:#1F1F1D; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">Your Decision - {{ roleName }}</div>
             <div style="padding:18px;">
@@ -585,13 +678,13 @@
                 <div style="display:flex; flex-direction:column; gap:9px;">
                   <sc-for list="{{ series }}" as="s" hint-placeholder-count="5">
                     <div style="display:flex; align-items:center; gap:10px;">
-                      <div style="width:104px; font-size:11px; font-weight:bold; text-align:right;">{{ s.name }}</div>
+                      <div class="rbg-bar-label" style="width:104px; font-size:11px; font-weight:bold; text-align:right;">{{ s.name }}</div>
                       <div style="flex:1; height:34px; display:flex; align-items:flex-end; gap:2px; border-bottom:1px solid #D1D3D4;">
                         <sc-for list="{{ s.bars }}" as="b" hint-placeholder-count="12">
                           <div style="{{ b.style }}"></div>
                         </sc-for>
                       </div>
-                      <div style="width:56px; font-size:11px; color:#58595B; text-align:right;">max {{ s.max }}</div>
+                      <div class="rbg-bar-total" style="width:56px; font-size:11px; color:#58595B; text-align:right;">max {{ s.max }}</div>
                     </div>
                   </sc-for>
                 </div>
@@ -601,7 +694,7 @@
 
             <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1);">
               <div style="background:#1F1F1D; color:#FFFFFF; font-size:13px; font-weight:bold; letter-spacing:0.5px; padding:9px 18px;">Your Ledger</div>
-              <div style="max-height:240px; overflow:auto;">
+              <div class="rbg-table-wrap" style="max-height:240px; overflow:auto;">
                 <table style="width:100%; border-collapse:collapse; font-size:12px;">
                   <thead>
                     <tr>
@@ -629,15 +722,15 @@
   </sc-if>
 
   <sc-if value="{{ isMonitor }}" hint-placeholder-val="{{ false }}">
-    <div style="flex:1; display:flex; justify-content:center; padding:26px 24px 60px;">
+    <div class="rbg-page" style="flex:1; display:flex; justify-content:center; padding:26px 24px 60px;">
       <div style="width:100%; max-width:1180px; display:flex; flex-direction:column; gap:18px;">
-        <div style="background:#1F1F1D; padding:22px 28px; display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;">
+        <div class="rbg-banner" style="background:#1F1F1D; padding:22px 28px; display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;">
           <div>
             <div style="font-size:11px; letter-spacing:1px; color:#C5E0D2; font-weight:bold;">RUN IN PROGRESS · CODE {{ code }}</div>
             <div style="font-size:26px; font-weight:bold; color:#FFFFFF; margin-top:6px;">{{ monitorHeadline }}</div>
             <div style="font-size:12px; color:#D1D3D4; margin-top:6px;">{{ lobbyConfigLine }}</div>
           </div>
-          <div style="display:flex; gap:10px;">
+          <div class="rbg-btnrow" style="display:flex; gap:10px;">
             <div onClick="{{ nudgeAll }}" style="cursor:pointer; border:1px solid rgba(255,255,255,0.6); color:#FFFFFF; font-size:12px; font-weight:bold; padding:12px 20px;" style-hover="{{ leaveHover }}">AUTO-PLAY STALLED SEATS</div>
             <div onClick="{{ endRun }}" style="cursor:pointer; background:#307c4c; color:#FFFFFF; font-size:12px; font-weight:bold; letter-spacing:0.5px; padding:12px 22px;" style-hover="{{ ctaHoverLight }}">END RUN & SHOW SCORECARD</div>
           </div>
@@ -650,7 +743,7 @@
                 <div style="font-size:13px; font-weight:bold; color:#FFFFFF;">{{ t.name }}</div>
                 <div style="font-size:12px; color:#C5E0D2;">{{ t.status }}</div>
               </div>
-              <div style="padding:14px 18px 16px; display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
+              <div class="rbg-seats" style="padding:14px 18px 16px; display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
                 <sc-for list="{{ t.seats }}" as="s" hint-placeholder-count="4">
                   <div style="border:1px solid #D1D3D4; padding:10px 12px;">
                     <div style="font-size:11px; font-weight:bold; color:#58595B; letter-spacing:0.5px;">{{ s.role }}</div>
@@ -673,18 +766,18 @@
   </sc-if>
 
   <sc-if value="{{ isScore }}" hint-placeholder-val="{{ false }}">
-    <div style="flex:1; display:flex; justify-content:center; padding:30px 24px 60px;">
+    <div class="rbg-page" style="flex:1; display:flex; justify-content:center; padding:30px 24px 60px;">
       <div style="width:100%; max-width:1100px; display:flex; flex-direction:column; gap:18px;">
-        <div style="background:#307c4c; padding:28px 34px;">
+        <div class="rbg-banner" style="background:#307c4c; padding:28px 34px;">
           <div style="font-size:11px; letter-spacing:1px; color:#C5E0D2; font-weight:bold;">SCORECARD</div>
-          <div style="font-size:30px; font-weight:bold; color:#FFFFFF; margin-top:6px;">{{ finalHeadline }}</div>
+          <div class="rbg-h1" style="font-size:30px; font-weight:bold; color:#FFFFFF; margin-top:6px;">{{ finalHeadline }}</div>
           <div style="font-size:14px; color:#C5E0D2; margin-top:8px;">{{ finalSub }}</div>
         </div>
 
         <div style="display:flex; flex-direction:column; gap:14px;">
           <sc-for list="{{ scoreTeams }}" as="t" hint-placeholder-count="2">
             <div style="background:#FFFFFF; box-shadow:0 1px 2px rgba(31,31,29,0.1); border-left:5px solid #307c4c;">
-              <div style="padding:16px 20px; display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; border-bottom:1px solid #D1D3D4;">
+              <div class="rbg-score-head" style="padding:16px 20px; display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; border-bottom:1px solid #D1D3D4;">
                 <div style="display:flex; align-items:center; gap:16px;">
                   <div style="font-size:26px; font-weight:900; color:#307c4c; min-width:44px;">{{ t.rank }}</div>
                   <div>
@@ -704,8 +797,8 @@
                   </sc-for>
                 </div>
               </div>
-              <div style="padding:14px 20px 18px;">
-                <table style="width:100%; border-collapse:collapse; font-size:12px;">
+              <div class="rbg-table-wrap" style="padding:14px 20px 18px;">
+                <table class="rbg-table" style="width:100%; border-collapse:collapse; font-size:12px;">
                   <thead>
                     <tr>
                       <sc-for list="{{ scoreCols }}" as="c" hint-placeholder-count="6">
@@ -724,34 +817,34 @@
                   </tbody>
                 </table>
               </div>
-              <div style="padding:0 20px 20px; display:grid; grid-template-columns:1fr 190px; gap:20px; align-items:center;">
+              <div class="rbg-score-grid" style="padding:0 20px 20px; display:grid; grid-template-columns:1fr 190px; gap:20px; align-items:center;">
                 <div>
                   <div style="font-size:11px; font-weight:bold; letter-spacing:0.6px; color:#307c4c;">IDEAL CHAIN VS. YOUR CHAIN - COST PER WEEK</div>
                   <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
                     <div style="display:flex; align-items:center; gap:10px;">
-                      <div style="width:96px; font-size:11px; font-weight:bold; text-align:right; color:#58595B;">Ideal chain</div>
+                      <div class="rbg-bar-label" style="width:96px; font-size:11px; font-weight:bold; text-align:right; color:#58595B;">Ideal chain</div>
                       <div style="flex:1; height:34px; display:flex; align-items:flex-end; gap:2px; border-bottom:1px solid #D1D3D4;">
                         <sc-for list="{{ t.idealBars }}" as="b" hint-placeholder-count="12">
                           <div style="{{ b.style }}"></div>
                         </sc-for>
                       </div>
-                      <div style="width:74px; font-size:11px; text-align:right; color:#58595B;">{{ t.idealTotal }}</div>
+                      <div class="rbg-bar-total" style="width:74px; font-size:11px; text-align:right; color:#58595B;">{{ t.idealTotal }}</div>
                     </div>
                     <div style="display:flex; align-items:center; gap:10px;">
-                      <div style="width:96px; font-size:11px; font-weight:bold; text-align:right;">Your chain</div>
+                      <div class="rbg-bar-label" style="width:96px; font-size:11px; font-weight:bold; text-align:right;">Your chain</div>
                       <div style="flex:1; height:34px; display:flex; align-items:flex-end; gap:2px; border-bottom:1px solid #D1D3D4;">
                         <sc-for list="{{ t.actualBars }}" as="b" hint-placeholder-count="12">
                           <div style="{{ b.style }}"></div>
                         </sc-for>
                       </div>
-                      <div style="width:74px; font-size:11px; text-align:right; font-weight:bold;">{{ t.actualTotal }}</div>
+                      <div class="rbg-bar-total" style="width:74px; font-size:11px; text-align:right; font-weight:bold;">{{ t.actualTotal }}</div>
                     </div>
                   </div>
                   <div style="font-size:11px; color:#58595B; line-height:1.5; margin-top:10px;">{{ t.scoreNote }}</div>
                 </div>
                 <div style="background:#307c4c; padding:16px 18px; color:#FFFFFF;">
                   <div style="font-size:10px; letter-spacing:0.8px; color:#C5E0D2; font-weight:bold;">SCORE VS. IDEAL</div>
-                  <div style="font-size:42px; font-weight:900; line-height:1.1;">{{ t.score }}</div>
+                  <div class="rbg-bignum" style="font-size:42px; font-weight:900; line-height:1.1;">{{ t.score }}</div>
                   <div style="font-size:13px; font-weight:bold; color:#C5E0D2;">{{ t.grade }}</div>
                   <div style="font-size:11px; color:#C5E0D2; margin-top:8px; line-height:1.5;">Cost above ideal: {{ t.gap }}</div>
                 </div>

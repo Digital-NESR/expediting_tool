@@ -122,15 +122,16 @@ export default function RedBullGameClient({
   return (
     <div className="flex min-h-[100dvh] flex-col bg-slate-50 font-sans text-slate-900">
       {/* Top bar */}
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200 bg-white px-4 md:px-6">
+      <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-slate-200 bg-white px-3 sm:gap-3 sm:px-4 md:px-6">
         <Link
           href="/learning-hub"
-          className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+          aria-label="Back to the Learning Hub"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
         >
           <ArrowLeft className="h-4 w-4" />
-          Learning Hub
+          <span className="hidden sm:inline">Learning Hub</span>
         </Link>
-        <div className="h-5 w-px bg-slate-200" />
+        <div className="hidden h-5 w-px bg-slate-200 sm:block" />
         <div className="flex min-w-0 items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -141,17 +142,20 @@ export default function RedBullGameClient({
               ev.currentTarget.style.display = 'none';
             }}
           />
+          {/* The full name on a phone would eat the row the buttons need. */}
           <span className="truncate text-sm font-semibold text-slate-900">
-            Red Bull Distribution Game
+            <span className="sm:hidden">Distribution Game</span>
+            <span className="hidden sm:inline">Red Bull Distribution Game</span>
           </span>
           <span className="hidden rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500 sm:inline">
             Simulator
           </span>
         </div>
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-3">
           {saving && (
             <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving score…
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span className="hidden sm:inline">Saving score…</span>
             </span>
           )}
           {view === 'game' && (
@@ -160,41 +164,44 @@ export default function RedBullGameClient({
                 await refresh();
                 setView('leaderboard');
               }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              aria-label="Leaderboard"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 sm:px-3"
             >
               <Trophy className="h-4 w-4" style={{ color: GREEN }} />
-              Leaderboard
+              <span className="hidden sm:inline">Leaderboard</span>
             </button>
           )}
           {view === 'leaderboard' && (
             <button
               onClick={() => setView('game')}
-              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-white transition-colors"
+              aria-label="Back to game"
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold text-white transition-colors sm:px-3"
               style={{ background: GREEN }}
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to game
+              <span className="hidden sm:inline">Back to game</span>
             </button>
           )}
           <Link
             href="/learning-hub"
             title="Quit the game and return to the Learning Hub"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+            aria-label="Quit the game"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm font-semibold text-slate-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 sm:px-3"
           >
             <X className="h-4 w-4" />
-            Quit Game
+            <span className="hidden sm:inline">Quit Game</span>
           </Link>
         </div>
       </header>
 
       {/* Game, always mounted; hidden (not unmounted) on the leaderboard page so play state survives */}
-      <div className={view === 'game' ? 'w-full px-3 pt-3 md:px-6 md:pt-4' : 'hidden'}>
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className={view === 'game' ? 'w-full px-0 pt-0 sm:px-3 sm:pt-3 md:px-6 md:pt-4' : 'hidden'}>
+        <div className="overflow-hidden border-slate-200 bg-white sm:rounded-xl sm:border sm:shadow-sm">
           <iframe
             src={src}
             title="Red Bull Distribution Game"
             allow="clipboard-write"
-            className="block h-[calc(100dvh-84px)] min-h-[620px] w-full border-0"
+            className="block h-[calc(100dvh-56px)] w-full border-0 sm:h-[calc(100dvh-84px)] sm:min-h-[620px]"
           />
         </div>
       </div>
@@ -220,7 +227,7 @@ export default function RedBullGameClient({
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[440px] border-collapse text-sm">
+                    <table className="w-full min-w-[380px] border-collapse text-sm">
                       <thead>
                         <tr className="border-b border-slate-200 text-left text-[11px] uppercase tracking-wide text-slate-400">
                           <th className="w-14 px-4 py-2.5 font-semibold">Rank</th>
