@@ -19,6 +19,8 @@ import {
 import { revalidateProcureGuardPaths, writeActivity } from '@/lib/procure-guard/activity';
 import { getActor, requireAdminActor, requirePermissionManager } from '@/lib/procure-guard/actor';
 import {
+  addProcureGuardRecipientRow,
+  removeProcureGuardRecipientRow,
   APPROVER_MATRIX_COLUMNS,
   upsertProcureGuardRecipientRow,
 } from '@/lib/procure-guard/approver-matrix';
@@ -372,7 +374,7 @@ export async function getProcureGuardApproverMatrix(): Promise<ProcureGuardAppro
   try {
     const actor = await requirePermissionManager();
     if (!actor.permissions.canManagePermissions) {
-      return { countries: [], columns: APPROVER_MATRIX_COLUMNS, cells: {} };
+      return { countries: [], columns: APPROVER_MATRIX_COLUMNS, cells: {}, teamCells: {} };
     }
     const roles = [...new Set(APPROVER_MATRIX_COLUMNS.map((c) => c.notificationRole))];
     const rows = await sql<QueryResultRow[]>(
@@ -386,6 +388,9 @@ export async function getProcureGuardApproverMatrix(): Promise<ProcureGuardAppro
       APPROVER_MATRIX_COLUMNS.find((c) => c.notificationRole === role && c.requestType === rt);
 
     const cells: Record<string, Record<string, ApproverCell | null>> = {};
+    /* Every person on a cell, not just the first. `cells` keeps carrying the first one so
+       anything reading the matrix the old way still shows a name. */
+    const teamCells: Record<string, Record<string, ApproverCell[]>> = {};
     const countrySet = new Set<string>();
     for (const r of rows) {
       const country = String(r.country ?? '').trim();
@@ -394,21 +399,33 @@ export async function getProcureGuardApproverMatrix(): Promise<ProcureGuardAppro
       if (!col) continue;
       countrySet.add(country);
       cells[country] = cells[country] ?? {};
-      if (!cells[country][col.key]) {
-        const name = String(r.display_name ?? '').trim() || String(r.email ?? '');
-        cells[country][col.key] = { name, email: String(r.email ?? '') };
+      const name = String(r.display_name ?? '').trim() || String(r.email ?? '');
+      const cell = { name, email: String(r.email ?? '') };
+      if (!cells[country][col.key]) cells[country][col.key] = cell;
+      if (col.multi) {
+        teamCells[country] = teamCells[country] ?? {};
+        const list = teamCells[country][col.key] ?? [];
+        /* The same address can reach a cell twice if a row was seeded and then added by hand.
+           One person, notified once. */
+        if (!list.some((x) => x.email.toLowerCase() === cell.email.toLowerCase())) list.push(cell);
+        teamCells[country][col.key] = list;
       }
     }
+    /* Every country the matrix shows, not only those with a row for this step yet: a country
+       with nobody on the team needs an empty cell to add into, not no cell at all. */
     const countries = [...countrySet].sort((a, b) => a.localeCompare(b));
     for (const country of countries) {
       cells[country] = cells[country] ?? {};
-      for (const col of APPROVER_MATRIX_COLUMNS)
+      teamCells[country] = teamCells[country] ?? {};
+      for (const col of APPROVER_MATRIX_COLUMNS) {
         if (!(col.key in cells[country])) cells[country][col.key] = null;
+        if (col.multi && !(col.key in teamCells[country])) teamCells[country][col.key] = [];
+      }
     }
-    return { countries, columns: APPROVER_MATRIX_COLUMNS, cells };
+    return { countries, columns: APPROVER_MATRIX_COLUMNS, cells, teamCells };
   } catch (err) {
     log.error('getProcureGuardApproverMatrix.failed', err);
-    return { countries: [], columns: APPROVER_MATRIX_COLUMNS, cells: {} };
+    return { countries: [], columns: APPROVER_MATRIX_COLUMNS, cells: {}, teamCells: {} };
   }
 }
 
@@ -443,6 +460,111 @@ export async function setProcureGuardApprover(input: {
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Failed to set approver.',
+    };
+  }
+}
+
+/**
+ * Every country the matrix shows.
+ *
+ * Taken from the recipient rows of ANY matrix role rather than the one being assigned: a brand
+ * new step has no rows of its own yet, and asking it for its countries would return none and
+ * refuse the first assignment. Same list the column-header assign walks.
+ */
+async function matrixCountryList(): Promise<string[]> {
+  const rows = await sql<QueryResultRow[]>(
+    `SELECT DISTINCT country FROM procure_guard_notification_recipients
+      WHERE is_active = TRUE AND notification_role = ANY(?)
+        AND country IS NOT NULL AND TRIM(country) <> ''`,
+    [[...new Set(APPROVER_MATRIX_COLUMNS.map((c) => c.notificationRole))]],
+  );
+  return rows
+    .map((r) => String(r.country).trim())
+    .filter(Boolean)
+    .sort((x, y) => x.localeCompare(y));
+}
+
+/**
+ * Add one person to a team cell, or to every country when none is given.
+ *
+ * Separate from `setProcureGuardApprover` because that one REPLACES and this one APPENDS. A
+ * team step has no single holder to swap out, and using the replacing action on it would mean
+ * the second person added silently removed the first.
+ */
+export async function addProcureGuardTeamApprover(input: {
+  /** Omitted or empty assigns to every country the matrix shows. */
+  country?: string | null;
+  notificationRole: string;
+  requestType: 'adhoc' | 'advance';
+  email: string;
+  displayName: string;
+}): Promise<ActionResult> {
+  try {
+    const actor = await requirePermissionManager();
+    if (!actor.permissions.canManagePermissions) {
+      return { success: false, error: 'Permission management access is required.' };
+    }
+    const email = requireText(input.email, 'Email').toLowerCase();
+    if (!isValidEmail(email)) return { success: false, error: 'Enter a valid email address.' };
+    const displayName = requireText(input.displayName, 'Name');
+    const role = requireText(input.notificationRole, 'Role');
+    const rt = input.requestType === 'adhoc' ? 'adhoc' : 'advance';
+
+    const one = String(input.country ?? '').trim();
+    const countries = one ? [one] : await matrixCountryList();
+    if (!countries.length) {
+      return { success: false, error: 'No countries are set up to assign to.' };
+    }
+    for (const country of countries) {
+      await addProcureGuardRecipientRow(country, role, rt, email, displayName);
+    }
+
+    await syncProcureGuardRecipientAccessApprovals();
+    revalidateProcureGuardPaths();
+    return { success: true };
+  } catch (err) {
+    log.error('addProcureGuardTeamApprover.failed', err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to add approver.',
+    };
+  }
+}
+
+/** Take one person off a team cell, or off every country when none is given. */
+export async function removeProcureGuardTeamApprover(input: {
+  country?: string | null;
+  notificationRole: string;
+  requestType: 'adhoc' | 'advance';
+  email: string;
+}): Promise<ActionResult> {
+  try {
+    const actor = await requirePermissionManager();
+    if (!actor.permissions.canManagePermissions) {
+      return { success: false, error: 'Permission management access is required.' };
+    }
+    const email = requireText(input.email, 'Email').toLowerCase();
+    const role = requireText(input.notificationRole, 'Role');
+    const rt = input.requestType === 'adhoc' ? 'adhoc' : 'advance';
+
+    const one = String(input.country ?? '').trim();
+    const countries = one ? [one] : await matrixCountryList();
+    let removed = 0;
+    for (const country of countries) {
+      removed += await removeProcureGuardRecipientRow(country, role, rt, email);
+    }
+    if (!removed) return { success: false, error: 'That person was not on this step.' };
+
+    /* Re-synced for the same reason adding is: the sync grants AND prunes the approval
+       permission, so without it somebody taken off the list keeps the authority to approve. */
+    await syncProcureGuardRecipientAccessApprovals();
+    revalidateProcureGuardPaths();
+    return { success: true };
+  } catch (err) {
+    log.error('removeProcureGuardTeamApprover.failed', err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Failed to remove approver.',
     };
   }
 }

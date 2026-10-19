@@ -14,6 +14,16 @@ export interface ApproverMatrixColumn {
   label: string;
   notificationRole: string;
   requestType: 'adhoc' | 'advance';
+  /**
+   * This step is owned by a team, not a person, so the cell holds a list.
+   *
+   * Every other column answers "who approves here", and replacing that person is the only edit
+   * it needs. SAP Team verification is done by whoever on the team picks it up, so its cell
+   * adds and removes people instead of swapping one out. The cells for these columns come
+   * through `teamCells`; `cells` still carries the first of them, so anything reading the
+   * matrix the old way shows a name rather than a blank.
+   */
+  multi?: boolean;
 }
 export interface ApproverCell {
   name: string;
@@ -23,6 +33,8 @@ export interface ProcureGuardApproverMatrix {
   countries: string[];
   columns: ApproverMatrixColumn[];
   cells: Record<string, Record<string, ApproverCell | null>>;
+  /** Every approver per cell, populated only for `multi` columns. */
+  teamCells: Record<string, Record<string, ApproverCell[]>>;
 }
 
 export interface ProcureGuardViewerGrant {
@@ -38,6 +50,17 @@ export const APPROVER_MATRIX_COLUMNS: ApproverMatrixColumn[] = [
     label: 'Country Controller',
     notificationRole: 'Country Controller',
     requestType: 'advance',
+  },
+  {
+    /* Between the country SCM and the Supply Chain Director on adhoc requests. Not country
+       scoped in the permission model - the team covers every country - but it sits in the
+       matrix per country like every other column, so a country can be given its own SAP
+       contact if that ever becomes the arrangement. */
+    key: 'sap',
+    label: 'SAP Team',
+    notificationRole: 'SAP Team',
+    requestType: 'adhoc',
+    multi: true,
   },
   {
     key: 'sd_adhoc',
@@ -65,6 +88,70 @@ export const APPROVER_MATRIX_COLUMNS: ApproverMatrixColumn[] = [
   },
   { key: 'cfo', label: 'CFO', notificationRole: 'CFO', requestType: 'advance' },
 ];
+
+/**
+ * Add one more person to a (country, role, request_type) that may already have others.
+ *
+ * `upsertProcureGuardRecipientRow` UPDATEs every matching row, which is right for a column
+ * where one person holds the step and wrong for a team: used there, the second person added
+ * would overwrite the first. This inserts, and does nothing if that address is already on the
+ * cell, so adding somebody twice is harmless rather than a duplicate notification.
+ */
+export async function addProcureGuardRecipientRow(
+  country: string,
+  role: string,
+  rt: 'adhoc' | 'advance',
+  email: string,
+  displayName: string,
+): Promise<void> {
+  const existing = await sql<QueryResultRow[]>(
+    `SELECT id FROM procure_guard_notification_recipients
+      WHERE country = ? AND notification_role = ? AND request_type = ?
+        AND LOWER(email) = LOWER(?) AND is_active = TRUE
+      LIMIT 1`,
+    [country, role, rt, email],
+  );
+  if (existing.length) return;
+
+  const tmpl = await sql<QueryResultRow[]>(
+    `SELECT approval_status, source_column, is_required FROM procure_guard_notification_recipients
+      WHERE notification_role = ? AND request_type = ? AND is_active = TRUE LIMIT 1`,
+    [role, rt],
+  );
+  const t = tmpl[0];
+  await exec(
+    `INSERT INTO procure_guard_notification_recipients
+       (country, request_type, notification_role, approval_status, source_column, display_name, email, is_required, is_active)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE)`,
+    [
+      country,
+      rt,
+      role,
+      t?.approval_status ?? null,
+      t?.source_column ?? 'manual',
+      displayName,
+      email,
+      t?.is_required ?? false,
+    ],
+  );
+}
+
+/** Take one person off a cell. Deactivated rather than deleted, like every other recipient. */
+export async function removeProcureGuardRecipientRow(
+  country: string,
+  role: string,
+  rt: 'adhoc' | 'advance',
+  email: string,
+): Promise<number> {
+  const res = await exec(
+    `UPDATE procure_guard_notification_recipients
+        SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+      WHERE country = ? AND notification_role = ? AND request_type = ?
+        AND LOWER(email) = LOWER(?) AND is_active = TRUE`,
+    [country, role, rt, email],
+  );
+  return res.rowCount ?? 0;
+}
 
 // Update the recipient for one (country, role, request_type), or insert one cloning that role's
 // existing defaults when the country has no row yet. Callers run the recipients->access sync afterwards.
