@@ -120,6 +120,34 @@ export function airportLabel(code: string | null | undefined): string {
   return a ? `${a.city} (${c})` : c || 'Unknown';
 }
 
+/** Just the city, for a line of prose under a pair of codes. Null when the table has no entry. */
+export function cityName(code: string | null | undefined): string | null {
+  return airportFor(code)?.city ?? null;
+}
+
+/**
+ * `Dubai to Cairo`, for the line under `DXB → CAI`.
+ *
+ * Null when neither end is known, because "DXB to ZZZ" in a sentence restates the codes above
+ * it and earns nothing. One end known is still worth saying: "Dubai to ZZZ" tells a reader
+ * half of what they wanted.
+ */
+export function routeInWords(
+  origin: string | null | undefined,
+  destination: string | null | undefined,
+): string | null {
+  const from = cityName(origin);
+  const to = cityName(destination);
+  if (!from && !to) return null;
+  const o = String(origin ?? '')
+    .trim()
+    .toUpperCase();
+  const d = String(destination ?? '')
+    .trim()
+    .toUpperCase();
+  return `${from ?? o} to ${to ?? d}`;
+}
+
 /**
  * The codes a map cannot place, with how much traffic each carries.
  *
