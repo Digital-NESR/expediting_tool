@@ -78,6 +78,15 @@ export const DATABASES = [
     envStyle: 'sourceguide',
   },
   {
+    /* The Travel Portal product's own database. Supply Chain Analytics reads its bookings for
+       the travel dashboard and writes nothing; the analytics tool's own tables live under
+       `default`. Listed to satisfy the pool manifest, marked as not ours to migrate. */
+    key: 'travel-portal',
+    database: () => process.env.TRAVEL_PORTAL_DB_NAME || 'travel_portal',
+    envStyle: 'sourceguide',
+    readOnly: true,
+  },
+  {
     /* RFx Officer's own database. ProcureGuard reads `released_prs` from it for the requisition
        picker and writes nothing, so it is listed to satisfy the pool manifest and marked as not
        ours to migrate. */
