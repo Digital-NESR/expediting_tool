@@ -150,6 +150,11 @@ const LearningHubAnalyticsClient = dynamic(() => import('../LearningHubAnalytics
   loading,
 });
 
+/* ── Supply Chain Analytics ── */
+const TravelAnalyticsGrantsClient = dynamic(() => import('../TravelAnalyticsGrantsClient'), {
+  loading,
+});
+
 export interface AdminAppContentProps {
   app: string;
   section: string;
@@ -265,6 +270,10 @@ export default function AdminAppContent(props: AdminAppContentProps) {
           roles={props.learningHubRoles ?? []}
         />
       );
+
+    /* ── Supply Chain Analytics ── */
+    case 'supply-chain-analytics/travel-access':
+      return <TravelAnalyticsGrantsClient />;
 
     default:
       return <div className="text-sm text-slate-500">Unknown section.</div>;
