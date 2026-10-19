@@ -21,6 +21,7 @@
    ───────────────────────────────────────────────────────────── */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import EmployeeAutocomplete from '@/app/procure-guard/components/EmployeeAutocomplete';
 import {
   addTravelGrant,
   getTravelGrantsAdminData,
@@ -173,12 +174,22 @@ export default function TravelAnalyticsGrantsClient() {
             >
               Email
             </label>
-            <input
+            {/* Searches the Azure AD directory rather than taking a typed address. A grant is
+                keyed on the email, so a typo does not fail loudly: it creates a grant that
+                simply never matches anyone, and the person it was meant for reports no access
+                while the row sits in the table looking correct.
+
+                Controlled, so a colleague who genuinely is not in the directory can still be
+                typed in by hand; picking one fills the field exactly as the directory spells
+                it. The component lives under procure-guard because that tool needed it first
+                and the laptop tool already imports it the same way; it is a generic picker. */}
+            <EmployeeAutocomplete
               id="travel-grant-email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@nesr.com"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#307c4c]"
+              onChange={setEmail}
+              onSelect={(emp) => setEmail(emp.email)}
+              placeholder="Search by name or email…"
+              inputClassName="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#307c4c]"
             />
           </div>
 
