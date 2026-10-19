@@ -528,6 +528,20 @@ export default function ProcureGuardRequestDetailClient({
     actor,
   } = data;
   const isAdvance = isAdvanceRequest(request);
+  /* Three shapes of identifier share one row: an advance's SAP vendor id, a plain adhoc
+     request's tax number, and an existing-supplier adhoc request's SAP supplier id. Derived
+     once so the screen and the exported PDF cannot label the same value two different ways. */
+  const fromExistingSupplier = !isAdvance && request.supplier_source === 'existing_avl';
+  const identifierLabel = isAdvance
+    ? 'SAP Vendor ID'
+    : fromExistingSupplier
+      ? 'SAP Supplier ID'
+      : 'Vendor Tax ID';
+  const identifierValue = isAdvance
+    ? request.sap_vendor_id || request.vendor_code
+    : fromExistingSupplier
+      ? request.vendor_code
+      : request.vendor_tax_id || request.vendor_code;
   const listHref = isAdvance ? '/procure-guard/advance-payments' : '/procure-guard/adhoc-payments';
   const requestLabel = isAdvance ? 'Advance Payment' : 'Adhoc PO';
   const workflowAmount = request.spend_value_usd ?? request.amount;
@@ -880,12 +894,10 @@ export default function ProcureGuardRequestDetailClient({
         addTable('Vendor And Requester', [
           ['Requisition Number', request.requisition_number],
           ['Vendor', request.vendor_name],
-          [
-            isAdvance ? 'SAP Vendor ID' : 'Vendor Tax ID',
-            isAdvance
-              ? request.sap_vendor_id || request.vendor_code
-              : request.vendor_tax_id || request.vendor_code,
-          ],
+          [identifierLabel, identifierValue],
+          ...(fromExistingSupplier
+            ? [['Supplier', 'Already in SAP, raised through the adhoc route'] as [string, string]]
+            : []),
           ['Requester', requester],
           ['Requester Email', request.requested_by_email],
           ['Country', request.country],
@@ -1255,14 +1267,16 @@ export default function ProcureGuardRequestDetailClient({
               <FieldGrid>
                 <Field label="Requisition Number" value={request.requisition_number} />
                 <Field label="Vendor" value={request.vendor_name} />
-                <Field
-                  label={isAdvance ? 'SAP Vendor ID' : 'Vendor Tax ID'}
-                  value={
-                    isAdvance
-                      ? request.sap_vendor_id || request.vendor_code
-                      : request.vendor_tax_id || request.vendor_code
-                  }
-                />
+                <Field label={identifierLabel} value={identifierValue} />
+                {/* Says which route the request took, because an approver reading a supplier
+                    name they recognise should know it came from the vendor master rather than
+                    being typed in. */}
+                {fromExistingSupplier && (
+                  <Field
+                    label="Supplier Record"
+                    value="Already in SAP, raised through the adhoc route"
+                  />
+                )}
                 <Field label="Requester" value={requester} />
                 <Field label="Requester Email" value={request.requested_by_email} />
                 <Field label="Country" value={request.country} />

@@ -17,6 +17,7 @@ export const PERMISSION_ROLE_OPTIONS: ProcureGuardPermissionRole[] = [
   'Read Only',
   'Viewer',
   'SCM Manager',
+  'SAP Team',
   'Country Controller',
   'Supply Chain Director',
   'Treasury Director',
@@ -47,6 +48,7 @@ const BASE_PERMISSION_PROFILE: Omit<
   canDeleteRecords: false,
   canReject: false,
   canReviewAdhocScm: false,
+  canReviewAdhocSapTeam: false,
   canReviewAdhocDirector: false,
   canReviewAdvanceCountryController: false,
   canReviewAdvanceSupplyChainDirector: false,
@@ -101,6 +103,19 @@ export const PERMISSION_PROFILES: Record<
     canViewAll: true,
     canReject: true,
     canReviewAdhocScm: true,
+  },
+  /* Not country-scoped. The SAP team is central, so one set of people verifies every country's
+     adhoc requests; see COUNTRY_SCOPED_PERMISSION_ROLES, which it is deliberately absent from. */
+  'SAP Team': {
+    ...BASE_PERMISSION_PROFILE,
+    role: 'SAP Team',
+    label: 'SAP Team',
+    description:
+      'Verifies the supplier set-up on an adhoc request after SCM and before the Supply Chain Director.',
+    accessView: 'reviewer',
+    canViewAll: true,
+    canReject: true,
+    canReviewAdhocSapTeam: true,
   },
   'Country Controller': {
     ...BASE_PERMISSION_PROFILE,
@@ -168,6 +183,7 @@ export const PERMISSION_PROFILES: Record<
     canDeleteRecords: true,
     canReject: true,
     canReviewAdhocScm: true,
+    canReviewAdhocSapTeam: true,
     canReviewAdhocDirector: true,
     canReviewAdvanceCountryController: true,
     canReviewAdvanceSupplyChainDirector: true,
@@ -192,6 +208,7 @@ export interface ProcureGuardAvailableActions {
 
 const PERMISSION_OWNER_LABELS: Partial<Record<ProcureGuardPermissionKey, string>> = {
   canReviewAdhocScm: 'SCM Manager',
+  canReviewAdhocSapTeam: 'SAP Team',
   canReviewAdhocDirector: 'Supply Chain Director',
   canReviewAdvanceCountryController: 'Country Controller',
   canReviewAdvanceSupplyChainDirector: 'Supply Chain Director',
@@ -251,7 +268,9 @@ function getRequiredPermissionForApproval(
       return 'canReviewAdhocScm';
     if (currentStatus === 'Under Review' && nextStatus === 'Approved by SCM')
       return 'canReviewAdhocScm'; // legacy Under Review records
-    if (currentStatus === 'Approved by SCM' && nextStatus === 'Approved')
+    if (currentStatus === 'Approved by SCM' && nextStatus === 'Verified by SAP Team')
+      return 'canReviewAdhocSapTeam';
+    if (currentStatus === 'Verified by SAP Team' && nextStatus === 'Approved')
       return 'canReviewAdhocDirector';
     return null;
   }
@@ -339,6 +358,7 @@ export const STATUS_OPTIONS: ProcureGuardStatus[] = [
   'Submitted',
   'Under Review',
   'Approved by SCM',
+  'Verified by SAP Team',
   'Approved by Country Controller',
   'Approved by Supply Chain Director',
   'Approved by Treasury Director',
@@ -352,6 +372,7 @@ export const ADHOC_STATUS_OPTIONS: ProcureGuardStatus[] = [
   'Submitted',
   'Under Review',
   'Approved by SCM',
+  'Verified by SAP Team',
   'Approved',
   'Rejected',
   'Cancelled',
@@ -605,6 +626,7 @@ export const APPROVAL_ACTIVE_STATUSES: ProcureGuardStatus[] = [
   'Submitted',
   'Under Review',
   'Approved by SCM',
+  'Verified by SAP Team',
   'Approved by Country Controller',
   'Approved by Supply Chain Director',
   'Approved by Treasury Director',
@@ -614,6 +636,7 @@ export const APPROVAL_ACTIVE_STATUSES: ProcureGuardStatus[] = [
 export const REVIEWED_STATUSES: ProcureGuardStatus[] = [
   'Under Review',
   'Approved by SCM',
+  'Verified by SAP Team',
   'Approved by Country Controller',
   'Approved by Supply Chain Director',
   'Approved by Treasury Director',
@@ -645,6 +668,11 @@ export function getWorkflowSteps(
       },
       {
         status: 'Approved by SCM',
+        label: 'SAP Team Verification',
+        owner: 'SAP Team',
+      },
+      {
+        status: 'Verified by SAP Team',
         label: 'Supply Chain Director Review',
         owner: 'Supply Chain Director',
       },
@@ -741,10 +769,15 @@ export function getNextApprovalStatus(
   }
 
   if (requestType === 'adhoc') {
+    /* SAP Team verification was inserted between the SCM step and the Director's final
+       approval. Requests already sitting at `Approved by SCM` when this shipped pick the new
+       step up on their next transition, which is the intended behaviour: they have not been
+       verified, and the Director should not be the one to discover that. */
     const transitions: Partial<Record<ProcureGuardStatus, ProcureGuardStatus>> = {
       Submitted: 'Approved by SCM',
       'Under Review': 'Approved by SCM', // legacy Under Review records
-      'Approved by SCM': 'Approved',
+      'Approved by SCM': 'Verified by SAP Team',
+      'Verified by SAP Team': 'Approved',
     };
     return transitions[currentStatus] ?? null;
   }

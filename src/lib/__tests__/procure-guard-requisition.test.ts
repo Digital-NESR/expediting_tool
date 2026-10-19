@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  allowsFreeTextRequisition,
   formatRequisitionNumbers,
   parseRequisitionNumbers,
   requireRequisitionNumbers,
   requisitionError,
+  usedHqDubaiException,
 } from '@/lib/procure-guard/requisition';
 
 /**
@@ -139,5 +141,80 @@ describe('what gets stored', () => {
     const stored = requireRequisitionNumbers('1005034844/1005035231');
     expect(requisitionError(stored)).toBeNull();
     expect(formatRequisitionNumbers(parseRequisitionNumbers(stored).numbers)).toBe(stored);
+  });
+});
+
+/**
+ * HQ Dubai's exemption.
+ *
+ * Its requests do not always sit behind an SAP requisition, so there the field takes any text.
+ * The exemption is by country and nothing else: there is no per-user override and no checkbox,
+ * so the only way to reach it is to be raising an HQ Dubai request. What the tests below pin is
+ * that it does not leak to any other country, and that "free text" still does not mean "blank".
+ */
+describe('the HQ Dubai exemption', () => {
+  it('applies to HQ Dubai and to nothing else', () => {
+    expect(allowsFreeTextRequisition('HQ Dubai')).toBe(true);
+    expect(allowsFreeTextRequisition('Kuwait')).toBe(false);
+    expect(allowsFreeTextRequisition('Saudi Arabia (KSA)')).toBe(false);
+    expect(allowsFreeTextRequisition('')).toBe(false);
+    expect(allowsFreeTextRequisition(null)).toBe(false);
+  });
+
+  /* A country arriving in another case would otherwise silently lose its exemption and refuse a
+     perfectly good request. */
+  it('is not defeated by case or padding', () => {
+    expect(allowsFreeTextRequisition('  hq dubai  ')).toBe(true);
+  });
+
+  it('accepts text that would be refused anywhere else', () => {
+    expect(requisitionError('Verbal approval from FD, no PR raised', 'HQ Dubai')).toBeNull();
+    expect(requisitionError('NA', 'HQ Dubai')).toBeNull();
+    expect(requisitionError('NA', 'Kuwait')).not.toBeNull();
+  });
+
+  /* The one thing the exemption does not cover. A request with no reference at all is not an
+     exception, it is an omission. */
+  it('still refuses an empty field', () => {
+    expect(requisitionError('', 'HQ Dubai')).toContain('required');
+    expect(requisitionError('   ', 'HQ Dubai')).toContain('required');
+  });
+
+  /* Prose must not be reordered and comma-joined by the number formatter. */
+  it('stores free text as typed, only trimmed', () => {
+    expect(requireRequisitionNumbers('  PR raised verbally by Ops  ', 'HQ Dubai')).toBe(
+      'PR raised verbally by Ops',
+    );
+  });
+
+  /* A real PR number from HQ Dubai is still a PR number and is tidied like one. */
+  it('still tidies a proper number from HQ Dubai', () => {
+    expect(requireRequisitionNumbers('1010010287', 'HQ Dubai')).toBe('1010010287');
+  });
+
+  it('leaves every other country on the ten-digit rule', () => {
+    expect(() => requireRequisitionNumbers('no PR', 'Kuwait')).toThrow(/exactly 10 digits/);
+    expect(() => requireRequisitionNumbers('no PR', undefined)).toThrow(/exactly 10 digits/);
+  });
+});
+
+describe('telling a free-text reference from a bad number', () => {
+  /* The question an audit asks, which the stored value alone cannot answer: was this deliberate
+     or malformed? Derived rather than stored, so it cannot go stale. */
+  it('flags HQ Dubai free text', () => {
+    expect(usedHqDubaiException('Verbal approval', 'HQ Dubai')).toBe(true);
+  });
+
+  it('does not flag a proper number, whatever the country', () => {
+    expect(usedHqDubaiException('1010010287', 'HQ Dubai')).toBe(false);
+    expect(usedHqDubaiException('1010010287', 'Kuwait')).toBe(false);
+  });
+
+  it('does not flag another country, which could not have used it', () => {
+    expect(usedHqDubaiException('Verbal approval', 'Kuwait')).toBe(false);
+  });
+
+  it('does not flag an empty value', () => {
+    expect(usedHqDubaiException('', 'HQ Dubai')).toBe(false);
   });
 });

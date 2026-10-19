@@ -308,11 +308,28 @@ describe('advance approval chain', () => {
 });
 
 describe('adhoc approval chain', () => {
-  it('is two steps and ignores the amount entirely', () => {
+  /* Three steps since SAP Team verification was added between SCM and the Director. Still no
+     amount thresholds anywhere in it: unlike advances, an adhoc request takes the same route
+     whether it is for 50 dollars or five million. */
+  it('is three steps and ignores the amount entirely', () => {
     for (const amount of [0, 49_999, 50_001, 5_000_000]) {
       expect(getNextApprovalStatus('adhoc', 'Submitted', amount, 'USD')).toBe('Approved by SCM');
-      expect(getNextApprovalStatus('adhoc', 'Approved by SCM', amount, 'USD')).toBe('Approved');
+      expect(getNextApprovalStatus('adhoc', 'Approved by SCM', amount, 'USD')).toBe(
+        'Verified by SAP Team',
+      );
+      expect(getNextApprovalStatus('adhoc', 'Verified by SAP Team', amount, 'USD')).toBe(
+        'Approved',
+      );
     }
+  });
+
+  /* Requests that were sitting at `Approved by SCM` when the SAP step shipped pick it up on
+     their next transition rather than skipping it. They have not been verified, and the
+     Director should not be the one to find that out. */
+  it('sends a request already past SCM through the new verification step', () => {
+    expect(getNextApprovalStatus('adhoc', 'Approved by SCM', 1000, 'USD')).toBe(
+      'Verified by SAP Team',
+    );
   });
 
   it('treats legacy Under Review like Submitted', () => {
@@ -327,8 +344,32 @@ describe('adhoc approval chain', () => {
       getRequiredPermissionForTransition('adhoc', 'Submitted', 'Approved by SCM', 1000, 'USD'),
     ).toBe('canReviewAdhocScm');
     expect(
-      getRequiredPermissionForTransition('adhoc', 'Approved by SCM', 'Approved', 1000, 'USD'),
+      getRequiredPermissionForTransition(
+        'adhoc',
+        'Approved by SCM',
+        'Verified by SAP Team',
+        1000,
+        'USD',
+      ),
+    ).toBe('canReviewAdhocSapTeam');
+    expect(
+      getRequiredPermissionForTransition(
+        'adhoc',
+        'Verified by SAP Team',
+        'Approved',
+        1000,
+        'USD',
+      ),
     ).toBe('canReviewAdhocDirector');
+  });
+
+  /* The Director can no longer approve straight off the SCM step. That transition is now the
+     SAP team's, and leaving it reachable by the Director would make the new step optional in
+     practice while looking mandatory on the stepper. */
+  it('refuses the Director the old shortcut from SCM to Approved', () => {
+    expect(
+      getRequiredPermissionForTransition('adhoc', 'Approved by SCM', 'Approved', 1000, 'USD'),
+    ).toBeNull();
   });
 
   it('refuses an adhoc request that tries to skip the SCM step', () => {
@@ -375,6 +416,9 @@ describe('rejection authority', () => {
     ).toBe('canReviewAdvanceCfo');
     expect(
       getRequiredPermissionForTransition('adhoc', 'Approved by SCM', 'Rejected', 1000, 'USD'),
+    ).toBe('canReviewAdhocSapTeam');
+    expect(
+      getRequiredPermissionForTransition('adhoc', 'Verified by SAP Team', 'Rejected', 1000, 'USD'),
     ).toBe('canReviewAdhocDirector');
   });
 
@@ -463,7 +507,7 @@ describe('role x status approval matrix', () => {
     ).toBe(false);
   });
 
-  it('owns adhoc steps with the SCM Manager then the Supply Chain Director', () => {
+  it('owns adhoc steps with the SCM Manager, then the SAP Team, then the Director', () => {
     for (const role of PERMISSION_ROLE_OPTIONS) {
       const profile = getPermissionProfile(role);
       expect(
@@ -471,6 +515,10 @@ describe('role x status approval matrix', () => {
       ).toBe(role === 'SCM Manager' || role === 'Admin');
       expect(
         getProcureGuardAvailableActions(profile, 'adhoc', 'Approved by SCM', 1000, 'USD')
+          .canApprove,
+      ).toBe(role === 'SAP Team' || role === 'Admin');
+      expect(
+        getProcureGuardAvailableActions(profile, 'adhoc', 'Verified by SAP Team', 1000, 'USD')
           .canApprove,
       ).toBe(role === 'Supply Chain Director' || role === 'Admin');
     }
@@ -506,6 +554,10 @@ describe('role x status approval matrix', () => {
     ).toBe('CFO');
     expect(
       getProcureGuardAvailableActions(admin, 'adhoc', 'Approved by SCM', 1000, 'USD').ownerLabel,
+    ).toBe('SAP Team');
+    expect(
+      getProcureGuardAvailableActions(admin, 'adhoc', 'Verified by SAP Team', 1000, 'USD')
+        .ownerLabel,
     ).toBe('Supply Chain Director');
   });
 
@@ -707,14 +759,31 @@ describe('country scope', () => {
 });
 
 describe('workflow steps', () => {
-  it('shows a fixed four-step adhoc workflow', () => {
+  it('shows a fixed five-step adhoc workflow', () => {
     const steps = getWorkflowSteps('adhoc', 5_000_000, 'USD');
     expect(steps.map((s) => s.status)).toEqual([
       'Submitted',
       'Under Review',
       'Approved by SCM',
+      'Verified by SAP Team',
       'Approved',
     ]);
+  });
+
+  /* The stepper and the chain are two descriptions of the same thing and drifted apart would
+     show a reviewer a step the workflow never reaches. Walked here rather than asserted as a
+     literal list, so adding a step to one without the other fails. */
+  it('walks the adhoc chain exactly as the stepper draws it', () => {
+    const drawn = getWorkflowSteps('adhoc', 1000, 'USD')
+      .map((s) => s.status)
+      .filter((s) => s !== 'Under Review');
+    const walked: ProcureGuardStatus[] = ['Submitted'];
+    for (;;) {
+      const next = getNextApprovalStatus('adhoc', walked[walked.length - 1], 1000, 'USD');
+      if (!next) break;
+      walked.push(next);
+    }
+    expect(walked).toEqual(drawn);
   });
 
   it('collapses to country finance only at or below the 50k gate', () => {

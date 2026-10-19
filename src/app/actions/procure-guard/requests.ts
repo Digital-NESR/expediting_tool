@@ -33,6 +33,7 @@ import {
   insertAdhocRequest,
   insertAdvanceRequest,
   normaliseAdhocInput,
+  resolveAdhocSupplier,
   normaliseAdvanceInput,
   resetRejectedRequest,
   updateAdhocRequest,
@@ -56,13 +57,18 @@ export async function createAdhocPayment(
     if (!actor.permissions.canCreateRequests)
       throw new Error('Request creation access is required.');
     await ensureProcureGuardSchema();
-    const normalised = normaliseAdhocInput(input, {
+    /* The supplier is re-read from the vendor master before anything else looks at the payload:
+       the browser's name and ID pair is not evidence, and everything downstream - validation,
+       the stored row, the approval email - should see what SAP says rather than what was
+       posted. */
+    const resolvedInput = await resolveAdhocSupplier(input);
+    const normalised = normaliseAdhocInput(resolvedInput, {
       requesterEmail: actor.email,
       requireAcknowledgement: true,
     });
 
     const result = await insertAdhocRequest({
-      input,
+      input: resolvedInput,
       normalised,
       department: input.department ?? actor.department,
       status: null,
@@ -180,12 +186,17 @@ export async function updateAdhocPaymentRequest(
       return { success: false, error: 'Only the requester can edit this request.' };
     }
 
-    const normalised = normaliseAdhocInput(input, {
+    /* The supplier is re-read from the vendor master before anything else looks at the payload:
+       the browser's name and ID pair is not evidence, and everything downstream - validation,
+       the stored row, the approval email - should see what SAP says rather than what was
+       posted. */
+    const resolvedInput = await resolveAdhocSupplier(input);
+    const normalised = normaliseAdhocInput(resolvedInput, {
       requesterEmail: existing.requested_by_email,
       requireAcknowledgement: true,
     });
 
-    await updateAdhocRequest(id, input, normalised);
+    await updateAdhocRequest(id, resolvedInput, normalised);
 
     if (wasRejected) {
       await resetRejectedRequest('procure_guard_adhoc_payments', id);

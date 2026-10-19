@@ -20,10 +20,31 @@
  * holds what RFx Officer has sourced rather than every PR SAP has released. Refusing a number
  * because it is absent would have blocked nine requests in ten. The picker is therefore a
  * convenience and never an authority, and this module deliberately knows nothing about it.
+ *
+ * HQ DUBAI IS EXEMPT. Its requests do not always carry an SAP requisition, so there the field
+ * takes any text and only has to be non-empty. The exemption is by country and by nothing else:
+ * it is not a per-user override and not a checkbox a requester can tick, so the only way to reach
+ * it is to actually be raising an HQ Dubai request. `usedHqDubaiException` tells a reader after
+ * the fact whether a stored value went through the exemption or the ten-digit rule, which is the
+ * question an audit asks and which the value alone cannot answer.
  */
 
 /** Ten digits, nothing else. Checked after trimming; see `splitRequisitionInput`. */
 export const REQUISITION_PATTERN = /^\d{10}$/;
+
+/**
+ * The one country whose requests may carry a free-text requisition.
+ *
+ * Spelled exactly as `COUNTRY_OPTIONS` spells it, because that is what the form posts and what
+ * the column stores. Compared case-insensitively on the trimmed value all the same: a country
+ * arriving in a different case would otherwise silently lose the exemption and refuse a
+ * perfectly good HQ Dubai request.
+ */
+export const FREE_TEXT_REQUISITION_COUNTRY = 'HQ Dubai';
+
+export function allowsFreeTextRequisition(country: string | null | undefined): boolean {
+  return (country ?? '').trim().toLowerCase() === FREE_TEXT_REQUISITION_COUNTRY.toLowerCase();
+}
 
 /**
  * Everything people have used to put two PRs in one box: comma, semicolon, slash, ampersand,
@@ -89,7 +110,17 @@ export function formatRequisitionNumbers(numbers: readonly string[]): string {
  * submit recognises the one they saw under the field, rather than wondering whether two different
  * checks disagree.
  */
-export function requisitionError(raw: string | null | undefined): string | null {
+export function requisitionError(
+  raw: string | null | undefined,
+  country?: string | null,
+): string | null {
+  if (allowsFreeTextRequisition(country)) {
+    /* Still required, just not a PR number. An empty field is the one thing the exemption does
+       not cover: a request with no reference at all is not an exception, it is an omission. */
+    return String(raw ?? '').trim()
+      ? null
+      : 'A requisition reference is required. HQ Dubai accepts free text.';
+  }
   const { numbers, invalid } = parseRequisitionNumbers(raw);
   if (invalid.length > 0) {
     const shown = invalid.slice(0, 3).map((v) => `"${v}"`).join(', ');
@@ -108,8 +139,31 @@ export function requisitionError(raw: string | null | undefined): string | null 
  * Returns the tidied string rather than what was typed, so the column ends up holding one spelling
  * of a list: `1010010287, 1010010288`, whatever arrived.
  */
-export function requireRequisitionNumbers(raw: string | null | undefined): string {
-  const message = requisitionError(raw);
+export function requireRequisitionNumbers(
+  raw: string | null | undefined,
+  country?: string | null,
+): string {
+  const message = requisitionError(raw, country);
   if (message) throw new Error(message);
+  /* Free text is stored as typed, only trimmed. Running it through the number formatter would
+     reorder and comma-join whatever the requester wrote, which for prose is mangling. */
+  if (allowsFreeTextRequisition(country)) return String(raw ?? '').trim();
   return formatRequisitionNumbers(parseRequisitionNumbers(raw).numbers);
+}
+
+/**
+ * Whether a stored value got in through the HQ Dubai exemption rather than the ten-digit rule.
+ *
+ * Derived rather than stored, because it is a fact about the value and the country and would
+ * only go stale as a column. A reader needs it to tell a deliberate free-text reference from a
+ * malformed PR number, and the detail screen uses it to label the field honestly.
+ */
+export function usedHqDubaiException(
+  raw: string | null | undefined,
+  country: string | null | undefined,
+): boolean {
+  if (!allowsFreeTextRequisition(country)) return false;
+  const value = String(raw ?? '').trim();
+  if (!value) return false;
+  return parseRequisitionNumbers(value).invalid.length > 0;
 }

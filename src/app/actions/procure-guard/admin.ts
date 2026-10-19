@@ -51,6 +51,7 @@ import {
   insertAdhocRequest,
   insertAdvanceRequest,
   normaliseAdhocInput,
+  resolveAdhocSupplier,
   normaliseAdvanceInput,
 } from '@/lib/procure-guard/write-requests';
 import type {
@@ -136,14 +137,19 @@ export async function createAdminAdhocPayment(
     const requestedByEmail = input.requested_by_email?.trim() || actor.email;
     const requestedByName = input.requested_by_name?.trim() || actor.name;
     // Admin-create never had the acknowledgement check the requester forms carry.
-    const normalised = normaliseAdhocInput(input, {
+    /* The supplier is re-read from the vendor master before anything else looks at the payload:
+       the browser's name and ID pair is not evidence, and everything downstream - validation,
+       the stored row, the approval email - should see what SAP says rather than what was
+       posted. */
+    const resolvedInput = await resolveAdhocSupplier(input);
+    const normalised = normaliseAdhocInput(resolvedInput, {
       requesterEmail: requestedByEmail,
       requireAcknowledgement: false,
     });
     const status = input.status || 'Submitted';
 
     const result = await insertAdhocRequest({
-      input,
+      input: resolvedInput,
       normalised,
       department: input.department ?? actor.department,
       status,

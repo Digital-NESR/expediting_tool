@@ -47,6 +47,7 @@ export const STATUS_SORT_ORDER: ProcureGuardStatus[] = [
   'Submitted',
   'Under Review',
   'Approved by SCM',
+  'Verified by SAP Team',
   'Approved by Country Controller',
   'Approved by Supply Chain Director',
   'Approved by Treasury Director',

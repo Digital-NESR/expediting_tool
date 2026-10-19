@@ -244,6 +244,11 @@ export function procureGuardRefRowsHtml(
 // the request silently stalls at the final step. Mirrors COUNTRY_SCOPED_PERMISSION_ROLES (which is
 // only SCM Manager + Country Controller).
 const GLOBAL_APPROVER_OWNER_LABELS = new Set<string>([
+  /* The SAP team is one central team verifying every country's adhoc requests, so it is
+     deliberately absent from COUNTRY_SCOPED_PERMISSION_ROLES and belongs here. Country-gating it
+     would email only the countries whose recipient rows happen to name a SAP person, and the
+     rest would stall at the new step with nobody told. */
+  'SAP Team',
   'Supply Chain Director',
   'Treasury Director',
   'Corporate Controller',

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { searchReleasedPurchaseRequisitions } from '@/app/actions/procure-guard/released-prs';
 import type { ReleasedPrOption } from '@/lib/procure-guard/released-prs';
 import {
+  allowsFreeTextRequisition,
   formatRequisitionNumbers,
   parseRequisitionNumbers,
   REQUISITION_PATTERN,
@@ -43,6 +44,10 @@ export default function RequisitionPicker({
   country?: string;
   invalid?: boolean;
 }) {
+  /* HQ Dubai requests do not always have an SAP requisition behind them, so there the field is
+     an ordinary text box. Chips and a PR picker would both be lying about what is wanted: a
+     chip says "this is one of several requisition numbers", and neither is true of free text. */
+  const freeText = allowsFreeTextRequisition(country);
   const [chips, setChips] = useState<string[]>(() => parseRequisitionNumbers(value).numbers);
   /* Seeded with anything in the stored value that is not a PR number, which is how an old
      request reading "NA" or "07-2026" opens for editing: visible in the box, with the error
@@ -155,6 +160,24 @@ export default function RequisitionPicker({
     } else if (e.key === 'Escape') {
       setOpen(false);
     }
+  }
+
+  if (freeText) {
+    return (
+      <div>
+        <input
+          type="text"
+          className={invalid ? BOX_ERR : BOX}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Requisition reference"
+          aria-label="Requisition reference"
+        />
+        <p className="mt-1.5 text-xs text-slate-500">
+          HQ Dubai accepts a free-text reference. Other countries need a 10-digit PR number.
+        </p>
+      </div>
+    );
   }
 
   return (

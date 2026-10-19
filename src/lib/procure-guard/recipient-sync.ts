@@ -33,6 +33,9 @@ const PROCURE_GUARD_REVIEW_ROLE_RANK: Record<ProcureGuardPermissionRole, number>
   'Read Only': 1,
   Viewer: 1,
   'SCM Manager': 2,
+  /* Between SCM and the Director in the adhoc chain, which is what this rank orders. The
+     advance-only roles below keep their numbers so nothing about that chain shifts. */
+  'SAP Team': 3,
   'Country Controller': 3,
   'Supply Chain Director': 4,
   'Treasury Director': 5,
