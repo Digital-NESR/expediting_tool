@@ -26,7 +26,11 @@ import type {
   TravelAnalyticsData,
   TravellerRecord,
 } from '@/lib/travel-analytics/queries';
+import Link from 'next/link';
 import { formatDate } from '@/lib/format';
+import SpendByDimension from './SpendByDimension';
+import TravelMap from './TravelMap';
+import TravelTypes from './TravelTypes';
 import {
   CarrierMixChart,
   LeadTimeHistogram,
@@ -265,7 +269,19 @@ function TravellerRow({ traveller }: { traveller: TravellerRecord }) {
   return (
     <tr className="border-b border-slate-100 last:border-b-0 align-top">
       <td className="px-3 py-2.5">
-        <div className="font-medium text-slate-900">{traveller.name}</div>
+        {/* Linked on the employee id, not the name: names repeat and are spelled more than one
+            way in this feed, and the id is what every booking actually carries. A record with
+            no id has no page to open, so it stays plain text rather than offering a dead link. */}
+        {traveller.employeeId ? (
+          <Link
+            href={`/supply-chain-analytics/traveller/${encodeURIComponent(traveller.employeeId)}`}
+            className="font-medium text-[#307c4c] underline-offset-2 hover:underline"
+          >
+            {traveller.name}
+          </Link>
+        ) : (
+          <div className="font-medium text-slate-900">{traveller.name}</div>
+        )}
         <div className="text-[11px] text-slate-400">
           {traveller.email ?? 'No email on file'}
           {traveller.employeeId && ` · ${traveller.employeeId}`}
@@ -427,36 +443,25 @@ export default function TravelAnalyticsClient({ data }: { data: TravelAnalyticsD
           <SpendByMonthChart data={finance.byMonth} />
         </Card>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Card title="Spend by country" subtitle="Resolved from the cost-centre mapping.">
-            <SpendBars rows={finance.byCountry} emptyText="No countries in scope." />
-          </Card>
-          <Card
-            title="Spend by cost centre"
-            subtitle={
-              finance.costCentresBeyondTop > 0
-                ? `Top ${finance.byCostCentre.length} for chargeback. ${finance.costCentresBeyondTop} further cost centres are not shown.`
-                : 'For chargeback.'
-            }
-          >
-            <SpendBars rows={finance.byCostCentre} emptyText="No cost centres in scope." />
-          </Card>
-          <Card title="Spend by company" subtitle="As the travel feed records it.">
-            <SpendBars rows={finance.byCompany} emptyText="No companies in scope." />
-          </Card>
-          <Card
-            title="Spend by segment"
-            subtitle="Padding from the feed is trimmed before grouping."
-          >
-            <SpendBars rows={finance.bySegment} emptyText="No segments in scope." />
-          </Card>
-          <Card title="Average ticket by travel type" subtitle="Averages exclude the $0 bookings.">
-            <SpendBars rows={finance.byTravelType} emptyText="No travel types in scope." />
-          </Card>
-          <Card title="Average ticket by cabin class">
-            <SpendBars rows={finance.byCabinClass} emptyText="No cabin classes in scope." />
-          </Card>
-        </div>
+        {/* Four charts that all answered "where did the money go" are now one, because the
+            comparison between them is the interesting part and scrolling between two charts to
+            make it was not working. */}
+        <SpendByDimension
+          byCountry={finance.byCountry}
+          byCostCentre={finance.byCostCentre}
+          bySegment={finance.bySegment}
+          byCompany={finance.byCompany}
+          costCentresBeyondTop={finance.costCentresBeyondTop}
+          note="Country is resolved from the cost-centre mapping; segment padding from the feed is trimmed before grouping."
+        />
+
+        <TravelMap data={data.map} />
+
+        <TravelTypes band={data.travelTypes} />
+
+        <Card title="Average ticket by cabin class">
+          <SpendBars rows={finance.byCabinClass} emptyText="No cabin classes in scope." />
+        </Card>
 
         {/* Rejected requests. The user asked that finance see these; the heading and the colour
             are doing the work of making sure nobody reads them as spend. */}

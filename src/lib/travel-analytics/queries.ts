@@ -70,6 +70,7 @@ import {
   type TravelRole,
   type TravelScope,
 } from './scope';
+import { buildMapData, buildTravelTypeBand, type MapData, type TravelTypeBand } from './routes';
 
 const log = logger('travel-analytics-queries');
 
@@ -399,6 +400,10 @@ export interface AdminBand {
 }
 
 export interface TravelAnalyticsData {
+  /** Airports and routes for the map, plus whatever it could not place. */
+  map: MapData;
+  /** The travel-type band: how the three kinds of trip differ. */
+  travelTypes: TravelTypeBand;
   role: TravelRole;
   /** Null means every country. Shown in the header so a reader knows what they are looking at. */
   countries: string[] | null;
@@ -482,6 +487,10 @@ export async function loadTravelAnalytics(scope: TravelScope): Promise<TravelAna
         savingsCoveredBookings: 0,
       },
       finance: emptyFinance(),
+      /* Folds over an empty list, so these are the real empty shapes rather than hand-written
+         ones that could drift from what the builders produce. */
+      map: buildMapData([]),
+      travelTypes: buildTravelTypeBand([]),
       optimisation: canSeeOptimisation(scope.role) ? emptyOptimisation() : null,
       admin: canRevealIdentityDocuments(scope.role)
         ? { travellers: [], expiringPassports: [], quality: [] }
@@ -507,8 +516,170 @@ export async function loadTravelAnalytics(scope: TravelScope): Promise<TravelAna
       savingsCoveredBookings: savings.coveredBookings,
     },
     finance: buildFinance(bookings, spend),
+    map: buildMapData(bookings),
+    travelTypes: buildTravelTypeBand(bookings),
     optimisation,
     admin,
+  };
+}
+
+/* ═══ One traveller's history ════════════════════════════════════════════════ */
+
+export interface TravellerTrip {
+  code: string;
+  departureDate: string | null;
+  returnDate: string | null;
+  createdAt: string | null;
+  travelType: string | null;
+  direction: string | null;
+  cabinClass: string | null;
+  status: string | null;
+  origin: string | null;
+  destination: string | null;
+  route: string;
+  country: string | null;
+  costCentre: string | null;
+  department: string | null;
+  company: string | null;
+  segment: string | null;
+  amountUsd: number;
+  leadDays: number | null;
+  justification: string | null;
+  /** Policy violations recorded against this booking. */
+  violations: string[];
+  /** The carriers actually flown, in leg order. */
+  carriers: string[];
+}
+
+export interface TravellerProfile {
+  employeeId: string;
+  name: string;
+  email: string | null;
+  nationality: string | null;
+  /** The latest expiry across this person's traveller records. */
+  passportExpiry: string | null;
+  trips: TravellerTrip[];
+  totalSpendUsd: number;
+  pricedTrips: number;
+  countries: string[];
+  map: MapData;
+  travelTypes: TravelTypeBand;
+}
+
+/**
+ * Everything one person has travelled, for their own page.
+ *
+ * Scoped exactly like the board: the bookings come from `loadScopedBookings`, so a country
+ * reader opening a traveller sees that traveller's trips IN THEIR COUNTRIES and no others.
+ * Reached by employee id rather than by name, because names repeat and the id is what the
+ * booking carries.
+ *
+ * Returns null rather than an empty profile when the reader may see none of this person's
+ * travel, so the page can 404 instead of rendering a convincing but empty history.
+ */
+export async function loadTravellerProfile(
+  scope: TravelScope,
+  employeeId: string,
+): Promise<TravellerProfile | null> {
+  const id = String(employeeId ?? '').trim();
+  if (!id) return null;
+
+  const all = await loadScopedBookings(scope);
+  const mine = all.filter((b) => (b.employeeId ?? '').trim() === id);
+  if (!mine.length) return null;
+
+  const codes = mine.map((b) => b.code);
+
+  /* Violations and carriers per booking, both optional detail: a trip with neither still
+     renders, it just has less to say. */
+  const [violations, legs, person] = await Promise.all([
+    travelPortalPool.query<{ code: string; description: string }>(
+      `SELECT code, description FROM policyviolations WHERE code = ANY($1)`,
+      [codes],
+    ),
+    travelPortalPool.query<{ code: string; carrierName: string | null }>(
+      `SELECT code, "carrierName" FROM flightsegmentlegs
+        WHERE code = ANY($1) ORDER BY code, "legOrder"`,
+      [codes],
+    ),
+    travelPortalPool.query<{
+      email: string | null;
+      nationality: string | null;
+      passportExpiry: string | null;
+      firstName: string | null;
+      lastName: string | null;
+    }>(
+      `SELECT email, nationality, "passportExpiryDate"::text AS "passportExpiry",
+              "firstName", "lastName"
+         FROM travellers
+        WHERE "employeeId" = $1 AND code = ANY($2)
+        ORDER BY "passportExpiryDate" DESC NULLS LAST
+        LIMIT 1`,
+      [id, codes],
+    ),
+  ]);
+
+  const byCode = new Map<string, string[]>();
+  for (const v of violations.rows) {
+    const list = byCode.get(v.code) ?? [];
+    list.push(v.description);
+    byCode.set(v.code, list);
+  }
+  const carriersByCode = new Map<string, string[]>();
+  for (const l of legs.rows) {
+    const name = (l.carrierName ?? '').trim();
+    if (!name) continue;
+    const list = carriersByCode.get(l.code) ?? [];
+    if (!list.includes(name)) list.push(name);
+    carriersByCode.set(l.code, list);
+  }
+
+  const trips: TravellerTrip[] = mine
+    .map((b) => ({
+      code: b.code,
+      departureDate: b.departureDate,
+      returnDate: null,
+      createdAt: b.createdAt,
+      travelType: b.travelType,
+      direction: b.direction,
+      cabinClass: b.cabinClass,
+      status: b.status,
+      origin: b.origin,
+      destination: b.destination,
+      route: b.origin && b.destination ? `${b.origin} → ${b.destination}` : '—',
+      country: b.country,
+      costCentre: b.costCentre,
+      department: b.department,
+      company: b.companyName,
+      segment: b.segment,
+      amountUsd: b.amountUsd,
+      leadDays: b.leadDays,
+      justification: b.justification,
+      violations: byCode.get(b.code) ?? [],
+      carriers: carriersByCode.get(b.code) ?? [],
+    }))
+    /* Newest first. A travel history is read from "what did they just do" backwards, and a
+       booking with no departure date sorts last rather than vanishing. */
+    .sort((a, z) => (z.departureDate ?? '').localeCompare(a.departureDate ?? ''));
+
+  const p = person.rows[0];
+  const priced = mine.filter((b) => b.amountUsd > 0);
+
+  return {
+    employeeId: id,
+    name:
+      mine.find((b) => (b.employeeName ?? '').trim())?.employeeName?.trim() ||
+      [p?.firstName, p?.lastName].filter(Boolean).join(' ').trim() ||
+      id,
+    email: p?.email ?? null,
+    nationality: p?.nationality ?? null,
+    passportExpiry: p?.passportExpiry ?? null,
+    trips,
+    totalSpendUsd: mine.reduce((sum, b) => sum + b.amountUsd, 0),
+    pricedTrips: priced.length,
+    countries: [...new Set(mine.map((b) => b.country).filter((c): c is string => !!c))].sort(),
+    map: buildMapData(mine),
+    travelTypes: buildTravelTypeBand(mine),
   };
 }
 

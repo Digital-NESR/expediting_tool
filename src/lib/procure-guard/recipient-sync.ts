@@ -168,6 +168,9 @@ function procureGuardRoleFromRecipient(row: {
   approval_status?: ProcureGuardStatus | null;
 }): ProcureGuardPermissionRole | null {
   const role = (row.notification_role ?? '').toLowerCase();
+  /* Matched on "sap" plus a word, not on "sap" alone: a recipient role naming an SAP vendor id
+     or an SAP report would otherwise be handed approval authority over every adhoc request. */
+  if (role.includes('sap team') || role.includes('sap verification')) return 'SAP Team';
   if (role.includes('cfo')) return 'CFO';
   if (role.includes('corporate controller')) return 'Corporate Controller';
   if (role.includes('treasury')) return 'Treasury Director';
@@ -180,7 +183,13 @@ function procureGuardRoleFromRecipient(row: {
   if (row.approval_status === 'Approved by Treasury Director') return 'Corporate Controller';
   if (row.approval_status === 'Approved by Supply Chain Director') return 'Treasury Director';
   if (row.approval_status === 'Approved by Country Controller') return 'Supply Chain Director';
-  if (row.approval_status === 'Approved by SCM') return 'Supply Chain Director';
+  /* These two read "who acts NEXT on a request sitting at this status". Since SAP Team
+     verification was inserted between SCM and the Director, a recipient filed against
+     `Approved by SCM` is the SAP team; the Director's turn is the step after. Left as it was,
+     a recipient added without an explicit role name would have been granted the Director's
+     authority over the step they were meant to verify. */
+  if (row.approval_status === 'Approved by SCM') return 'SAP Team';
+  if (row.approval_status === 'Verified by SAP Team') return 'Supply Chain Director';
   if (row.approval_status === 'Under Review') {
     return row.request_type === 'advance' ? 'Country Controller' : 'SCM Manager';
   }
