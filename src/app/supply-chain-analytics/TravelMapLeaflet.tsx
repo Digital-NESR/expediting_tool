@@ -40,10 +40,14 @@ export default function TravelMapLeaflet({ data, height }: { data: MapData; heig
       3,
     );
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    /* OpenStreetMap's own tiles, not CARTO's.
+       CARTO's basemaps now answer an unkeyed request with a 2KB "API KEY REQUIRED" watermark
+       instead of a map: HTTP 200, so nothing in the code notices, and the only symptom is the
+       words printed across the tiles. OSM needs no key. It has no retina variant and no
+       subdomains, which is why both of those options are gone rather than merely unused. */
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
-      subdomains: 'abcd',
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19,
     }).addTo(map);
 

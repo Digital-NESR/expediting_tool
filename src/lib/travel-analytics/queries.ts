@@ -264,6 +264,12 @@ export interface MonthGroup extends SpendGroup {
   month: string;
 }
 
+export interface DayGroup extends SpendGroup {
+  /** `2026-06-14`. The finest bucket the feed supports, and the one every coarser view
+      is folded from on the client, so day, month, quarter and year can never disagree. */
+  date: string;
+}
+
 export interface RejectedRequest {
   code: string;
   employeeName: string | null;
@@ -288,6 +294,8 @@ export interface TravelHeadline {
 export interface FinanceBand {
   note: string;
   byMonth: MonthGroup[];
+  /** Daily buckets, for the over-time chart's day/month/quarter/year switch. */
+  byDay: DayGroup[];
   byCountry: SpendGroup[];
   byCostCentre: SpendGroup[];
   costCentresBeyondTop: number;
@@ -689,6 +697,7 @@ function emptyFinance(): FinanceBand {
   return {
     note: spendPopulationNote(spendPopulation([])),
     byMonth: [],
+    byDay: [],
     byCountry: [],
     byCostCentre: [],
     costCentresBeyondTop: 0,
@@ -715,6 +724,15 @@ function buildFinance(bookings: readonly ScopedBooking[], spend: SpendPopulation
     }))
     .sort((a, b) => a.month.localeCompare(b.month));
 
+  /* Keyed on the booking date rather than the departure date, matching `byMonth`: this chart
+     answers "when was the money committed", and 44 bookings in this feed depart before they
+     were created, which would put spend in the wrong bucket on a departure axis. */
+  const byDay: DayGroup[] = groupSpend(bookings, (b) =>
+    b.createdAt ? b.createdAt.slice(0, 10) : null,
+  )
+    .map((g) => ({ ...g, date: g.label }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
   const allCostCentres = groupSpend<{ sublabel: string | null }>(
     bookings,
     (b) => b.costCentre,
@@ -724,6 +742,7 @@ function buildFinance(bookings: readonly ScopedBooking[], spend: SpendPopulation
   const rejected = bookings.filter((b) => b.status === 'Rejected');
 
   return {
+    byDay,
     note: spendPopulationNote(spend),
     byMonth,
     /* Unmapped bookings reach only an admin, and when they do they are a visible row rather than
