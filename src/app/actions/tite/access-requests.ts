@@ -7,7 +7,11 @@ import { forbidden, isAdminActor, normalizeEmail, requireAdmin } from '@/lib/req
 import { currentTiteUser } from '@/lib/tite-auth';
 import { log } from '@/lib/tite/internals';
 import type { TiteAccessRequestRow } from '@/lib/tite/types';
-import { NOT_CAPTURED, notifyAccessRequest } from '@/lib/access-request-notify';
+import {
+  NOT_CAPTURED,
+  notifyAccessDecision,
+  notifyAccessRequest,
+} from '@/lib/access-request-notify';
 
 /* ─── getTiteUserAccess ───────────────────────────────────────── */
 
@@ -112,6 +116,19 @@ export async function submitTiteAccessRequest(params: {
   }
 }
 
+/** The requester's name for the decision mail, falling back to their address. */
+async function titeRequesterName(email: string): Promise<string> {
+  try {
+    const { rows } = await titePool.query<{ display_name: string | null }>(
+      `SELECT display_name FROM access_requests WHERE LOWER(user_email) = $1`,
+      [email],
+    );
+    return rows[0]?.display_name?.trim() || email;
+  } catch {
+    return email;
+  }
+}
+
 /* ─── approveTiteAccess ───────────────────────────────────────── */
 
 export async function approveTiteAccess(params: {
@@ -136,6 +153,18 @@ export async function approveTiteAccess(params: {
         WHERE LOWER(user_email) = $1`,
       [normalizeEmail(userEmail), approvedCountries, reviewedBy, notes],
     );
+    notifyAccessDecision({
+      tool: 'TI-TE',
+      decision: 'approved',
+      name: await titeRequesterName(normalizeEmail(userEmail)),
+      email: normalizeEmail(userEmail),
+      country: approvedCountries.join(', '),
+      role: NOT_CAPTURED,
+      decidedBy: reviewedBy,
+      /* The reviewer's note is the one place a TI-TE approval can say "for Q4 only" or name a
+         condition, and it was previously visible to nobody but the next administrator. */
+      note: notes,
+    }).catch(() => {});
     return { success: true };
   } catch (err) {
     log.error('approveTiteAccess.failed', err);
@@ -160,6 +189,15 @@ export async function rejectTiteAccess(
         WHERE LOWER(user_email) = $1`,
       [normalizeEmail(userEmail), reviewedBy],
     );
+    notifyAccessDecision({
+      tool: 'TI-TE',
+      decision: 'rejected',
+      name: await titeRequesterName(normalizeEmail(userEmail)),
+      email: normalizeEmail(userEmail),
+      country: NOT_CAPTURED,
+      role: NOT_CAPTURED,
+      decidedBy: reviewedBy,
+    }).catch(() => {});
     return { success: true };
   } catch (err) {
     log.error('rejectTiteAccess.failed', err);

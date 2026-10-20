@@ -3,7 +3,9 @@ import { ADMIN_APPS } from '@/app/admin/adminNav';
 import {
   ACCESS_REVIEW_PATHS,
   NOT_CAPTURED,
+  notifyAccessDecision,
   notifyAccessRequest,
+  TOOL_PATHS,
   type NotifiableTool,
 } from '@/lib/access-request-notify';
 
@@ -127,5 +129,113 @@ describe('notifyAccessRequest', () => {
       role: 'Not applicable',
       country: 'Oman, UAE',
     });
+  });
+});
+
+describe('TOOL_PATHS', () => {
+  /*
+   * The reviewers' mail links to the queue; this one links to the thing the person just got
+   * access to. Reusing ACCESS_REVIEW_PATHS with the /admin prefix stripped would have sent a
+   * newly approved SourceGuide user to `/sourceguide?section=access`, so it is a second map —
+   * and a second map is a second thing that can rot.
+   */
+  it('names the same four tools as the review paths', () => {
+    expect(Object.keys(TOOL_PATHS).sort()).toEqual(Object.keys(ACCESS_REVIEW_PATHS).sort());
+  });
+
+  it('points at the tool itself, never at an admin screen the requester cannot open', () => {
+    for (const [tool, path] of Object.entries(TOOL_PATHS)) {
+      expect(path.startsWith('/'), `${tool} is not an absolute path`).toBe(true);
+      expect(path.startsWith('/admin'), `${tool} links into /admin`).toBe(false);
+      expect(path, `${tool} carries a query string`).not.toContain('?');
+    }
+  });
+});
+
+describe('notifyAccessDecision', () => {
+  const decision = {
+    tool: 'SOA Consolidation' as NotifiableTool,
+    decision: 'approved' as const,
+    name: 'Mohammed Kamran',
+    email: 'mohammed.kamran@nesr.com',
+    country: 'Egypt',
+    role: 'champion',
+    decidedBy: 'admin@nesr.com',
+  };
+
+  beforeEach(() => {
+    vi.stubEnv('N8N_ACCESS_DECISION_WEBHOOK_URL', 'https://n8n.test/webhook/decision');
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://scagents.nesr.com');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it('posts the decision, who made it, and a link into the tool', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await notifyAccessDecision(decision);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://n8n.test/webhook/decision');
+    expect(JSON.parse(init.body)).toMatchObject({
+      tool: 'SOA Consolidation',
+      decision: 'approved',
+      email: 'mohammed.kamran@nesr.com',
+      country: 'Egypt',
+      role: 'champion',
+      decidedBy: 'admin@nesr.com',
+      toolUrl: 'https://scagents.nesr.com/soa-consolidation',
+    });
+  });
+
+  it('carries a rejection, which is the half nobody was being told', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await notifyAccessDecision({ ...decision, decision: 'rejected', country: NOT_CAPTURED });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({
+      decision: 'rejected',
+      country: 'Not applicable',
+    });
+  });
+
+  it('uses its OWN webhook, not the one that mails the reviewers', async () => {
+    /* Sharing the request webhook would send a decision payload to a workflow that mails two
+       named reviewers, so the wrong people would get a malformed mail about somebody else. */
+    vi.stubEnv('N8N_ACCESS_DECISION_WEBHOOK_URL', '');
+    vi.stubEnv('N8N_APPROVAL_NOTIFICATION_WEBHOOK_URL', 'https://n8n.test/webhook/requests');
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await notifyAccessDecision(decision);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  /* The grant is committed and real before this runs. A webhook that is down must leave
+     somebody un-emailed, never report a failure for an approval that succeeded. */
+  it('swallows a refused webhook', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: false, status: 500, statusText: 'Boom' }),
+    );
+    await expect(notifyAccessDecision(decision)).resolves.toBeUndefined();
+  });
+
+  it('swallows a webhook that never answers', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ETIMEDOUT')));
+    await expect(notifyAccessDecision(decision)).resolves.toBeUndefined();
+  });
+
+  it('omits the link rather than building a relative one', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', '');
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await notifyAccessDecision(decision);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).toolUrl).toBeNull();
   });
 });

@@ -9,7 +9,11 @@ import { canReadAdmin, denyAccess, getSgUser } from '@/lib/sourceguide/access';
 import { logSafe } from '@/lib/sourceguide/activity';
 import { isoOf, log } from '@/lib/sourceguide/internals';
 import type { SgAccessRequest } from '@/lib/sourceguide/types';
-import { notifyAccessRequest } from '@/lib/access-request-notify';
+import {
+  NOT_CAPTURED,
+  notifyAccessDecision,
+  notifyAccessRequest,
+} from '@/lib/access-request-notify';
 
 export async function getSourceGuideAccessRequest(
   userEmail: string,
@@ -141,6 +145,16 @@ export async function approveSourceGuideAccessRequest(
       [normalizeEmail(userEmail), user.name],
     );
     await logSafe(null, null, 'Access approved', userEmail, user.name, user.email);
+    notifyAccessDecision({
+      tool: 'SourceGuide',
+      decision: 'approved',
+      name: await sgRequesterName(normalizeEmail(userEmail)),
+      email: normalizeEmail(userEmail),
+      /* Nothing is chosen on a SourceGuide approval: it grants every country, read-only. */
+      country: 'All countries',
+      role: 'Read-only viewer',
+      decidedBy: user.email,
+    }).catch(() => {});
     return { success: true };
   } catch (err) {
     log.error('approveSourceGuideAccessRequest.failed', err);
@@ -148,10 +162,41 @@ export async function approveSourceGuideAccessRequest(
   }
 }
 
+/** The requester's name for the decision mail, falling back to their address. */
+async function sgRequesterName(email: string): Promise<string> {
+  try {
+    const { rows } = await sourceGuidePool.query<{ display_name: string | null }>(
+      `SELECT display_name FROM access_requests WHERE LOWER(user_email) = $1`,
+      [email],
+    );
+    return rows[0]?.display_name?.trim() || email;
+  } catch {
+    return email;
+  }
+}
+
 export async function rejectSourceGuideAccessRequest(
   userEmail: string,
 ): Promise<{ success: boolean; error?: string }> {
-  return denyAccess(userEmail, 'Access denied', 'Rejected');
+  const target = normalizeEmail(userEmail);
+  /* Read before denyAccess, which changes the row and returns only success. */
+  const name = await sgRequesterName(target);
+  const admin = await getSgUser();
+  const result = await denyAccess(userEmail, 'Access denied', 'Rejected');
+  /* Only on success. denyAccess carries its own admin guard, and telling somebody they were
+     rejected by a call that was itself refused would be the wrong message to the wrong person. */
+  if (result.success) {
+    notifyAccessDecision({
+      tool: 'SourceGuide',
+      decision: 'rejected',
+      name,
+      email: target,
+      country: NOT_CAPTURED,
+      role: NOT_CAPTURED,
+      decidedBy: admin?.email ?? 'an administrator',
+    }).catch(() => {});
+  }
+  return result;
 }
 
 export async function revokeSourceGuideAccess(

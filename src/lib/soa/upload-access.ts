@@ -1,5 +1,6 @@
 import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { QueryResultRow } from 'pg';
+import { effectiveSubmissionDeadline } from './deadlines';
 import { ensureSoaSchema, sql } from './db';
 import { resolvedContactsFor } from './recipients';
 
@@ -91,7 +92,8 @@ export async function targetForToken(token: string): Promise<UploadTarget | null
   const rows = await sql<QueryResultRow[]>(
     `SELECT vce.id, vce.status::text AS status, v.name AS vendor_name, v.vendor_no,
             v.id AS vendor_id, cc.country_id, cc.status::text AS country_status,
-            c.name AS country_name, cy.label, cy.submission_deadline, cy.is_active
+            c.name AS country_name, cy.label, cy.is_active,
+            ${effectiveSubmissionDeadline('cy', 'cc.country_id')} AS submission_deadline
        FROM vendor_cycle_entries vce
        JOIN vendors v         ON v.id = vce.vendor_id
        JOIN country_cycles cc ON cc.id = vce.country_cycle_id
@@ -184,8 +186,7 @@ export async function issueUploadCode(
 }
 
 export type VerifyResult =
-  | { ok: true; sessionToken: string; email: string }
-  | { ok: false; reason: string };
+  { ok: true; sessionToken: string; email: string } | { ok: false; reason: string };
 
 /**
  * Check a code and open a session.

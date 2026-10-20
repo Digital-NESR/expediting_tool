@@ -6,6 +6,7 @@ import { canAccessCountry, getSoaActor } from '@/lib/soa/access';
 import { complianceCriteria, reminderGapDays, reminderInWindow } from '@/lib/soa/compliance';
 import { ensureSoaSchema, soaPool } from '@/lib/soa/db';
 import { resolvedContactsForMany } from '@/lib/soa/recipients';
+import { effectiveCycleDeadline, effectiveSubmissionDeadline } from '@/lib/soa/deadlines';
 import { notExcludedVendorNo } from '@/lib/soa/exclusions';
 import { countsTowardCoverage } from '@/lib/soa/status';
 
@@ -53,8 +54,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
   try {
     await ensureSoaSchema();
 
+    /* This country's dates, not the cycle's. The pack is read as the record of what this
+       country was asked to do, and printing a deadline it was never working to would make an
+       extension look like a country that simply closed late. */
     const cycleRows = await soaPool.query<QueryResultRow>(
-      `SELECT * FROM cycles WHERE is_active LIMIT 1`,
+      `SELECT c.*,
+              ${effectiveSubmissionDeadline('c', '$1')} AS submission_deadline,
+              ${effectiveCycleDeadline('c', '$1')} AS cycle_deadline
+         FROM cycles c WHERE c.is_active LIMIT 1`,
+      [countryId],
     );
     if (!cycleRows.rows.length) {
       return new NextResponse('No active cycle', { status: 409 });
@@ -157,6 +165,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
       ['Cycle', String(cycle.label)],
       ['Period', `${asDate(cycle.period_start)} to ${asDate(cycle.period_end)}`],
       ['Submission deadline', asDate(cycle.submission_deadline)],
+      ['Closing deadline', asDate(cycle.cycle_deadline)],
       ['Status', String(ccRows.rows[0].status)],
       ['Handed off', ccRows.rows[0].handed_off_at ? asIso(ccRows.rows[0].handed_off_at) : 'No'],
       ['Pack generated', new Date().toISOString()],

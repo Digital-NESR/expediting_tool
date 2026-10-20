@@ -15,7 +15,11 @@ import { AccessError, currentActor, normalizeEmail } from '@/lib/require-access'
 import { logger } from '@/lib/logger';
 import { exec, ensureSoaSchema, sql } from '@/lib/soa/db';
 import { requireSoaActor } from '@/lib/soa/access';
-import { notifyAccessRequest } from '@/lib/access-request-notify';
+import {
+  NOT_CAPTURED,
+  notifyAccessDecision,
+  notifyAccessRequest,
+} from '@/lib/access-request-notify';
 
 const log = logger('soa-access');
 
@@ -299,6 +303,19 @@ export async function approveSoaAccessRequest(input: {
 
     revalidatePath('/admin/soa');
     revalidatePath('/soa-consolidation');
+    /* Not awaited into the result. The grant is committed; an un-sent mail is a smaller
+       problem than an administrator being told their approval failed when it did not. */
+    notifyAccessDecision({
+      tool: 'SOA Consolidation',
+      decision: 'approved',
+      name,
+      email,
+      /* SOA is the one tool that grants a single country, and a null one means every country
+         rather than none -- the same convention `country_users` uses. */
+      country: input.countryId ?? 'All countries',
+      role: input.role,
+      decidedBy: admin.email,
+    }).catch(() => {});
     return { success: true };
   } catch (err) {
     log.error('approveSoaAccessRequest.failed', err);
@@ -313,14 +330,30 @@ export async function approveSoaAccessRequest(input: {
 export async function rejectSoaAccessRequest(email: string): Promise<SoaActionResult> {
   try {
     const admin = await requireSoaActor('admin');
+    const target = normalizeEmail(email);
+    /* Read before the update, because the update does not return the row and the name is
+       wanted for the mail. A request with no display name falls back to the address. */
+    const existing = await sql<QueryResultRow[]>(
+      `SELECT display_name FROM soa_access_requests WHERE LOWER(user_email) = ?`,
+      [target],
+    );
     await exec(
       `UPDATE soa_access_requests
           SET status = 'Rejected', approved_role = NULL, approved_country = NULL,
               reviewed_at = NOW(), reviewed_by = ?
         WHERE LOWER(user_email) = ?`,
-      [admin.email, normalizeEmail(email)],
+      [admin.email, target],
     );
     revalidatePath('/admin/soa');
+    notifyAccessDecision({
+      tool: 'SOA Consolidation',
+      decision: 'rejected',
+      name: existing[0]?.display_name ? String(existing[0].display_name) : target,
+      email: target,
+      country: NOT_CAPTURED,
+      role: NOT_CAPTURED,
+      decidedBy: admin.email,
+    }).catch(() => {});
     return { success: true };
   } catch (err) {
     log.error('rejectSoaAccessRequest.failed', err);

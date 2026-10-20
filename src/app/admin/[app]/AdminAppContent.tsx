@@ -138,6 +138,9 @@ const LaptopCostCentersClient = dynamic(() => import('../LaptopCostCentersClient
 
 /* ── SOA Consolidation ── */
 const SoaCyclesClient = dynamic(() => import('../SoaCyclesClient'), { loading });
+const SoaCountryScheduleClient = dynamic(() => import('../SoaCountryScheduleClient'), {
+  loading,
+});
 const SoaExcludedVendorsClient = dynamic(() => import('../SoaExcludedVendorsClient'), { loading });
 const SoaAccessApprovalsClient = dynamic(() => import('../SoaAccessApprovalsClient'), { loading });
 const SoaCountryTeamClient = dynamic(() => import('../SoaCountryTeamClient'), { loading });
@@ -251,7 +254,14 @@ export default function AdminAppContent(props: AdminAppContentProps) {
 
     /* ── SOA Consolidation ── */
     case 'soa/cycles':
-      return <SoaCyclesClient />;
+      return (
+        <div className="space-y-8">
+          <SoaCyclesClient />
+          {/* The cycle's dates move everybody; the matrix below moves one country. Same screen
+              because they are the same decision looked at from two distances. */}
+          <SoaCountryScheduleClient />
+        </div>
+      );
     case 'soa/excluded-vendors':
       return <SoaExcludedVendorsClient />;
     case 'soa/access-approvals':

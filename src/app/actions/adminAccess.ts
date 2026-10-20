@@ -2,6 +2,7 @@
 
 import pool from '@/lib/db';
 import { normalizeEmail, requireAdmin, withAccessFallback } from '@/lib/require-access';
+import { NOT_CAPTURED, notifyAccessDecision } from '@/lib/access-request-notify';
 import { logger } from '@/lib/logger';
 import type { StoredAccessStatus } from '@/types/access';
 
@@ -85,6 +86,25 @@ export async function getPendingAccessCount(): Promise<number> {
 
 /* ─── approveAccessRequest ───────────────────────────────────── */
 
+/**
+ * The requester's name, for the mail that tells them what was decided.
+ *
+ * Read rather than passed in: the admin screens call approve and reject with an address and
+ * nothing else, and an email addressed to "you" reads worse than one addressed to a name.
+ * Falls back to the address, which is always something.
+ */
+async function requesterName(email: string): Promise<string> {
+  try {
+    const { rows } = await pool.query<{ display_name: string | null }>(
+      `SELECT display_name FROM access_requests WHERE LOWER(user_email) = $1`,
+      [email],
+    );
+    return rows[0]?.display_name?.trim() || email;
+  } catch {
+    return email;
+  }
+}
+
 export async function approveAccessRequest(
   userEmail: string,
   countries: string[],
@@ -108,6 +128,18 @@ export async function approveAccessRequest(
       actor: actor.email,
       countries: countries.length,
     });
+    /* After the grant and not awaited into the result: the access is already real, so a
+       webhook that is down should leave somebody un-emailed rather than report a failure for
+       work that succeeded. */
+    notifyAccessDecision({
+      tool: 'SC Agents Platform',
+      decision: 'approved',
+      name: await requesterName(normalizeEmail(userEmail)),
+      email: normalizeEmail(userEmail),
+      country: countries.join(', '),
+      role: NOT_CAPTURED,
+      decidedBy: actor.email,
+    }).catch(() => {});
     return { success: true };
   } catch (err) {
     log.error('access.approve_failed', err, { subject: normalizeEmail(userEmail) });
@@ -132,6 +164,15 @@ export async function rejectAccessRequest(
       [normalizeEmail(userEmail), actor.email],
     );
     log.info('access.rejected', { subject: normalizeEmail(userEmail), actor: actor.email });
+    notifyAccessDecision({
+      tool: 'SC Agents Platform',
+      decision: 'rejected',
+      name: await requesterName(normalizeEmail(userEmail)),
+      email: normalizeEmail(userEmail),
+      country: NOT_CAPTURED,
+      role: NOT_CAPTURED,
+      decidedBy: actor.email,
+    }).catch(() => {});
     return { success: true };
   } catch (err) {
     log.error('access.reject_failed', err, { subject: normalizeEmail(userEmail) });

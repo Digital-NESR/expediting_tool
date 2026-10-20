@@ -3,6 +3,7 @@ import { shortDayMonth } from '@/lib/format';
 import { countriesFor, type SoaActor } from './access';
 import { ensureSoaSchema, sql } from './db';
 import { resolvedContactsForMany } from './recipients';
+import { effectiveCycleDeadline, effectiveSubmissionDeadline } from './deadlines';
 import { entryNotExcluded, notExcludedVendorNo } from './exclusions';
 import { COVERED_STATUS_SQL, type VendorCycleStatus } from './status';
 
@@ -193,9 +194,28 @@ export async function resolveCountry(
   return { countryId: chosen?.id ?? null, available };
 }
 
-/** The cycle the tool opens on. Null when an admin has not opened one. */
-async function activeCycle(): Promise<ActiveCycle | null> {
-  const rows = await sql<QueryResultRow[]>(`SELECT * FROM cycles WHERE is_active LIMIT 1`);
+/**
+ * The cycle the tool opens on, carrying THIS country's dates. Null when no cycle is open.
+ *
+ * The two deadlines are resolved per country rather than read off the cycle, because a country
+ * may have been given its own. Everything downstream reads them from here — the dashboard
+ * labels, the days-remaining counters, and `isCollectionWindowClosed`, which decides whether a
+ * champion below the coverage target may hand off — so resolving once here is what keeps a
+ * country's screens agreeing with the letter its suppliers were sent.
+ *
+ * `countryId` is null only before a country has been resolved, which is the empty-payload path;
+ * there is no country to be specific about, so the cycle's own dates are the honest answer.
+ */
+async function activeCycle(countryId: string | null): Promise<ActiveCycle | null> {
+  const rows = await sql<QueryResultRow[]>(
+    countryId
+      ? `SELECT c.*,
+                ${effectiveSubmissionDeadline('c', '?')} AS submission_deadline,
+                ${effectiveCycleDeadline('c', '?')} AS cycle_deadline
+           FROM cycles c WHERE c.is_active LIMIT 1`
+      : `SELECT * FROM cycles WHERE is_active LIMIT 1`,
+    countryId ? [countryId, countryId] : [],
+  );
   if (!rows.length) return null;
   const r = rows[0];
   const deadline = new Date(asIso(r.submission_deadline));
@@ -229,7 +249,7 @@ async function activeCycle(): Promise<ActiveCycle | null> {
  * Scoping screen's denominator and in this one, which is how Egypt came to read "target met" on
  * one screen and 23.70% here.
  */
-async function rollup(cycleId: number, deadline: Date): Promise<CountryRow[]> {
+async function rollup(cycleId: number): Promise<CountryRow[]> {
   /* Written once and used in four FILTERs below. An excluded entity that was locked into a
      chase list before it was excluded still has an entry, and counting its balance on the
      numerator while the denominator has dropped it would let coverage exceed 100%. */
@@ -270,20 +290,25 @@ async function rollup(cycleId: number, deadline: Date): Promise<CountryRow[]> {
      SELECT p.country_id, c.name, p.status, p.total, p.responded,
             p.scoped_balance, p.requested_balance, p.reminded_balance,
             p.received_balance, d.total_balance,
+            /* Per country, not one figure for the table: a country given another fortnight has
+               another fortnight, and a rollup counting it down to the cycle's date would put it
+               on the at-risk list for a deadline it is not working to. */
+            ${effectiveSubmissionDeadline('cy', 'p.country_id')} AS submission_deadline,
             COALESCE(string_agg(DISTINCT cu.name, ', '), '') AS champions
        FROM progress p
        JOIN countries c ON c.id = p.country_id
        JOIN denom d ON d.country_id = p.country_id
+       JOIN cycles cy ON cy.id = ?
        LEFT JOIN country_users cu
               ON cu.role = 'champion' AND cu.country_id = p.country_id
       GROUP BY p.country_id, c.name, c.sort_order, p.status, p.total, p.responded,
                p.scoped_balance, p.requested_balance, p.reminded_balance,
-               p.received_balance, d.total_balance
+               p.received_balance, d.total_balance, cy.id, cy.submission_deadline
       ORDER BY c.sort_order`,
-    [cycleId, cycleId],
+    [cycleId, cycleId, cycleId],
   );
 
-  const daysLeft = Math.max(0, daysBetween(new Date(), deadline));
+  const now = new Date();
   return rows.map((r) => {
     const total = Number(r.total_balance);
     const received = Number(r.received_balance);
@@ -309,7 +334,7 @@ async function rollup(cycleId: number, deadline: Date): Promise<CountryRow[]> {
       status: String(r.status),
       responded: Number(r.responded),
       total: Number(r.total),
-      daysLeft,
+      daysLeft: Math.max(0, daysBetween(now, new Date(asIso(r.submission_deadline)))),
     };
   });
 }
@@ -327,8 +352,9 @@ export async function loadSoa(
 ): Promise<SoaPayload> {
   await ensureSoaSchema();
 
-  const cycle = await activeCycle();
+  /* The country first, because the cycle's dates depend on which country is being looked at. */
   const { countryId, available } = await resolveCountry(actor, requestedCountry);
+  const cycle = await activeCycle(countryId);
   if (!cycle || !countryId) return { ...EMPTY, cycle, available, countryId };
 
   const ccRows = await sql<QueryResultRow[]>(
@@ -361,7 +387,7 @@ export async function loadSoa(
       countryName,
       available,
       totalBalance,
-      countries: await rollup(cycle.id, new Date(cycle.submissionDeadline)),
+      countries: await rollup(cycle.id),
     };
   }
 
@@ -401,7 +427,7 @@ export async function loadSoa(
         LIMIT 200`,
       [countryCycleId],
     ),
-    rollup(cycle.id, new Date(cycle.submissionDeadline)),
+    rollup(cycle.id),
   ]);
 
   /* One resolution for the country rather than the stored column, so what the tracking screen

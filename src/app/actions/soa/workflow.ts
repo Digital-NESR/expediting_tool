@@ -35,6 +35,7 @@ import { AppUrlNotConfiguredError, soaPortalUrl, uploadLinkFor } from '@/lib/soa
 import { notifySoaHandoff } from '@/lib/soa/notify';
 import { resolvedContactsFor, setVendorContactList } from '@/lib/soa/recipients';
 import { shortDateUTC } from '@/lib/format';
+import { effectiveSubmissionDeadline } from '@/lib/soa/deadlines';
 import { entryNotExcluded, notExcludedVendorNo } from '@/lib/soa/exclusions';
 import { COVERED_STATUS_SQL, isCollectionWindowClosed } from '@/lib/soa/status';
 import { letterContext, loadTemplate } from '@/lib/soa/templates';
@@ -103,7 +104,8 @@ async function loadEntry(entryId: number, min: 'champion' | 'viewer' = 'champion
             v.id AS vendor_id, v.name AS vendor_name, v.vendor_no,
             vce.upload_token,
             cc.country_id, cc.status::text AS country_cycle_status,
-            c.name AS country_name, cy.label, cy.submission_deadline
+            c.name AS country_name, cy.label,
+            ${effectiveSubmissionDeadline('cy', 'cc.country_id')} AS submission_deadline
        FROM vendor_cycle_entries vce
        JOIN vendors v        ON v.id = vce.vendor_id
        JOIN country_cycles cc ON cc.id = vce.country_cycle_id
@@ -772,7 +774,8 @@ export async function handOffSoaCountry(
   try {
     const actor = await requireSoaCountry(countryId, 'champion');
     const rows = await sql<QueryResultRow[]>(
-      `SELECT cc.id, cy.coverage_target_pct, cy.label, cy.submission_deadline,
+      `SELECT cc.id, cy.coverage_target_pct, cy.label,
+              ${effectiveSubmissionDeadline('cy', 'cc.country_id')} AS submission_deadline,
               COUNT(vce.id)::int AS vendor_count,
               COUNT(vce.id)
                 FILTER (WHERE vce.status::text IN (${COVERED_STATUS_SQL}))::int AS received_count,
