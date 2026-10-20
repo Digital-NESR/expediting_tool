@@ -11,14 +11,20 @@ import { airportFor, airportLabel } from './airports';
 
 /** The fields these folds need. Deliberately narrow, so any scoped booking shape satisfies it. */
 export interface RoutableBooking {
+  code: string;
   origin: string | null;
   destination: string | null;
+  /** `OneWay` / `Return` / `RoundTrip`; the only thing that says a trip comes back. */
+  direction: string | null;
   travelType: string | null;
   cabinClass: string | null;
   month: string | null;
   departureDate: string | null;
   amountUsd: number;
   country: string | null;
+  employeeId?: string | null;
+  employeeName?: string | null;
+  channelLabel?: string;
 }
 
 export interface RouteGroup {
@@ -47,9 +53,44 @@ export interface AirportNode {
   spendUsd: number;
 }
 
+/** One flown hop. `inferred` legs were derived, not recorded; the map says which. */
+export interface TripLeg {
+  origin: string;
+  destination: string;
+  label: string;
+  from: { lat: number; lon: number } | null;
+  to: { lat: number; lon: number } | null;
+  inferred: boolean;
+}
+
+/**
+ * One booking, with every hop it covers.
+ *
+ * The map's other view groups by route, which answers "which corridors do we fly" and
+ * deliberately loses the trip: DXB→CAI and CAI→DXB become two unrelated lines even when they
+ * are the two halves of one person's week. This keeps them together so one colour can carry
+ * one journey.
+ */
+export interface TripPath {
+  code: string;
+  legs: TripLeg[];
+  travellerName: string | null;
+  employeeId: string | null;
+  travelType: string | null;
+  departureDate: string | null;
+  spendUsd: number;
+  channelLabel: string;
+  /** `DXB → CAI → DXB`, the whole journey in one line. */
+  label: string;
+  /** True when any leg was derived from `direction` rather than read from a segment row. */
+  hasInferredLegs: boolean;
+}
+
 export interface MapData {
   nodes: AirportNode[];
   routes: RouteGroup[];
+  /** One entry per booking, so the map can colour a journey rather than a corridor. */
+  trips: TripPath[];
   /** Codes with no coordinate, named so the map can admit what it is not showing. */
   unplotted: { code: string; trips: number }[];
   /** Bookings with no origin or no destination at all, so they are on no route. */
@@ -62,7 +103,10 @@ export interface MapData {
  * Direction is kept: `DXB → DMM` and `DMM → DXB` are separate routes, because a chart that
  * merged them would hide a one-way pattern, which on this data is most of the rotation travel.
  */
-export function buildMapData(bookings: readonly RoutableBooking[]): MapData {
+export function buildMapData(
+  bookings: readonly RoutableBooking[],
+  segmentsByCode: ReadonlyMap<string, BookingSegment[]> = new Map(),
+): MapData {
   const routes = new Map<string, RouteGroup>();
   const seen = new Map<string, number>();
   const nodes = new Map<string, AirportNode>();
@@ -128,9 +172,97 @@ export function buildMapData(bookings: readonly RoutableBooking[]): MapData {
   return {
     nodes: [...nodes.values()].sort((x, y) => y.trips - x.trips),
     routes: [...routes.values()].sort((x, y) => y.trips - x.trips),
+    trips: buildTripPaths(bookings, segmentsByCode),
     unplotted,
     withoutRoute,
   };
+}
+
+/** A `flightsegments` row, reduced to what a path needs. Ordered by the caller. */
+export interface BookingSegment {
+  code: string;
+  direction: string | null;
+  origin: string | null;
+  destination: string | null;
+}
+
+const leg = (from: string, to: string, inferred: boolean): TripLeg => {
+  const a = airportFor(from);
+  const z = airportFor(to);
+  return {
+    origin: from,
+    destination: to,
+    label: `${from} → ${to}`,
+    from: a ? { lat: a.lat, lon: a.lon } : null,
+    to: z ? { lat: z.lat, lon: z.lon } : null,
+    inferred,
+  };
+};
+
+/**
+ * Turn each booking into the sequence of hops it covers.
+ *
+ * Three sources, in descending order of how much they are trusted:
+ *
+ *  1. `flightsegments`, where they exist. These are what was actually booked, and 126 of the
+ *     230 bookings have them.
+ *  2. The booking's own `departureAirportCode` / `arrivalAirportCode` otherwise, which is one
+ *     hop whatever the trip really was.
+ *  3. A return hop appended when `direction` says the trip comes back and the legs so far do
+ *     not end where they started. 83 Return bookings carry no segments at all, and drawing
+ *     them as a one-way line would say something false about them.
+ *
+ * (3) is the only one that invents anything, so it is the only one marked `inferred`, and the
+ * map draws those dashed. A reader should be able to see which half of a journey the data
+ * actually knows about.
+ */
+export function buildTripPaths(
+  bookings: readonly RoutableBooking[],
+  segmentsByCode: ReadonlyMap<string, BookingSegment[]>,
+): TripPath[] {
+  const paths: TripPath[] = [];
+
+  for (const b of bookings) {
+    const recorded = segmentsByCode.get(b.code) ?? [];
+    const legs: TripLeg[] = [];
+
+    for (const seg of recorded) {
+      const from = (seg.origin ?? '').trim().toUpperCase();
+      const to = (seg.destination ?? '').trim().toUpperCase();
+      if (from && to) legs.push(leg(from, to, false));
+    }
+
+    if (legs.length === 0) {
+      const from = (b.origin ?? '').trim().toUpperCase();
+      const to = (b.destination ?? '').trim().toUpperCase();
+      if (!from || !to) continue;
+      legs.push(leg(from, to, false));
+    }
+
+    const direction = (b.direction ?? '').trim().toLowerCase();
+    const returns = direction === 'return' || direction === 'roundtrip';
+    const start = legs[0].origin;
+    const end = legs[legs.length - 1].destination;
+    if (returns && end !== start) legs.push(leg(end, start, true));
+
+    const stops = [legs[0].origin, ...legs.map((l) => l.destination)];
+    paths.push({
+      code: b.code,
+      legs,
+      travellerName: b.employeeName ?? null,
+      employeeId: b.employeeId ?? null,
+      travelType: b.travelType,
+      departureDate: b.departureDate,
+      spendUsd: b.amountUsd,
+      channelLabel: b.channelLabel ?? '',
+      label: stops.join(' → '),
+      hasInferredLegs: legs.some((l) => l.inferred),
+    });
+  }
+
+  /* Newest first, which is the order a reader scans a legend in, and the order the trip list
+     beside the map already uses. */
+  return paths.sort((a, z) => (z.departureDate ?? '').localeCompare(a.departureDate ?? ''));
 }
 
 export interface TravelTypeRow {

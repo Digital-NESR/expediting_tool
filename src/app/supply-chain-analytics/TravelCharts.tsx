@@ -10,17 +10,14 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  ComposedChart,
-  LabelList,
   Legend,
-  Line,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
-import type { LeadTimeBar, MonthGroup, ViolationMonth } from '@/lib/travel-analytics/queries';
+import type { LeadTimeBar, ViolationMonth } from '@/lib/travel-analytics/queries';
 
 export const GREEN = '#307c4c';
 
@@ -29,89 +26,7 @@ export const GREEN = '#307c4c';
    them. */
 export const PALETTE = ['#307c4c', '#6AAF8E', '#0e7490', '#58595B', '#7c3aed', '#9CA3AF'];
 
-const usd = (n: number) => `$${Math.round(n).toLocaleString()}`;
 const axisTick = { fontSize: 11, fill: '#64748b' };
-
-/* Short money for a label sitting on a bar: `$40k` where the axis says `$40,000`. A label is
-   read at a glance and competes with eleven others for width, so the thousands separator and
-   three trailing zeros are noise there even though they belong on the axis. */
-const usdShort = (n: number) => {
-  const v = Math.round(n);
-  if (v === 0) return '$0';
-  if (Math.abs(v) >= 1000) return `$${(v / 1000).toFixed(Math.abs(v) >= 10000 ? 0 : 1)}k`;
-  return `$${v}`;
-};
-
-/* ─── Spend by month, with the booking count beside it ───────────────────────
-   Two axes on purpose. Spend alone cannot be read without the volume underneath it: June is
-   the busiest month of the feed and one of the cheapest, because 28 of its 47 bookings are
-   priced at $0. The line is what makes that visible rather than puzzling. */
-
-export function SpendByMonthChart({ data }: { data: MonthGroup[] }) {
-  const chartData = data.map((m) => ({
-    label: m.label,
-    spend: Math.round(m.totalUsd),
-    bookings: m.bookings,
-    priced: m.priced,
-  }));
-
-  return (
-    <ResponsiveContainer width="100%" height={300}>
-      <ComposedChart data={chartData} margin={{ top: 22, right: 10, bottom: 0, left: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-        <XAxis dataKey="label" tick={axisTick} />
-        <YAxis yAxisId="left" tick={axisTick} tickFormatter={(v: number) => usd(v)} width={70} />
-        <YAxis
-          yAxisId="right"
-          orientation="right"
-          tick={axisTick}
-          allowDecimals={false}
-          width={40}
-        />
-        <Tooltip
-          formatter={(value: unknown, name: unknown) =>
-            name === 'spend'
-              ? [usd(Number(value)), 'Spend']
-              : [Number(value).toLocaleString(), 'Bookings']
-          }
-        />
-        <Legend formatter={(v) => (v === 'spend' ? 'Spend (USD)' : 'Bookings')} />
-        <Bar yAxisId="left" dataKey="spend" fill={GREEN} radius={[4, 4, 0, 0]} name="spend">
-          {/* Inside the bar rather than above it, because above would collide with the
-              bookings line wherever the two series cross - which on this data is most of
-              the chart. A month priced at $0 has no bar to write in, so its label is
-              suppressed rather than left floating on the axis. */}
-          <LabelList
-            dataKey="spend"
-            position="insideTop"
-            offset={6}
-            fontSize={10}
-            fill="#ffffff"
-            formatter={(v: unknown) => (Number(v) > 0 ? usdShort(Number(v)) : '')}
-          />
-        </Bar>
-        <Line
-          yAxisId="right"
-          type="monotone"
-          dataKey="bookings"
-          stroke="#0e7490"
-          strokeWidth={2}
-          dot={{ r: 3, fill: '#0e7490' }}
-          name="bookings"
-        >
-          <LabelList
-            dataKey="bookings"
-            position="top"
-            offset={8}
-            fontSize={10}
-            fill="#0e7490"
-            fontWeight={600}
-          />
-        </Line>
-      </ComposedChart>
-    </ResponsiveContainer>
-  );
-}
 
 /* ─── Lead-time histogram ────────────────────────────────────────────────────
    The first bar is the 44 bookings created after their flight had already left, and it is

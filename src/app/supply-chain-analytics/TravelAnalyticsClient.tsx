@@ -14,9 +14,10 @@
    Band 4 · Traveller data    admin only, with the identity documents behind an audited reveal
    ───────────────────────────────────────────────────────────── */
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useTransition } from 'react';
 import { AlertTriangle, Eye, Loader2, ShieldAlert } from 'lucide-react';
-import { revealTravellerIdentity } from '@/app/actions/travel-analytics';
+import { getTravelAnalytics, revealTravellerIdentity } from '@/app/actions/travel-analytics';
+import type { TravelFilters } from '@/lib/travel-analytics/filters';
 import type { IdentityDocuments } from '@/lib/travel-analytics/queries';
 import type {
   ApproverBottleneck,
@@ -28,15 +29,13 @@ import type {
 } from '@/lib/travel-analytics/queries';
 import Link from 'next/link';
 import { formatDate } from '@/lib/format';
+import BookingChannels from './BookingChannels';
 import SpendByDimension from './SpendByDimension';
+import SpendOverTime from './SpendOverTime';
+import TravelFilterBar from './TravelFilterBar';
 import TravelMap from './TravelMap';
 import TravelTypes from './TravelTypes';
-import {
-  CarrierMixChart,
-  LeadTimeHistogram,
-  SpendByMonthChart,
-  ViolationsOverTimeChart,
-} from './TravelCharts';
+import { CarrierMixChart, LeadTimeHistogram, ViolationsOverTimeChart } from './TravelCharts';
 
 const BRAND = '#307c4c';
 const CARD = 'rounded-2xl border border-slate-200 bg-white shadow-sm';
@@ -344,8 +343,34 @@ function TravellerRow({ traveller }: { traveller: TravellerRecord }) {
 
 /* ═══ The dashboard ══════════════════════════════════════════════════════════ */
 
-export default function TravelAnalyticsClient({ data }: { data: TravelAnalyticsData | null }) {
+export default function TravelAnalyticsClient({
+  data: initial,
+}: {
+  data: TravelAnalyticsData | null;
+}) {
   const [travellerFilter, setTravellerFilter] = useState('');
+
+  /* The filtered payload replaces the server's, and the server's is what we fall back to. The
+     filters are applied THERE, in loadTravelAnalytics, for the reason the filter bar explains:
+     folding them again in the browser would be a second implementation of every band. */
+  const [data, setData] = useState<TravelAnalyticsData | null>(initial);
+  const [pending, startTransition] = useTransition();
+  const [filterError, setFilterError] = useState('');
+
+  const applyFilters = useCallback((next: TravelFilters) => {
+    startTransition(async () => {
+      const fresh = await getTravelAnalytics(next);
+      /* A null here means the grant went away mid-session, not that the filter matched nothing
+         — an empty match still returns a payload. Keeping the old data and saying so beats
+         replacing the board with the no-access card over one failed round trip. */
+      if (!fresh) {
+        setFilterError('Could not apply that filter. The board below is unchanged.');
+        return;
+      }
+      setFilterError('');
+      setData(fresh);
+    });
+  }, []);
 
   const travellers = useMemo(() => {
     const rows = data?.admin?.travellers ?? [];
@@ -394,6 +419,16 @@ export default function TravelAnalyticsClient({ data }: { data: TravelAnalyticsD
         </span>
       </div>
 
+      <TravelFilterBar
+        options={data.filterOptions}
+        applied={data.appliedFilters}
+        onChange={applyFilters}
+        busy={pending}
+        showing={data.bookingsInScope}
+        total={data.bookingsBeforeFilters}
+      />
+      {filterError && <p className="text-[12px] font-semibold text-[#B71C1C]">{filterError}</p>}
+
       {/* ══ Band 1 · Headline ══ */}
       <Band
         number={1}
@@ -436,12 +471,10 @@ export default function TravelAnalyticsClient({ data }: { data: TravelAnalyticsD
 
       {/* ══ Band 2 · Finance ══ */}
       <Band number={2} title="Finance" blurb="Where the money went, and who it is charged to.">
-        <Card
-          title="Spend by month"
-          subtitle="Bars are spend; the line is the number of bookings. They diverge wherever the feed priced a batch at $0."
-        >
-          <SpendByMonthChart data={finance.byMonth} />
-        </Card>
+        <SpendOverTime
+          days={finance.byDay}
+          note="Bars are spend; the line is the number of bookings. They diverge wherever the feed priced a batch at $0."
+        />
 
         {/* Four charts that all answered "where did the money go" are now one, because the
             comparison between them is the interesting part and scrolling between two charts to
@@ -455,9 +488,11 @@ export default function TravelAnalyticsClient({ data }: { data: TravelAnalyticsD
           note="Country is resolved from the cost-centre mapping; segment padding from the feed is trimmed before grouping."
         />
 
-        <TravelMap data={data.map} />
+        <TravelMap data={data.map} aspect fit="mena" />
 
         <TravelTypes band={data.travelTypes} />
+
+        <BookingChannels band={data.channels} />
 
         <Card title="Average ticket by cabin class">
           <SpendBars rows={finance.byCabinClass} emptyText="No cabin classes in scope." />

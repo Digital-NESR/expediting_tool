@@ -3,6 +3,8 @@ import { AIRPORTS, airportFor, airportLabel, unplottedFrom } from '@/lib/travel-
 import {
   buildMapData,
   buildTravelTypeBand,
+  buildTripPaths,
+  type BookingSegment,
   type RoutableBooking,
 } from '@/lib/travel-analytics/routes';
 
@@ -16,7 +18,12 @@ import {
  * complete and is not.
  */
 
+/* Each call gets its own code. A trip path is per booking, so two fixtures sharing one code
+   would be one journey and the counts would quietly halve. */
+let nextCode = 0;
 const trip = (o: Partial<RoutableBooking> = {}): RoutableBooking => ({
+  code: `BTO${100000 + (nextCode += 1)}`,
+  direction: 'OneWay',
   origin: 'DXB',
   destination: 'DMM',
   travelType: 'Business Travel',
@@ -119,7 +126,7 @@ describe('buildMapData', () => {
 
   it('holds together with nothing at all', () => {
     const map = buildMapData([]);
-    expect(map).toEqual({ nodes: [], routes: [], unplotted: [], withoutRoute: 0 });
+    expect(map).toEqual({ nodes: [], routes: [], trips: [], unplotted: [], withoutRoute: 0 });
   });
 });
 
@@ -192,5 +199,67 @@ describe('buildTravelTypeBand', () => {
     const band = buildTravelTypeBand([]);
     expect(band.rows).toEqual([]);
     expect(band.byMonth).toEqual([]);
+  });
+});
+
+describe('buildTripPaths', () => {
+  const segs = (
+    ...rows: Array<[string, string, string, string]>
+  ): Map<string, BookingSegment[]> => {
+    const m = new Map<string, BookingSegment[]>();
+    for (const [code, direction, origin, destination] of rows) {
+      const list = m.get(code) ?? [];
+      list.push({ code, direction, origin, destination });
+      m.set(code, list);
+    }
+    return m;
+  };
+
+  it('keeps every leg of one booking together', () => {
+    const b = trip({ code: 'BTO1', direction: 'Return', destination: 'CAI' });
+    const [path] = buildTripPaths(
+      [b],
+      segs(['BTO1', 'Outbound', 'DXB', 'CAI'], ['BTO1', 'Inbound', 'CAI', 'DXB']),
+    );
+    expect(path.legs.map((l) => l.label)).toEqual(['DXB → CAI', 'CAI → DXB']);
+    expect(path.label).toBe('DXB → CAI → DXB');
+    expect(path.hasInferredLegs).toBe(false);
+  });
+
+  it('infers the way home for a Return booking with no segments, and marks it', () => {
+    const [path] = buildTripPaths(
+      [trip({ code: 'OFF1', direction: 'Return', destination: 'CAI' })],
+      new Map(),
+    );
+    expect(path.legs).toHaveLength(2);
+    expect(path.legs[0].inferred).toBe(false);
+    expect(path.legs[1].inferred).toBe(true);
+    expect(path.legs[1].label).toBe('CAI → DXB');
+    expect(path.hasInferredLegs).toBe(true);
+  });
+
+  it('invents nothing for a one-way booking', () => {
+    const [path] = buildTripPaths([trip({ code: 'OFF2', direction: 'OneWay' })], new Map());
+    expect(path.legs).toHaveLength(1);
+    expect(path.hasInferredLegs).toBe(false);
+  });
+
+  it('does not append a return leg when the segments already come home', () => {
+    const b = trip({ code: 'BTO2', direction: 'Return', destination: 'CAI' });
+    const [path] = buildTripPaths(
+      [b],
+      segs(['BTO2', 'Outbound', 'DXB', 'CAI'], ['BTO2', 'Inbound', 'CAI', 'DXB']),
+    );
+    expect(path.legs.filter((l) => l.inferred)).toHaveLength(0);
+  });
+
+  it('drops a booking that has no route at all rather than guessing one', () => {
+    expect(buildTripPaths([trip({ code: 'X', origin: null })], new Map())).toHaveLength(0);
+  });
+
+  it('gives every booking its own path, so the map can colour per journey', () => {
+    const map = buildMapData([trip(), trip(), trip({ destination: 'CAI' })]);
+    expect(map.trips).toHaveLength(3);
+    expect(new Set(map.trips.map((t) => t.code)).size).toBe(3);
   });
 });

@@ -70,7 +70,20 @@ import {
   type TravelRole,
   type TravelScope,
 } from './scope';
-import { buildMapData, buildTravelTypeBand, type MapData, type TravelTypeBand } from './routes';
+import {
+  applyFilters,
+  filterOptionsFrom,
+  sanitiseFilters,
+  type TravelFilterOptions,
+  type TravelFilters,
+} from './filters';
+import {
+  buildMapData,
+  buildTravelTypeBand,
+  type BookingSegment,
+  type MapData,
+  type TravelTypeBand,
+} from './routes';
 
 const log = logger('travel-analytics-queries');
 
@@ -130,9 +143,39 @@ export async function travelCountryOptions(): Promise<string[]> {
   }
 }
 
+/**
+ * How a trip was booked, read off its reference.
+ *
+ * `BTO…` went through the Travel Portal. `OFF…` was arranged offline over email and entered
+ * afterwards, which is why those 76 bookings carry no policy violations and no savings
+ * analysis: they never passed the checks that produce either. Their compliance figures are
+ * absent, not clean, and anything that averages the two together will quietly report the
+ * portal as worse behaved than the channel that is not checked at all.
+ *
+ * Derived from the prefix because the feed has no column for it. Anything that is neither is
+ * `Other` rather than guessed into one of the two.
+ */
+export type BookingChannel = 'BTO' | 'OFF' | 'Other';
+
+export function bookingChannel(code: string | null | undefined): BookingChannel {
+  const c = String(code ?? '')
+    .trim()
+    .toUpperCase();
+  if (c.startsWith('BTO')) return 'BTO';
+  if (c.startsWith('OFF')) return 'OFF';
+  return 'Other';
+}
+
+/** What a reader sees. The codes mean nothing to anybody who has not been told. */
+export const CHANNEL_LABEL: Record<BookingChannel, string> = {
+  BTO: 'Booked in the portal',
+  OFF: 'Booked offline',
+  Other: 'Unclassified',
+};
+
 /* ═══ The scoping query ══════════════════════════════════════════════════════ */
 
-interface ScopedBooking {
+export interface ScopedBooking {
   code: string;
   country: string | null;
   costCentre: string | null;
@@ -142,6 +185,10 @@ interface ScopedBooking {
   segment: string | null;
   employeeId: string | null;
   employeeName: string | null;
+  /** How the trip was booked; see `bookingChannel`. */
+  channel: BookingChannel;
+  /** The same thing spelled for a reader, which is what the filter matches on. */
+  channelLabel: string;
   status: string | null;
   travelType: string | null;
   direction: string | null;
@@ -228,6 +275,10 @@ async function loadScopedBookings(scope: TravelScope): Promise<ScopedBooking[]> 
     segment: r.segment,
     employeeId: r.employee_id ? String(r.employee_id).trim() : null,
     employeeName: r.employee_name ? String(r.employee_name).trim() : null,
+    channel: bookingChannel(String(r.code)),
+    /* The filter reads the label, not the code: a reader picks "Booked offline" from a
+       dropdown and nobody outside this file knows what OFF means. */
+    channelLabel: CHANNEL_LABEL[bookingChannel(String(r.code))],
     status: r.status ? String(r.status).trim() : null,
     travelType: r.travel_type ? String(r.travel_type).trim() : null,
     direction: r.direction ? String(r.direction).trim() : null,
@@ -407,7 +458,41 @@ export interface AdminBand {
   quality: QualityFlag[];
 }
 
+export interface ChannelRow {
+  channel: BookingChannel;
+  label: string;
+  bookings: number;
+  spendUsd: number;
+  pricedBookings: number;
+  averageTicketUsd: number | null;
+  /** Bookings with at least one policy flag. Zero for a channel nothing checks. */
+  flaggedBookings: number;
+  /** Bookings the savings feed covers. Zero for a channel it never saw. */
+  savingsCovered: number;
+  missedSavingsUsd: number;
+}
+
+export interface ChannelBand {
+  rows: ChannelRow[];
+  /** Trips per channel per month, for the trend. */
+  byMonth: { month: string; label: string; counts: Record<string, number> }[];
+  /**
+   * True when a channel carries bookings but no compliance signal at all, which means its
+   * clean record is an absence of checking rather than good behaviour. The screen says so
+   * rather than letting a reader infer the opposite.
+   */
+  uncheckedChannels: BookingChannel[];
+}
+
 export interface TravelAnalyticsData {
+  /** How trips were booked: in the portal, or offline and entered afterwards. */
+  channels: ChannelBand;
+  /** Everything a reader may filter by, built from their scope BEFORE filters are applied. */
+  filterOptions: TravelFilterOptions;
+  /** What is currently applied, after the server has discarded anything unrecognised. */
+  appliedFilters: TravelFilters;
+  /** Bookings in scope before filtering, so the header can say "showing 41 of 230". */
+  bookingsBeforeFilters: number;
   /** Airports and routes for the map, plus whatever it could not place. */
   map: MapData;
   /** The travel-type band: how the three kinds of trip differ. */
@@ -471,8 +556,22 @@ const num = (v: unknown): number => {
  * optimisation figures and nobody but an admin is sent a traveller's name beside their passport
  * expiry. Hiding a section in the client would leave the data in the page source.
  */
-export async function loadTravelAnalytics(scope: TravelScope): Promise<TravelAnalyticsData> {
-  const bookings = await loadScopedBookings(scope);
+export async function loadTravelAnalytics(
+  scope: TravelScope,
+  requestedFilters?: TravelFilters | null,
+): Promise<TravelAnalyticsData> {
+  const inScope = await loadScopedBookings(scope);
+
+  /* Options come from the UNFILTERED set so the dropdowns hold still, and the incoming filters
+     are checked against them: these arrive from a browser through a public endpoint, so a
+     value that is not a real option is discarded rather than trusted or refused. */
+  const filterOptions = filterOptionsFrom(inScope);
+  const appliedFilters = sanitiseFilters(requestedFilters, filterOptions);
+
+  /* THE ONLY PLACE FILTERS ARE APPLIED. Every band below is a fold over `bookings` or a query
+     keyed on its codes, so narrowing here narrows all of them and a new band cannot forget to
+     filter, because no band knows filters exist. */
+  const bookings = applyFilters(inScope, appliedFilters);
   const codes = bookings.map((b) => b.code);
 
   const base = {
@@ -480,6 +579,9 @@ export async function loadTravelAnalytics(scope: TravelScope): Promise<TravelAna
     countries: scope.countries,
     generatedAt: new Date().toISOString(),
     bookingsInScope: bookings.length,
+    bookingsBeforeFilters: inScope.length,
+    filterOptions,
+    appliedFilters,
   };
 
   /* No codes means no bookings this reader may see — a country grant that covers nothing, or a
@@ -499,6 +601,7 @@ export async function loadTravelAnalytics(scope: TravelScope): Promise<TravelAna
          ones that could drift from what the builders produce. */
       map: buildMapData([]),
       travelTypes: buildTravelTypeBand([]),
+      channels: { rows: [], byMonth: [], uncheckedChannels: [] },
       optimisation: canSeeOptimisation(scope.role) ? emptyOptimisation() : null,
       admin: canRevealIdentityDocuments(scope.role)
         ? { travellers: [], expiringPassports: [], quality: [] }
@@ -506,7 +609,9 @@ export async function loadTravelAnalytics(scope: TravelScope): Promise<TravelAna
     };
   }
 
-  const [savings, optimisation, admin] = await Promise.all([
+  const [segments, channelSignals, savings, optimisation, admin] = await Promise.all([
+    loadBookingSegments(codes),
+    loadChannelSignals(codes),
     loadSavingsHeadline(codes),
     canSeeOptimisation(scope.role) ? loadOptimisation(codes, bookings) : Promise.resolve(null),
     canRevealIdentityDocuments(scope.role) ? loadAdminBand(codes, bookings) : Promise.resolve(null),
@@ -524,10 +629,150 @@ export async function loadTravelAnalytics(scope: TravelScope): Promise<TravelAna
       savingsCoveredBookings: savings.coveredBookings,
     },
     finance: buildFinance(bookings, spend),
-    map: buildMapData(bookings),
+    map: buildMapData(bookings, segments),
     travelTypes: buildTravelTypeBand(bookings),
+    channels: buildChannelBand(bookings, channelSignals),
     optimisation,
     admin,
+  };
+}
+
+/**
+ * The recorded hops per booking, outbound first.
+ *
+ * Ordered in SQL rather than in JS because the ordering rule is a property of the feed:
+ * `direction` is 'Outbound' / 'Inbound' and `id` is the insertion order within a booking, so
+ * outbound-then-id is the sequence they were booked in. A JS sort would have to re-state that,
+ * and 62 rows carry a NULL `code` and belong to no booking at all — excluded here so they can
+ * never be attached to the wrong one.
+ */
+async function loadBookingSegments(
+  codes: readonly string[],
+): Promise<Map<string, BookingSegment[]>> {
+  const byCode = new Map<string, BookingSegment[]>();
+  if (!codes.length) return byCode;
+  const { rows } = await travelPortalPool.query<{
+    code: string;
+    direction: string | null;
+    origin: string | null;
+    destination: string | null;
+  }>(
+    `SELECT code, direction, origin, destination
+       FROM flightsegments
+      WHERE code = ANY($1)
+      ORDER BY code,
+               CASE WHEN LOWER(COALESCE(direction, '')) = 'outbound' THEN 0 ELSE 1 END,
+               id`,
+    [codes as string[]],
+  );
+  for (const r of rows) {
+    const code = String(r.code);
+    const list = byCode.get(code) ?? [];
+    list.push({
+      code,
+      direction: r.direction,
+      origin: r.origin,
+      destination: r.destination,
+    });
+    byCode.set(code, list);
+  }
+  return byCode;
+}
+
+/* ═══ Booking channel ════════════════════════════════════════════════════════ */
+
+export interface ChannelSignals {
+  flagged: Set<string>;
+  savingsByCode: Map<string, number>;
+}
+
+/**
+ * Which bookings carry a policy flag, and what the savings feed says about them.
+ *
+ * Read per booking rather than per channel so the fold stays in JS with everything else, and
+ * so the same numbers are available if the channel split is ever cut another way.
+ */
+async function loadChannelSignals(codes: readonly string[]): Promise<ChannelSignals> {
+  if (!codes.length) return { flagged: new Set(), savingsByCode: new Map() };
+  const [violations, savings] = await Promise.all([
+    travelPortalPool.query<{ code: string }>(
+      `SELECT DISTINCT code FROM policyviolations WHERE code = ANY($1)`,
+      [codes as string[]],
+    ),
+    travelPortalPool.query<{ code: string; missed: string }>(
+      `SELECT code, COALESCE(SUM(missed_savings_usd), 0)::text AS missed
+         FROM savings_analysis WHERE code = ANY($1) GROUP BY code`,
+      [codes as string[]],
+    ),
+  ]);
+  return {
+    flagged: new Set(violations.rows.map((r) => r.code)),
+    savingsByCode: new Map(savings.rows.map((r) => [r.code, Number(r.missed) || 0])),
+  };
+}
+
+/**
+ * The two booking channels, side by side.
+ *
+ * The finding this exists to make visible: offline bookings have no policy flags and no
+ * savings analysis, because neither is produced for a trip that never went through the
+ * portal. Their compliance record is empty, not clean, and a reader comparing the columns
+ * without being told would conclude the opposite of the truth.
+ */
+export function buildChannelBand(
+  bookings: readonly ScopedBooking[],
+  signals: ChannelSignals,
+): ChannelBand {
+  const byChannel = new Map<BookingChannel, ScopedBooking[]>();
+  for (const b of bookings) {
+    const list = byChannel.get(b.channel) ?? [];
+    list.push(b);
+    byChannel.set(b.channel, list);
+  }
+
+  const rows: ChannelRow[] = [...byChannel.entries()]
+    .map(([channel, list]) => {
+      const priced = list.filter((b) => b.amountUsd > 0);
+      const covered = list.filter((b) => signals.savingsByCode.has(b.code));
+      return {
+        channel,
+        label: CHANNEL_LABEL[channel],
+        bookings: list.length,
+        spendUsd: list.reduce((sum, b) => sum + b.amountUsd, 0),
+        pricedBookings: priced.length,
+        averageTicketUsd: priced.length
+          ? priced.reduce((sum, b) => sum + b.amountUsd, 0) / priced.length
+          : null,
+        flaggedBookings: list.filter((b) => signals.flagged.has(b.code)).length,
+        savingsCovered: covered.length,
+        missedSavingsUsd: covered.reduce(
+          (sum, b) => sum + (signals.savingsByCode.get(b.code) ?? 0),
+          0,
+        ),
+      };
+    })
+    .sort((a, z) => z.bookings - a.bookings);
+
+  const months = new Map<string, Record<string, number>>();
+  for (const b of bookings) {
+    if (!b.month) continue;
+    const row = months.get(b.month) ?? {};
+    row[b.channel] = (row[b.channel] ?? 0) + 1;
+    months.set(b.month, row);
+  }
+
+  return {
+    rows,
+    uncheckedChannels: rows
+      .filter((r) => r.bookings > 0 && r.flaggedBookings === 0 && r.savingsCovered === 0)
+      .map((r) => r.channel),
+    byMonth: [...months.entries()]
+      .sort((a, z) => a[0].localeCompare(z[0]))
+      .map(([month, counts]) => ({
+        month,
+        label: shortMonthYear(new Date(`${month}-01T00:00:00`)),
+        counts,
+      })),
   };
 }
 
@@ -686,7 +931,7 @@ export async function loadTravellerProfile(
     totalSpendUsd: mine.reduce((sum, b) => sum + b.amountUsd, 0),
     pricedTrips: priced.length,
     countries: [...new Set(mine.map((b) => b.country).filter((c): c is string => !!c))].sort(),
-    map: buildMapData(mine),
+    map: buildMapData(mine, await loadBookingSegments(codes)),
     travelTypes: buildTravelTypeBand(mine),
   };
 }

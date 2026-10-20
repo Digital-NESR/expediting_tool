@@ -120,7 +120,14 @@ export default function TravellerProfileClient({ profile }: { profile: Traveller
 
       <PolicyBand trips={profile.trips} />
 
-      <TravelMap data={profile.map} title="Where this person flies" height={300} />
+      {/* Journeys by default here: one person has a handful of trips, which is exactly the
+          case where a colour per booking reads and a corridor roll-up tells you nothing. */}
+      <TravelMap
+        data={profile.map}
+        title="Where this person flies"
+        height={360}
+        defaultMode="trips"
+      />
 
       <TravelTypes band={profile.travelTypes} />
 

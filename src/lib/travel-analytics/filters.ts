@@ -24,6 +24,8 @@ export interface TravelFilters {
   travelTypes?: string[];
   cabinClasses?: string[];
   statuses?: string[];
+  /** `Booked in the portal` / `Booked offline`, as `CHANNEL_LABEL` spells them. */
+  channels?: string[];
 }
 
 /** The fields a filter can test. Narrow on purpose, so any booking shape satisfies it. */
@@ -35,6 +37,7 @@ export interface FilterableBooking {
   travelType: string | null;
   cabinClass: string | null;
   status: string | null;
+  channelLabel: string;
 }
 
 export interface TravelFilterOptions {
@@ -45,6 +48,7 @@ export interface TravelFilterOptions {
   travelTypes: string[];
   cabinClasses: string[];
   statuses: string[];
+  channels: string[];
 }
 
 export const EMPTY_FILTERS: TravelFilters = {};
@@ -58,6 +62,7 @@ export const FILTER_KEYS = [
   'travelTypes',
   'cabinClasses',
   'statuses',
+  'channels',
 ] as const satisfies readonly (keyof TravelFilters)[];
 
 const FIELD_OF: Record<(typeof FILTER_KEYS)[number], keyof FilterableBooking> = {
@@ -68,6 +73,7 @@ const FIELD_OF: Record<(typeof FILTER_KEYS)[number], keyof FilterableBooking> = 
   travelTypes: 'travelType',
   cabinClasses: 'cabinClass',
   statuses: 'status',
+  channels: 'channelLabel',
 };
 
 /**
@@ -129,6 +135,7 @@ export function filterOptionsFrom(bookings: readonly FilterableBooking[]): Trave
     travelTypes: collect('travelTypes'),
     cabinClasses: collect('cabinClasses'),
     statuses: collect('statuses'),
+    channels: collect('channels'),
   };
 }
 

@@ -18,6 +18,7 @@
  */
 
 import { revalidatePath } from 'next/cache';
+import type { TravelFilters } from '@/lib/travel-analytics/filters';
 import { logger } from '@/lib/logger';
 import { AccessError, forbidden, requireAdmin, requireUser } from '@/lib/require-access';
 import {
@@ -54,13 +55,18 @@ export type TravelActionResult = { success: boolean; error?: string };
  * granted themselves travel access should get a card explaining that — not a digest error
  * across the whole page.
  */
-export async function getTravelAnalytics(): Promise<TravelAnalyticsData | null> {
+export async function getTravelAnalytics(
+  /* Filters arrive from the browser and are checked against this reader's own options inside
+     `loadTravelAnalytics`. They narrow what the scope already allows and can never widen it:
+     a filter naming a country the reader does not hold simply matches nothing. */
+  filters?: TravelFilters | null,
+): Promise<TravelAnalyticsData | null> {
   const actor = await requireUser();
   const scope = await travelScopeFor(actor.email);
   if (!scope) return null;
 
   try {
-    return await loadTravelAnalytics(scope);
+    return await loadTravelAnalytics(scope, filters ?? null);
   } catch (err) {
     log.error('getTravelAnalytics.failed', err);
     throw err;
