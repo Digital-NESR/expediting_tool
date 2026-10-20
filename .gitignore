@@ -51,3 +51,6 @@ scripts/data/
 /*.docx
 /*.pptx
 /~$*
+
+# Pre-deletion backups of production rows. Personal data, kept locally, never committed.
+backups/
