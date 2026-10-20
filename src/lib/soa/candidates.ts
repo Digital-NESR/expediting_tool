@@ -15,9 +15,12 @@ import { ensureSoaSchema, sql } from './db';
  *   `locked`   the vendor has been written to, so removing it would delete the correspondence
  *              recorded against it. The evidence trail is the point of this tool; a tick box must
  *              not be able to erase one.
- *   `excluded` an intercompany entity on the exclusion list. It stays visible, and stays in the
- *              coverage denominator, but cannot be selected. Nobody emails a colleague for a
- *              statement of account.
+ *   `excluded` an intercompany entity on the exclusion list. It stays visible but cannot be
+ *              selected, and it is out of every coverage figure on both sides of the division
+ *              (see `exclusions.ts`). Nobody emails a colleague for a statement of account.
+ *              The comment here used to say it stayed IN the denominator, which was true of the
+ *              rest of the app and never of this file -- which is the disagreement that had
+ *              Egypt reading "target met" on this screen and 23.70% on the rollup.
  */
 
 export interface ScopeCandidate {

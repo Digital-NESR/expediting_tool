@@ -449,8 +449,12 @@ export function deriveViewModel(
      is nil are the same answer to "is this account reconciled"; a supplier with nothing
      outstanding never had a statement to send, and withholding the credit would measure our
      paperwork rather than the account. Silence still counts for nothing. */
+  /* `!v.excluded` on the numerator because the denominator drops them too (see
+     lib/soa/exclusions.ts). Six countries have an intercompany entity locked into their chase
+     list from before the exclusion list existed; counting its statement here while its balance
+     is out of `totalBalance` would push coverage past 100%. */
   const receivedBalance = vendors
-    .filter((v) => countsTowardCoverage(v.status))
+    .filter((v) => !v.excluded && countsTowardCoverage(v.status))
     .reduce((s, v) => s + v.openPO, 0);
   /* Two decimals, like the columns that are measured against it. Rounded to whole percent it
      disagreed with them on sight: Saudi Arabia's 20.52% showed as 21% beside a column whose last
@@ -719,7 +723,10 @@ export function deriveViewModel(
      denominator was never the problem: both divide by the country's whole balance. */
   const sharesOver = (subset: Vendor[]) =>
     spendShares(
-      subset.map((v) => ({ key: v.id, value: v.openPO })),
+      /* An excluded supplier contributes nothing to a running total measured against a
+         denominator it is not in — the same rule, and the same null, as the Scoping screen's
+         cumulative column. */
+      subset.map((v) => ({ key: v.id, value: v.excluded ? 0 : v.openPO })),
       totalBalance,
     );
   const labelsFrom =
@@ -838,8 +845,11 @@ export function deriveViewModel(
      They are NESR's own intercompany entities, so there is no third party to confirm a balance
      with and nothing to reconcile. Counting them put a ceiling on coverage that no amount of
      chasing could reach, and a champion who had ticked every supplier they were allowed to tick
-     still read 96%. `scopeCandidates` computes it; the payload total is only the fallback for
-     before the list has loaded, and it still includes them. */
+     still read 96%. `scopeCandidates` computes it; as of 20 Oct 2026 so does the payload total,
+     which is what stopped this screen and the Corporate Rollup from disagreeing. */
+  /* Both of these now exclude, so the fallback no longer changes the answer. It is kept
+     because `scope.totalBalance` is 0 until the candidate list has loaded, and dividing by 0
+     would blank the screen for a moment. */
   const scopeDenominator = scope.totalBalance || totalBalance;
   const scopeThresholdLabel = fmtUsd(scope.thresholdUsd || (cycle?.vendorThresholdUsd ?? 0));
   const totals = scopeTotals(scope.candidates, scopeSelected);

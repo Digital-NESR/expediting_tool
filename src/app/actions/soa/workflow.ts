@@ -35,6 +35,7 @@ import { AppUrlNotConfiguredError, soaPortalUrl, uploadLinkFor } from '@/lib/soa
 import { notifySoaHandoff } from '@/lib/soa/notify';
 import { resolvedContactsFor, setVendorContactList } from '@/lib/soa/recipients';
 import { shortDateUTC } from '@/lib/format';
+import { entryNotExcluded, notExcludedVendorNo } from '@/lib/soa/exclusions';
 import { COVERED_STATUS_SQL, isCollectionWindowClosed } from '@/lib/soa/status';
 import { letterContext, loadTemplate } from '@/lib/soa/templates';
 import { MailNotConfiguredError, sendMail, type MailMessage } from '@/lib/soa/mail';
@@ -775,12 +776,16 @@ export async function handOffSoaCountry(
               COUNT(vce.id)::int AS vendor_count,
               COUNT(vce.id)
                 FILTER (WHERE vce.status::text IN (${COVERED_STATUS_SQL}))::int AS received_count,
+              /* Intercompany entities are out of both sides of the coverage figure, so they are
+                 out of the gate that figure opens. See lib/soa/exclusions.ts. */
               COALESCE(SUM(vce.open_po_amount)
-                       FILTER (WHERE vce.status::text IN (${COVERED_STATUS_SQL})), 0) AS received,
+                       FILTER (WHERE vce.status::text IN (${COVERED_STATUS_SQL})
+                                 AND ${entryNotExcluded('vce')}), 0) AS received,
               (SELECT COALESCE(SUM(e.pos_value), 0)
                  FROM supplier_po_extract e
                  JOIN countries c ON e.po_country = ANY (c.spend_names)
-                WHERE e.cycle_id = cy.id AND c.id = cc.country_id) AS total
+                WHERE e.cycle_id = cy.id AND c.id = cc.country_id
+                  AND ${notExcludedVendorNo('e.supplier_id')}) AS total
          FROM country_cycles cc
          JOIN cycles cy ON cy.id = cc.cycle_id AND cy.is_active
          LEFT JOIN vendor_cycle_entries vce ON vce.country_cycle_id = cc.id
@@ -853,9 +858,7 @@ export async function handOffSoaCountry(
       /* Said to AP rather than only written to the evidence log: the figure alone does not tell
          them whether it is the whole answer or the answer that arrived in time, and that changes
          what they do with the suppliers who are missing from the file. */
-      shortOfTarget: shortOfTarget
-        ? { targetPct: target, windowClosedOn: closedOn }
-        : null,
+      shortOfTarget: shortOfTarget ? { targetPct: target, windowClosedOn: closedOn } : null,
       portalUrl: soaPortalUrl(),
     });
 

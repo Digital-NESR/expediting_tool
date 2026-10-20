@@ -6,6 +6,7 @@ import { canAccessCountry, getSoaActor } from '@/lib/soa/access';
 import { complianceCriteria, reminderGapDays, reminderInWindow } from '@/lib/soa/compliance';
 import { ensureSoaSchema, soaPool } from '@/lib/soa/db';
 import { resolvedContactsForMany } from '@/lib/soa/recipients';
+import { notExcludedVendorNo } from '@/lib/soa/exclusions';
 import { countsTowardCoverage } from '@/lib/soa/status';
 
 /**
@@ -79,8 +80,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
       soaPool.query<QueryResultRow>(
         `SELECT v.id AS vendor_id, v.vendor_no, v.name, vce.open_po_amount, vce.currency,
                 vce.status::text AS status, vce.requested_at, vce.reminded_at, vce.responded_at,
-                vce.invoice_count, vce.resolution_note
+                vce.invoice_count, vce.resolution_note,
+                (x.vendor_no IS NOT NULL) AS excluded
            FROM vendor_cycle_entries vce JOIN vendors v ON v.id = vce.vendor_id
+           LEFT JOIN excluded_vendors x ON x.vendor_no = v.vendor_no
           WHERE vce.country_cycle_id = $1
           ORDER BY vce.open_po_amount DESC`,
         [countryCycleId],
@@ -102,9 +105,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
         [countryCycleId],
       ),
       soaPool.query<QueryResultRow>(
+        /* The pack an auditor reads has to carry the same coverage figure as the screens, so
+           it divides by the same denominator: intercompany entities out of both sides. See
+           lib/soa/exclusions.ts. */
         `SELECT COALESCE(SUM(e.pos_value), 0) AS total
            FROM supplier_po_extract e JOIN countries c ON e.po_country = ANY (c.spend_names)
-          WHERE e.cycle_id = $1 AND c.id = $2`,
+          WHERE e.cycle_id = $1 AND c.id = $2
+            AND ${notExcludedVendorNo('e.supplier_id')}`,
         [cycleId, countryId],
       ),
     ]);
@@ -117,7 +124,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ cou
     );
     const totalBalance = Number(denomRes.rows[0]?.total ?? 0);
     const receivedBalance = vendors
-      .filter((v) => countsTowardCoverage(String(v.status)))
+      .filter((v) => v.excluded !== true && countsTowardCoverage(String(v.status)))
       .reduce((sum, v) => sum + Number(v.open_po_amount), 0);
     const coveragePct = totalBalance > 0 ? Math.round((receivedBalance / totalBalance) * 100) : 0;
     const targetPct = Number(cycle.coverage_target_pct);
