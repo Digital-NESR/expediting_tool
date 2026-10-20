@@ -49,6 +49,9 @@ const PROCURE_GUARD_REVIEW_ROLE_RANK: Record<ProcureGuardPermissionRole, number>
 // approver grant — pruned on sync so a reassigned/removed approver cleanly loses authority + visibility.
 const PROCURE_GUARD_APPROVER_ROLES: ProcureGuardPermissionRole[] = [
   'SCM Manager',
+  /* procureGuardRoleFromRecipient returns this, so it has to be prunable: without it somebody
+     taken off the SAP team keeps the permission row, and with it the authority to verify. */
+  'SAP Team',
   'Country Controller',
   'Supply Chain Director',
   'Treasury Director',

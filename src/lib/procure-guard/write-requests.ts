@@ -303,7 +303,9 @@ export async function insertAdhocRequest(params: {
       n.vendorName,
       /* For an existing supplier this is their SAP ID. For a plain adhoc one it keeps the old
          fallback to the tax number, which is what every row written before this carried. */
-      blankToNull(n.supplierSource === 'existing_avl' ? n.vendorCode : input.vendor_code || n.vendorTaxId),
+      blankToNull(
+        n.supplierSource === 'existing_avl' ? n.vendorCode : input.vendor_code || n.vendorTaxId,
+      ),
       n.vendorTaxId,
       blankToNull(input.supplier_email),
       n.amount,
@@ -429,7 +431,9 @@ export async function updateAdhocRequest(
       n.requisitionNumber,
       n.supplierSource,
       n.vendorName,
-      blankToNull(n.supplierSource === 'existing_avl' ? n.vendorCode : input.vendor_code || n.vendorTaxId),
+      blankToNull(
+        n.supplierSource === 'existing_avl' ? n.vendorCode : input.vendor_code || n.vendorTaxId,
+      ),
       n.vendorTaxId,
       n.amount,
       n.currency,

@@ -24,6 +24,12 @@ export interface ApproverMatrixColumn {
    * matrix the old way shows a name rather than a blank.
    */
   multi?: boolean;
+  /**
+   * The request status at which this column's occupant is notified, written onto the recipient
+   * row. Declared rather than copied from whatever row happens to exist, because the copy is
+   * what put NULL on the first SAP Team row: there was no row of that role to copy from.
+   */
+  approvalStatus: string;
 }
 export interface ApproverCell {
   name: string;
@@ -44,12 +50,19 @@ export interface ProcureGuardViewerGrant {
 }
 
 export const APPROVER_MATRIX_COLUMNS: ApproverMatrixColumn[] = [
-  { key: 'scm', label: 'Country SCM', notificationRole: 'SCM Manager', requestType: 'adhoc' },
+  {
+    key: 'scm',
+    label: 'Country SCM',
+    notificationRole: 'SCM Manager',
+    requestType: 'adhoc',
+    approvalStatus: 'Under Review',
+  },
   {
     key: 'cc',
     label: 'Country Controller',
     notificationRole: 'Country Controller',
     requestType: 'advance',
+    approvalStatus: 'Under Review',
   },
   {
     /* Between the country SCM and the Supply Chain Director on adhoc requests. Not country
@@ -61,33 +74,62 @@ export const APPROVER_MATRIX_COLUMNS: ApproverMatrixColumn[] = [
     notificationRole: 'SAP Team',
     requestType: 'adhoc',
     multi: true,
+    approvalStatus: 'Approved by SCM',
   },
   {
     key: 'sd_adhoc',
     label: 'SC Director (Adhoc)',
     notificationRole: 'Supply Chain Director',
     requestType: 'adhoc',
+    /* Was 'Approved by SCM' until SAP Team verification was inserted in front of it. That is
+       now the SAP team's step, and leaving the Director filed against it had them emailed for
+       a verification that is not theirs. */
+    approvalStatus: 'Verified by SAP Team',
   },
   {
     key: 'sd_advance',
     label: 'SC Director (Advance)',
     notificationRole: 'Supply Chain Director',
     requestType: 'advance',
+    approvalStatus: 'Approved by Country Controller',
   },
   {
     key: 'treasury',
     label: 'Treasury Director',
     notificationRole: 'Treasury Director',
     requestType: 'advance',
+    approvalStatus: 'Approved by Supply Chain Director',
   },
   {
     key: 'corp',
     label: 'Corporate Controller',
     notificationRole: 'Corporate Controller',
     requestType: 'advance',
+    approvalStatus: 'Approved by Treasury Director',
   },
-  { key: 'cfo', label: 'CFO', notificationRole: 'CFO', requestType: 'advance' },
+  {
+    key: 'cfo',
+    label: 'CFO',
+    notificationRole: 'CFO',
+    requestType: 'advance',
+    approvalStatus: 'Approved by Corporate Controller',
+  },
 ];
+
+/**
+ * The status a recipient row for this (role, request type) should carry.
+ *
+ * The inserts below used to take it from any existing row of the same role, which works for
+ * every column that already had one and produced NULL for the first person ever added to a new
+ * step — so the row matched no status and the step's email found nobody. The declared value is
+ * the answer; the existing row is only a fallback for a role the matrix does not describe.
+ */
+function declaredApprovalStatus(role: string, rt: 'adhoc' | 'advance'): string | null {
+  const col = APPROVER_MATRIX_COLUMNS.find(
+    (c) => c.notificationRole.toLowerCase() === role.toLowerCase() && c.requestType === rt,
+  );
+  return col?.approvalStatus ?? null;
+}
 
 /**
  * Add one more person to a (country, role, request_type) that may already have others.
@@ -127,7 +169,7 @@ export async function addProcureGuardRecipientRow(
       country,
       rt,
       role,
-      t?.approval_status ?? null,
+      declaredApprovalStatus(role, rt) ?? t?.approval_status ?? null,
       t?.source_column ?? 'manual',
       displayName,
       email,
@@ -183,7 +225,7 @@ export async function upsertProcureGuardRecipientRow(
         country,
         rt,
         role,
-        t?.approval_status ?? null,
+        declaredApprovalStatus(role, rt) ?? t?.approval_status ?? null,
         t?.source_column ?? 'manual',
         displayName,
         email,

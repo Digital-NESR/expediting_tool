@@ -123,7 +123,10 @@ export function requisitionError(
   }
   const { numbers, invalid } = parseRequisitionNumbers(raw);
   if (invalid.length > 0) {
-    const shown = invalid.slice(0, 3).map((v) => `"${v}"`).join(', ');
+    const shown = invalid
+      .slice(0, 3)
+      .map((v) => `"${v}"`)
+      .join(', ');
     const more = invalid.length > 3 ? ` and ${invalid.length - 3} more` : '';
     return `${shown}${more} is not a requisition number. A PR is exactly 10 digits, for example 1010010287.`;
   }
