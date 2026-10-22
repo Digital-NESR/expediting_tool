@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, X } from 'lucide-react';
 import {
@@ -527,12 +527,20 @@ export default function ProcureGuardRequestDetailClient({
     request,
     request_type: requestType,
     activity,
-    documents,
+    documents: documentsFromServer,
     notification_contacts: notificationContacts,
     active_delegations: activeDelegations,
     actions,
     actor,
   } = data;
+  /* Held in state so an upload can show immediately instead of waiting for the page to be
+     re-rendered on the server. Seeded from the prop and re-seeded whenever the server sends a
+     different list, so a navigation or a refresh elsewhere still wins. */
+  const [documents, setDocuments] = useState(documentsFromServer);
+  useEffect(() => {
+    setDocuments(documentsFromServer);
+  }, [documentsFromServer]);
+
   const isAdvance = isAdvanceRequest(request);
   /* Three shapes of identifier share one row: an advance's SAP vendor id, a plain adhoc
      request's tax number, and an existing-supplier adhoc request's SAP supplier id. Derived
@@ -760,10 +768,17 @@ export default function ProcureGuardRequestDetailClient({
       return;
     }
     setNotice(`${SAP_VERIFICATION_DOCUMENT_LABEL} attached.`);
-    /* Refresh rather than appending to local state: the attachment list further down the page
-       reads the same `documents` prop, and two lists disagreeing about what is attached is
-       exactly the confusion this box exists to remove. */
-    router.refresh();
+    /* Appended, not refreshed.
+
+       This used to call router.refresh(), which is a SECOND full round trip after the file has
+       already landed: the detail page is force-dynamic, so it re-resolves the actor, re-runs
+       its four reads and re-hydrates the whole client component before the spinner stops. The
+       database side of an upload measures ~200ms; that reload was most of the wait the SAP team
+       were complaining about, and it bought nothing -- the action returns the row it inserted.
+
+       One list, one source: both the decision box and the attachment list below read this
+       state, so they cannot disagree about what is attached. */
+    if (result.document) setDocuments((prev) => [...prev, result.document!]);
   }
 
   function submitStatus(nextStatus: AdhocPaymentRequest['status']) {
