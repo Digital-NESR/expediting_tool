@@ -54,3 +54,6 @@ scripts/data/
 
 # Pre-deletion backups of production rows. Personal data, kept locally, never committed.
 backups/
+
+# Generated reports. Carry traveller names and spend; regenerate rather than commit.
+reports/
