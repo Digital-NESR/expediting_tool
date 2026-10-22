@@ -12,6 +12,7 @@ import {
   ProcureGuardMark,
   RfxOfficerMark,
   ShipWavesMark,
+  TranslytixMark,
   SirionMark,
   TiteMark,
   TravelPortalMark,
@@ -191,6 +192,29 @@ export const TOOLS: ToolDef[] = [
     route: 'https://rfxofficer.nesr.com',
     external: true,
     helpHref: '/help/rfx-officer',
+    access: { kind: 'always' },
+    badge: { kind: 'lock', label: 'Portal Access' },
+  },
+
+  {
+    id: 'translytix',
+    group: 'online',
+    keywords:
+      'translytix tx inventory planning forecast demand stock level replenishment safety stock reorder min max supply planning ai assistant',
+    name: 'Translytix AI',
+    subtitle: 'Unified Inventory Planning',
+    description:
+      'Forecast demand, set optimal stock levels and analyse replenishment in one place, with an AI-powered TX Assistant. Don’t just track inventory. Transform it.',
+    /* The mark carries its own greens, so it wants a light ground rather than a solid tinted
+       square the way the drawn glyphs do. Same treatment as RFx Officer's artwork. */
+    icon: <TranslytixMark className="h-6 w-6" />,
+    logoClass: 'bg-[#f0f9f4]',
+    hoverClass: HOVER_GREEN,
+    accent: NESR_GREEN,
+    tone: 'live',
+    // Translytix runs on its own domain, so the card action is a real link.
+    route: 'https://nesr.translytix.ai/',
+    external: true,
     access: { kind: 'always' },
     badge: { kind: 'lock', label: 'Portal Access' },
   },

@@ -83,6 +83,30 @@ export function RfxOfficerMark({
 }
 
 /**
+ * Translytix AI — a redraw of the supplied TX artwork in NESR green.
+ *
+ * An SVG, unlike RFx Officer's PNG, which is why it needs no white ground: the supplied file is a
+ * 2000px raster on white and would have arrived as a white box on the card's tinted square, soft
+ * at 24px. The monogram alone, without the wordmark, because the card already prints the name
+ * beside it and "TRANSLYTIX" at this size is a grey smudge.
+ */
+export function TranslytixMark({
+  className = 'h-6 w-6',
+  size = 48,
+}: MarkProps & { size?: number }) {
+  return (
+    <Image
+      src="/translytix-mark.svg"
+      alt=""
+      width={size}
+      height={size}
+      className={`${className} object-contain`}
+      aria-hidden
+    />
+  );
+}
+
+/**
  * ProcureGuard — its own artwork, which the tool has always used in-app while the home card drew a
  * generic document glyph instead. The asset is a JPEG on white, so it wants a white ground rather
  * than the tinted square the other marks sit on.
