@@ -77,6 +77,23 @@ export function withDelegateRecipients<
   });
 }
 
+/**
+ * One row per address, first spelling wins.
+ *
+ * The approver side has had this inside withDelegateRecipients since delegates were added; the
+ * requester side now needs it too, because the SAP Team can also be the requester or sit on the
+ * requester's notification list. Two rows for one address means two copies of the same email.
+ */
+export function dedupeByEmail<T extends { email: string }>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const key = row.email.trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function getNotificationPreviewStatuses(
   requestType: ProcureGuardRequestType,
   amount?: number | string | null,
@@ -390,7 +407,44 @@ export async function notifyProcureGuardNextApprover(input: {
         comment: input.comment,
       });
       const requesterName = request.requested_by_name || request.requested_by_email;
-      const requesterSideRecipients = [
+      /* On FINAL approval of an adhoc request the SAP Team joins this email, on the TO line
+         rather than as a separate message -- they are being told the outcome of a request they
+         verified, not asked to do anything.
+
+         It has to be bolted on here rather than left to the approver-side dispatch below,
+         because that one returns before it looks up a recipient: getRecipientApprovalStatus is
+         null for any status outside APPROVAL_ACTIVE_STATUSES, and 'Approved' is outside it. A
+         fully approved request notifies nobody but the requester otherwise.
+
+         Read from the recipient directory, not from a list in code, so the team is whoever the
+         Approval Access matrix currently says it is. Their rows are filed against the step they
+         own ('Approved by SCM'), and 'SAP Team' is a global owner label, so this finds them for
+         every country rather than only the ones with a SAP row of their own. */
+      const sapTeamOnFinalApproval =
+        input.requestType === 'adhoc' && request.status === 'Approved'
+          ? (
+              await getProcureGuardNotificationRecipients({
+                requestType: 'adhoc',
+                country: request.country,
+                approvalStatus: 'Approved by SCM',
+                ownerLabel: 'SAP Team',
+              })
+            )
+              /* That lookup also matches anyone filed against the same status in this country,
+                 which is the SAP team today and need not stay that way. Narrowed to the role so
+                 a future recipient on that step cannot quietly join this email. */
+              .filter((row) => (row.notification_role ?? '').trim().toLowerCase() === 'sap team')
+              .map((row) => ({
+                name: row.display_name || row.email,
+                email: row.email.trim().toLowerCase(),
+                role: 'SAP Team',
+                approval_status: null as ProcureGuardStatus | null,
+                country: row.country || request.country,
+                source_column: 'sap_team_final_approval',
+              }))
+          : [];
+
+      const requesterSideRecipients = dedupeByEmail([
         {
           name: requesterName,
           email: request.requested_by_email.trim().toLowerCase(),
@@ -407,7 +461,10 @@ export async function notifyProcureGuardNextApprover(input: {
           country: request.country,
           source_column: 'requester_notification_emails',
         })),
-      ];
+        /* Last, so that somebody who is both the requester and on the SAP team keeps their
+           Requester row and is addressed once. */
+        ...sapTeamOnFinalApproval,
+      ]);
       const requesterTestRole = 'Requester Updates';
       const routedRequesterRecipients = isEmailTestMode
         ? emailTestRecipientsOf(request, input.actor.email, requesterTestRole)
