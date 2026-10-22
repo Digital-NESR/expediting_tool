@@ -28,6 +28,20 @@ export interface ChainActivityRow {
   created_at: string;
 }
 
+/**
+ * The chain, and which pass through it the reader is looking at.
+ *
+ * `round` is 1 until a rejected request is fixed and sent round again, then 2, and so on. It
+ * exists because "awaiting Country SCM" and "awaiting Country SCM AGAIN, after the SAP team
+ * sent it back" are different sentences, and the screen was only able to say the first.
+ */
+export interface ChainProgress {
+  outcomes: Map<number, StepOutcome>;
+  round: number;
+  /** The rejection that ended the previous round. Null on the first pass. */
+  lastRejection: StepOutcome | null;
+}
+
 export interface StepOutcome {
   kind: 'approved' | 'rejected' | 'cancelled';
   /** Who acted. Falls back to the email, then to 'Unknown', so a block never renders blank. */
@@ -41,6 +55,24 @@ export interface StepOutcome {
 const TRANSITION = /^Status updated to\s+(.+)$/i;
 
 /**
+ * What a resubmission after rejection looks like in the log.
+ *
+ * This is the row that starts a new round, and getting it wrong is what made a request read
+ * "Country SCM: Approved / SAP Team: Rejected" while it sat waiting for the SCM again.
+ *
+ * The reset used to key on a transition to 'Submitted'. Nothing writes one. A resubmission
+ * does NOT go through updateStatusCommon: `updateAdhocPaymentRequest` calls
+ * `resetRejectedRequest`, which sets the status with a direct UPDATE, and logs
+ * "Adhoc PO resubmitted after rejection". So the chain never saw a reason to clear, and
+ * carried the dead round forever.
+ *
+ * Matched on the tail rather than the whole string because the prefix names the request type
+ * -- "Adhoc PO" or "Advance payment" -- and a third type would otherwise be missed in the same
+ * silent way.
+ */
+const RESUBMISSION = /resubmitted after rejection$/i;
+
+/**
  * Replay the log and hand each step the decision that closed it.
  *
  * Returned by step index rather than by status, because two steps of a legacy adhoc chain can
@@ -49,9 +81,11 @@ const TRANSITION = /^Status updated to\s+(.+)$/i;
 export function resolveChainProgress(
   steps: ProcureGuardWorkflowStep[],
   activity: ChainActivityRow[],
-): Map<number, StepOutcome> {
+): ChainProgress {
   const outcomes = new Map<number, StepOutcome>();
-  if (!steps.length) return outcomes;
+  let round = 1;
+  let lastRejection: StepOutcome | null = null;
+  if (!steps.length) return { outcomes, round, lastRejection };
 
   const indexByStatus = new Map<string, number>();
   steps.forEach((step, i) => {
@@ -71,7 +105,19 @@ export function resolveChainProgress(
   let halted = false;
 
   for (const row of ordered) {
-    const match = TRANSITION.exec(row.action.trim());
+    const action = row.action.trim();
+
+    /* The real reset. Checked before the transition regex, which this row does not match. */
+    if (RESUBMISSION.test(action)) {
+      lastRejection = [...outcomes.values()].find((o) => o.kind === 'rejected') ?? lastRejection;
+      outcomes.clear();
+      cursor = 0;
+      halted = false;
+      round += 1;
+      continue;
+    }
+
+    const match = TRANSITION.exec(action);
     if (!match) continue;
     const to = match[1].trim();
 
@@ -87,6 +133,7 @@ export function resolveChainProgress(
       outcomes.clear();
       cursor = 0;
       halted = false;
+      round += 1;
       continue;
     }
 
@@ -109,7 +156,7 @@ export function resolveChainProgress(
     cursor = indexByStatus.get(to) ?? cursor + 1;
   }
 
-  return outcomes;
+  return { outcomes, round, lastRejection };
 }
 
 /** How long a step has been waiting, in whole days, for the "waiting 6 days" line. */

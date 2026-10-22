@@ -197,7 +197,12 @@ function WorkflowChain({
   const steps = getWorkflowSteps(requestType, amount, currency).filter(
     (step) => step.status !== 'Under Review' || status === 'Under Review',
   );
-  const outcomes = resolveChainProgress(steps, activity);
+  const { outcomes, round, lastRejection } = resolveChainProgress(steps, activity);
+  /* A request that was rejected, fixed and sent round again is on its second pass. Worth
+     saying out loud: the chain is identical either way, so without this the screen shows a
+     request waiting at step one with no hint that it has been all the way to the SAP team and
+     back, and the approver who already said yes is asked again with no explanation. */
+  const isReapproval = round > 1;
 
   const isSettled = status === 'Rejected' || status === 'Cancelled';
   const currentIndex = isSettled ? -1 : steps.findIndex((step) => step.status === status);
@@ -231,6 +236,26 @@ function WorkflowChain({
   return (
     <Section title="Approval Chain & Notifications">
       <div className="space-y-2.5">
+        {isReapproval && !isSettled && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-900">
+            <span className="font-bold">
+              Going round again{round > 2 ? ` (pass ${round})` : ''} after a rejection.
+            </span>{' '}
+            {lastRejection ? (
+              <>
+                {lastRejection.actor} rejected it on {fmtDateTime(lastRejection.at)}
+                {lastRejection.comment ? ` — "${lastRejection.comment}"` : ''}. The requester has
+                since changed it, so every approval below was given on the earlier version and the
+                chain starts from the beginning.
+              </>
+            ) : (
+              <>
+                The requester has changed it since, so the chain starts from the beginning and every
+                step is being looked at again.
+              </>
+            )}
+          </div>
+        )}
         {steps.map((step, index) => {
           const outcome = outcomes.get(index);
           const isCurrent = index === currentIndex;
@@ -257,6 +282,13 @@ function WorkflowChain({
                       className={`text-sm font-bold ${notReached ? 'text-slate-500' : 'text-slate-900'}`}
                     >
                       {step.label}
+                      {/* Only on the step actually being looked at again. Marking every step of
+                          a second pass would say "again" five times and mean nothing. */}
+                      {isReapproval && isCurrent && !isFinal && (
+                        <span className="ml-2 align-middle text-[0.625rem] font-bold uppercase tracking-wide text-amber-700">
+                          Re-approval
+                        </span>
+                      )}
                     </p>
                     <StepBadge outcome={outcome} isCurrent={isCurrent} />
                   </div>

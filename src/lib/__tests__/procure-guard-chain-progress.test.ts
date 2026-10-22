@@ -19,7 +19,7 @@ const move = (to: string, actor: string, at: string, extra: Partial<ChainActivit
 
 describe('resolveChainProgress', () => {
   it('gives the first step the decision that closed it, not the status it waited in', () => {
-    const outcomes = resolveChainProgress(STEPS, [
+    const { outcomes: outcomes } = resolveChainProgress(STEPS, [
       move('Approved by Country Controller', 'Adila Harib Al Ismaili', '2026-09-29T17:36:00Z', {
         notes: 'approved',
       }),
@@ -38,7 +38,7 @@ describe('resolveChainProgress', () => {
   });
 
   it('walks the whole chain and credits each approver with their own step', () => {
-    const outcomes = resolveChainProgress(STEPS, [
+    const { outcomes: outcomes } = resolveChainProgress(STEPS, [
       move('Approved by Country Controller', 'Adila', '2026-09-29T10:00:00Z'),
       move('Approved by Supply Chain Director', 'Nader', '2026-09-30T10:00:00Z'),
       move('Approved by Treasury Director', 'Rami', '2026-10-01T10:00:00Z'),
@@ -58,13 +58,13 @@ describe('resolveChainProgress', () => {
       move('Approved by Supply Chain Director', 'Nader', '2026-09-30T10:00:00Z'),
       move('Approved by Country Controller', 'Adila', '2026-09-29T10:00:00Z'),
     ];
-    const outcomes = resolveChainProgress(STEPS, newestFirst);
+    const { outcomes: outcomes } = resolveChainProgress(STEPS, newestFirst);
     expect(outcomes.get(0)?.actor).toBe('Adila');
     expect(outcomes.get(1)?.actor).toBe('Nader');
   });
 
   it('stops at a rejection, so later steps read as never reached', () => {
-    const outcomes = resolveChainProgress(STEPS, [
+    const { outcomes: outcomes } = resolveChainProgress(STEPS, [
       move('Approved by Country Controller', 'Adila', '2026-09-29T10:00:00Z'),
       move('Rejected', 'Nader', '2026-09-30T10:00:00Z', { notes: 'Funding not available' }),
       // Nothing can follow a rejection, but a stray row must not resurrect the chain.
@@ -75,21 +75,72 @@ describe('resolveChainProgress', () => {
     expect(outcomes.has(2)).toBe(false);
   });
 
+  /*
+   * The row a resubmission ACTUALLY writes.
+   *
+   * This test used to forge `Status updated to Submitted`, which nothing in the application
+   * has ever written: `updateAdhocPaymentRequest` resets the status with a direct UPDATE and
+   * logs "Adhoc PO resubmitted after rejection". The test passed and production did not --
+   * ADH-000128 sat waiting for the Country SCM while the chain showed the SCM as approved and
+   * the SAP team as having rejected it, which is exactly the confusion it was meant to prevent.
+   */
+  const resubmit = (type: 'Adhoc PO' | 'Advance payment', actor: string, at: string) => ({
+    action: `${type} resubmitted after rejection`,
+    actor_name: actor,
+    created_at: at,
+  });
+
   it('starts the chain over when a rejected request is resubmitted', () => {
-    const outcomes = resolveChainProgress(STEPS, [
+    const { outcomes, round, lastRejection } = resolveChainProgress(STEPS, [
       move('Approved by Country Controller', 'Adila', '2026-09-29T10:00:00Z'),
       move('Rejected', 'Nader', '2026-09-30T10:00:00Z'),
-      move('Submitted', 'Mohammed Kamran', '2026-10-01T09:00:00Z'),
+      resubmit('Advance payment', 'Mohammed Kamran', '2026-10-01T09:00:00Z'),
       move('Approved by Country Controller', 'Adila', '2026-10-01T12:00:00Z'),
     ]);
 
     // The rejection belongs to the previous round and stays in the activity log, not the chain.
     expect(outcomes.get(1)).toBeUndefined();
     expect(outcomes.get(0)).toMatchObject({ kind: 'approved', at: '2026-10-01T12:00:00Z' });
+    expect(round).toBe(2);
+    expect(lastRejection).toMatchObject({ actor: 'Nader', kind: 'rejected' });
+  });
+
+  it('clears the earlier round even before the first step is approved again', () => {
+    /* The state ADH-000128 was actually in: rejected by the SAP team, fixed by the requester,
+       and waiting on the Country SCM with nothing yet decided this time round. */
+    const { outcomes, round, lastRejection } = resolveChainProgress(STEPS, [
+      move('Approved by Country Controller', 'Adila', '2026-09-29T10:00:00Z'),
+      move('Rejected', 'Rana Omran', '2026-09-30T10:00:00Z'),
+      resubmit('Adhoc PO', 'Wafa Alnasser', '2026-10-01T09:00:00Z'),
+    ]);
+
+    expect(outcomes.size, 'no step has been decided this round').toBe(0);
+    expect(round).toBe(2);
+    expect(lastRejection?.actor).toBe('Rana Omran');
+  });
+
+  it('counts a third pass, and keeps the most recent rejection', () => {
+    const { round, lastRejection } = resolveChainProgress(STEPS, [
+      move('Rejected', 'Nader', '2026-09-30T10:00:00Z'),
+      resubmit('Adhoc PO', 'Wafa', '2026-10-01T09:00:00Z'),
+      move('Rejected', 'Rana Omran', '2026-10-02T10:00:00Z'),
+      resubmit('Adhoc PO', 'Wafa', '2026-10-03T09:00:00Z'),
+    ]);
+
+    expect(round).toBe(3);
+    expect(lastRejection?.actor).toBe('Rana Omran');
+  });
+
+  it('reports round 1 and no rejection on a request that has gone straight through', () => {
+    const { round, lastRejection } = resolveChainProgress(STEPS, [
+      move('Approved by Country Controller', 'Adila', '2026-09-29T10:00:00Z'),
+    ]);
+    expect(round).toBe(1);
+    expect(lastRejection).toBeNull();
   });
 
   it('does not treat a legacy move into Under Review as an approval', () => {
-    const outcomes = resolveChainProgress(STEPS, [
+    const { outcomes: outcomes } = resolveChainProgress(STEPS, [
       move('Under Review', 'Adila', '2026-09-29T09:00:00Z'),
       move('Approved by Country Controller', 'Adila', '2026-09-29T17:36:00Z'),
     ]);
@@ -99,7 +150,7 @@ describe('resolveChainProgress', () => {
   });
 
   it('keeps the delegation attribution the log recorded', () => {
-    const outcomes = resolveChainProgress(STEPS, [
+    const { outcomes: outcomes } = resolveChainProgress(STEPS, [
       move('Approved by Country Controller', 'Said Al Harthi', '2026-09-29T10:00:00Z', {
         on_behalf_of_name: 'Adila Harib Al Ismaili',
       }),
@@ -108,7 +159,7 @@ describe('resolveChainProgress', () => {
   });
 
   it('falls back to the email, then to Unknown, so a block never renders blank', () => {
-    const byEmail = resolveChainProgress(STEPS, [
+    const { outcomes: byEmail } = resolveChainProgress(STEPS, [
       {
         action: 'Status updated to Approved by Country Controller',
         actor_name: null,
@@ -118,7 +169,7 @@ describe('resolveChainProgress', () => {
     ]);
     expect(byEmail.get(0)?.actor).toBe('a@nesr.com');
 
-    const neither = resolveChainProgress(STEPS, [
+    const { outcomes: neither } = resolveChainProgress(STEPS, [
       {
         action: 'Status updated to Approved by Country Controller',
         created_at: '2026-09-29T10:00:00Z',
@@ -128,7 +179,7 @@ describe('resolveChainProgress', () => {
   });
 
   it('ignores log rows that are not transitions', () => {
-    const outcomes = resolveChainProgress(STEPS, [
+    const { outcomes: outcomes } = resolveChainProgress(STEPS, [
       { action: 'Attachment uploaded', actor_name: 'Mohammed', created_at: '2026-09-29T09:00:00Z' },
       { action: 'Request edited', actor_name: 'Mohammed', created_at: '2026-09-29T09:30:00Z' },
     ]);
@@ -136,14 +187,16 @@ describe('resolveChainProgress', () => {
   });
 
   it('returns nothing for an empty chain or an empty log', () => {
-    expect(resolveChainProgress([], [move('Approved', 'X', '2026-01-01T00:00:00Z')]).size).toBe(0);
-    expect(resolveChainProgress(STEPS, []).size).toBe(0);
+    expect(
+      resolveChainProgress([], [move('Approved', 'X', '2026-01-01T00:00:00Z')]).outcomes.size,
+    ).toBe(0);
+    expect(resolveChainProgress(STEPS, []).outcomes.size).toBe(0);
   });
 });
 
 describe('waitingSince', () => {
   it('counts from the previous approval', () => {
-    const outcomes = resolveChainProgress(STEPS, [
+    const { outcomes: outcomes } = resolveChainProgress(STEPS, [
       move('Approved by Country Controller', 'Adila', '2026-09-29T17:36:00Z'),
     ]);
     expect(waitingSince(outcomes, 1, '2026-09-20T08:00:00Z')).toBe('2026-09-29T17:36:00Z');
