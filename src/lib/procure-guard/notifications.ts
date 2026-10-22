@@ -407,9 +407,9 @@ export async function notifyProcureGuardNextApprover(input: {
         comment: input.comment,
       });
       const requesterName = request.requested_by_name || request.requested_by_email;
-      /* On FINAL approval of an adhoc request the SAP Team joins this email, on the TO line
-         rather than as a separate message -- they are being told the outcome of a request they
-         verified, not asked to do anything.
+      /* On FINAL approval of an adhoc request the SAP Team is COPIED on this email rather
+         than sent one of their own. They verified the supplier and want to know the outcome;
+         they are not being asked to do anything, which is what CC says and TO does not.
 
          It has to be bolted on here rather than left to the approver-side dispatch below,
          because that one returns before it looks up a recipient: getRecipientApprovalStatus is
@@ -444,7 +444,7 @@ export async function notifyProcureGuardNextApprover(input: {
               }))
           : [];
 
-      const requesterSideRecipients = dedupeByEmail([
+      const requesterToRecipients = dedupeByEmail([
         {
           name: requesterName,
           email: request.requested_by_email.trim().toLowerCase(),
@@ -461,14 +461,27 @@ export async function notifyProcureGuardNextApprover(input: {
           country: request.country,
           source_column: 'requester_notification_emails',
         })),
-        /* Last, so that somebody who is both the requester and on the SAP team keeps their
-           Requester row and is addressed once. */
-        ...sapTeamOnFinalApproval,
       ]);
+
+      /* Dropped from CC if they are already on TO. Somebody who is both on the SAP team and
+         the requester should be addressed once, on the line that asks the most of them. */
+      const toAddresses = new Set(requesterToRecipients.map((row) => row.email));
+      const requesterCcRecipients = dedupeByEmail(sapTeamOnFinalApproval).filter(
+        (row) => !toAddresses.has(row.email),
+      );
+
+      /* Everyone the mail is meant to reach, either line, for `intended_recipients`. That field
+         is what a reader checks when asking "who was told", and it would answer wrongly if it
+         listed only the TO line. */
+      const requesterSideRecipients = [...requesterToRecipients, ...requesterCcRecipients];
       const requesterTestRole = 'Requester Updates';
       const routedRequesterRecipients = isEmailTestMode
         ? emailTestRecipientsOf(request, input.actor.email, requesterTestRole)
-        : requesterSideRecipients;
+        : requesterToRecipients;
+      /* Empty in test mode, deliberately. A test send puts everything on TO to the test
+         addresses; copying the real SAP team on it would be the one way a test reaches
+         somebody it was never meant to. */
+      const routedCcRecipients = isEmailTestMode ? [] : requesterCcRecipients;
       const requesterPayload = {
         event: 'request.requester_status_changed' as ProcureGuardWorkflowEvent,
         source: 'procureguard-local',
@@ -506,6 +519,15 @@ export async function notifyProcureGuardNextApprover(input: {
           body_html: requesterEmail.bodyHtml,
           to: routedRequesterRecipients.map((row) => row.email),
           to_recipients: routedRequesterRecipients.map((row) => ({
+            emailAddress: { address: row.email, name: row.name },
+          })),
+          /* NEW FIELDS. The n8n workflow has only ever read `to` / `to_recipients`, so until it
+             maps these the CC line is carried and ignored -- and the SAP team is not emailed at
+             all. Both shapes are sent for the same reason the TO line sends both: the flat list
+             for anything simple, the Graph shape for the Outlook node. Always present, empty
+             where there is nobody to copy, so the workflow never has to test for the key. */
+          cc: routedCcRecipients.map((row) => row.email),
+          cc_recipients: routedCcRecipients.map((row) => ({
             emailAddress: { address: row.email, name: row.name },
           })),
         },

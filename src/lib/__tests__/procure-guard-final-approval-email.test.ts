@@ -77,22 +77,60 @@ describe('who joins the final-approval email', () => {
     expect(block).toContain("=== 'sap team'");
   });
 
-  it('is added to the requester email, not sent as a second one', () => {
-    /* Asked for explicitly: the same email, with the team on the TO line. */
-    const recipients = src.slice(
+  it('is copied on the requester email, not addressed by it and not sent a second one', () => {
+    /* They want to know the outcome, not to be asked for anything -- which is what CC says
+       and TO does not. */
+    const cc = src.slice(
+      src.indexOf('const requesterCcRecipients'),
       src.indexOf('const requesterSideRecipients'),
-      src.indexOf('const requesterTestRole'),
     );
-    expect(recipients).toContain('...sapTeamOnFinalApproval');
-    expect(recipients).toContain('dedupeByEmail');
+    expect(cc).toContain('sapTeamOnFinalApproval');
+    expect(cc).toContain('dedupeByEmail');
   });
 
-  it('still lets email test mode override every address', () => {
-    /* The team is folded into requesterSideRecipients BEFORE the test-mode branch, so a test
-       send cannot reach them. */
-    const routed = src.slice(src.indexOf('const routedRequesterRecipients'));
-    expect(routed.slice(0, 220)).toContain('isEmailTestMode');
-    expect(routed.slice(0, 220)).toContain('emailTestRecipientsOf');
+  it('leaves somebody off CC when they are already on TO', () => {
+    /* A SAP team member who raised the request themselves should appear once. */
+    const cc = src.slice(
+      src.indexOf('const toAddresses'),
+      src.indexOf('const requesterSideRecipients'),
+    );
+    expect(cc).toContain('!toAddresses.has(row.email)');
+  });
+
+  it('counts both lines as the intended recipients', () => {
+    /* `intended_recipients` answers "who was told". Listing only TO would answer wrongly. */
+    const intended = src.slice(src.indexOf('const requesterSideRecipients'));
+    expect(intended.slice(0, 160)).toContain('...requesterToRecipients');
+    expect(intended.slice(0, 160)).toContain('...requesterCcRecipients');
+  });
+
+  it('sends the CC line to the webhook in both shapes', () => {
+    /* The n8n workflow has only ever read `to` / `to_recipients`; these are the fields it now
+       needs to map, and they are always present so it never has to test for the key. */
+    const payload = src.slice(src.indexOf('subject: requesterEmail.subject'));
+    expect(payload.slice(0, 900)).toContain('cc: routedCcRecipients.map');
+    expect(payload.slice(0, 900)).toContain('cc_recipients: routedCcRecipients.map');
+  });
+
+  it('empties the CC line in email test mode', () => {
+    /* A test send puts everything on TO to the test addresses. Copying the real SAP team on it
+       would be the one way a test reaches somebody it was never meant to. */
+    const routed = src.slice(
+      src.indexOf('const routedRequesterRecipients'),
+      src.indexOf('const requesterPayload'),
+    );
+    expect(routed).toContain('isEmailTestMode');
+    expect(routed).toContain('routedCcRecipients = isEmailTestMode ? []');
+  });
+
+  it('keeps the TO line as the requester and their notification list', () => {
+    const to = src.slice(
+      src.indexOf('const requesterToRecipients'),
+      src.indexOf('const toAddresses'),
+    );
+    expect(to).toContain('requested_by_email');
+    expect(to).toContain('requesterNotificationEmailsOf');
+    expect(to, 'the SAP team should no longer be on TO').not.toContain('sapTeamOnFinalApproval');
   });
 });
 
