@@ -238,7 +238,61 @@ export const STATUS_OPTIONS: LaptopRequestStatus[] = [
   'Cancelled',
 ];
 
-export const REQUEST_TYPE_OPTIONS = ['New Employee', 'Upgrade/Replacement', 'Unit'];
+/**
+ * What a request is FOR. Stored verbatim on the row, so these strings are data, not labels --
+ * the screens show them through REQUEST_TYPE_LABELS and reports group by them.
+ *
+ * `New Computer (Self)` is an existing employee getting a company computer for the first time.
+ * Neither older path fitted: New Employee is HR naming somebody else, and Upgrade/Replacement
+ * asks for the serial number of a machine they do not have. It behaves like a self-service
+ * request at the front (the requester is the recipient, so the directory fills it in) and like
+ * a New Employee request after that (there is no prior device for the IT Manager to describe).
+ */
+export const REQUEST_TYPE_OPTIONS = [
+  'New Employee',
+  'New Computer (Self)',
+  'Upgrade/Replacement',
+  'Unit',
+];
+
+/**
+ * Is there a prior device in this request?
+ *
+ * The single answer to a question four screens were each asking in their own words, as
+ * `request_type !== 'New Employee'`. That spelling was right while New Employee was the only
+ * device-less type and silently wrong the moment a second one existed: a first-time computer
+ * for an existing employee would have demanded the brand, model, serial number, age and SAP
+ * number of a machine that does not exist.
+ *
+ * Drives the Existing Device section on the detail screen, its required fields, the exported
+ * PDF, and whether the IT Manager may mark a device repaired instead of replaced.
+ */
+export function laptopRequestHasExistingDevice(requestType: string | null | undefined): boolean {
+  const type = (requestType ?? '').trim();
+  return type !== 'New Employee' && type !== 'New Computer (Self)';
+}
+
+/**
+ * Is the requester the recipient?
+ *
+ * True for every type except New Employee, where HR is raising it for a new hire. Decides
+ * whether the directory may fill in the employee id, department, company and cost centre, and
+ * whether the "Computer For" fields are shown at all.
+ */
+export function laptopRequestIsForSelf(requestType: string | null | undefined): boolean {
+  return (requestType ?? '').trim() !== 'New Employee';
+}
+
+/** The one type that carries a declaration. See the 002 migration for why it is a column. */
+export function laptopRequestNeedsFirstComputerDeclaration(
+  requestType: string | null | undefined,
+): boolean {
+  return (requestType ?? '').trim() === 'New Computer (Self)';
+}
+
+/** The wording, in one place: the form, the server refusal, the detail screen and the PDF. */
+export const FIRST_COMPUTER_DECLARATION =
+  'I declare that I have not previously received or been assigned a company computer.';
 
 export const DEVICE_TYPE_OPTIONS = ['Laptop', 'Desktop'];
 
@@ -547,9 +601,11 @@ export function getLaptopAvailableActions(
     // updateLaptopRequestStatus's procureNew param) — nothing left for the CM to flag.
     canProcureNew: isCmStage && ownsCurrentStep && !isProcureNewFlow,
     // Repairing in place only makes sense when there's an existing physical device to
-    // repair — Upgrade/Replacement and Unit requests have one; New Employee doesn't
-    // (there's nothing to repair for someone who has no device yet).
-    canMarkRepaired: isItManagerStage && ownsCurrentStep && requestType !== 'New Employee',
+    // repair. Asked through the shared predicate rather than by naming a type: there are now
+    // two device-less types, and the old `!== 'New Employee'` would have offered "mark as
+    // repaired" on a first-time computer request with nothing to repair.
+    canMarkRepaired:
+      isItManagerStage && ownsCurrentStep && laptopRequestHasExistingDevice(requestType),
     canSubmitProcureDetails: isProcureDetailsStage && ownsCurrentStep,
     rejectStatus: getRejectStatusForStage(currentStatus),
     ownerLabel: requiredPermission

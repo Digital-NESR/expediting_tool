@@ -11,6 +11,8 @@ import {
 import {
   COUNTRY_OPTIONS,
   DEVICE_TYPE_OPTIONS,
+  FIRST_COMPUTER_DECLARATION,
+  laptopRequestNeedsFirstComputerDeclaration,
   REQUEST_TYPE_OPTIONS,
 } from '@/lib/laptopProcurement-utils';
 import {
@@ -42,8 +44,17 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024;
 // approval routing) stays the plain REQUEST_TYPE_OPTIONS string.
 const REQUEST_TYPE_LABELS: Record<string, string> = {
   'New Employee': 'New Employee (form for HR only)',
+  'New Computer (Self)': 'New Computer Request (for Self)',
   'Upgrade/Replacement': 'Upgrade/Replacement (for self)',
   Unit: 'for Unit',
+};
+
+/* Said on the option itself, because the difference between this and Upgrade/Replacement is
+   the whole reason it exists and is not obvious from four words in a dropdown. */
+const REQUEST_TYPE_HINTS: Record<string, string> = {
+  'New Computer (Self)':
+    'You already work here and have never been given a company computer. The form fills in your own details; there is no old device to describe.',
+  'Upgrade/Replacement': 'You have a company computer and it needs replacing.',
 };
 
 function Field({
@@ -183,6 +194,10 @@ export default function LaptopRequestFormClient({
     editRequest?.special_requirements ?? '',
   );
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  /* Never seeded from the request being edited, even though the column holds the earlier
+     declaration. Decided explicitly: a declaration is made against what was submitted, and an
+     edited request is not that, so it is re-affirmed every time. */
+  const [firstComputerDeclared, setFirstComputerDeclared] = useState(false);
 
   const isEditMode = Boolean(editRequest);
   const detailHref = editRequest
@@ -194,7 +209,13 @@ export default function LaptopRequestFormClient({
   // Upgrade/Replacement requests need neither since the requester is the recipient.
   const isNewEmployee = requestType === 'New Employee';
   const isUnit = requestType === 'Unit';
-  const isSelfRequest = requestType === 'Upgrade/Replacement' || isUnit;
+  /* New Computer (Self) joins the self-service types: the requester IS the recipient, so the
+     directory fills in their employee id, department, company and cost centre exactly as it
+     does for an upgrade. What it does NOT inherit is the existing-device section -- there is
+     no old machine -- which is handled on the detail screen through
+     laptopRequestHasExistingDevice rather than here. */
+  const isFirstComputer = requestType === 'New Computer (Self)';
+  const isSelfRequest = requestType === 'Upgrade/Replacement' || isUnit || isFirstComputer;
 
   // Companies available in the Cost Allocation dropdown for New Employee, filtered by
   // the requestor's own country through the admin-maintained country map.
@@ -258,7 +279,8 @@ export default function LaptopRequestFormClient({
   function handleRequestTypeChange(value: string) {
     setRequestType(value);
     if (isEditMode || !directoryDefaults) return;
-    const willBeSelfRequest = value === 'Upgrade/Replacement' || value === 'Unit';
+    const willBeSelfRequest =
+      value === 'Upgrade/Replacement' || value === 'Unit' || value === 'New Computer (Self)';
 
     const nextEmployeeId =
       !employeeId.trim() && directoryDefaults.employeeId
@@ -338,6 +360,8 @@ export default function LaptopRequestFormClient({
       if (!department.trim()) e.department = 'Department is required.';
     }
     if (isUnit && !computerFor.trim()) e.computerFor = 'Unit Name / ID is required.';
+    if (isFirstComputer && !firstComputerDeclared)
+      e.firstComputerDeclared = 'Tick the declaration before submitting.';
     if (isSelfRequest && !department.trim()) e.department = 'Department is required.';
     if (!companyCode.trim()) e.companyCode = 'Company Code is required.';
     if (!costCenter.trim()) e.costCenter = 'Cost Center is required.';
@@ -390,6 +414,10 @@ export default function LaptopRequestFormClient({
       cost_center: costCenter,
       type_of_device: typeOfDevice,
       special_requirements: specialRequirements,
+      /* Sent only where it means something. The server refuses the type without it and
+         ignores it on every other type, so a stale true from a changed dropdown cannot
+         record a declaration nobody made. */
+      first_computer_declared: isFirstComputer ? firstComputerDeclared : undefined,
     };
 
     startTransition(async () => {
@@ -443,8 +471,49 @@ export default function LaptopRequestFormClient({
                   </option>
                 ))}
               </select>
+              {REQUEST_TYPE_HINTS[requestType] && (
+                <p className="mt-1.5 text-xs leading-snug text-slate-500">
+                  {REQUEST_TYPE_HINTS[requestType]}
+                </p>
+              )}
             </Field>
           </div>
+
+          {/* The declaration. Inside the Request section rather than at the end of the form,
+              because it belongs to the choice of request type and should be read while that
+              choice is still in view. */}
+          {laptopRequestNeedsFirstComputerDeclaration(requestType) && (
+            <div
+              data-field-error={errors.firstComputerDeclared ? 'true' : undefined}
+              className={`mt-5 rounded-xl border p-4 ${
+                errors.firstComputerDeclared
+                  ? 'border-red-300 bg-red-50'
+                  : 'border-[#059669]/30 bg-[#059669]/5'
+              }`}
+            >
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={firstComputerDeclared}
+                  onChange={(e) => setFirstComputerDeclared(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[#059669]"
+                />
+                <span className="text-sm leading-relaxed text-slate-800">
+                  {FIRST_COMPUTER_DECLARATION}
+                </span>
+              </label>
+              <p className="mt-2 pl-7 text-xs leading-snug text-slate-500">
+                Recorded against this request with your name and the date, and shown to every
+                approver. If you have a company computer already, raise an Upgrade/Replacement
+                request instead.
+              </p>
+              {errors.firstComputerDeclared && (
+                <p className="mt-2 pl-7 text-xs font-semibold text-red-600">
+                  {errors.firstComputerDeclared}
+                </p>
+              )}
+            </div>
+          )}
         </section>
 
         <section className={`${GLASS} p-5 sm:p-6`}>

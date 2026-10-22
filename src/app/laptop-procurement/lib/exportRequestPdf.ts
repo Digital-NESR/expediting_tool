@@ -1,4 +1,9 @@
-import { fmtDate, fmtDateTime } from '@/lib/laptopProcurement-utils';
+import {
+  FIRST_COMPUTER_DECLARATION,
+  fmtDate,
+  fmtDateTime,
+  laptopRequestNeedsFirstComputerDeclaration,
+} from '@/lib/laptopProcurement-utils';
 import type { LaptopRequest, LaptopDocument, LaptopStageAssignee } from '@/types/laptopProcurement';
 
 /**
@@ -172,6 +177,19 @@ export async function exportRequestPdf({
     ['Company code', v(request.company_code)],
     ['Company name', v(request.company_name)],
     ['Cost center', v(request.cost_center)],
+    /* In the PDF too. This is the copy that gets filed and argued over later, and a first
+       machine issued to an existing employee is exactly the decision somebody asks about. */
+    ...(laptopRequestNeedsFirstComputerDeclaration(request.request_type)
+      ? ([
+          ['Declaration', FIRST_COMPUTER_DECLARATION],
+          [
+            'Declared',
+            request.first_computer_declared_at
+              ? `${request.first_computer_declared_by || request.requested_by_email} on ${fmtDateTime(request.first_computer_declared_at)}`
+              : 'Not recorded',
+          ],
+        ] as Row[])
+      : []),
   ]);
 
   section('Requested device', [
