@@ -186,18 +186,47 @@ for label, value in intro:
     row += 1
 
 row += 1
-base(ws.cell(row=row, column=1, value='The one to start with'), bold=True, colour='C62828')
-base(
-    ws.cell(row=row, column=2,
-            value='Sheet 01. Ninety bookings carry an amount in AED and no USD amount at all — '
-                  'AED {} of travel, roughly ${} at 3.6725, missing from every USD figure. '
-                  'The feed reports ${} of travel in total, so this is not a rounding gap.'
-            .format('{:,}'.format(int(totals['unconverted_local'])),
-                    '{:,}'.format(round(int(totals['unconverted_local']) / 3.6725)),
-                    '{:,}'.format(int(totals['total_usd'])))),
-    wrap=True, top=True,
-).fill = PatternFill('solid', fgColor='FDECEA')
-ws.row_dimensions[row].height = 46
+# The three worth reading first, in the order they would be fixed. Written from the sweep's
+# own totals rather than typed in, so a re-run after a fix shows the new numbers rather than
+# yesterday's.
+by_key = {c['key']: c for c in results}
+unconverted = int(totals['unconverted_local'])
+headlines = [
+    (
+        'Start here  (1 of 3)',
+        'Sheet 01 — test bookings. {} bookings were made to exercise the portal and are still '
+        'counted as real travel: cost centres C999999999 and C999999997, company "Satguru Test", '
+        'travellers "vaibhav vishal", "Satguru admin" and "Kaushalya Fernando". They carry '
+        'AED 34,008 of spend, 6 traveller records, 7 flight segments and 6 of the policy '
+        'violations in the whole feed. Please remove them.'
+        .format(by_key['test_bookings']['count']),
+    ),
+    (
+        'Start here  (2 of 3)',
+        'Sheet 03 — USD conversion. {} bookings carry an amount in AED and no USD amount at all: '
+        'AED {} of travel, roughly ${} at 3.6725, missing from every USD figure. The feed reports '
+        '${} in total, so this is not a rounding gap.'
+        .format(by_key['usd_missing']['count'], '{:,}'.format(unconverted),
+                '{:,}'.format(round(unconverted / 3.6725)),
+                '{:,}'.format(int(totals['total_usd']))),
+    ),
+    (
+        'Start here  (3 of 3)',
+        'Sheet 02 — invisible padding. Every `segment` value is padded to exactly 20 characters '
+        'with U+00A0, the NON-BREAKING space, on 221 of {} bookings. TRIM() does not remove it, '
+        'so anything cleaning the value still ends up with eleven invisible characters on the end '
+        'and will not match the same segment name from any other system. It is undetectable by '
+        'eye; it was found by measuring the string.'
+        .format(totals['bookings']),
+    ),
+]
+
+for label, text in headlines:
+    base(ws.cell(row=row, column=1, value=label), bold=True, colour='C62828', wrap=True, top=True)
+    cell = base(ws.cell(row=row, column=2, value=text), wrap=True, top=True)
+    cell.fill = PatternFill('solid', fgColor='FDECEA')
+    ws.row_dimensions[row].height = max(34, 13 * (1 + len(text) // 92))
+    row += 1
 
 # ─────────────────────────── Summary ───────────────────────────
 summary = wb.create_sheet('Summary')

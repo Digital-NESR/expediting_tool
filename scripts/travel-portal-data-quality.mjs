@@ -34,9 +34,68 @@ const CHANNEL = `CASE WHEN LEFT(b.code, 3) = 'BTO' THEN 'BTO (portal)'
 
 const CHECKS = [
   {
+    key: 'test_bookings',
+    tab: 'Test bookings',
+    title: '1. Test bookings still in the live data',
+    severity: 'Critical',
+    question:
+      "Bookings whose cost centre is an all-nines placeholder (C999999999, C999999997) or whose company is 'Satguru Test'. These were made to exercise the portal, not to fly anyone.",
+    soWhat:
+      'They are counted as real travel everywhere: 15 bookings, AED 34,008 of which USD 9,260 is converted, 6 travellers, 7 flight segments, 8 legs, 21 cheapest-fare rows, 6 policy violations, 7 savings rows, 5 approver rows and 7 fare rules. Three of the six policy violations in the whole feed belong to test trips, so the compliance rate is measured partly against bookings nobody took.',
+    sql: `
+      SELECT ${CHANNEL} AS "Channel", b.code AS "Booking code",
+             b."employeeName" AS "Traveller", b."createdUserName" AS "Booked by",
+             b."costCenter" AS "Cost centre", b."companyName" AS "Company",
+             b."bookingStatus" AS "Status",
+             b."departureAirportCode" AS "From", b."arrivalAirportCode" AS "To",
+             b."departureDate"::text AS "Departure",
+             to_char(b."creationDate", 'YYYY-MM-DD HH24:MI') AS "Created",
+             b.currency AS "Currency", b."totalAmount" AS "Total (local)",
+             b."totalAmountUSD" AS "Total (USD)",
+             (SELECT COUNT(*) FROM travellers x WHERE x.code = b.code) AS "Traveller rows",
+             (SELECT COUNT(*) FROM flightsegments x WHERE x.code = b.code) AS "Segment rows",
+             (SELECT COUNT(*) FROM flightsegmentlegs x WHERE x.code = b.code) AS "Leg rows",
+             (SELECT COUNT(*) FROM cheapestflightsegments x WHERE x.code = b.code) AS "Cheapest-fare rows",
+             (SELECT COUNT(*) FROM policyviolations x WHERE x.code = b.code) AS "Policy violation rows",
+             (SELECT COUNT(*) FROM savings_analysis x WHERE x.code = b.code) AS "Savings rows",
+             (SELECT COUNT(*) FROM approvers x WHERE x.code = b.code) AS "Approver rows",
+             (SELECT COUNT(*) FROM farerules x WHERE x.code = b.code) AS "Fare rule rows",
+             CASE
+               WHEN b."costCenter" ~ '^C9{6,}[0-9]*$' AND b."companyName" ILIKE '%test%'
+                 THEN 'All-nines cost centre AND a test company'
+               WHEN b."costCenter" ~ '^C9{6,}[0-9]*$' THEN 'All-nines cost centre'
+               ELSE 'Company name says test'
+             END AS "Why it is flagged"
+        FROM bookings b
+       WHERE b."costCenter" ~ '^C9{6,}[0-9]*$'
+          OR b."companyName" ILIKE '%test%'
+       ORDER BY b."employeeName", b."creationDate"`,
+  },
+  {
+    key: 'nbsp_padding',
+    tab: 'Invisible padding',
+    title: '2. Segment padded with non-breaking spaces',
+    severity: 'Critical',
+    question:
+      "Every `segment` value is padded out to exactly 20 characters with U+00A0, the non-breaking space -- not the ordinary space. 221 of 237 bookings carry it. It is not only trailing: in a two-word segment the space BETWEEN the words is a non-breaking space as well, so 'SUPPLY CHAIN' contains no ordinary space at all.",
+    soWhat:
+      "TRIM() does not remove U+00A0, so code that cleans the value still ends up with 'CEMENTING' followed by eleven invisible characters. It will not match 'CEMENTING' from any other system, it groups as its own value, and on screen it looks identical to the clean one. This was found only by measuring the string: length('CEMENTING           ') is 20 and length(TRIM(...)) is also 20.",
+    sql: `
+      SELECT segment AS "Value as stored",
+             LENGTH(segment) AS "Characters",
+             LENGTH(REPLACE(segment, CHR(160), '')) AS "Characters once U+00A0 is removed",
+             TRIM(REPLACE(segment, CHR(160), ' ')) AS "What it should be",
+             LENGTH(segment) - LENGTH(REPLACE(segment, CHR(160), '')) AS "Non-breaking spaces",
+             COUNT(*) AS "Bookings"
+        FROM bookings
+       WHERE segment ~ CHR(160)
+       GROUP BY 1, 2, 3, 4, 5
+       ORDER BY 6 DESC, 1`,
+  },
+  {
     key: 'usd_missing',
     tab: 'USD amount missing',
-    title: '1. USD amount missing',
+    title: '3. USD amount missing',
     severity: 'Critical',
     question:
       'Bookings that carry a local-currency amount but whose totalAmountUSD is zero or NULL. Nothing is unpriced -- the money is there in AED -- it simply never got converted.',
@@ -58,7 +117,7 @@ const CHECKS = [
   {
     key: 'orphan_rows',
     tab: 'Orphan rows',
-    title: '2. Rows attached to no booking',
+    title: '4. Rows attached to no booking',
     severity: 'Critical',
     question:
       'Child rows whose `code` is NULL, or names a booking that does not exist. They belong to a trip nobody can identify.',
@@ -89,7 +148,7 @@ const CHECKS = [
   {
     key: 'bto_no_segments',
     tab: 'No itinerary',
-    title: '3. Bookings with no itinerary',
+    title: '5. Bookings with no itinerary',
     severity: 'High',
     question:
       'Bookings made IN the portal that carry no row in flightsegments, so there is no record of which flights were taken.',
@@ -110,7 +169,7 @@ const CHECKS = [
   {
     key: 'bto_no_approvers',
     tab: 'No approval trail',
-    title: '4. Approved with no approval trail',
+    title: '6. Approved with no approval trail',
     severity: 'High',
     question:
       'Bookings whose status is Approved but which carry no row in `approvers`, so there is no record of who approved them.',
@@ -131,7 +190,7 @@ const CHECKS = [
   {
     key: 'departed_before_booked',
     tab: 'Departed before booked',
-    title: '5. Departure before the booking exists',
+    title: '7. Departure before the booking exists',
     severity: 'High',
     question:
       'The departure date is earlier than the date the booking was created. Either the trip was entered after it happened, or one of the two dates is wrong.',
@@ -153,7 +212,7 @@ const CHECKS = [
   {
     key: 'leg_times',
     tab: 'Legs with no times',
-    title: '6. Flight legs with no times',
+    title: '8. Flight legs with no times',
     severity: 'High',
     question: 'Legs missing a departure or arrival time, or arriving before they depart.',
     soWhat:
@@ -179,7 +238,7 @@ const CHECKS = [
   {
     key: 'segment_price_gaps',
     tab: 'Segments with no price',
-    title: '7. Flight segments with no price',
+    title: '9. Flight segments with no price',
     severity: 'Medium',
     question:
       'Segments carrying no finalPrice, a price of zero, or no currency to read the price in.',
@@ -205,7 +264,7 @@ const CHECKS = [
   {
     key: 'savings_coverage',
     tab: 'No fare comparison',
-    title: '8. No cheapest-fare comparison',
+    title: '10. No cheapest-fare comparison',
     severity: 'Medium',
     question:
       'Bookings that have flight segments but no alternatives in `cheapestflightsegments`, so the chosen fare has nothing to be compared against.',
@@ -228,7 +287,7 @@ const CHECKS = [
   {
     key: 'price_components',
     tab: 'Price breakdown zero',
-    title: '9. Price components are all zero',
+    title: '11. Price components are all zero',
     severity: 'Medium',
     question:
       'A final price is present, but base fare, tax, service charge and discount add up to something else -- almost always zero.',
@@ -253,7 +312,7 @@ const CHECKS = [
   {
     key: 'return_one_leg',
     tab: 'Return with one leg',
-    title: '10. Return trips with one leg',
+    title: '12. Return trips with one leg',
     severity: 'Medium',
     question: 'Direction says the trip comes back, and only one flight segment is recorded.',
     soWhat:
@@ -275,7 +334,7 @@ const CHECKS = [
   {
     key: 'return_dates',
     tab: 'Return dates',
-    title: '11. Return date problems',
+    title: '13. Return date problems',
     severity: 'Medium',
     question: 'A return trip with no return date, or one that returns on or before it departs.',
     soWhat:
@@ -297,7 +356,7 @@ const CHECKS = [
   {
     key: 'traveller_gaps',
     tab: 'Traveller fields',
-    title: '12. Traveller records missing fields',
+    title: '14. Traveller records missing fields',
     severity: 'Medium',
     question:
       'Traveller rows with no email, no employee id or no ticket number. Passport details are checked too and are complete -- no passport NUMBERS are reproduced here.',
@@ -325,7 +384,7 @@ const CHECKS = [
   {
     key: 'missing_attribution',
     tab: 'Cost attribution',
-    title: '13. Missing cost attribution',
+    title: '15. Missing cost attribution',
     severity: 'Medium',
     question:
       'Bookings missing a cost centre, company code, segment or employee id -- the fields the spend is charged against.',
@@ -350,7 +409,7 @@ const CHECKS = [
   {
     key: 'blank_airport_codes',
     tab: 'Airport codes',
-    title: '14. Airport codes blank or not 3 letters',
+    title: '16. Airport codes blank or not 3 letters',
     severity: 'Medium',
     question:
       'Every IATA airport code is three letters. Anything else cannot be looked up, mapped or grouped.',
@@ -377,7 +436,7 @@ const CHECKS = [
   {
     key: 'employee_identity',
     tab: 'Employee id vs name',
-    title: '15. Employee id and name disagree',
+    title: '17. Employee id and name disagree',
     severity: 'Low',
     question:
       'One employee id carrying more than one spelling of a name, or one name appearing under more than one id.',
@@ -408,7 +467,7 @@ const CHECKS = [
   {
     key: 'duplicate_travellers',
     tab: 'Duplicate travellers',
-    title: '16. Duplicate traveller rows',
+    title: '18. Duplicate traveller rows',
     severity: 'Low',
     question: 'The same person recorded more than once against one booking.',
     soWhat: 'Any per-traveller count reads high by the number of duplicates.',
@@ -426,7 +485,7 @@ const CHECKS = [
   {
     key: 'padded_text',
     tab: 'Padded text',
-    title: '17. Padded text values',
+    title: '19. Padded text values',
     severity: 'Low',
     question:
       'Values carrying leading or trailing whitespace, or differing from another value only by case or padding.',
@@ -460,7 +519,7 @@ const CHECKS = [
   {
     key: 'route_mismatch',
     tab: 'Route check (clean)',
-    title: '18. Header route vs segments',
+    title: '20. Header route vs segments',
     severity: 'Clean',
     question:
       'Checked: does the origin and destination on the booking header agree with the first flight segment?',
@@ -485,7 +544,7 @@ const CHECKS = [
   {
     key: 'passport_completeness',
     tab: 'Passports (clean)',
-    title: '19. Passport details',
+    title: '21. Passport details',
     severity: 'Clean',
     question:
       'Checked: every traveller row for a missing passport number, a missing expiry date, or an expiry falling before the travel date.',
