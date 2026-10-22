@@ -35,6 +35,11 @@ import ProcureGuardLogo from './ProcureGuardLogo';
 import ProcureGuardHomeButton from './ProcureGuardHomeButton';
 import ProcureGuardViewersManager from './ProcureGuardViewersManager';
 import { updateAdhocPaymentStatus, updateAdvancePaymentStatus } from '@/app/actions/procureGuard';
+import { uploadProcureGuardDocument } from '@/app/actions/procure-guard/documents';
+import {
+  SAP_VERIFICATION_DOCUMENT_LABEL,
+  SAP_VERIFICATION_DOCUMENT_TYPE,
+} from '@/lib/procure-guard/constants';
 
 type DetailValue = string | number | null | undefined;
 type PdfSectionKey = 'summary' | 'vendor' | 'details' | 'review' | 'attachments' | 'activity';
@@ -510,6 +515,7 @@ export default function ProcureGuardRequestDetailClient({
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [highlightDecision, setHighlightDecision] = useState(false);
+  const [isUploadingEvidence, setIsUploadingEvidence] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isPdfDialogOpen, setIsPdfDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
@@ -558,6 +564,18 @@ export default function ProcureGuardRequestDetailClient({
   const canCancel =
     ownsRequest && request.status === 'Submitted' && actor.permissions.canCreateRequests;
   const hasDecisionActions = actions.canApprove || actions.canReject || canCancel;
+  /* The SAP step is the one transition that needs a file as well as a comment. Keyed on the
+     status this approval would move the request TO, not on the actor's role: an Admin holds SAP
+     Team authority too, and the requirement belongs to the step rather than to the person. */
+  const isSapVerificationStep = actions.canApprove && actions.nextStatus === 'Verified by SAP Team';
+  const sapEvidence = documents.filter(
+    (doc) => doc.document_type === SAP_VERIFICATION_DOCUMENT_TYPE,
+  );
+  /* Mirrors the server's rule exactly. The server is the one that enforces it -- this is a
+     public POST endpoint and the form can be bypassed -- so this only exists to stop somebody
+     pressing Verify and being refused a second later. */
+  const canSubmitApproval =
+    !isSapVerificationStep || (reviewComment.trim().length > 0 && sapEvidence.length > 0);
   const editHref = `/procure-guard/${isAdvance ? 'advance-payments' : 'adhoc-payments'}/${request.id}/edit`;
   const selectedPdfSectionCount = PDF_SECTION_OPTIONS.filter(
     (option) => pdfSections[option.key],
@@ -592,21 +610,78 @@ export default function ProcureGuardRequestDetailClient({
             >
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Action Comment{' '}
-                <span className="font-normal text-slate-400">(required for rejection only)</span>
+                <span className="font-normal text-slate-400">
+                  {/* The old label said "required for rejection only", which stopped being true
+                      at this step. Said per step rather than as one sentence covering both,
+                      because a reader checks the label for THEIR button. */}
+                  {isSapVerificationStep
+                    ? '(required \u2014 say what you checked in SAP)'
+                    : '(required for rejection only)'}
+                </span>
               </label>
               <textarea
                 className="mt-2 min-h-28 w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20"
                 value={reviewComment}
                 onChange={(e) => setReviewComment(e.target.value)}
               />
+              {/* Only at the SAP step, and only for the person who can act on it. Everyone
+                  else keeps the attachment list further down the page; putting a required
+                  upload beside the button is what stops a verification being submitted and
+                  bounced by the server a second later. */}
+              {isSapVerificationStep && (
+                <div className="mt-3 rounded-md border border-[#307c4c]/30 bg-[#307c4c]/5 p-3">
+                  <p className="text-xs font-bold text-[#1f5733]">
+                    {SAP_VERIFICATION_DOCUMENT_LABEL}{' '}
+                    <span className="font-semibold text-[#307c4c]">(required)</span>
+                  </p>
+                  <p className="mt-0.5 text-[11px] leading-snug text-slate-600">
+                    Attach what the check produced \u2014 a screenshot, an extract, an email.
+                    {sapEvidence.length > 0
+                      ? ' One is already on this request; adding another replaces nothing.'
+                      : ' This request has none yet, so Verify is disabled until one is attached.'}
+                  </p>
+
+                  {sapEvidence.length > 0 && (
+                    <ul className="mt-2 space-y-1">
+                      {sapEvidence.map((doc) => (
+                        <li key={doc.id} className="text-[11px] text-slate-600">
+                          <span className="font-semibold text-slate-800">{doc.document_name}</span>
+                          {' \u00b7 '}
+                          {doc.uploaded_by_name || doc.uploaded_by_email}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  <input
+                    type="file"
+                    disabled={isPending || isUploadingEvidence}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (file) void uploadSapEvidence(file);
+                    }}
+                    className="mt-2 block w-full text-[11px] file:mr-2 file:rounded-md file:border-0 file:bg-[#307c4c] file:px-3 file:py-1.5 file:text-[11px] file:font-bold file:text-white disabled:opacity-60"
+                  />
+                  {isUploadingEvidence && (
+                    <p className="mt-1 text-[11px] font-semibold text-[#307c4c]">Uploading\u2026</p>
+                  )}
+                </div>
+              )}
+
               <div className="mt-3 flex flex-wrap gap-2">
                 {actions.canApprove && actions.nextStatus && (
                   <button
-                    disabled={isPending}
+                    disabled={isPending || isUploadingEvidence || !canSubmitApproval}
+                    title={
+                      canSubmitApproval
+                        ? undefined
+                        : `Add a comment and attach the ${SAP_VERIFICATION_DOCUMENT_LABEL.toLowerCase()} first.`
+                    }
                     onClick={() => submitStatus(actions.nextStatus!)}
                     className="rounded-md bg-[#307c4c] px-3 py-2 text-xs font-bold text-white hover:bg-[#307c4c]/80 disabled:opacity-60"
                   >
-                    Approve
+                    {isSapVerificationStep ? 'Verify' : 'Approve'}
                   </button>
                 )}
                 {actions.canReject && (
@@ -669,6 +744,28 @@ export default function ProcureGuardRequestDetailClient({
     window.setTimeout(() => setHighlightDecision(false), 1800);
   }
 
+  async function uploadSapEvidence(file: File) {
+    setNotice('');
+    setError('');
+    setIsUploadingEvidence(true);
+    const fd = new FormData();
+    fd.append('request_type', requestType);
+    fd.append('request_id', String(request.id));
+    fd.append('document_type', SAP_VERIFICATION_DOCUMENT_TYPE);
+    fd.append('file', file);
+    const result = await uploadProcureGuardDocument(fd);
+    setIsUploadingEvidence(false);
+    if (!result.success) {
+      setError(result.error ?? 'Upload failed. Please try again.');
+      return;
+    }
+    setNotice(`${SAP_VERIFICATION_DOCUMENT_LABEL} attached.`);
+    /* Refresh rather than appending to local state: the attachment list further down the page
+       reads the same `documents` prop, and two lists disagreeing about what is attached is
+       exactly the confusion this box exists to remove. */
+    router.refresh();
+  }
+
   function submitStatus(nextStatus: AdhocPaymentRequest['status']) {
     setNotice('');
     setError('');
@@ -676,6 +773,16 @@ export default function ProcureGuardRequestDetailClient({
     if (nextStatus === 'Rejected' && !comment) {
       setError('Add a comment before rejecting this request.');
       return;
+    }
+    if (nextStatus === 'Verified by SAP Team') {
+      if (!comment) {
+        setError('Add a comment saying what you checked before verifying.');
+        return;
+      }
+      if (sapEvidence.length === 0) {
+        setError(`Attach the ${SAP_VERIFICATION_DOCUMENT_LABEL.toLowerCase()} before verifying.`);
+        return;
+      }
     }
 
     startTransition(async () => {
@@ -1377,6 +1484,15 @@ export default function ProcureGuardRequestDetailClient({
                           <span className="min-w-0">
                             <span className="block truncate font-semibold text-slate-900">
                               {doc.original_name || doc.document_name}
+                              {/* Marked in the list as well as in the decision box. An auditor
+                                  reading the attachments later needs to see which file was the
+                                  evidence for the SAP step and which was the requester's
+                                  paperwork; by filename alone they are indistinguishable. */}
+                              {doc.document_type === SAP_VERIFICATION_DOCUMENT_TYPE && (
+                                <span className="ml-2 inline-flex rounded-full bg-[#307c4c]/10 px-2 py-0.5 align-middle text-[10px] font-bold text-[#1f5733]">
+                                  {SAP_VERIFICATION_DOCUMENT_LABEL}
+                                </span>
+                              )}
                             </span>
                             <span className="text-xs text-slate-500">
                               {fmtBytes(doc.file_size)} | Uploaded by{' '}

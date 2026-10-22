@@ -25,6 +25,8 @@ import {
   MAX_PROCURE_GUARD_FILE_BYTES,
   PROCURE_GUARD_DOCUMENT_TYPES,
   PROCUREGUARD_DATA_TAG,
+  SAP_VERIFICATION_DOCUMENT_LABEL,
+  SAP_VERIFICATION_DOCUMENT_TYPE,
 } from '@/lib/procure-guard/constants';
 import { ensureProcureGuardSchema, exec, serialise, sql } from '@/lib/procure-guard/internals';
 import {
@@ -70,6 +72,27 @@ export async function uploadProcureGuardDocument(
 
     if (!PROCURE_GUARD_DOCUMENT_TYPES.has(documentType)) {
       return { success: false, error: 'Unsupported attachment type.' };
+    }
+
+    /* The SAP type is the one the verification step looks for, so only somebody who could
+       perform that step may file under it. Without this the requirement is satisfiable by the
+       requester: upload anything, tick the type, and the transition sees evidence that nobody
+       with the authority to check ever produced. The rule is enforced HERE rather than at the
+       transition because permissions change -- checking the uploader's authority weeks later
+       would let a verified request become unverifiable when somebody leaves the team. */
+    if (documentType === SAP_VERIFICATION_DOCUMENT_TYPE) {
+      if (requestType !== 'adhoc') {
+        return {
+          success: false,
+          error: `${SAP_VERIFICATION_DOCUMENT_LABEL} belongs to the adhoc SAP Team verification step, which advance requests do not have.`,
+        };
+      }
+      if (!actor.permissions.canReviewAdhocSapTeam) {
+        return {
+          success: false,
+          error: `Only the SAP Team can file ${SAP_VERIFICATION_DOCUMENT_LABEL.toLowerCase()}. Attach it as a normal attachment instead.`,
+        };
+      }
     }
 
     if (file.size > MAX_PROCURE_GUARD_FILE_BYTES) {
@@ -133,7 +156,10 @@ export async function uploadProcureGuardDocument(
       requestType,
       requestId,
       referenceNumber: requestRows[0].reference_number,
-      action: 'Attachment uploaded',
+      action:
+        documentType === SAP_VERIFICATION_DOCUMENT_TYPE
+          ? `${SAP_VERIFICATION_DOCUMENT_LABEL} uploaded`
+          : 'Attachment uploaded',
       actor,
       notes: file.name,
     });

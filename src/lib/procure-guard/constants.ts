@@ -62,7 +62,22 @@ export const MEANINGFUL_ACTIVITY_WHERE = "request_id > 0 AND action NOT ILIKE '%
 export const MAX_PROCURE_GUARD_FILE_BYTES = 10 * 1024 * 1024;
 // document_type lands in a column the detail page groups on, so it is a closed vocabulary, not
 // free text — the request forms are the only uploaders and only ever send 'request_attachment'.
-export const PROCURE_GUARD_DOCUMENT_TYPES = new Set(['request_attachment']);
+/**
+ * What the SAP team attaches when they verify an adhoc request.
+ *
+ * Its own type rather than a plain `request_attachment`, for two reasons. The transition to
+ * `Verified by SAP Team` refuses without one, so the guard needs to be able to tell this file
+ * apart from the quotation the requester uploaded weeks earlier. And only somebody holding SAP
+ * Team authority may upload under this type, which is what stops the requirement from being
+ * satisfied by a file nobody with the authority to check ever looked at.
+ */
+export const SAP_VERIFICATION_DOCUMENT_TYPE = 'sap_verification';
+export const SAP_VERIFICATION_DOCUMENT_LABEL = 'SAP verification evidence';
+
+export const PROCURE_GUARD_DOCUMENT_TYPES = new Set([
+  'request_attachment',
+  SAP_VERIFICATION_DOCUMENT_TYPE,
+]);
 export const MAX_PROCURE_GUARD_DOCUMENT_NAME_CHARS = 200;
 
 // A delegation hands over live approval authority, so its end date is validated rather than passed

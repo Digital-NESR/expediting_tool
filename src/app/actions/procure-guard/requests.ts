@@ -11,6 +11,10 @@ import type { QueryResultRow } from 'pg';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { logger } from '@/lib/logger';
 import {
+  SAP_VERIFICATION_DOCUMENT_LABEL,
+  SAP_VERIFICATION_DOCUMENT_TYPE,
+} from '@/lib/procure-guard/constants';
+import {
   formatProcureGuardStatusLabel,
   getNextApprovalStatus,
   getRequiredPermissionForTransition,
@@ -385,9 +389,41 @@ async function updateStatusCommon(input: {
   }
 
   const comment = typeof input.notes === 'string' ? input.notes.trim() : '';
-  const requiresComment = input.status === 'Rejected';
-  if (requiresComment && !comment) {
+  const verifyingSap = input.status === 'Verified by SAP Team';
+  /* Rejection has always needed a reason. SAP verification needs one too: the step exists to
+     record that somebody checked the supplier in SAP, and "Verified" with nothing beside it
+     records only that a button was pressed. */
+  if (input.status === 'Rejected' && !comment) {
     return { success: false, error: 'Add a comment before rejecting this request.' };
+  }
+  if (verifyingSap && !comment) {
+    return {
+      success: false,
+      error: `Add a comment saying what you checked, and attach the ${SAP_VERIFICATION_DOCUMENT_LABEL.toLowerCase()}, before verifying.`,
+    };
+  }
+
+  /* The evidence itself. Checked here rather than trusted from the client because this is a
+     public POST endpoint: the form can be bypassed, and a verification with no evidence behind
+     it is exactly what this step was added to prevent.
+
+     Existence is enough. `uploadProcureGuardDocument` already refuses this document type to
+     anyone without SAP Team authority, so a row of this type IS a file filed by the SAP team --
+     re-deriving the uploader's authority now would instead mean a request could stop being
+     verifiable because the person who checked it has since left. */
+  if (verifyingSap) {
+    const evidence = await sql<QueryResultRow[]>(
+      `SELECT 1 FROM procure_guard_documents
+        WHERE request_type = ? AND request_id = ? AND document_type = ?
+        LIMIT 1`,
+      [input.requestType, input.id, SAP_VERIFICATION_DOCUMENT_TYPE],
+    );
+    if (!evidence.length) {
+      return {
+        success: false,
+        error: `Attach the ${SAP_VERIFICATION_DOCUMENT_LABEL.toLowerCase()} before verifying. ${row.reference_number} cannot move to Verified by SAP Team without it.`,
+      };
+    }
   }
 
   const setReviewed = REVIEWED_STATUSES.includes(input.status);
