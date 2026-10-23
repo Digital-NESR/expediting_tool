@@ -82,37 +82,48 @@ export interface Phase {
 }
 
 /* ─── Lanes ──────────────────────────────────────────────────────────────────────────────────
-   The slide uses amber, green, pink and blue. Those are its own palette and would fight every
-   other surface in this app, so each lane takes a step down the green ramp already declared in
-   globals.css instead. The lanes stay as distinguishable from one another as the slide's four
-   hues, and the page still looks like the rest of the product. */
+   The slide's own four colours: amber for Source to Catalog, green for Demand to Pay, orchid
+   for Logistics and blue for Inventory.
+
+   These were a green ramp first, on the reasoning that four hues would fight the rest of the
+   app. They did something worse: four greens a step apart read as one lane with a gradient,
+   and the thing the colour is carrying here is WHICH LANE a box belongs to -- the one question
+   the diagram exists to answer at a glance. Four distinct hues answer it; four tints of one do
+   not.
+
+   Each is pulled towards the house palette rather than taken raw from the slide: the greens
+   are NESR's #307c4c, and the amber, orchid and blue are desaturated to sit beside it without
+   shouting. The tints are the same hues at about 6% for the lane bands.
+*/
 export const LANES: Lane[] = [
   {
     id: 'source-to-catalog',
     label: 'Source to Catalog',
-    colour: '#6AAF8E',
-    tint: '#F2F9F5',
-    box: { x: 460, y: 30, w: 320, h: 380 },
+    colour: '#C08A1E',
+    tint: '#FDF8EC',
+    box: { x: 460, y: 8, w: 320, h: 348 },
   },
   {
     id: 'demand-to-pay',
     label: 'Demand to Pay',
     colour: '#307c4c',
     tint: '#EAF4EE',
-    box: { x: 40, y: 380, w: 1840, h: 200 },
+    /* Taller than the stages need. The extra 18 at the top is a row for the lane's own
+       label, which would otherwise sit on the Demand phase band. */
+    box: { x: 40, y: 362, w: 1840, h: 218 },
   },
   {
     id: 'logistics',
     label: 'Logistics',
-    colour: '#1f5733',
-    tint: '#EDF3EF',
-    box: { x: 835, y: 630, w: 430, h: 270 },
+    colour: '#A8509B',
+    tint: '#FAF2F9',
+    box: { x: 835, y: 630, w: 430, h: 284 },
   },
   {
     id: 'inventory',
     label: 'Inventory',
-    colour: '#2E6B47',
-    tint: '#F1F6F3',
+    colour: '#1F5C8B',
+    tint: '#EEF4FA',
     box: { x: 40, y: 770, w: 720, h: 140 },
   },
 ];
@@ -130,7 +141,7 @@ export const STAGES: Stage[] = [
     laneId: 'source-to-catalog',
     label: 'Source',
     x: 531,
-    y: 60,
+    y: 46,
     w: 180,
     h: NODE_H,
     toolIds: ['sourceguide', 'sns-registry'],
@@ -140,7 +151,7 @@ export const STAGES: Stage[] = [
     laneId: 'source-to-catalog',
     label: 'Contract',
     x: 531,
-    y: 180,
+    y: 158,
     w: 180,
     h: NODE_H,
     toolIds: ['sirion'],
@@ -150,7 +161,7 @@ export const STAGES: Stage[] = [
     laneId: 'source-to-catalog',
     label: 'Catalog',
     x: 531,
-    y: 300,
+    y: 270,
     w: 180,
     h: NODE_H,
     toolIds: ['catalog-manager', 'spend-taxonomy'],
@@ -277,7 +288,7 @@ export const STAGES: Stage[] = [
     laneId: 'logistics',
     label: 'Expediting / Readiness',
     x: 870,
-    y: 660,
+    y: 674,
     w: 150,
     h: NODE_H,
     toolIds: ['po-expediting'],
@@ -287,7 +298,7 @@ export const STAGES: Stage[] = [
     laneId: 'logistics',
     label: 'Freight Procurement',
     x: 870,
-    y: 790,
+    y: 804,
     w: 150,
     h: NODE_H,
     toolIds: [],
@@ -297,7 +308,7 @@ export const STAGES: Stage[] = [
     laneId: 'logistics',
     label: 'Tracking',
     x: 1032,
-    y: 660,
+    y: 674,
     w: 150,
     h: NODE_H,
     toolIds: ['shipwaves', 'tite'],
@@ -382,7 +393,7 @@ export const EDGES: Edge[] = [
     to: 'demand-forecasting',
     laneId: 'source-to-catalog',
     dash: 'dashed',
-    via: [{ x: 135, y: 98 }],
+    via: [{ x: 135, y: 84 }],
   },
 
   // The spine.
@@ -427,7 +438,7 @@ export const EDGES: Edge[] = [
     laneId: 'logistics',
     dash: 'solid',
     label: 'FF Bid & Award',
-    via: [{ x: 1107, y: 828 }],
+    via: [{ x: 1107, y: 842 }],
   },
   {
     from: 'logistics-tracking',
@@ -534,6 +545,37 @@ export function boundsOf(stageIds: string[], pad = 70): Rect {
 /** The centre of a rect, which is where every edge starts and ends. */
 export function centreOf(rect: Rect): { x: number; y: number } {
   return { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
+}
+
+/**
+ * The point halfway ALONG an edge, measured by length, which is where its caption goes.
+ *
+ * Taking the middle element of the points array is the obvious thing and is wrong: a plain
+ * two-point edge has no middle element, so `points[1]` is the destination and every caption on
+ * a straight run was printed on top of the node it pointed at. Walking the polyline gives the
+ * real midpoint, and on a bent edge it lands on the longer leg where there is room for it.
+ */
+export function edgeMidpoint(edge: Edge): { x: number; y: number } {
+  const points = [
+    centreOf(STAGE_BY_ID[edge.from]),
+    ...(edge.via ?? []),
+    centreOf(STAGE_BY_ID[edge.to]),
+  ];
+  const segments = points.slice(1).map((p, i) => Math.hypot(p.x - points[i].x, p.y - points[i].y));
+  const half = segments.reduce((a2, b2) => a2 + b2, 0) / 2;
+
+  let walked = 0;
+  for (let i = 0; i < segments.length; i += 1) {
+    if (walked + segments[i] >= half) {
+      const f = segments[i] === 0 ? 0 : (half - walked) / segments[i];
+      return {
+        x: points[i].x + (points[i + 1].x - points[i].x) * f,
+        y: points[i].y + (points[i + 1].y - points[i].y) * f,
+      };
+    }
+    walked += segments[i];
+  }
+  return points[points.length - 1];
 }
 
 /**

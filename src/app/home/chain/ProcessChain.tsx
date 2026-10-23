@@ -22,10 +22,9 @@ import {
   LANES,
   PHASES,
   STAGES,
-  STAGE_BY_ID,
   boundsOf,
-  centreOf,
   coverage,
+  edgeMidpoint,
   edgePath,
   stagesForTool,
   type LaneId,
@@ -39,8 +38,32 @@ const MUTED = '#94a3b8';
 const GAP_STROKE = '#cbd5e1';
 
 /** Past these zoom levels, more of the diagram is worth drawing. */
-const SHOW_TOOL_NAMES = 1.45;
-const SHOW_EDGE_LABELS = 2.1;
+const SHOW_TOOL_NAMES = 1.6;
+const SHOW_EDGE_LABELS = 2.2;
+
+/**
+ * Base type sizes, in canvas units, damped against the zoom.
+ *
+ * Two wrong answers either side of this one. Dividing by the zoom held every label at a
+ * constant size on screen -- the arithmetic was right and the result unusable, because a
+ * canvas unit is about half a screen pixel at the fitted view, so it pinned everything at
+ * seven pixels and zooming in moved the diagram without ever making a word of it readable.
+ * Not scaling at all put the labels straight back in proportion, which reads well on a stage
+ * and turns a phase heading into forty-six pixels of shouting once you are inside it.
+ *
+ * Dividing by the SQUARE ROOT of the zoom lands between them: rendered size grows as
+ * sqrt(zoom), so text is legible at the overview, comfortably bigger at 3x, and never absurd
+ * at 6x. Zooming visibly enlarges, which is the thing that was actually broken.
+ */
+const TYPE = {
+  lane: 24,
+  phase: 27,
+  stage: 16,
+  stageLine: 18,
+  gapNote: 13,
+  chip: 15,
+  edge: 15,
+} as const;
 
 const TOOL_BY_ID: Record<string, ToolDef> = Object.fromEntries(TOOLS.map((t) => [t.id, t]));
 
@@ -65,9 +88,10 @@ export default function ProcessChain({
 
   const { total, covered, gaps } = useMemo(() => coverage(), []);
 
-  /* Text drawn at a constant size on screen. Dividing by the zoom is the whole trick: a label
-     that grew with the diagram would be unreadable when zoomed out and absurd when zoomed in. */
-  const t = (px: number) => px / camera.scale;
+  /* Damped against the zoom; see TYPE. Everything drawn in canvas units that should read as
+     type -- sizes, line spacing, chip heights -- goes through this, so one rule governs all of
+     it rather than each call site picking its own. */
+  const t = (base: number) => base / Math.sqrt(camera.scale);
   const showToolNames = camera.scale >= SHOW_TOOL_NAMES;
   const showEdgeLabels = camera.scale >= SHOW_EDGE_LABELS;
 
@@ -232,7 +256,7 @@ export default function ProcessChain({
           <svg
             ref={svgRef}
             viewBox={`${camera.view.x} ${camera.view.y} ${camera.view.w} ${camera.view.h}`}
-            className="h-[520px] w-full cursor-grab touch-none select-none active:cursor-grabbing"
+            className="h-[560px] w-full cursor-grab touch-none select-none active:cursor-grabbing"
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={endDrag}
@@ -258,10 +282,13 @@ export default function ProcessChain({
                 />
                 <text
                   x={lane.box.x + 14}
-                  y={lane.box.y + t(15)}
-                  fontSize={t(11)}
+                  /* A fixed baseline inside the lane's header strip. Deriving it from the
+                     damped font size moved the label as you zoomed, which is how it ended up
+                     on top of the first stage in the lane. */
+                  y={lane.box.y + 26}
+                  fontSize={t(TYPE.lane)}
                   fontWeight={700}
-                  letterSpacing={t(0.8)}
+                  letterSpacing={t(1.6)}
                   fill={lane.colour}
                   style={{ textTransform: 'uppercase' }}
                 >
@@ -322,7 +349,7 @@ export default function ProcessChain({
                   <text
                     x={phase.x + phase.w / 2}
                     y={416}
-                    fontSize={t(12)}
+                    fontSize={t(TYPE.phase)}
                     fontWeight={700}
                     textAnchor="middle"
                     fill={active ? '#ffffff' : '#1f5733'}
@@ -360,7 +387,7 @@ export default function ProcessChain({
         </div>
 
         {/* ── Detail panel ── */}
-        <aside className="w-full shrink-0 xl:w-80">
+        <aside className="w-full shrink-0 xl:w-72">
           {selected ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
               <div className="mb-2 flex items-start justify-between gap-2">
@@ -438,27 +465,24 @@ export default function ProcessChain({
 }
 
 /** A caption sitting on an edge, at its midpoint. */
-function EdgeLabel({ edge, t }: { edge: (typeof EDGES)[number]; t: (px: number) => number }) {
-  const from = centreOf(STAGE_BY_ID[edge.from]);
-  const to = centreOf(STAGE_BY_ID[edge.to]);
-  const points = [from, ...(edge.via ?? []), to];
-  const mid = points[Math.floor(points.length / 2)];
-  const width = (edge.label?.length ?? 0) * t(5.1) + t(10);
+function EdgeLabel({ edge, t }: { edge: (typeof EDGES)[number]; t: (b: number) => number }) {
+  const mid = edgeMidpoint(edge);
+  const width = (edge.label?.length ?? 0) * t(TYPE.edge * 0.56) + t(14);
   return (
     <g style={{ pointerEvents: 'none' }}>
       <rect
         x={mid.x - width / 2}
-        y={mid.y - t(8)}
+        y={mid.y - t(TYPE.edge)}
         width={width}
-        height={t(16)}
-        rx={t(8)}
+        height={t(TYPE.edge * 2)}
+        rx={t(TYPE.edge)}
         fill="#ffffff"
         fillOpacity={0.92}
       />
       <text
         x={mid.x}
-        y={mid.y + t(3.5)}
-        fontSize={t(9.5)}
+        y={mid.y + t(TYPE.edge * 0.36)}
+        fontSize={t(TYPE.edge)}
         textAnchor="middle"
         fill={MUTED}
         fontWeight={600}
@@ -486,7 +510,7 @@ function StageNode({
   onPickStage,
 }: {
   stage: Stage;
-  t: (px: number) => number;
+  t: (base: number) => number;
   showToolNames: boolean;
   dimmed: boolean;
   selectedTool: string | null;
@@ -534,8 +558,8 @@ function StageNode({
         <text
           key={i}
           x={stage.x + stage.w / 2}
-          y={stage.y + t(16) + i * t(11)}
-          fontSize={t(10)}
+          y={stage.y + 8 + t(TYPE.stage) + i * t(TYPE.stageLine)}
+          fontSize={t(TYPE.stage)}
           fontWeight={700}
           textAnchor="middle"
           fill={isGap ? MUTED : INK}
@@ -548,8 +572,8 @@ function StageNode({
       {isGap ? (
         <text
           x={stage.x + stage.w / 2}
-          y={stage.y + stage.h - t(9)}
-          fontSize={t(8.5)}
+          y={stage.y + stage.h - 12}
+          fontSize={t(TYPE.gapNote)}
           textAnchor="middle"
           fill={GAP_STROKE}
           fontWeight={600}
@@ -561,12 +585,14 @@ function StageNode({
         stage.toolIds.map((id, i) => {
           const tool = TOOL_BY_ID[id];
           if (!tool) return null;
-          const chipH = t(13);
-          const y = stage.y + stage.h - t(6) - (stage.toolIds.length - i) * (chipH + t(2));
+          const chipH = t(17);
+          const y = stage.y + stage.h - 8 - (stage.toolIds.length - i) * (chipH + t(3));
           const label = typeof tool.name === 'string' ? tool.name : id;
+          /* A dot until the names are legible, then the name. Drawing both at every zoom means
+             either a smear at the overview or a row of anonymous pills close up. */
           const w = showToolNames
-            ? Math.min(stage.w - t(14), label.length * t(5.2) + t(12))
-            : t(26);
+            ? Math.min(stage.w - 14, label.length * t(TYPE.chip * 0.58) + t(14))
+            : t(34);
           return (
             <g
               key={id}
@@ -591,8 +617,8 @@ function StageNode({
               {showToolNames && (
                 <text
                   x={stage.x + stage.w / 2}
-                  y={y + chipH - t(3.6)}
-                  fontSize={t(8.5)}
+                  y={y + chipH - t(5)}
+                  fontSize={t(TYPE.chip)}
                   fontWeight={700}
                   textAnchor="middle"
                   fill={selectedTool === id ? '#ffffff' : lane.colour}
