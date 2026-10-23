@@ -1,0 +1,627 @@
+'use client';
+
+/* ─── The process chain ──────────────────────────────────────────
+   The home page's second view: every tool placed on the supply chain it serves, and every
+   stage that has no tool at all drawn as a hole.
+
+   One inline <svg> driven by a viewBox camera (see ./useChainCamera). Text is sized in inverse
+   proportion to the zoom so it stays the same size on screen at every scale -- the thing that
+   changes as you zoom in is how MUCH is drawn, not how big it is. That is what makes it read
+   as a map rather than as a picture being magnified.
+
+   It does not know how to open a tool. `onOpenTool` comes from ToolLauncher, which owns the
+   access-request modal, the pending modal and the admin-preview gate; duplicating any of that
+   here would be a second, quietly different answer to "may this person open this". */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Maximize2, Layers, X } from 'lucide-react';
+import {
+  CHAIN_HEIGHT,
+  CHAIN_WIDTH,
+  EDGES,
+  LANES,
+  PHASES,
+  STAGES,
+  STAGE_BY_ID,
+  boundsOf,
+  centreOf,
+  coverage,
+  edgePath,
+  stagesForTool,
+  type LaneId,
+  type Stage,
+} from '@/lib/home/process-chain';
+import { TOOLS, type ToolDef } from '../tools';
+import { useChainCamera } from './useChainCamera';
+
+const INK = '#1f2d2a';
+const MUTED = '#94a3b8';
+const GAP_STROKE = '#cbd5e1';
+
+/** Past these zoom levels, more of the diagram is worth drawing. */
+const SHOW_TOOL_NAMES = 1.45;
+const SHOW_EDGE_LABELS = 2.1;
+
+const TOOL_BY_ID: Record<string, ToolDef> = Object.fromEntries(TOOLS.map((t) => [t.id, t]));
+
+export interface ProcessChainProps {
+  /** Opens a tool through the launcher's own access path. */
+  onOpenTool: (tool: ToolDef, newTab: boolean) => void;
+  /** Rendered inside the detail panel, so the panel shows the real card. */
+  renderToolCard: (tool: ToolDef) => React.ReactNode;
+  offChainToolIds: string[];
+}
+
+export default function ProcessChain({
+  onOpenTool,
+  renderToolCard,
+  offChainToolIds,
+}: ProcessChainProps) {
+  const camera = useChainCamera();
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [focus, setFocus] = useState<{ kind: 'lane' | 'phase'; id: string } | null>(null);
+  const [selectedTool, setSelectedTool] = useState<string | null>(null);
+  const [hoverTool, setHoverTool] = useState<string | null>(null);
+
+  const { total, covered, gaps } = useMemo(() => coverage(), []);
+
+  /* Text drawn at a constant size on screen. Dividing by the zoom is the whole trick: a label
+     that grew with the diagram would be unreadable when zoomed out and absurd when zoomed in. */
+  const t = (px: number) => px / camera.scale;
+  const showToolNames = camera.scale >= SHOW_TOOL_NAMES;
+  const showEdgeLabels = camera.scale >= SHOW_EDGE_LABELS;
+
+  /** The stages lit up right now: everything the hovered or selected tool touches. */
+  const litStageIds = useMemo(() => {
+    const id = hoverTool ?? selectedTool;
+    return id ? new Set(stagesForTool(id).map((s) => s.id)) : null;
+  }, [hoverTool, selectedTool]);
+
+  /** Canvas coordinates for a pointer event, so zoom can hold a point under the cursor. */
+  const toCanvas = useCallback(
+    (clientX: number, clientY: number) => {
+      const svg = svgRef.current;
+      if (!svg) return { x: CHAIN_WIDTH / 2, y: CHAIN_HEIGHT / 2 };
+      const r = svg.getBoundingClientRect();
+      return {
+        x: camera.view.x + ((clientX - r.left) / r.width) * camera.view.w,
+        y: camera.view.y + ((clientY - r.top) / r.height) * camera.view.h,
+      };
+    },
+    [camera.view],
+  );
+
+  /* Wheel-to-zoom is registered by hand, non-passive, because React's onWheel is passive and
+     cannot preventDefault -- without that the page scrolls behind the diagram at the same
+     time, which is the single worst thing a zoomable canvas can do on a scrolling page. */
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      camera.zoomAt(toCanvas(e.clientX, e.clientY), e.deltaY < 0 ? 1.12 : 1 / 1.12);
+    };
+    svg.addEventListener('wheel', onWheel, { passive: false });
+    return () => svg.removeEventListener('wheel', onWheel);
+  }, [camera, toCanvas]);
+
+  /** Drag to pan. Pointer events so a trackpad, a mouse and a pen all behave the same. */
+  const drag = useRef<{ x: number; y: number } | null>(null);
+  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (e.button !== 0) return;
+    drag.current = { x: e.clientX, y: e.clientY };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!drag.current) return;
+    const svg = svgRef.current;
+    if (!svg) return;
+    const r = svg.getBoundingClientRect();
+    camera.panBy(
+      -((e.clientX - drag.current.x) / r.width) * camera.view.w,
+      -((e.clientY - drag.current.y) / r.height) * camera.view.h,
+    );
+    drag.current = { x: e.clientX, y: e.clientY };
+  };
+  const endDrag = () => {
+    drag.current = null;
+  };
+
+  const focusPhase = (id: string) => {
+    const phase = PHASES.find((p) => p.id === id);
+    if (!phase) return;
+    setFocus({ kind: 'phase', id });
+    camera.flyTo(boundsOf(phase.stageIds));
+  };
+
+  const focusLane = (id: LaneId) => {
+    const lane = LANES.find((l) => l.id === id);
+    if (!lane) return;
+    setFocus({ kind: 'lane', id });
+    camera.flyTo(lane.box);
+  };
+
+  /** Escape backs out one level at a time rather than jumping straight to the top. */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (selectedTool) setSelectedTool(null);
+      else if (focus) {
+        setFocus(null);
+        camera.fit();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [camera, focus, selectedTool]);
+
+  const selected = selectedTool ? TOOL_BY_ID[selectedTool] : null;
+  const focusLabel =
+    focus?.kind === 'phase'
+      ? PHASES.find((p) => p.id === focus.id)?.label
+      : focus?.kind === 'lane'
+        ? LANES.find((l) => l.id === focus.id)?.label
+        : null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* ── Breadcrumb, lane filters and Fit ── */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setFocus(null);
+            setSelectedTool(null);
+            camera.fit();
+          }}
+          className="text-xs font-semibold text-slate-500 transition-colors hover:text-[#307c4c]"
+        >
+          The whole chain
+        </button>
+        {focusLabel && (
+          <>
+            <span className="text-xs text-slate-300">/</span>
+            <span className="text-xs font-bold text-[#307c4c]">{focusLabel}</span>
+          </>
+        )}
+
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          {LANES.map((lane) => (
+            <button
+              key={lane.id}
+              type="button"
+              onClick={() => focusLane(lane.id)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                focus?.kind === 'lane' && focus.id === lane.id
+                  ? 'border-transparent text-white'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+              }`}
+              style={
+                focus?.kind === 'lane' && focus.id === lane.id
+                  ? { background: lane.colour }
+                  : undefined
+              }
+            >
+              <span
+                aria-hidden
+                className="h-2 w-2 rounded-full"
+                style={{ background: lane.colour }}
+              />
+              {lane.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              setFocus(null);
+              camera.fit();
+            }}
+            disabled={camera.isFitted}
+            title="Fit the whole chain"
+            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition-colors hover:border-slate-300 disabled:opacity-40"
+          >
+            <Maximize2 className="h-3 w-3" />
+            Fit
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-4 xl:flex-row">
+        {/* ── The canvas ── */}
+        <div className="relative flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <svg
+            ref={svgRef}
+            viewBox={`${camera.view.x} ${camera.view.y} ${camera.view.w} ${camera.view.h}`}
+            className="h-[520px] w-full cursor-grab touch-none select-none active:cursor-grabbing"
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            role="img"
+            aria-label="The NESR supply chain, with each tool placed on the stage it serves"
+          >
+            <title>Supply chain process cycles and the systems behind them</title>
+
+            {/* Lane bands, behind everything. */}
+            {LANES.map((lane) => (
+              <g key={lane.id}>
+                <rect
+                  x={lane.box.x}
+                  y={lane.box.y}
+                  width={lane.box.w}
+                  height={lane.box.h}
+                  rx={18}
+                  fill={lane.tint}
+                  stroke={lane.colour}
+                  strokeOpacity={0.22}
+                  vectorEffect="non-scaling-stroke"
+                />
+                <text
+                  x={lane.box.x + 14}
+                  y={lane.box.y + t(15)}
+                  fontSize={t(11)}
+                  fontWeight={700}
+                  letterSpacing={t(0.8)}
+                  fill={lane.colour}
+                  style={{ textTransform: 'uppercase' }}
+                >
+                  {lane.label}
+                </text>
+              </g>
+            ))}
+
+            {/* Edges under the nodes, so a line never crosses a label. */}
+            {EDGES.map((edge) => {
+              const lane = LANES.find((l) => l.id === edge.laneId)!;
+              const dim = litStageIds
+                ? !(litStageIds.has(edge.from) && litStageIds.has(edge.to))
+                : false;
+              return (
+                <g key={`${edge.from}-${edge.to}`} opacity={dim ? 0.18 : 1}>
+                  <path
+                    d={edgePath(edge)}
+                    fill="none"
+                    stroke={lane.colour}
+                    strokeWidth={edge.dash === 'solid' ? 2.5 : 1.75}
+                    strokeDasharray={
+                      edge.dash === 'dashed' ? '9 7' : edge.dash === 'dotted' ? '2 7' : undefined
+                    }
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  {showEdgeLabels && edge.label && <EdgeLabel edge={edge} t={t} />}
+                </g>
+              );
+            })}
+
+            {/* Phase bands above the spine. */}
+            {PHASES.map((phase) => {
+              const active = focus?.kind === 'phase' && focus.id === phase.id;
+              return (
+                <g
+                  key={phase.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    focusPhase(phase.id);
+                  }}
+                  className="cursor-pointer"
+                >
+                  <rect
+                    x={phase.x}
+                    y={396}
+                    width={phase.w}
+                    height={30}
+                    rx={15}
+                    fill="#307c4c"
+                    fillOpacity={active ? 1 : 0.12}
+                    stroke="#307c4c"
+                    strokeOpacity={active ? 1 : 0.35}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <text
+                    x={phase.x + phase.w / 2}
+                    y={416}
+                    fontSize={t(12)}
+                    fontWeight={700}
+                    textAnchor="middle"
+                    fill={active ? '#ffffff' : '#1f5733'}
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    {phase.label}
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* Stages. */}
+            {STAGES.map((stage) => (
+              <StageNode
+                key={stage.id}
+                stage={stage}
+                t={t}
+                showToolNames={showToolNames}
+                dimmed={litStageIds ? !litStageIds.has(stage.id) : false}
+                selectedTool={selectedTool}
+                onPickTool={(id) => setSelectedTool(id)}
+                onHoverTool={setHoverTool}
+                onPickStage={() => camera.flyTo(boundsOf([stage.id], 140))}
+              />
+            ))}
+          </svg>
+
+          <p className="border-t border-slate-100 px-4 py-2 text-[11px] text-slate-500">
+            <span className="font-semibold text-slate-700">
+              {covered} of {total} stages have a system.
+            </span>{' '}
+            {gaps} do not — drawn hollow. Scroll to zoom, drag to pan, click a phase or a lane to
+            fly to it.
+          </p>
+        </div>
+
+        {/* ── Detail panel ── */}
+        <aside className="w-full shrink-0 xl:w-80">
+          {selected ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+              <div className="mb-2 flex items-start justify-between gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                  On the chain
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTool(null)}
+                  aria-label="Close"
+                  className="rounded-md p-0.5 text-slate-400 transition-colors hover:text-slate-700"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              {renderToolCard(selected)}
+              <div className="mt-3 border-t border-slate-100 pt-2.5">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                  Stages it serves
+                </p>
+                <ul className="mt-1.5 space-y-1">
+                  {stagesForTool(selected.id).map((stage) => (
+                    <li key={stage.id}>
+                      <button
+                        type="button"
+                        onClick={() => camera.flyTo(boundsOf([stage.id], 140))}
+                        className="text-left text-xs text-slate-600 transition-colors hover:text-[#307c4c]"
+                      >
+                        {stage.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-4">
+              <Layers className="h-4 w-4 text-slate-300" />
+              <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                Click a tool on the chain to see what it is and which stages it covers. Hover one to
+                light up everywhere it appears.
+              </p>
+            </div>
+          )}
+
+          {/* ── The off-chain rail ── */}
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+              Across the chain
+            </p>
+            <p className="mt-1 text-[11px] leading-snug text-slate-500">
+              These serve every stage or none, so they sit beside the chain rather than on it.
+            </p>
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              {offChainToolIds.map((id) => {
+                const tool = TOOL_BY_ID[id];
+                if (!tool) return null;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => onOpenTool(tool, true)}
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:border-[#307c4c]/40 hover:text-[#307c4c]"
+                  >
+                    {tool.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+/** A caption sitting on an edge, at its midpoint. */
+function EdgeLabel({ edge, t }: { edge: (typeof EDGES)[number]; t: (px: number) => number }) {
+  const from = centreOf(STAGE_BY_ID[edge.from]);
+  const to = centreOf(STAGE_BY_ID[edge.to]);
+  const points = [from, ...(edge.via ?? []), to];
+  const mid = points[Math.floor(points.length / 2)];
+  const width = (edge.label?.length ?? 0) * t(5.1) + t(10);
+  return (
+    <g style={{ pointerEvents: 'none' }}>
+      <rect
+        x={mid.x - width / 2}
+        y={mid.y - t(8)}
+        width={width}
+        height={t(16)}
+        rx={t(8)}
+        fill="#ffffff"
+        fillOpacity={0.92}
+      />
+      <text
+        x={mid.x}
+        y={mid.y + t(3.5)}
+        fontSize={t(9.5)}
+        textAnchor="middle"
+        fill={MUTED}
+        fontWeight={600}
+      >
+        {edge.label}
+      </text>
+    </g>
+  );
+}
+
+/**
+ * One stage: its name, and the tools that serve it.
+ *
+ * A stage with no tools is drawn hollow and dashed, with the words said out loud. That is the
+ * finding this view exists to surface, and a reader should not have to notice an absence.
+ */
+function StageNode({
+  stage,
+  t,
+  showToolNames,
+  dimmed,
+  selectedTool,
+  onPickTool,
+  onHoverTool,
+  onPickStage,
+}: {
+  stage: Stage;
+  t: (px: number) => number;
+  showToolNames: boolean;
+  dimmed: boolean;
+  selectedTool: string | null;
+  onPickTool: (id: string) => void;
+  onHoverTool: (id: string | null) => void;
+  onPickStage: () => void;
+}) {
+  const lane = LANES.find((l) => l.id === stage.laneId)!;
+  const isGap = stage.toolIds.length === 0;
+  /* Two lines, because "Demand Supply Validation (3WM)" does not fit on one at this width and
+     an SVG <text> will not wrap itself. */
+  const lines = wrap(stage.label, 20);
+
+  return (
+    <g opacity={dimmed ? 0.25 : 1} className="cursor-pointer">
+      <rect
+        x={stage.x}
+        y={stage.y}
+        width={stage.w}
+        height={stage.h}
+        rx={10}
+        fill="#ffffff"
+        stroke={isGap ? GAP_STROKE : lane.colour}
+        strokeWidth={isGap ? 1.5 : 2}
+        strokeDasharray={isGap ? '6 5' : undefined}
+        vectorEffect="non-scaling-stroke"
+        onClick={(e) => {
+          e.stopPropagation();
+          onPickStage();
+        }}
+      />
+      {!isGap && (
+        <rect
+          x={stage.x}
+          y={stage.y}
+          width={4}
+          height={stage.h}
+          rx={2}
+          fill={lane.colour}
+          style={{ pointerEvents: 'none' }}
+        />
+      )}
+
+      {lines.map((line, i) => (
+        <text
+          key={i}
+          x={stage.x + stage.w / 2}
+          y={stage.y + t(16) + i * t(11)}
+          fontSize={t(10)}
+          fontWeight={700}
+          textAnchor="middle"
+          fill={isGap ? MUTED : INK}
+          style={{ pointerEvents: 'none' }}
+        >
+          {line}
+        </text>
+      ))}
+
+      {isGap ? (
+        <text
+          x={stage.x + stage.w / 2}
+          y={stage.y + stage.h - t(9)}
+          fontSize={t(8.5)}
+          textAnchor="middle"
+          fill={GAP_STROKE}
+          fontWeight={600}
+          style={{ pointerEvents: 'none', textTransform: 'uppercase' }}
+        >
+          No system yet
+        </text>
+      ) : (
+        stage.toolIds.map((id, i) => {
+          const tool = TOOL_BY_ID[id];
+          if (!tool) return null;
+          const chipH = t(13);
+          const y = stage.y + stage.h - t(6) - (stage.toolIds.length - i) * (chipH + t(2));
+          const label = typeof tool.name === 'string' ? tool.name : id;
+          const w = showToolNames
+            ? Math.min(stage.w - t(14), label.length * t(5.2) + t(12))
+            : t(26);
+          return (
+            <g
+              key={id}
+              onClick={(e) => {
+                e.stopPropagation();
+                onPickTool(id);
+              }}
+              onMouseEnter={() => onHoverTool(id)}
+              onMouseLeave={() => onHoverTool(null)}
+            >
+              <rect
+                x={stage.x + stage.w / 2 - w / 2}
+                y={y}
+                width={w}
+                height={chipH}
+                rx={chipH / 2}
+                fill={selectedTool === id ? lane.colour : `${lane.colour}22`}
+                stroke={lane.colour}
+                strokeOpacity={0.5}
+                vectorEffect="non-scaling-stroke"
+              />
+              {showToolNames && (
+                <text
+                  x={stage.x + stage.w / 2}
+                  y={y + chipH - t(3.6)}
+                  fontSize={t(8.5)}
+                  fontWeight={700}
+                  textAnchor="middle"
+                  fill={selectedTool === id ? '#ffffff' : lane.colour}
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {label}
+                </text>
+              )}
+            </g>
+          );
+        })
+      )}
+    </g>
+  );
+}
+
+/** Greedy wrap to a character budget. Enough for labels of five words or fewer. */
+function wrap(text: string, max: number): string[] {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let line = '';
+  for (const word of words) {
+    if (!line) line = word;
+    else if (`${line} ${word}`.length <= max) line = `${line} ${word}`;
+    else {
+      lines.push(line);
+      line = word;
+    }
+  }
+  if (line) lines.push(line);
+  return lines.slice(0, 3);
+}

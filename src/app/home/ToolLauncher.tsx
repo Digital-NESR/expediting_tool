@@ -13,6 +13,9 @@ import { Search, Star } from 'lucide-react';
 import { TOOLS, type ModalTool, type ToolDef, type ToolStatus } from './tools';
 import { ToolCard, type ProcureGuardAccessType } from './ToolCard';
 import { toggleFavourite } from '@/app/actions/home-favourites';
+import { OFF_CHAIN_TOOL_IDS } from '@/lib/home/process-chain';
+import { HomeViewToggle } from './HomeViewToggle';
+import { useHomeView } from './useHomeView';
 
 /* The modals are only ever needed after a click, so they are code-split
    out of the initial page bundle. */
@@ -22,6 +25,17 @@ const AccessRequestModal = dynamic(
 );
 const PendingModal = dynamic(() => import('./access-modals').then((m) => m.PendingModal), {
   ssr: false,
+});
+
+/* The chain is admin-only and most people will never switch to it, so it is code-split the same
+   way the modals above are: nobody downloads the diagram, its camera or its geometry until they
+   ask for it. `ssr: false` because it measures its own element to turn a pointer position into a
+   canvas coordinate, which needs a DOM. */
+const ProcessChain = dynamic(() => import('./chain/ProcessChain'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[520px] w-full animate-pulse rounded-2xl border border-slate-200 bg-slate-50" />
+  ),
 });
 
 /* The pending panel carries no per-tool copy, so only the request modal needs
@@ -154,6 +168,10 @@ export default function ToolLauncher({
   const displayName = session?.user?.name || userEmail;
 
   const isAdmin = session?.user?.isAdmin ?? false;
+  /* The process-chain view is ADMIN_EMAILS-only for now. `useHomeView` is passed the same flag
+     and forces 'grid' without it, so a stale localStorage value cannot show it to somebody who
+     has since lost admin. */
+  const [homeView, setHomeView] = useHomeView(isAdmin);
   const procureGuardAccessType: ProcureGuardAccessType =
     session?.user?.toolAccess?.procure_guard?.accessType ?? 'requester';
 
@@ -242,16 +260,27 @@ export default function ToolLauncher({
   return (
     <>
       <div className="mb-10">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Welcome, {firstName}</h1>
-        <p className="text-slate-500 mt-1 text-base">Select a tool to get started.</p>
-        <p className="text-xs text-slate-400 mt-1.5">
-          {new Date().toLocaleDateString('en-GB', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          })}
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+              Welcome, {firstName}
+            </h1>
+            <p className="text-slate-500 mt-1 text-base">
+              {homeView === 'chain'
+                ? 'Every tool, on the process it serves.'
+                : 'Select a tool to get started.'}
+            </p>
+            <p className="text-xs text-slate-400 mt-1.5">
+              {new Date().toLocaleDateString('en-GB', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </p>
+          </div>
+          {isAdmin && <HomeViewToggle view={homeView} onChange={setHomeView} />}
+        </div>
 
         {/* Search bar. The placeholder is not a label: it disappears the moment somebody types,
             and a screen reader announces an unlabelled text box. */}
@@ -304,68 +333,85 @@ export default function ToolLauncher({
         </div>
       </div>
 
-      {/* Cards beside the SCAI panel on a wide screen, stacked under it below xl.
+      {homeView === 'chain' ? (
+        <ProcessChain
+          /* The launcher keeps ownership of access: the chain calls back into the same
+             handleOpen that the cards use, so a tool with a pending request still produces the
+             pending modal rather than opening. */
+          onOpenTool={handleOpen}
+          renderToolCard={(tool) => renderToolCard(tool, false)}
+          offChainToolIds={OFF_CHAIN_TOOL_IDS}
+        />
+      ) : (
+        <>
+          {/* Cards beside the SCAI panel on a wide screen, stacked under it below xl.
           The grid was a fixed three columns next to a fixed 320px panel with no breakpoints at
           all, so the cards kept dividing whatever was left: measured, a card's text area went
           from 272px at 1600 to 125px at 1024 and 40px at 768, where the layout is unusable. */}
-      <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch">
-        {/* ── Tool cards ── */}
-        <div className="relative flex-1 flex flex-col gap-6">
-          {/* While the session (and per-tool access) is still loading, cover the cards so nobody
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch">
+            {/* ── Tool cards ── */}
+            <div className="relative flex-1 flex flex-col gap-6">
+              {/* While the session (and per-tool access) is still loading, cover the cards so nobody
               mis-clicks "Request Access" before their real access has resolved. */}
-          {sessionStatus === 'loading' && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-white/70 backdrop-blur-sm">
-              <div className="flex items-center gap-2.5 text-sm font-medium text-slate-500">
-                <svg
-                  className="h-5 w-5 animate-spin text-[#307c4c]"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                </svg>
-                Checking your access...
-              </div>
-            </div>
-          )}
+              {sessionStatus === 'loading' && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-white/70 backdrop-blur-sm">
+                  <div className="flex items-center gap-2.5 text-sm font-medium text-slate-500">
+                    <svg
+                      className="h-5 w-5 animate-spin text-[#307c4c]"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                    </svg>
+                    Checking your access...
+                  </div>
+                </div>
+              )}
 
-          {/* Favourites keep their cards in the lists below as well, so the grids stay complete
+              {/* Favourites keep their cards in the lists below as well, so the grids stay complete
               and nobody wonders where a tool went when they pinned it. */}
-          <ToolSection
-            title="Favourites"
-            icon={<Star className="h-4 w-4 text-amber-500" fill="currentColor" />}
-            tools={favouriteCards}
-            render={renderFavourite}
-            divider
-          />
+              <ToolSection
+                title="Favourites"
+                icon={<Star className="h-4 w-4 text-amber-500" fill="currentColor" />}
+                tools={favouriteCards}
+                render={renderFavourite}
+                divider
+              />
 
-          <ToolSection title="Available" tools={byName(visible, 'online')} render={renderCard} />
+              <ToolSection
+                title="Available"
+                tools={byName(visible, 'online')}
+                render={renderCard}
+              />
 
-          <ToolSection
-            title="Coming Soon"
-            tools={byName(visible, 'development')}
-            render={renderCard}
-          />
+              <ToolSection
+                title="Coming Soon"
+                tools={byName(visible, 'development')}
+                render={renderCard}
+              />
 
-          {q && visible.length === 0 && (
-            <div className="py-12 text-center">
-              <p className="text-sm text-slate-400">
-                No applications match &ldquo;{appSearch}&rdquo;
-              </p>
+              {q && visible.length === 0 && (
+                <div className="py-12 text-center">
+                  <p className="text-sm text-slate-400">
+                    No applications match &ldquo;{appSearch}&rdquo;
+                  </p>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* ── SCAI Panel (server-rendered) ── */}
-        {scaiPanel}
-      </div>
+            {/* ── SCAI Panel (server-rendered) ── */}
+            {scaiPanel}
+          </div>
+        </>
+      )}
 
       {/* ── Modals ── */}
       {modal?.kind === 'request' && (
