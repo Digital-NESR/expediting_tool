@@ -278,14 +278,11 @@ export function layoutProcess(spec: ProcessSpec): LaidOutProcess {
            gap to turn in and a straight line is the honest answer. */
         const gapBelow = to.y - (from.y + from.h);
         const gapAbove = from.y - (to.y + to.h);
-        /* Measured from the box the line LEAVES, so 0.25 means "a quarter of the way
-           across", whichever direction the edge happens to run. */
-        const at = e.turn ?? 0.5;
         if (gapBelow > 0) {
-          const mid = from.y + from.h + gapBelow * at;
+          const mid = from.y + from.h + gapBelow / 2;
           points = [a, { x: a.x, y: mid }, { x: b.x, y: mid }, b];
         } else if (gapAbove > 0) {
-          const mid = from.y - gapAbove * at;
+          const mid = to.y + to.h + gapAbove / 2;
           points = [a, { x: a.x, y: mid }, { x: b.x, y: mid }, b];
         } else {
           points = [a, b];

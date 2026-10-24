@@ -27,48 +27,55 @@ import {
 /**
  * id, x, y, w, h
  *
- * Read down the `x` column: every lower-row box lands in a spine column. That is not a
- * coincidence to be preserved by hand, it is Inventory and Logistics taking the spine's
- * own pitch from one of the spine's own stages, and it is what lets four of the six
- * cross-lane lines be straight drops instead of turns.
+ * The slide's own shape: Source to Catalog a column descending into Supplier Assessment,
+ * the spine left to right, Logistics looping out below it and back in, Inventory along the
+ * bottom. Six rows of boxes, which is what the drawing costs and why its boxes are the size
+ * they are -- see the canvas test below.
+ *
+ * Read down the `x` column for the spine and Logistics: every box in the loop lands in a
+ * spine column, because the lane takes the spine's own pitch from one of the spine's own
+ * stages. That is what makes both of Logistics' ties to the main line plain vertical drops.
  */
 const STAGE_GEOMETRY: [string, number, number, number, number][] = [
-  ['source', 171, 20, 190, 120],
-  ['contract', 397, 20, 190, 120],
-  ['catalog', 623, 20, 190, 120],
-  ['demand-forecasting', 50, 300, 160, 120],
-  ['demand-creation', 246, 300, 160, 120],
-  ['demand-pr-approval', 442, 300, 160, 120],
-  ['supplier-assessment', 638, 300, 160, 120],
-  ['supplier-po-approval', 834, 300, 160, 120],
-  ['supplier-acknowledgement', 1030, 300, 160, 120],
-  ['delivery', 1226, 300, 160, 120],
-  ['delivery-acknowledgment', 1422, 300, 160, 120],
-  ['payment-request', 1618, 300, 160, 120],
-  ['three-way-match', 1814, 300, 160, 120],
-  ['pay', 2010, 300, 160, 120],
-  ['expediting-readiness', 834, 540, 160, 120],
-  ['logistics-procure', 1030, 540, 160, 120],
-  ['logistics-tracking', 1226, 540, 160, 120],
-  ['stock-replenishment', 50, 540, 160, 120],
-  ['physical-counting', 246, 540, 160, 120],
-  ['goods-issue', 442, 540, 160, 120],
-  ['goods-receipt', 638, 540, 160, 120],
+  ['source', 553, 16, 330, 76],
+  ['contract', 553, 114, 330, 76],
+  ['catalog', 553, 212, 330, 76],
+  ['demand-forecasting', 50, 418, 160, 120],
+  ['demand-creation', 246, 418, 160, 120],
+  ['demand-pr-approval', 442, 418, 160, 120],
+  ['supplier-assessment', 638, 418, 160, 120],
+  ['supplier-po-approval', 834, 418, 160, 120],
+  ['supplier-acknowledgement', 1030, 418, 160, 120],
+  ['delivery', 1226, 418, 160, 120],
+  ['delivery-acknowledgment', 1422, 418, 160, 120],
+  ['payment-request', 1618, 418, 160, 120],
+  ['three-way-match', 1814, 418, 160, 120],
+  ['pay', 2010, 418, 160, 120],
+  ['expediting-readiness', 1030, 630, 160, 100],
+  ['logistics-tracking', 1226, 630, 160, 100],
+  ['logistics-procure', 1030, 758, 160, 100],
+  ['stock-replenishment', 50, 758, 230, 100],
+  ['physical-counting', 316, 758, 200, 100],
+  ['goods-issue', 552, 758, 200, 100],
+  ['goods-receipt', 788, 758, 200, 100],
 ];
 
 /**
  * id, x, y, w, h
  *
- * No band is drawn behind a lane any more -- the colour is in the line, not in a tinted
- * rectangle with the lane's name at the left. These rects are still computed, because a
- * lane is still what the filter pills fly the camera to, and they still have to be checked:
- * a lane box is the hull of its own stations, so a wrong one means a wrong stage.
+ * No band is drawn behind a lane -- the colour is in the line, not in a tinted rectangle
+ * with the lane's name at the left. These rects are still computed, because a lane is what
+ * the filter pills fly the camera to, and they still have to be checked: a lane box is the
+ * hull of its own stations, so a wrong one means a wrong stage.
+ *
+ * Logistics and Inventory share a band and must not overlap across it. They are 26 units
+ * apart, which is the whole reason the lower half of the drawing is two rows and not four.
  */
 const LANE_GEOMETRY: [string, number, number, number, number][] = [
-  ['source-to-catalog', 147, 10, 690, 142],
-  ['demand-to-pay', 40, 244, 2140, 188],
-  ['logistics', 818, 530, 584, 142],
-  ['inventory', 34, 530, 780, 142],
+  ['source-to-catalog', 533, 8, 370, 290],
+  ['demand-to-pay', 40, 362, 2140, 188],
+  ['logistics', 1014, 620, 388, 250],
+  ['inventory', 34, 620, 970, 250],
 ];
 
 describe('the layout engine reproduces the drawing', () => {
@@ -90,17 +97,26 @@ describe('the layout engine reproduces the drawing', () => {
   });
 
   it('measures the canvas around them', () => {
-    /* The ratio is the number that matters, not either figure on its own: the drawing is
-       scaled to fit a card roughly 1600 by 490, so anything much taller than 2220 by 678
-       lands small between two side margins and anything flatter lands small between a top
-       and a bottom one. 3.27 fills it both ways. */
-    expect({ w: COMPUTED.width, h: COMPUTED.height }).toEqual({ w: 2220, h: 678 });
+    /*
+     * Height is the figure that matters, and it is what the slide's shape costs.
+     *
+     * The drawing is scaled to fit a card roughly 1600 by 490, and the element is given the
+     * canvas's aspect ratio -- so a box renders at its own units times 490/height, and
+     * NOTHING else moves it. Widening the canvas adds empty paper; narrowing it does not
+     * help either. Six rows of boxes in 892 units means a spine station lands about 66
+     * pixels tall.
+     *
+     * Three rows would land it near 90, which is what the all-horizontal version did. That
+     * version read as four swimlanes, which is the thing this layout exists not to be. The
+     * trade is deliberate and this is where it is written down.
+     */
+    expect({ w: COMPUTED.width, h: COMPUTED.height }).toEqual({ w: 2220, h: 892 });
     expect(CHAIN_WIDTH).toBe(COMPUTED.width);
     expect(CHAIN_HEIGHT).toBe(COMPUTED.height);
   });
 
   it('puts the phase pills on one row inside the spine band', () => {
-    expect(PHASE_BAND.y).toBe(254);
+    expect(PHASE_BAND.y).toBe(372);
     const spine = COMPUTED.laneById['demand-to-pay'].box;
     const firstStage = COMPUTED.stageById['demand-forecasting'];
     expect(PHASE_BAND.y).toBeGreaterThan(spine.y);
@@ -109,13 +125,19 @@ describe('the layout engine reproduces the drawing', () => {
 
   it('turns every cross-lane connector in the gap, and runs the rest straight', () => {
     const bent = COMPUTED.edges.filter((e) => e.points.length > 2);
-    /* Three. It was five: Logistics moved one column left so that Tracking sits directly
-       under Delivery, which turned two of them into straight drops and freed the column
-       Inventory needed to get back to Delivery Acknowledgment. */
+    /*
+     * Four, and every other line on the drawing is straight.
+     *
+     * The three ties between a branch and the main line that are NOT here are the point of
+     * the shape: Catalog drops into Supplier Assessment, Supplier Acknowledgement drops into
+     * Expediting, Tracking climbs back into Delivery, all of them plain verticals, because
+     * each branch is anchored to the stage it leaves.
+     */
     expect(bent.map((e) => `${e.from}->${e.to}`).sort()).toEqual([
+      'demand-forecasting->stock-replenishment',
       'goods-receipt->delivery-acknowledgment',
+      'logistics-procure->logistics-tracking',
       'source->demand-forecasting',
-      'supplier-acknowledgement->expediting-readiness',
     ]);
     /* Every turn is a right angle: consecutive points share an x or a y. A diagonal here
        is the bug this replaced -- a line from centre to centre across whatever sat
@@ -131,24 +153,33 @@ describe('the layout engine reproduces the drawing', () => {
     }
   });
 
-  it('gives each route crossing the lower gap a corridor of its own', () => {
+  it('keeps every branch clear of every other box', () => {
     /*
-     * Two lines cross the band between the spine and the row below it, in opposite
-     * directions: Logistics on its way out at Supplier Acknowledgement, and Inventory on
-     * its way back in at Delivery Acknowledgment. Both turn in that band, and left to the
-     * default both turn at the halfway mark -- two differently coloured horizontal runs
-     * drawn on top of each other, which reads as one line of whichever was painted last.
-     * The `turn` fraction is what separates them, and nothing else would notice if it
-     * were dropped.
+     * The two routes that cross the drawing rather than dropping straight out of it.
+     *
+     * Source leaves its column sideways and runs down the far left; Inventory runs along
+     * the foot and climbs back up to Delivery Acknowledgment. Both were drawn through a box
+     * at some point -- the inventory tie used to climb through Tracking, invisible only
+     * because the lines were thin -- so both are checked against every box there is.
      */
-    const runY = (from: string, to: string) => {
-      const e = COMPUTED.edges.find((x) => x.from === from && x.to === to)!;
-      return e.points.filter((p, i) => i > 0 && p.y === e.points[i - 1].y).map((p) => p.y);
-    };
-    const logistics = runY('supplier-acknowledgement', 'expediting-readiness');
-    const inventory = runY('goods-receipt', 'delivery-acknowledgment');
-    expect(logistics).toEqual([480]);
-    expect(inventory).toEqual([510]);
+    const crossing = ['source->demand-forecasting', 'goods-receipt->delivery-acknowledgment'];
+    for (const key of crossing) {
+      const e = COMPUTED.edges.find((x) => `${x.from}->${x.to}` === key)!;
+      for (let i = 1; i < e.points.length; i += 1) {
+        const a = e.points[i - 1];
+        const b = e.points[i];
+        for (const box of COMPUTED.stages) {
+          if (box.id === e.from || box.id === e.to) continue;
+          /* An axis-aligned segment meets a rect when it overlaps on both axes. */
+          const hits =
+            Math.min(a.x, b.x) < box.x + box.w &&
+            Math.max(a.x, b.x) > box.x &&
+            Math.min(a.y, b.y) < box.y + box.h &&
+            Math.max(a.y, b.y) > box.y;
+          expect(hits, `${key} segment ${i} runs through "${box.id}"`).toBe(false);
+        }
+      }
+    }
   });
 
   it('marks both ends of every line that changes route, and no others', () => {

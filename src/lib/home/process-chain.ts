@@ -68,9 +68,51 @@ const NODE_H = 120;
 const SPINE_W = 160;
 const SPINE_GUTTER = 36;
 
-/* Source to Catalog's three boxes are wider than the spine's: the lane is short, so there
-   is room, and it keeps "Catalog" from looking like a spine stage that wandered upwards. */
-const S2C_W = 190;
+/*
+ * Source to Catalog is a COLUMN, so its boxes are wide and the column is narrow.
+ *
+ * Three boxes stacked use a couple of hundred units of the canvas's 2220 and most of its
+ * height, which is the whole economics of this shape: a spur is cheap across and expensive
+ * down. Spending some of the width it is not using buys a one-line name beside its chips
+ * rather than a tall thin tile, and 270 is what Source needs for "SourceGuide", "S&S
+ * Registry" and the Ariba badge.
+ */
+const S2C_W = 330;
+/**
+ * Short, because the chips sit in a ROW.
+ *
+ * Source carries SourceGuide, S&S Registry and the Ariba badge; Catalog carries Catalog
+ * Repo, Spend Taxonomy and SAP PIR. Stacked that is sixty units of chips and a box of 110
+ * before the name has been drawn, and three such boxes are most of the picture. Side by
+ * side they are one row of 22 and the box is 76 -- a hundred units of height back, which
+ * is more than a tenth of the drawing.
+ *
+ * 330 wide because Catalog's three are the widest set: 298 units, and a box keeps 12 for
+ * its own padding. It is twice a spine box, which is as it should be -- a branch station
+ * is not a step on the main line and should not be drawn as one.
+ */
+const S2C_H = 76;
+const S2C_GUTTER_Y = 22;
+
+/**
+ * The two rows below the spine, which Logistics and Inventory share.
+ *
+ * 100 rather than the spine's 120. Tracking is what sets it: "ShipWaves" and "TI-TE" come
+ * to 173 units side by side and a 160-wide box gives 148, so they take two chip rows, and
+ * a name over two rows of chips needs 79 inside the padding.
+ */
+const BRANCH_H = 100;
+const BRANCH_GUTTER_Y = 28;
+
+/**
+ * Inventory's boxes are wider than the spine's, which is what keeps them one row deep.
+ *
+ * "Quality Governor" beside "SAP" needs 182 units and a 160-wide box gives 148, so at the
+ * spine's width Physical Counting takes two chip rows and drags the whole band 26 units
+ * taller. Inventory has width going spare -- four boxes against the spine's eleven -- so
+ * it spends it.
+ */
+const INVENTORY_W = 200;
 
 /* ─── The vertical bands ──────────────────────────────────────────────────────────────────
    Top to bottom, and everything else derives from them: a lane's box, the stages inside it
@@ -91,15 +133,12 @@ const PHASE_BAND_INSET = 5;
  * box edges it runs between. Below about 90 units the turn, the caption and the two rings
  * are on top of each other.
  */
-const ROW_GAP = 92;
+const ROW_GAP = 64;
 
 /* Logistics and Inventory share one row. They do not overlap horizontally, so they cost one
    gap between them rather than two -- which is the whole reason the drawing is three rows
    tall and not four. */
-/* 98, so the clear band between the spine and the row below it is exactly 120 units:
-   the two routes crossing it turn at a half and a quarter of the way down, and a round
-   number is the difference between a turn at 480 and a turn at 481.5. */
-const LOWER_ROW_GAP = 98;
+const LOWER_ROW_GAP = 70;
 
 /** Air inside a row, above and below the boxes, now that no band is drawn behind them. */
 const ROW_PAD_TOP = 10;
@@ -429,6 +468,10 @@ const STAGE_DEFS: StageSpec[] = [
     id: 'stock-replenishment',
     laneId: 'inventory',
     label: 'Stock Replenishment Planning',
+    /* The one box wider than its lane's default. "Stock Replenishment" is nineteen
+       characters and has to sit on one line, or the name takes three and the type shrinks
+       to fit a box that is only 96 tall. */
+    w: 230,
     toolIds: ['translytix'],
     systems: ['sap'],
   },
@@ -610,26 +653,37 @@ const SPINE_STAGE_IDS = [
  * uses, and straight through the caption that explains it. These turn in the empty band
  * between the two lanes instead.
  */
-const EDGE_ROUTES: Record<string, { route: EdgeRoute; turn?: number }> = {
-  'source->demand-forecasting': { route: 'v-h-v' },
-  /* These three are declared rather than left straight because they are only straight by
-     arithmetic: the boxes happen to share a column today, and `v-h-v` collapses a run that
-     never leaves one axis to a single line. Move either end and the turn comes back on its
-     own, in the corridor, instead of becoming a diagonal. */
-  'catalog->supplier-assessment': { route: 'v-h-v' },
-  'logistics-tracking->delivery': { route: 'v-h-v' },
-  'demand-forecasting->stock-replenishment': { route: 'v-h-v' },
-  'supplier-acknowledgement->expediting-readiness': { route: 'v-h-v' },
+const EDGE_ROUTES: Record<string, { route: EdgeRoute }> = {
   /*
-   * A quarter of the way down rather than halfway, and no longer round the bottom.
+   * Out of Source SIDEWAYS, then straight down the left of the drawing.
    *
-   * It used to run in a channel below the whole drawing, which meant climbing back up
-   * through Tracking to reach Delivery Acknowledgment -- a line crossing a box, hidden
-   * only because the lines were thin enough to disappear under it. Turning in the corridor
-   * is shorter and clear of every box; the quarter keeps it off Logistics' own turn, which
-   * crosses the same corridor at the halfway mark.
+   * Source is at the TOP of the column and Planning is at the far left of the spine, so a
+   * line that dropped first would have to pass through Contract and Catalog on its way
+   * out. Leaving along the row it is already on and turning once it is clear of the column
+   * is the only route between those two boxes that crosses nothing.
    */
-  'goods-receipt->delivery-acknowledgment': { route: 'v-h-v', turn: 0.25 },
+  'source->demand-forecasting': { route: 'h-then-v' },
+
+  /* Three ties that are straight today only by arithmetic -- the boxes happen to share a
+     column, and `v-h-v` collapses a run that never leaves one axis to a single line.
+     Declared anyway, so that moving either end brings the turn back into the corridor
+     rather than turning the line into a diagonal. */
+  'catalog->supplier-assessment': { route: 'v-h-v' },
+  'supplier-acknowledgement->expediting-readiness': { route: 'v-h-v' },
+  'logistics-tracking->delivery': { route: 'v-h-v' },
+
+  /* Stock Replenishment is the one wide box in its row, so its centre sits a little right
+     of Planning's. The jog happens once, in the clear, rather than as a lean. */
+  'demand-forecasting->stock-replenishment': { route: 'v-h-v' },
+
+  /* Along the foot of the drawing and back up, as the slide has it. Inventory ends at
+     Goods Receipt on the left and has to reach Delivery Acknowledgment on the right; the
+     corridors between the rows are carrying the loop's own lines, and the column this one
+     climbs is clear because the loop stops at Tracking. */
+  'goods-receipt->delivery-acknowledgment': { route: 'channel-bottom' },
+
+  /* Inside the loop: right out of Freight Procurement, then up into Tracking's foot. */
+  'logistics-procure->logistics-tracking': { route: 'h-then-v' },
 };
 
 export const SUPPLY_CHAIN_SPEC: ProcessSpec = {
@@ -648,26 +702,25 @@ export const SUPPLY_CHAIN_SPEC: ProcessSpec = {
       colour: '#C08A1E',
       flow: 'reverse',
       /*
-       * A row, not a column.
+       * A column descending into Supplier Assessment, as the slide draws it.
        *
-       * It was three boxes stacked, which is how the slide draws it and cost 270 units of
-       * height -- and height is the only thing that limits how big this drawing lands,
-       * because the card is always wider than the drawing needs. Laid out left to right
-       * the sequence reads exactly the same and the whole picture gets a third taller on
-       * screen.
+       * It was laid out as a row for a while, which is a third cheaper in height and reads
+       * as a fourth lane running parallel to the others -- the thing that made the whole
+       * picture look like swimlanes however the lines were drawn. A spur leaving the main
+       * line at right angles is what says "this is a different line, and it joins here",
+       * and it is the shape the junction is legible in.
        *
-       * Aligned by its LAST box: Catalog is what feeds Supplier Assessment, so Catalog is
-       * what sits over it. Centring the row instead would leave that connector running
-       * diagonally across two other boxes.
+       * Centred on Supplier Assessment, so the box at the foot of the column sits directly
+       * over the station it feeds and the connector between them is a plain drop.
        */
-      anchorX: { at: 'align-stages', mine: 'catalog', onto: 'supplier-assessment' },
-      anchorY: { at: 'top', offset: 10 },
-      layout: { kind: 'row', stageIds: ['source', 'contract', 'catalog'] },
+      anchorX: { at: 'stage-centre', stageId: 'supplier-assessment' },
+      anchorY: { at: 'top', offset: 8 },
+      layout: { kind: 'column', stageIds: ['source', 'contract', 'catalog'] },
       nodeW: S2C_W,
-      nodeH: NODE_H,
-      gutterX: SPINE_GUTTER,
-      gutterY: 0,
-      pad: { x: 24, top: ROW_PAD_TOP, bottom: ROW_PAD_BOTTOM },
+      nodeH: S2C_H,
+      gutterX: 0,
+      gutterY: S2C_GUTTER_Y,
+      pad: { x: 20, top: 8, bottom: 10 },
     },
     {
       id: 'demand-to-pay',
@@ -711,28 +764,30 @@ export const SUPPLY_CHAIN_SPEC: ProcessSpec = {
       colour: '#A8509B',
       flow: 'forward',
       /*
-       * Anchored one column LEFT of the stage it leaves, which is the whole trick.
+       * The loop: out of the spine, down, across, and back up into it.
        *
-       * It used to start under Supplier Acknowledgement, which put Tracking under Delivery
-       * Acknowledgment -- so the line back into Delivery had to turn, and it turned in the
-       * same corridor and the same column as Inventory's line back into Delivery
-       * Acknowledgment. Two routes, one corridor, drawn on top of each other.
+       * Two rows, on the spine's own column pitch from the spine's own left edge, so
+       * Expediting sits under Supplier Acknowledgement and Tracking under Delivery. Both
+       * ties to the main line are then plain vertical drops, and the only turn in the lane
+       * is the one inside it, from Freight Procurement across to Tracking.
        *
-       * Starting a column earlier costs nothing and buys two straight verticals instead:
-       * Tracking sits directly under Delivery, so the return line is a plain drop, and the
-       * column Inventory needs is clear. A line that does not have to turn is one a reader
-       * does not have to follow.
+       * The empty cell is the point of the shape. Three boxes in a row say the same thing
+       * in half the height, and they say it as a fourth lane running parallel to the main
+       * one rather than as a line that leaves it and comes back.
        */
-      anchorX: { at: 'stage-left', stageId: 'supplier-po-approval' },
+      anchorX: { at: 'stage-left', stageId: 'supplier-acknowledgement' },
       anchorY: { at: 'below', laneId: 'demand-to-pay', gap: LOWER_ROW_GAP },
       layout: {
-        kind: 'row',
-        stageIds: ['expediting-readiness', 'logistics-procure', 'logistics-tracking'],
+        kind: 'grid',
+        rows: [
+          ['expediting-readiness', 'logistics-tracking'],
+          ['logistics-procure', null],
+        ],
       },
       nodeW: SPINE_W,
-      nodeH: NODE_H,
+      nodeH: BRANCH_H,
       gutterX: SPINE_GUTTER,
-      gutterY: 0,
+      gutterY: BRANCH_GUTTER_Y,
       pad: { x: 16, top: ROW_PAD_TOP, bottom: ROW_PAD_BOTTOM },
     },
     {
@@ -746,14 +801,22 @@ export const SUPPLY_CHAIN_SPEC: ProcessSpec = {
         kind: 'row',
         stageIds: ['stock-replenishment', 'physical-counting', 'goods-issue', 'goods-receipt'],
       },
-      nodeW: SPINE_W,
-      nodeH: NODE_H,
-      /* The spine's gutter, not its own: four boxes on the spine's pitch from the spine's
-         own left edge land in the spine's columns, so Stock Replenishment sits exactly
-         under Planning and the tie between them is a straight drop. */
+      nodeW: INVENTORY_W,
+      nodeH: BRANCH_H,
       gutterX: SPINE_GUTTER,
       gutterY: 0,
-      pad: { x: 16, top: ROW_PAD_TOP, bottom: ROW_PAD_BOTTOM },
+      /*
+       * `top` drops this row past the first row of the Logistics loop.
+       *
+       * The two lanes share one band and do not overlap across, so between them they cost
+       * the drawing two rows rather than four. Inventory takes the LOWER of the two, which
+       * is where the slide has it, and which leaves the loop a clear row to turn in.
+       */
+      pad: {
+        x: 16,
+        top: ROW_PAD_TOP + BRANCH_H + BRANCH_GUTTER_Y,
+        bottom: ROW_PAD_BOTTOM,
+      },
     },
   ],
 

@@ -21,7 +21,7 @@ import {
   wrap,
 } from '@/lib/home/process-chain';
 import { TOOLS } from '@/app/home/tools';
-import { BOX, tailMetrics } from '@/app/home/chain/chainTheme';
+import { BOX, tailLayout } from '@/app/home/chain/chainTheme';
 
 /**
  * The process chain's model.
@@ -256,17 +256,14 @@ describe('every stage name fits the box it is drawn in', () => {
    * Type inside a stage is in canvas units -- a fixed fraction of the box -- so unlike the
    * lane and phase labels it does not depend on the zoom or on how wide the element is, and
    * one set of numbers describes every screen. */
-  /* BOX and tailMetrics are imported, not transcribed: a copy of them here is exactly
-     how the last set of these drifted from the canvas they were supposed to describe. */
+  /* BOX and tailLayout are imported, not transcribed: a copy of them here is exactly how
+     the last set of these drifted from the canvas they were supposed to describe. The tail
+     holds tool chips AND system badges, and both count towards what is left for the name --
+     modelling only the chips would let a stage that runs on SAP overflow without the suite
+     noticing. */
 
   const layout = (stage: (typeof STAGES)[number]) => {
-    /* Tool chips AND system badges stack in the same tail, so both count towards what is
-       left for the name. Modelling only the chips here would let a stage that runs on SAP
-       overflow its box without the suite noticing. */
-    const tailCount = stage.toolIds.length + (stage.systems?.length ?? 0);
-    const { chipH, chipGap } = tailMetrics(tailCount);
-    const tailH =
-      tailCount === 0 ? BOX.gapNote * 1.3 : tailCount * chipH + (tailCount - 1) * chipGap;
+    const { tailH } = tailLayout(stage);
     const room = stage.h - 2 * BOX.pad - BOX.blockGap - tailH;
     const maxLines = Math.max(1, Math.floor(room / (BOX.label * BOX.leading)));
     return { ...fitLabel(stage.label, stage.w, BOX.label, maxLines), maxLines, tailH };

@@ -137,17 +137,6 @@ export interface EdgeSpec {
   /** The caption beside the line. */
   label?: string;
   route?: EdgeRoute;
-  /**
-   * Where in the gap a `v-h-v` turns, as a fraction from the near box to the far one.
-   * Defaults to the middle.
-   *
-   * Two routes crossing the same gap both turn at 0.5 by default, and their horizontal
-   * runs are then drawn one on top of the other -- two differently coloured lines sharing
-   * a pixel, which reads as one line of whichever colour was painted last. Giving each a
-   * different fraction puts them in their own corridor. It is the diagram's equivalent of
-   * a metro map stacking parallel lines rather than merging them.
-   */
-  turn?: number;
 }
 
 export interface ProcessSpec {

@@ -4,7 +4,7 @@
 
 import { LANES, SYSTEM_LABEL, fitLabel, type Stage } from '@/lib/home/process-chain';
 import { CHIP_STATE_LABEL, type ChipState } from './chipState';
-import { BOX, GAP_STROKE, INK, MUTED, SYSTEM_INK, TOOL_BY_ID, tailMetrics } from './chainTheme';
+import { BOX, GAP_STROKE, INK, MUTED, SYSTEM_INK, TOOL_BY_ID, tailLayout } from './chainTheme';
 
 /** A five-pointed star as a single path, in canvas units. */
 function starPath(cx: number, cy: number, r: number): string {
@@ -161,7 +161,6 @@ export default function StageNode({
    * have not built anything, which is worth knowing and is not a gap.
    */
   const isGap = stage.toolIds.length === 0 && systems.length === 0;
-  const tailCount = stage.toolIds.length + systems.length;
 
   /*
    * The contents are laid out as one centred block, not pinned to the box's two ends. Name at
@@ -171,9 +170,9 @@ export default function StageNode({
    * Everything here is in canvas units -- see BOX -- so it is a constant fraction of the box
    * at every zoom.
    */
-  /* What follows the name: the stacked tool chips, or the "no system yet" note. */
-  const { chipH, chipText, chipGap } = tailMetrics(tailCount);
-  const tailH = isGap ? BOX.gapNote * 1.3 : tailCount * chipH + (tailCount - 1) * chipGap;
+  /* What follows the name: the tool and system chips, or the "no system yet" note. How
+     many rows they take is what is left over for the name, so it is measured first. */
+  const { rows: tailRows, tailH, chipH, chipText, chipGap } = tailLayout(stage);
 
   const room = stage.h - 2 * BOX.pad - BOX.blockGap - tailH;
   const maxLines = Math.max(1, Math.floor(room / (BOX.label * BOX.leading)));
@@ -183,6 +182,38 @@ export default function StageNode({
   const labelH = lines.length * lineH;
   const top = stage.y + (stage.h - (labelH + BOX.blockGap + tailH)) / 2;
   const tailTop = top + labelH + BOX.blockGap;
+
+  /*
+   * Where each chip ended up.
+   *
+   * Which chips share a row came from `tailLayout`, on widths that assume every tool is
+   * wearing a state glyph. Positioning uses the width each chip is actually DRAWN at, so a
+   * row whose chips turn out narrower closes up rather than sitting with a hole in it.
+   * Every row is centred in the box on its own, so a row of two over a row of one reads as
+   * one block instead of a ragged left edge.
+   */
+  const drawnWidth = (chip: (typeof tailRows)[number][number]) => {
+    if (chip.kind === 'system') return chip.mw;
+    const state = chipStates.get(chip.key) ?? 'open';
+    return Math.min(
+      stage.w - 12,
+      chip.label.length * chipText * 0.58 +
+        14 +
+        (state === 'open' ? 0 : chipText + 4) +
+        (favourites.has(chip.key) ? chipText : 0),
+    );
+  };
+  const chipAt = new Map<string, { x: number; y: number; w: number }>();
+  tailRows.forEach((row, r) => {
+    const widths = row.map(drawnWidth);
+    const rowW = widths.reduce((sum, w) => sum + w, 0) + chipGap * (row.length - 1);
+    let x = stage.x + stage.w / 2 - rowW / 2;
+    const y = tailTop + r * (chipH + chipGap);
+    row.forEach((chip, i) => {
+      chipAt.set(chip.key, { x, y, w: widths[i] });
+      x += widths[i] + chipGap;
+    });
+  });
 
   return (
     <g
@@ -277,23 +308,15 @@ export default function StageNode({
               No system yet
             </text>
           )
-        : stage.toolIds.map((id, i) => {
+        : stage.toolIds.map((id) => {
+            const at = chipAt.get(id);
             const tool = TOOL_BY_ID[id];
-            if (!tool) return null;
-            const y = tailTop + i * (chipH + chipGap);
+            if (!at || !tool) return null;
+            const { x: left, y, w } = at;
+            const centre = left + w / 2;
             const label = typeof tool.name === 'string' ? tool.name : id;
             const state = chipStates.get(id) ?? 'open';
             const glyph = state === 'open' ? null : state;
-            /* The glyph eats into the pill, so a chip that carries one is drawn wider rather
-             than letting the mark crowd the name. */
-            const w = Math.min(
-              stage.w - 12,
-              label.length * chipText * 0.58 +
-                14 +
-                (glyph ? chipText + 4 : 0) +
-                (favourites.has(id) ? chipText : 0),
-            );
-            const left = stage.x + stage.w / 2 - w / 2;
             const muted = state === 'coming-soon';
             return (
               <g
@@ -315,9 +338,9 @@ export default function StageNode({
                 }}
                 onMouseEnter={() =>
                   onHoverTool(id, {
-                    x: stage.x + stage.w / 2,
+                    x: centre,
                     top: y,
-                    bottom: y + BOX.chipH,
+                    bottom: y + chipH,
                   })
                 }
                 onMouseLeave={() => onHoverTool(null)}
@@ -326,9 +349,9 @@ export default function StageNode({
                  reader should not have to do without it. */
                 onFocus={() =>
                   onHoverTool(id, {
-                    x: stage.x + stage.w / 2,
+                    x: centre,
                     top: y,
-                    bottom: y + BOX.chipH,
+                    bottom: y + chipH,
                   })
                 }
                 onBlur={() => onHoverTool(null)}
@@ -370,7 +393,7 @@ export default function StageNode({
                   />
                 )}
                 <text
-                  x={stage.x + stage.w / 2 + (glyph ? (chipText + 4) / 2 : 0)}
+                  x={centre + (glyph ? (chipText + 4) / 2 : 0)}
                   y={y + chipH / 2 + chipText * 0.35}
                   fontSize={chipText}
                   fontWeight={700}
@@ -388,14 +411,15 @@ export default function StageNode({
           say what this step IS, and are not something this page can open. A square-ish pill
           rather than the chips' fully rounded one, so a system of record reads as a
           different kind of thing and not as another tool in another colour. */}
-      {systems.map((sys, i) => {
-        const y = tailTop + (stage.toolIds.length + i) * (chipH + chipGap);
+      {systems.map((sys) => {
+        const at = chipAt.get(sys);
+        if (!at) return null;
+        const { x: left, y, w } = at;
         const label = SYSTEM_LABEL[sys];
-        const w = label.length * chipText * 0.62 + 18;
         return (
           <g key={sys} style={{ pointerEvents: 'none' }}>
             <rect
-              x={stage.x + stage.w / 2 - w / 2}
+              x={left}
               y={y}
               width={w}
               height={chipH}
@@ -406,7 +430,7 @@ export default function StageNode({
               vectorEffect="non-scaling-stroke"
             />
             <text
-              x={stage.x + stage.w / 2}
+              x={left + w / 2}
               y={y + chipH / 2 + chipText * 0.35}
               fontSize={chipText}
               fontWeight={700}
