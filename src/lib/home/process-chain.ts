@@ -49,9 +49,6 @@ const S2C_W = 180;
    two dozen loose literals, which is how a hand-placed waypoint came to sit at y=955 on a
    930-unit canvas -- off the bottom of the drawing, invisible, and true until somebody
    measured it. */
-const S2C_TOP = 8;
-const S2C_FIRST = 40;
-const S2C_PITCH = 136;
 /** The phase bands, which sit inside the top of the spine lane rather than above it. */
 /* `inset` trims each end of the DRAWN pill, so two fully rounded caps have visible air
    between them. The band's own row is computed; only these two are chosen. */
