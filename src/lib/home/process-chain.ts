@@ -18,6 +18,9 @@
  * fails the day somebody adds a tool and does not place it.
  */
 
+import { layoutProcess } from '@/lib/diagram/layout';
+import type { EdgeRoute, EdgeSpec, ProcessSpec, StageSpec } from '@/lib/diagram/types';
+
 /**
  * The canvas every coordinate below is expressed in.
  *
@@ -30,35 +33,15 @@
  * clipped outright. Taller stages in a taller canvas buy back the room.
  */
 export const CHAIN_WIDTH = 1920;
-export const CHAIN_HEIGHT = 1116;
 
 /** Every stage is the same size, so the eye reads position as meaning and not importance. */
 const NODE_H = 120;
 const SPINE_W = 150;
 const SPINE_GUTTER = 12;
-/**
- * Where the spine starts, so that eleven stages sit centred on the canvas.
- *
- * It began at a round 60, which left 60 units of margin on the left and 90 on the right --
- * close enough to look deliberate and not close enough to look right. Derived now, so the
- * backbone stays centred if a stage is ever added to it or taken away.
- */
-const SPINE_SPAN = 11 * SPINE_W + 10 * SPINE_GUTTER;
-const SPINE_X0 = Math.round((CHAIN_WIDTH - SPINE_SPAN) / 2);
-/** Stage pitch along the spine: eleven stages at 150 wide with a 12 gutter. */
-const spineX = (i: number) => SPINE_X0 + i * (SPINE_W + SPINE_GUTTER);
 
-/* Everything that hangs off the spine is measured FROM the spine, so centring it moved
-   these too rather than leaving them behind. */
+/* The one width that is not a lane default: Source to Catalog's column is wider than the
+   spine's boxes. The spec reads it; nothing works out an x from it. */
 const S2C_W = 180;
-/** The Source-to-Catalog column descends into Supplier Assessment, so it is centred on it. */
-const S2C_X = spineX(3) + SPINE_W / 2 - S2C_W / 2;
-/** Logistics hangs below Supplier Acknowledgement, on the spine's own column pitch. */
-const LOGISTICS_X = spineX(5);
-const INV_X0 = SPINE_X0;
-const INV_X1 = INV_X0 + 180 + 16;
-const INV_X2 = INV_X1 + 150 + 16;
-const INV_X3 = INV_X2 + 150 + 16;
 
 /* ─── The vertical bands ──────────────────────────────────────────────────────────────────
    Top to bottom, and everything else derives from them: a lane's box, the stages inside it
@@ -70,12 +53,10 @@ const S2C_TOP = 8;
 const S2C_FIRST = 40;
 const S2C_PITCH = 136;
 /** The phase bands, which sit inside the top of the spine lane rather than above it. */
-/* `inset` trims each end of the DRAWN pill. The band's span stays the true extent of its
-   stages, because that is what the camera flies to; the inset is only so two fully rounded
-   caps have visible air between them rather than nearly touching. */
-export const PHASE_BAND = { y: 520, h: 32, inset: 5 } as const;
-const SPINE_TOP = 486;
-const SPINE_Y = 572;
+/* `inset` trims each end of the DRAWN pill, so two fully rounded caps have visible air
+   between them. The band's own row is computed; only these two are chosen. */
+const PHASE_BAND_H = 32;
+const PHASE_BAND_INSET = 5;
 /*
  * Logistics is one row, not two.
  *
@@ -92,8 +73,6 @@ const LOGISTICS_TOP = 768;
 const LOGISTICS_Y = 814;
 const INVENTORY_TOP = 768;
 const INVENTORY_Y = 804;
-/** The dotted return from Goods Receipt, routed under everything else. */
-const BOTTOM_ROUTE_Y = 968;
 
 /*
  * The "across the chain" lane, in the bottom-right quarter.
@@ -104,8 +83,8 @@ const BOTTOM_ROUTE_Y = 968;
  * picture at all -- an odd thing for a view whose job is showing the estate. They go here,
  * and the drawing costs not one unit more than it did.
  */
-const ASIDE_TOP = BOTTOM_ROUTE_Y + 22;
-const ASIDE_FIRST = ASIDE_TOP + 30;
+/** Air above the three boxes, inside their band -- the lane's own name sits in it. */
+const ASIDE_PAD_TOP = 30;
 /**
  * Smaller than a process stage, on purpose.
  *
@@ -115,14 +94,8 @@ const ASIDE_FIRST = ASIDE_TOP + 30;
  * the padding -- so this is as small as they go without the label shrinking.
  */
 const ASIDE_NODE_H = 74;
-/** Three boxes in a centred row under the whole chain. */
 const ASIDE_W = 340;
 const ASIDE_GUTTER = 16;
-const ASIDE_COUNT = 5;
-const ASIDE_X0 = Math.round(
-  (CHAIN_WIDTH - (ASIDE_COUNT * ASIDE_W + (ASIDE_COUNT - 1) * ASIDE_GUTTER)) / 2,
-);
-const asideX = (i: number) => ASIDE_X0 + i * (ASIDE_W + ASIDE_GUTTER);
 
 export type LaneId = 'source-to-catalog' | 'demand-to-pay' | 'logistics' | 'inventory' | 'across';
 
@@ -219,8 +192,14 @@ export interface Edge {
   dash: 'solid' | 'dashed' | 'dotted';
   /** The caption the slide puts beside the line, e.g. "Supplier Onboarding". */
   label?: string;
-  /** Where the line bends. Absolute canvas points, joined centre -> via... -> centre. */
-  via?: { x: number; y: number }[];
+  /**
+   * The whole line, centre to centre with any corners already in it.
+   *
+   * Resolved once by the layout from a routing INTENT -- 'h-then-v', 'channel-bottom' --
+   * rather than written here as absolute waypoints. Those were how one of these came to
+   * be drawn off the bottom of the canvas, invisible, with every test passing.
+   */
+  points: { x: number; y: number }[];
 }
 
 /** One of the four bands sitting above the spine. */
@@ -245,365 +224,10 @@ export interface Phase {
    Each is pulled towards the house palette rather than taken raw from the slide: the greens
    are NESR's #307c4c, and the amber, orchid and blue are desaturated to sit beside it without
    shouting. The tints are the same hues at about 6% for the lane bands.
+
+   The lanes themselves are declared on SUPPLY_CHAIN_SPEC below, with their colours; the
+   array the renderer reads is the laid-out version at the foot of this file.
 */
-export const LANES: Lane[] = [
-  {
-    id: 'source-to-catalog',
-    label: 'Source to Catalog',
-    colour: '#C08A1E',
-    tint: '#FDF8EC',
-    flow: 'reverse',
-    box: { x: 460, y: S2C_TOP, w: 320, h: S2C_FIRST + 2 * S2C_PITCH + NODE_H + 24 },
-  },
-  {
-    id: 'demand-to-pay',
-    label: 'Demand to Pay',
-    colour: '#307c4c',
-    tint: '#EAF4EE',
-    flow: 'forward',
-    restFlow: true,
-    /* Taller than the stages need. The extra 18 at the top is a row for the lane's own
-       label, which would otherwise sit on the Demand phase band. */
-    box: { x: 40, y: SPINE_TOP, w: 1840, h: SPINE_Y + NODE_H + 32 - SPINE_TOP },
-  },
-  {
-    id: 'logistics',
-    label: 'Logistics',
-    colour: '#A8509B',
-    tint: '#FAF2F9',
-    flow: 'forward',
-    box: {
-      x: 835,
-      y: LOGISTICS_TOP,
-      w: 592,
-      h: LOGISTICS_Y + NODE_H + 18 - LOGISTICS_TOP,
-    },
-  },
-  {
-    id: 'inventory',
-    label: 'Inventory',
-    colour: '#1F5C8B',
-    tint: '#EEF4FA',
-    flow: 'reverse',
-    box: { x: 40, y: INVENTORY_TOP, w: 720, h: INVENTORY_Y + NODE_H + 16 - INVENTORY_TOP },
-  },
-  {
-    id: 'across',
-    label: 'Across the chain',
-    /* Deliberately not one of the four process colours. These serve every stage, so taking
-       any lane's colour would imply they belong to it. */
-    colour: '#58595B',
-    tint: '#F5F6F7',
-    flow: 'forward',
-    aside: true,
-    box: {
-      x: 40,
-      y: ASIDE_TOP,
-      w: CHAIN_WIDTH - 80,
-      h: ASIDE_FIRST + ASIDE_NODE_H + 16 - ASIDE_TOP,
-    },
-  },
-];
-
-export const LANE_BY_ID: Record<LaneId, Lane> = Object.fromEntries(
-  LANES.map((lane) => [lane.id, lane]),
-) as Record<LaneId, Lane>;
-
-/* ─── Stages ─────────────────────────────────────────────────────────────────────────────── */
-
-export const STAGES: Stage[] = [
-  // ── Source to Catalog: stacked above the spine, descending into Supplier Assessment ──
-  {
-    id: 'source',
-    laneId: 'source-to-catalog',
-    label: 'Source',
-    x: S2C_X,
-    y: S2C_FIRST,
-    w: S2C_W,
-    h: NODE_H,
-    toolIds: ['sourceguide', 'sns-registry'],
-    systems: ['ariba'],
-  },
-  {
-    id: 'contract',
-    laneId: 'source-to-catalog',
-    label: 'Contract',
-    x: S2C_X,
-    y: S2C_FIRST + S2C_PITCH,
-    w: S2C_W,
-    h: NODE_H,
-    toolIds: ['sirion'],
-  },
-  {
-    id: 'catalog',
-    laneId: 'source-to-catalog',
-    label: 'Catalog',
-    x: S2C_X,
-    y: S2C_FIRST + 2 * S2C_PITCH,
-    w: S2C_W,
-    h: NODE_H,
-    toolIds: ['catalog-manager', 'spend-taxonomy'],
-    systems: ['sap-pir'],
-  },
-
-  // ── Demand to Pay: the spine, eleven stages on one row ──
-  {
-    id: 'demand-forecasting',
-    laneId: 'demand-to-pay',
-    label: 'Planning / Demand Forecasting',
-    x: spineX(0),
-    y: SPINE_Y,
-    w: SPINE_W,
-    h: NODE_H,
-    toolIds: ['translytix'],
-    systems: ['sap'],
-  },
-  {
-    id: 'demand-creation',
-    laneId: 'demand-to-pay',
-    label: 'Demand Creation',
-    x: spineX(1),
-    y: SPINE_Y,
-    w: SPINE_W,
-    h: NODE_H,
-    toolIds: ['laptop-procurement'],
-    systems: ['sap'],
-  },
-  {
-    id: 'demand-pr-approval',
-    laneId: 'demand-to-pay',
-    label: 'Demand PR Approval',
-    x: spineX(2),
-    y: SPINE_Y,
-    w: SPINE_W,
-    h: NODE_H,
-    toolIds: [],
-    systems: ['sap'],
-  },
-  {
-    id: 'supplier-assessment',
-    laneId: 'demand-to-pay',
-    label: 'Supplier Assessment',
-    x: spineX(3),
-    y: SPINE_Y,
-    w: SPINE_W,
-    h: NODE_H,
-    toolIds: ['rfx-officer'],
-    systems: ['ariba'],
-  },
-  {
-    id: 'supplier-po-approval',
-    laneId: 'demand-to-pay',
-    label: 'Supplier PO Approval',
-    x: spineX(4),
-    y: SPINE_Y,
-    w: SPINE_W,
-    h: NODE_H,
-    toolIds: [],
-    systems: ['sap'],
-  },
-  {
-    id: 'supplier-acknowledgement',
-    laneId: 'demand-to-pay',
-    label: 'Supplier Acknowledgement',
-    x: spineX(5),
-    y: SPINE_Y,
-    w: SPINE_W,
-    h: NODE_H,
-    toolIds: [],
-    systems: ['sap'],
-  },
-  {
-    id: 'delivery',
-    laneId: 'demand-to-pay',
-    label: 'Delivery',
-    x: spineX(6),
-    y: SPINE_Y,
-    w: SPINE_W,
-    h: NODE_H,
-    toolIds: ['po-expediting'],
-    systems: ['sap'],
-  },
-  {
-    id: 'delivery-acknowledgment',
-    laneId: 'demand-to-pay',
-    label: 'Delivery Acknowledgment',
-    x: spineX(7),
-    y: SPINE_Y,
-    w: SPINE_W,
-    h: NODE_H,
-    toolIds: [],
-    systems: ['sap'],
-  },
-  {
-    id: 'payment-request',
-    laneId: 'demand-to-pay',
-    label: 'Payment Request (Invoice)',
-    x: spineX(8),
-    y: SPINE_Y,
-    w: SPINE_W,
-    h: NODE_H,
-    toolIds: ['procure-guard'],
-    systems: ['sap'],
-  },
-  {
-    id: 'three-way-match',
-    laneId: 'demand-to-pay',
-    label: 'Demand Supply Validation (3WM)',
-    x: spineX(9),
-    y: SPINE_Y,
-    w: SPINE_W,
-    h: NODE_H,
-    toolIds: ['soa-consolidation'],
-    systems: ['sap'],
-  },
-  {
-    id: 'pay',
-    laneId: 'demand-to-pay',
-    label: 'Pay',
-    x: spineX(10),
-    y: SPINE_Y,
-    w: SPINE_W,
-    h: NODE_H,
-    toolIds: [],
-    systems: ['sap'],
-  },
-
-  // ── Logistics: out of Supplier Acknowledgement, round, and back up into Delivery ──
-  /* Both sit directly under Supplier Acknowledgement (centre 945) and take the spine's own
-     width, so the gap to Tracking is the spine's gutter rather than the three-pixel near miss
-     180 gave it. */
-  {
-    id: 'expediting-readiness',
-    laneId: 'logistics',
-    label: 'Expediting / Readiness',
-    x: LOGISTICS_X,
-    y: LOGISTICS_Y,
-    w: 150,
-    h: NODE_H,
-    toolIds: ['po-expediting'],
-  },
-  {
-    id: 'logistics-procure',
-    laneId: 'logistics',
-    label: 'Freight Procurement',
-    x: LOGISTICS_X + SPINE_W + SPINE_GUTTER,
-    y: LOGISTICS_Y,
-    w: 150,
-    h: NODE_H,
-    toolIds: ['shipwaves'],
-  },
-  {
-    id: 'logistics-tracking',
-    laneId: 'logistics',
-    label: 'Tracking',
-    x: LOGISTICS_X + 2 * (SPINE_W + SPINE_GUTTER),
-    y: LOGISTICS_Y,
-    w: 150,
-    h: NODE_H,
-    toolIds: ['shipwaves', 'tite'],
-  },
-
-  // ── Inventory: along the bottom left, tied to the spine at both ends ──
-  {
-    id: 'stock-replenishment',
-    laneId: 'inventory',
-    label: 'Stock Replenishment Planning',
-    x: INV_X0,
-    y: INVENTORY_Y,
-    w: 180,
-    h: NODE_H,
-    toolIds: ['translytix'],
-    systems: ['sap'],
-  },
-  {
-    id: 'physical-counting',
-    laneId: 'inventory',
-    label: 'Physical Counting',
-    x: INV_X1,
-    y: INVENTORY_Y,
-    w: 150,
-    h: NODE_H,
-    toolIds: [],
-    systems: ['sap', 'quality-governor'],
-  },
-  {
-    id: 'goods-issue',
-    laneId: 'inventory',
-    label: 'Goods Issue',
-    x: INV_X2,
-    y: INVENTORY_Y,
-    w: 150,
-    h: NODE_H,
-    toolIds: [],
-    systems: ['sap'],
-  },
-  {
-    id: 'goods-receipt',
-    laneId: 'inventory',
-    label: 'Goods Receipt',
-    x: INV_X3,
-    y: INVENTORY_Y,
-    w: 150,
-    h: NODE_H,
-    toolIds: [],
-    systems: ['sap'],
-  },
-
-  /* ── Across the chain ──
-     Not steps in the process. Each box is named for what the tool is FOR rather than for
-     the tool itself, so the lane reads as three capabilities rather than three logos. */
-  {
-    id: 'across-analytics',
-    laneId: 'across',
-    label: 'Analytics & Dashboards',
-    x: asideX(0),
-    y: ASIDE_FIRST,
-    w: ASIDE_W,
-    h: ASIDE_NODE_H,
-    toolIds: ['supply-chain-analytics'],
-  },
-  {
-    id: 'across-learning',
-    laneId: 'across',
-    label: 'Learning & Training',
-    x: asideX(1),
-    y: ASIDE_FIRST,
-    w: ASIDE_W,
-    h: ASIDE_NODE_H,
-    toolIds: ['learning-hub'],
-  },
-  {
-    id: 'across-travel',
-    laneId: 'across',
-    label: 'Travel',
-    x: asideX(2),
-    y: ASIDE_FIRST,
-    w: ASIDE_W,
-    h: ASIDE_NODE_H,
-    toolIds: ['travel-portal'],
-  },
-  {
-    id: 'across-assistant',
-    laneId: 'across',
-    label: 'Ask the Assistant',
-    x: asideX(3),
-    y: ASIDE_FIRST,
-    w: ASIDE_W,
-    h: ASIDE_NODE_H,
-    toolIds: ['scai'],
-  },
-  {
-    id: 'across-taxonomy',
-    laneId: 'across',
-    label: 'Spend Classification',
-    x: asideX(4),
-    y: ASIDE_FIRST,
-    w: ASIDE_W,
-    h: ASIDE_NODE_H,
-    toolIds: ['spend-taxonomy'],
-  },
-];
 
 /**
  * Average advance of the bold label face, as a fraction of the font size.
@@ -617,18 +241,13 @@ export const CHAR_W = 0.58;
 /**
  * Lay a stage's name out inside its box.
  *
- * What was here before wrapped at a flat twenty characters, a number with no relation to
- * either the box (150 units across the spine) or the type (16 units at the fitted view).
- * Twenty characters of bold sixteen runs about 185 units, so "Supplier Assessment" and
- * "Demand Creation" were drawn straight across the stages either side of them.
- *
- * So the budget comes from the box: wrap to the characters that actually fit, and if the name
- * still needs more lines than the box has room for -- or holds a single word too long for any
- * wrap to help, which "Acknowledgement" very nearly is -- step the type down and try again.
+ * The budget comes from the box: wrap to the characters that actually fit, and if the name
+ * still needs more lines than the box has room for -- or holds a single word too long for
+ * any wrap to help, which "Acknowledgement" very nearly is -- step the type down and try
+ * again.
  *
  * Shrinking rather than clipping, because the one thing a reader must be able to do on this
  * diagram is tell which stage is which, and a truncated stage name defeats the entire view.
- * Six steps of 10% bottom out near half size, which no label here comes close to needing.
  */
 export function fitLabel(
   label: string,
@@ -638,7 +257,7 @@ export function fitLabel(
 ): { lines: string[]; size: number } {
   const usable = boxW - 14;
   let size = base;
-  let lines = [label];
+  let lines: string[] = [label];
   for (let step = 0; step < 6; step += 1) {
     const budget = Math.max(4, Math.floor(usable / (size * CHAR_W)));
     lines = wrap(label, budget);
@@ -666,14 +285,213 @@ export function wrap(text: string, max: number): string[] {
   return lines;
 }
 
-export const STAGE_BY_ID: Record<string, Stage> = Object.fromEntries(
-  STAGES.map((stage) => [stage.id, stage]),
-);
-
 /* ─── Edges ──────────────────────────────────────────────────────────────────────────────────
    The spine's own hops carry no caption; everything that leaves a lane does, because the
    slide's captions are the only thing that says WHY two stages are connected. */
-export const EDGES: Edge[] = [
+/**
+ * What the stages ARE. Where they go is the lanes' business, on the spec below.
+ *
+ * No x, y or h: the engine works those out from the lane a stage is on and its position in
+ * that lane's list. `w` appears only where a box has to be wider than its lane's default,
+ * which today is Stock Replenishment Planning and nothing else.
+ */
+const STAGE_DEFS: StageSpec[] = [
+  // ── Source to Catalog: stacked above the spine, descending into Supplier Assessment ──
+  {
+    id: 'source',
+    laneId: 'source-to-catalog',
+    label: 'Source',
+    toolIds: ['sourceguide', 'sns-registry'],
+    systems: ['ariba'],
+  },
+  {
+    id: 'contract',
+    laneId: 'source-to-catalog',
+    label: 'Contract',
+    toolIds: ['sirion'],
+  },
+  {
+    id: 'catalog',
+    laneId: 'source-to-catalog',
+    label: 'Catalog',
+    toolIds: ['catalog-manager', 'spend-taxonomy'],
+    systems: ['sap-pir'],
+  },
+
+  // ── Demand to Pay: the spine, eleven stages on one row ──
+  {
+    id: 'demand-forecasting',
+    laneId: 'demand-to-pay',
+    label: 'Planning / Demand Forecasting',
+    toolIds: ['translytix'],
+    systems: ['sap'],
+  },
+  {
+    id: 'demand-creation',
+    laneId: 'demand-to-pay',
+    label: 'Demand Creation',
+    toolIds: ['laptop-procurement'],
+    systems: ['sap'],
+  },
+  {
+    id: 'demand-pr-approval',
+    laneId: 'demand-to-pay',
+    label: 'Demand PR Approval',
+    toolIds: [],
+    systems: ['sap'],
+  },
+  {
+    id: 'supplier-assessment',
+    laneId: 'demand-to-pay',
+    label: 'Supplier Assessment',
+    toolIds: ['rfx-officer'],
+    systems: ['ariba'],
+  },
+  {
+    id: 'supplier-po-approval',
+    laneId: 'demand-to-pay',
+    label: 'Supplier PO Approval',
+    toolIds: [],
+    systems: ['sap'],
+  },
+  {
+    id: 'supplier-acknowledgement',
+    laneId: 'demand-to-pay',
+    label: 'Supplier Acknowledgement',
+    toolIds: [],
+    systems: ['sap'],
+  },
+  {
+    id: 'delivery',
+    laneId: 'demand-to-pay',
+    label: 'Delivery',
+    toolIds: ['po-expediting'],
+    systems: ['sap'],
+  },
+  {
+    id: 'delivery-acknowledgment',
+    laneId: 'demand-to-pay',
+    label: 'Delivery Acknowledgment',
+    toolIds: [],
+    systems: ['sap'],
+  },
+  {
+    id: 'payment-request',
+    laneId: 'demand-to-pay',
+    label: 'Payment Request (Invoice)',
+    toolIds: ['procure-guard'],
+    systems: ['sap'],
+  },
+  {
+    id: 'three-way-match',
+    laneId: 'demand-to-pay',
+    label: 'Demand Supply Validation (3WM)',
+    toolIds: ['soa-consolidation'],
+    systems: ['sap'],
+  },
+  {
+    id: 'pay',
+    laneId: 'demand-to-pay',
+    label: 'Pay',
+    toolIds: [],
+    systems: ['sap'],
+  },
+
+  // ── Logistics: out of Supplier Acknowledgement, round, and back up into Delivery ──
+  /* Both sit directly under Supplier Acknowledgement (centre 945) and take the spine's own
+     width, so the gap to Tracking is the spine's gutter rather than the three-pixel near miss
+     180 gave it. */
+  {
+    id: 'expediting-readiness',
+    laneId: 'logistics',
+    label: 'Expediting / Readiness',
+    toolIds: ['po-expediting'],
+  },
+  {
+    id: 'logistics-procure',
+    laneId: 'logistics',
+    label: 'Freight Procurement',
+    toolIds: ['shipwaves'],
+  },
+  {
+    id: 'logistics-tracking',
+    laneId: 'logistics',
+    label: 'Tracking',
+    toolIds: ['shipwaves', 'tite'],
+  },
+
+  // ── Inventory: along the bottom left, tied to the spine at both ends ──
+  {
+    id: 'stock-replenishment',
+    laneId: 'inventory',
+    label: 'Stock Replenishment Planning',
+    w: 180,
+    toolIds: ['translytix'],
+    systems: ['sap'],
+  },
+  {
+    id: 'physical-counting',
+    laneId: 'inventory',
+    label: 'Physical Counting',
+    toolIds: [],
+    systems: ['sap', 'quality-governor'],
+  },
+  {
+    id: 'goods-issue',
+    laneId: 'inventory',
+    label: 'Goods Issue',
+    toolIds: [],
+    systems: ['sap'],
+  },
+  {
+    id: 'goods-receipt',
+    laneId: 'inventory',
+    label: 'Goods Receipt',
+    toolIds: [],
+    systems: ['sap'],
+  },
+
+  /* ── Across the chain ──
+     Not steps in the process. Each box is named for what the tool is FOR rather than for
+     the tool itself, so the lane reads as three capabilities rather than three logos. */
+  {
+    id: 'across-analytics',
+    laneId: 'across',
+    label: 'Analytics & Dashboards',
+    toolIds: ['supply-chain-analytics'],
+  },
+  {
+    id: 'across-learning',
+    laneId: 'across',
+    label: 'Learning & Training',
+    toolIds: ['learning-hub'],
+  },
+  {
+    id: 'across-travel',
+    laneId: 'across',
+    label: 'Travel',
+    toolIds: ['travel-portal'],
+  },
+  {
+    id: 'across-assistant',
+    laneId: 'across',
+    label: 'Ask the Assistant',
+    toolIds: ['scai'],
+  },
+  {
+    id: 'across-taxonomy',
+    laneId: 'across',
+    label: 'Spend Classification',
+    toolIds: ['spend-taxonomy'],
+  },
+];
+
+/**
+ * What is connected to what, and why. Where the line bends is a routing intent on the
+ * spec below, not a coordinate here -- absolute waypoints are how one of these came to be
+ * drawn off the bottom of the canvas, invisible, with the whole suite green.
+ */
+const EDGE_DEFS: Omit<EdgeSpec, 'route'>[] = [
   // Source to Catalog, descending, then into the spine.
   {
     from: 'source',
@@ -702,7 +520,6 @@ export const EDGES: Edge[] = [
     to: 'demand-forecasting',
     laneId: 'source-to-catalog',
     dash: 'dashed',
-    via: [{ x: spineX(0) + SPINE_W / 2, y: S2C_FIRST + NODE_H / 2 }],
   },
 
   // The spine.
@@ -766,49 +583,12 @@ export const EDGES: Edge[] = [
     to: 'delivery-acknowledgment',
     laneId: 'inventory',
     dash: 'dotted',
-    via: [
-      { x: INV_X3 + 75, y: BOTTOM_ROUTE_Y },
-      { x: spineX(7) + SPINE_W / 2, y: BOTTOM_ROUTE_Y },
-    ],
   },
 ];
 
 /* ─── Phases ─────────────────────────────────────────────────────────────────────────────────
    The four bands above the spine. They are what a reader clicks first, so each one's extent is
    also a camera target. */
-/**
- * A band's extent is exactly the stages under it.
- *
- * These were four hand-typed pairs, and three of them were wrong: Demand ran four units into
- * Procure and Procure four units into Deliver, which with a fully rounded end made each pair
- * read as one long pill. Somebody had already found the Deliver/Pay case and patched that one
- * number with a comment. Deriving the span fixes all of them at once and inherits the spine's
- * own twelve-unit gutter, so the bands can never drift out of step with the stages again.
- */
-const spanOf = (ids: string[]) => {
-  const boxes = ids.map((id) => STAGES.find((s) => s.id === id)!);
-  const x = Math.min(...boxes.map((b) => b.x));
-  return { x, w: Math.max(...boxes.map((b) => b.x + b.w)) - x };
-};
-
-export const PHASES: Phase[] = (
-  [
-    ['demand', 'Demand', ['demand-forecasting', 'demand-creation', 'demand-pr-approval']],
-    [
-      'procure',
-      'Procure',
-      ['supplier-assessment', 'supplier-po-approval', 'supplier-acknowledgement'],
-    ],
-    ['deliver', 'Deliver', ['delivery', 'delivery-acknowledgment']],
-    ['pay', 'Pay', ['payment-request', 'three-way-match', 'pay']],
-  ] as const
-).map(([id, label, stageIds]) => ({
-  id,
-  label,
-  stageIds: [...stageIds],
-  ...spanOf([...stageIds]),
-}));
-
 /* ─── Tools that serve no single stage ───────────────────────────────────────────────────────
    Analytics reads the whole chain, Learning Hub teaches it, and the Travel Portal is not part
    of it at all. Pinning each to its nearest stage would be three small lies, so they get a rail
@@ -821,6 +601,195 @@ export const PHASES: Phase[] = (
  * needs the escape hatch to exist. The panel that lists these hides itself when it is empty.
  */
 export const OFF_CHAIN_TOOL_IDS: string[] = [];
+
+/* ─── The same drawing, declared ─────────────────────────────────────────────────────────
+   Everything above is absolute coordinates. This is the spec they came from, and
+   `layoutProcess` recomputes them from it.
+
+   Written beside the literals rather than instead of them, with a test asserting the two
+   agree to the unit, because the only convincing argument that a layout engine reproduces
+   a hand-made drawing is the drawing itself coming back unchanged. Once that test has
+   passed, the literals go and this becomes the single source.
+
+   What it buys: positions come from array order, so adding a stage is inserting a string;
+   a lane anchored to another lane's stage moves with it; the canvas is measured rather
+   than declared; and a second, unrelated process map is a second file like this one. */
+
+const SPINE_STAGE_IDS = [
+  'demand-forecasting',
+  'demand-creation',
+  'demand-pr-approval',
+  'supplier-assessment',
+  'supplier-po-approval',
+  'supplier-acknowledgement',
+  'delivery',
+  'delivery-acknowledgment',
+  'payment-request',
+  'three-way-match',
+  'pay',
+];
+
+/** Only the edges that bend. Everything else runs centre to centre. */
+const EDGE_ROUTES: Record<string, EdgeRoute> = {
+  'source->demand-forecasting': 'h-then-v',
+  'goods-receipt->delivery-acknowledgment': 'channel-bottom',
+};
+
+export const SUPPLY_CHAIN_SPEC: ProcessSpec = {
+  width: CHAIN_WIDTH,
+  marginBottom: 6,
+  channelGap: 16,
+  groupBand: { h: PHASE_BAND_H, gap: 20, inset: PHASE_BAND_INSET },
+  laneLabelH: 34,
+
+  lanes: [
+    {
+      id: 'source-to-catalog',
+      label: 'Source to Catalog',
+      colour: '#C08A1E',
+      tint: '#FDF8EC',
+      flow: 'reverse',
+      /* It descends INTO Supplier Assessment, so it is drawn over it. Move that stage
+         along the spine and this whole column follows. */
+      anchorX: { at: 'stage-centre', stageId: 'supplier-assessment' },
+      anchorY: { at: 'top', offset: S2C_TOP },
+      layout: { kind: 'column', stageIds: ['source', 'contract', 'catalog'] },
+      nodeW: S2C_W,
+      nodeH: NODE_H,
+      gutterX: 0,
+      gutterY: S2C_PITCH - NODE_H,
+      pad: { x: 70, top: S2C_FIRST - S2C_TOP, bottom: 32 },
+    },
+    {
+      id: 'demand-to-pay',
+      label: 'Demand to Pay',
+      colour: '#307c4c',
+      tint: '#EAF4EE',
+      flow: 'forward',
+      restFlow: true,
+      anchorX: { at: 'canvas-centre' },
+      anchorY: { at: 'below', laneId: 'source-to-catalog', gap: 22 },
+      layout: { kind: 'row', stageIds: SPINE_STAGE_IDS },
+      nodeW: SPINE_W,
+      nodeH: NODE_H,
+      gutterX: SPINE_GUTTER,
+      gutterY: 0,
+      /* `top` holds the lane's own name AND the phase pills under it. */
+      pad: { x: 20, top: 86, bottom: 32 },
+      stretch: true,
+      groups: [
+        {
+          id: 'demand',
+          label: 'Demand',
+          stageIds: ['demand-forecasting', 'demand-creation', 'demand-pr-approval'],
+        },
+        {
+          id: 'procure',
+          label: 'Procure',
+          stageIds: ['supplier-assessment', 'supplier-po-approval', 'supplier-acknowledgement'],
+        },
+        { id: 'deliver', label: 'Deliver', stageIds: ['delivery', 'delivery-acknowledgment'] },
+        {
+          id: 'pay',
+          label: 'Pay',
+          stageIds: ['payment-request', 'three-way-match', 'pay'],
+        },
+      ],
+    },
+    {
+      id: 'logistics',
+      label: 'Logistics',
+      colour: '#A8509B',
+      tint: '#FAF2F9',
+      flow: 'forward',
+      /* Hangs directly below the stage it leaves, on the spine's own column pitch. */
+      anchorX: { at: 'stage-left', stageId: 'supplier-acknowledgement' },
+      anchorY: { at: 'below', laneId: 'demand-to-pay', gap: 44 },
+      layout: {
+        kind: 'row',
+        stageIds: ['expediting-readiness', 'logistics-procure', 'logistics-tracking'],
+      },
+      nodeW: SPINE_W,
+      nodeH: NODE_H,
+      gutterX: SPINE_GUTTER,
+      gutterY: 0,
+      pad: { x: 50, top: LOGISTICS_Y - LOGISTICS_TOP, bottom: 18 },
+    },
+    {
+      id: 'inventory',
+      label: 'Inventory',
+      colour: '#1F5C8B',
+      tint: '#EEF4FA',
+      flow: 'reverse',
+      anchorX: { at: 'stage-left', stageId: 'demand-forecasting' },
+      anchorY: { at: 'below', laneId: 'demand-to-pay', gap: 44 },
+      layout: {
+        kind: 'row',
+        stageIds: ['stock-replenishment', 'physical-counting', 'goods-issue', 'goods-receipt'],
+      },
+      nodeW: 150,
+      nodeH: NODE_H,
+      gutterX: 16,
+      gutterY: 0,
+      pad: { x: 35, top: INVENTORY_Y - INVENTORY_TOP, bottom: 16 },
+    },
+    {
+      id: 'across',
+      label: 'Across the chain',
+      colour: '#58595B',
+      tint: '#F5F6F7',
+      flow: 'forward',
+      aside: true,
+      anchorX: { at: 'canvas-centre' },
+      anchorY: { at: 'below', laneId: 'logistics', gap: 38 },
+      layout: {
+        kind: 'row',
+        stageIds: [
+          'across-analytics',
+          'across-learning',
+          'across-travel',
+          'across-assistant',
+          'across-taxonomy',
+        ],
+      },
+      nodeW: ASIDE_W,
+      nodeH: ASIDE_NODE_H,
+      gutterX: ASIDE_GUTTER,
+      gutterY: 0,
+      pad: { x: 20, top: ASIDE_PAD_TOP, bottom: 16 },
+      stretch: true,
+    },
+  ],
+
+  stages: STAGE_DEFS,
+
+  edges: EDGE_DEFS.map((edge) => ({
+    ...edge,
+    route: EDGE_ROUTES[`${edge.from}->${edge.to}`] ?? 'direct',
+  })),
+};
+
+export const COMPUTED = layoutProcess(SUPPLY_CHAIN_SPEC);
+
+/* ─── The drawing ────────────────────────────────────────────────────────────────────────
+   Everything below is the laid-out spec under the names the renderer already used. The
+   shapes are unchanged, which is the whole point: the component and its tests were written
+   against hand-placed coordinates and neither had to be touched when those went away. */
+
+export const CHAIN_HEIGHT = COMPUTED.height;
+export const CONTENT = COMPUTED.content;
+export const STAGES: Stage[] = COMPUTED.stages as Stage[];
+export const LANES: Lane[] = COMPUTED.lanes as Lane[];
+export const EDGES: Edge[] = COMPUTED.edges as Edge[];
+export const PHASES: Phase[] = COMPUTED.groups;
+export const STAGE_BY_ID: Record<string, Stage> = COMPUTED.stageById as Record<string, Stage>;
+export const LANE_BY_ID: Record<LaneId, Lane> = COMPUTED.laneById as Record<LaneId, Lane>;
+/** Where a phase pill sits, and how it is drawn. The row comes from the layout. */
+export const PHASE_BAND = {
+  y: COMPUTED.groupBandY,
+  h: PHASE_BAND_H,
+  inset: PHASE_BAND_INSET,
+} as const;
 
 /* ─── Derived ────────────────────────────────────────────────────────────────────────────────
    Computed rather than written down, so a stage added above cannot leave a stale count or
@@ -851,24 +820,6 @@ export function coverage(): { total: number; covered: number; gaps: number } {
 }
 
 /** The smallest rect containing these stages, plus padding. A camera target. */
-/**
- * The rect the drawing actually occupies.
- *
- * Not the same as the canvas: the canvas is a coordinate space with margins, and letting
- * the camera roam to its corners means panning into blank paper. Every limit the camera
- * applies is measured against this instead.
- */
-export const CONTENT: Rect = (() => {
-  const boxes = [...LANES.map((l) => l.box), ...STAGES];
-  const x = Math.min(...boxes.map((b) => b.x));
-  const y = Math.min(...boxes.map((b) => b.y));
-  return {
-    x,
-    y,
-    w: Math.max(...boxes.map((b) => b.x + b.w)) - x,
-    h: Math.max(...boxes.map((b) => b.y + b.h)) - y,
-  };
-})();
 
 export function boundsOf(stageIds: string[], pad = 70): Rect {
   const picked = stageIds.map((id) => STAGE_BY_ID[id]).filter(Boolean);
@@ -894,11 +845,7 @@ export function centreOf(rect: Rect): { x: number; y: number } {
  * real midpoint, and on a bent edge it lands on the longer leg where there is room for it.
  */
 export function edgeMidpoint(edge: Edge): { x: number; y: number } {
-  const points = [
-    centreOf(STAGE_BY_ID[edge.from]),
-    ...(edge.via ?? []),
-    centreOf(STAGE_BY_ID[edge.to]),
-  ];
+  const points = edge.points;
   const segments = points.slice(1).map((p, i) => Math.hypot(p.x - points[i].x, p.y - points[i].y));
   const half = segments.reduce((a2, b2) => a2 + b2, 0) / 2;
 
@@ -924,8 +871,5 @@ export function edgeMidpoint(edge: Edge): { x: number; y: number } {
  * angle, which is what the slide draws and what keeps the lanes legible.
  */
 export function edgePath(edge: Edge): string {
-  const from = centreOf(STAGE_BY_ID[edge.from]);
-  const to = centreOf(STAGE_BY_ID[edge.to]);
-  const points = [from, ...(edge.via ?? []), to];
-  return points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x} ${p.y}`).join(' ');
+  return edge.points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x} ${p.y}`).join(' ');
 }

@@ -95,16 +95,17 @@ describe('the graph holds together', () => {
   });
 
   it('routes every edge inside the canvas', () => {
-    /* The dotted return from Goods Receipt is routed under the whole diagram by a pair of
-       hand-placed waypoints, and they sat at y=955 after the canvas was shortened to 930 --
-       so the line left the bottom of the drawing and came back, invisibly, and every test
-       passed. Waypoints are derived from the layout constants now; this is what says so. */
+    /* The dotted return from Goods Receipt is routed under the whole diagram, and its
+       waypoints sat at y=955 after the canvas was shortened to 930 -- so the line left the
+       bottom of the drawing and came back, invisibly, with every test passing. They are
+       computed from a routing intent now, and this checks the whole line rather than only
+       the corners, which is strictly more than the hand-placed version could be asked. */
     for (const edge of EDGES) {
-      for (const point of edge.via ?? []) {
-        expect(point.x, `${edge.from}->${edge.to} waypoint x`).toBeGreaterThanOrEqual(0);
-        expect(point.x, `${edge.from}->${edge.to} waypoint x`).toBeLessThanOrEqual(CHAIN_WIDTH);
-        expect(point.y, `${edge.from}->${edge.to} waypoint y`).toBeGreaterThanOrEqual(0);
-        expect(point.y, `${edge.from}->${edge.to} waypoint y`).toBeLessThanOrEqual(CHAIN_HEIGHT);
+      for (const point of edge.points) {
+        expect(point.x, `${edge.from}->${edge.to} x`).toBeGreaterThanOrEqual(0);
+        expect(point.x, `${edge.from}->${edge.to} x`).toBeLessThanOrEqual(CHAIN_WIDTH);
+        expect(point.y, `${edge.from}->${edge.to} y`).toBeGreaterThanOrEqual(0);
+        expect(point.y, `${edge.from}->${edge.to} y`).toBeLessThanOrEqual(CHAIN_HEIGHT);
       }
     }
   });
