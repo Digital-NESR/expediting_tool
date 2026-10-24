@@ -1,7 +1,8 @@
 /*
  * Public help & training page for RFx Officer — no auth required.
- * Tabs 1 to 3: the intro and the two training videos (SharePoint). Tab 4: the RFQ Flow
- * walkthrough.
+ * Tabs 1 to 4: the videos (SharePoint), ordered shallowest first -- what the tool is, what
+ * it does, how to run an RFQ, and what the supplier on the other end sees. Tab 5: the RFQ
+ * Flow walkthrough.
  *
  * The header comes from the /help layout and the tab strip from ../HelpTabBar,
  * which TI-TE shares. Where the videos live is configuration now — see ../media
@@ -35,15 +36,16 @@ import {
   RFX_FULL_GUIDE_VIDEO_EMBED_URL,
   RFX_FULL_GUIDE_VIDEO_SHARE_URL,
   RFX_INTRO_VIDEO_EMBED_URL,
+  RFX_OVERVIEW_VIDEO_EMBED_URL,
   RFX_SUPPLIER_GUIDE_VIDEO_EMBED_URL,
 } from '../media';
 
 const GREEN = '#307c4c';
 
-// The videos, in the order a newcomer should meet them: what the tool is, then how to run
-// an RFQ, then what the supplier on the other end sees.
+// The videos, in the order a newcomer should meet them: what the tool is, then what it does,
+// then how to run an RFQ, then what the supplier on the other end sees.
 const VIDEO_GUIDES: {
-  key: 'intro' | 'full' | 'supplier';
+  key: 'intro' | 'overview' | 'full' | 'supplier';
   label: string;
   title: string;
   blurb: string;
@@ -56,6 +58,14 @@ const VIDEO_GUIDES: {
     title: 'Introduction',
     blurb: 'Start here — what RFx Officer is for, before the step-by-step guides.',
     embed: RFX_INTRO_VIDEO_EMBED_URL,
+    share: null,
+  },
+  {
+    key: 'overview',
+    label: 'Overview',
+    title: 'Overview',
+    blurb: 'A tour of what RFx Officer does, before the step-by-step walkthrough.',
+    embed: RFX_OVERVIEW_VIDEO_EMBED_URL,
     share: null,
   },
   {
@@ -853,13 +863,14 @@ function RFQFlow() {
 
 const TABS = [
   { key: 'intro', label: 'Intro' },
+  { key: 'overview', label: 'Overview' },
   { key: 'full', label: 'Full Guide' },
   { key: 'supplier', label: 'Supplier Guide' },
   { key: 'docs', label: 'RFQ Flow' },
 ] as const;
 
 export default function RFxOfficerHelpPage() {
-  const [tab, setTab] = useState<'intro' | 'full' | 'supplier' | 'docs'>('intro');
+  const [tab, setTab] = useState<'intro' | 'overview' | 'full' | 'supplier' | 'docs'>('intro');
   const g = VIDEO_GUIDES.find((x) => x.key === tab); // set for the video tabs; undefined for 'docs'
 
   return (
@@ -875,7 +886,8 @@ export default function RFxOfficerHelpPage() {
         </div>
         <h1 className="text-2xl font-bold tracking-tight">Help &amp; Training</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Start with the intro, then the training videos and the full RFQ flow walkthrough.
+          Start with the intro, then the overview, then the detailed guides and the full RFQ flow
+          walkthrough.
         </p>
       </div>
 
