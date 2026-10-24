@@ -19,7 +19,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CHAIN_HEIGHT, CHAIN_WIDTH, type Rect } from '@/lib/home/process-chain';
+import { CHAIN_HEIGHT, CHAIN_WIDTH, CONTENT, type Rect } from '@/lib/home/process-chain';
 
 /** How far in and out the camera may go, as a multiple of the fitted view. */
 const MIN_SCALE = 0.95;
@@ -35,10 +35,9 @@ const DEFAULT_MS = 620;
  * FRACTION of whatever gap is left each second -- so it absorbs a target that keeps moving,
  * arrives without overshoot, and decelerates on its own when the pointer stops.
  */
-const PURSUE_TAU = 0.17;
+const PURSUE_TAU = 0.42;
 
 const FULL: Rect = { x: 0, y: 0, w: CHAIN_WIDTH, h: CHAIN_HEIGHT };
-const ASPECT = CHAIN_HEIGHT / CHAIN_WIDTH;
 
 /** Where the camera is being pulled: a centre in canvas units, and how far in to be. */
 export interface Pursuit {
@@ -80,16 +79,38 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
  * Applied to every rect the camera is ever given, including the end of a tween, so there is no
  * route to a view of empty space off the side of the diagram.
  */
-function constrain(rect: Rect): Rect {
+/**
+ * Keep the view inside the DRAWING, at the ELEMENT's shape.
+ *
+ * Two changes from the obvious version, both of which were visible problems.
+ *
+ * The view rect used to take the canvas's aspect ratio. The <svg> then fitted that rect
+ * into an element of a different shape and letterboxed the difference, so a wide card
+ * showed a tall drawing with a band of dead white down each side -- the element was full
+ * of nothing. Matching the element means the viewBox IS what you see.
+ *
+ * And it allowed half a screen of overscroll past the canvas edge, which at the fitted
+ * view is a lot of blank paper: zooming near an edge left a thick invisible margin with
+ * the drawing shoved out of the way behind it. Panning now stops where the drawing stops,
+ * measured against CONTENT rather than the canvas, which has margins of its own.
+ */
+function constrain(rect: Rect, aspect: number): Rect {
   const minW = CHAIN_WIDTH / MAX_SCALE;
-  const maxW = CHAIN_WIDTH / MIN_SCALE;
-  const aspect = CHAIN_HEIGHT / CHAIN_WIDTH;
+  const maxW = Math.max(CHAIN_WIDTH / MIN_SCALE, CONTENT.h / aspect);
 
   const w = clamp(rect.w, minW, maxW);
   const h = w * aspect;
-  // Half a screen of overscroll either side, so a stage at the edge can still be centred.
-  const x = clamp(rect.x, -w / 2, CHAIN_WIDTH - w / 2);
-  const y = clamp(rect.y, -h / 2, CHAIN_HEIGHT - h / 2);
+
+  /* Centre on the drawing in whichever direction the view is bigger than it is, and
+     otherwise keep the view's edges inside the drawing's. */
+  const x =
+    w >= CONTENT.w
+      ? CONTENT.x + CONTENT.w / 2 - w / 2
+      : clamp(rect.x, CONTENT.x, CONTENT.x + CONTENT.w - w);
+  const y =
+    h >= CONTENT.h
+      ? CONTENT.y + CONTENT.h / 2 - h / 2
+      : clamp(rect.y, CONTENT.y, CONTENT.y + CONTENT.h - h);
   return { x, y, w, h };
 }
 
@@ -100,16 +121,18 @@ function constrain(rect: Rect): Rect {
  * whichever dimension needs more room keeps the drawing's proportions and guarantees the
  * target is fully inside the frame.
  */
-export function toViewBox(target: Rect): Rect {
-  const aspect = CHAIN_HEIGHT / CHAIN_WIDTH;
+export function toViewBox(target: Rect, aspect: number): Rect {
   const w = Math.max(target.w, target.h / aspect);
   const h = w * aspect;
-  return constrain({
-    x: target.x - (w - target.w) / 2,
-    y: target.y - (h - target.h) / 2,
-    w,
-    h,
-  });
+  return constrain(
+    {
+      x: target.x - (w - target.w) / 2,
+      y: target.y - (h - target.h) / 2,
+      w,
+      h,
+    },
+    aspect,
+  );
 }
 
 export interface ChainCamera {
@@ -132,8 +155,20 @@ export interface ChainCamera {
   pursue: (target: Pursuit | null) => void;
 }
 
-export function useChainCamera(): ChainCamera {
+/**
+ * @param aspect height / width of the element the drawing is shown in. The camera matches
+ * it, so the viewBox is exactly what the reader sees and nothing is letterboxed away.
+ */
+export function useChainCamera(aspect: number): ChainCamera {
   const [view, setView] = useState<Rect>(FULL);
+  /* Read inside the rAF callbacks, which are created once and must not close over a
+     stale value when the window is resized mid-gesture. Written in an effect rather than
+     during render: a ref assignment in a render body runs on every attempt React makes,
+     including ones it throws away. */
+  const aspectRef = useRef(aspect);
+  useEffect(() => {
+    aspectRef.current = aspect;
+  }, [aspect]);
   const frame = useRef<number | null>(null);
   const chase = useRef<Pursuit | null>(null);
   const chaseFrame = useRef<number | null>(null);
@@ -194,12 +229,16 @@ export function useChainCamera(): ChainCamera {
 
         setView((current) => {
           const w = lerp(current.w, CHAIN_WIDTH / to.scale, k);
-          const next = constrain({
-            x: lerp(current.x + current.w / 2, to.cx, k) - w / 2,
-            y: lerp(current.y + current.h / 2, to.cy, k) - (w * ASPECT) / 2,
-            w,
-            h: w * ASPECT,
-          });
+          const a = aspectRef.current;
+          const next = constrain(
+            {
+              x: lerp(current.x + current.w / 2, to.cx, k) - w / 2,
+              y: lerp(current.y + current.h / 2, to.cy, k) - (w * a) / 2,
+              w,
+              h: w * a,
+            },
+            a,
+          );
           /* Returning the same object lets React bail out of the render entirely, which is
              what makes a resting pointer free rather than merely cheap. */
           const settled =
@@ -224,7 +263,7 @@ export function useChainCamera(): ChainCamera {
   const flyTo = useCallback(
     (target: Rect, ms = DEFAULT_MS) => {
       stop();
-      const to = toViewBox(target);
+      const to = toViewBox(target, aspectRef.current);
       if (reduceMotion.current || ms <= 0) {
         setView(to);
         return;
@@ -255,7 +294,23 @@ export function useChainCamera(): ChainCamera {
     [stop],
   );
 
-  const fit = useCallback((ms = DEFAULT_MS) => flyTo(FULL, ms), [flyTo]);
+  /**
+   * Fill the width with the drawing, from the top.
+   *
+   * Not "show everything": the drawing is two-thirds as tall as it is wide and the card is
+   * three times as wide as it is tall, so fitting the whole height means shrinking the
+   * whole thing into a stamp in the middle with dead white either side -- the card full of
+   * nothing again, only now inside the viewBox instead of outside it. Filling the width
+   * puts the backbone on screen at a size worth reading, and the lanes below are a pointer
+   * -move away. Scrolling the wheel out still reaches the whole picture.
+   */
+  const fit = useCallback(
+    (ms = DEFAULT_MS) => {
+      const a = aspectRef.current;
+      flyTo({ x: CONTENT.x, y: CONTENT.y, w: CONTENT.w, h: CONTENT.w * a }, ms);
+    },
+    [flyTo],
+  );
 
   /* Pan and zoom are direct, never tweened. They follow a wheel or a drag, which is already a
      stream of small continuous changes -- easing on top of that is what makes a canvas feel
@@ -264,15 +319,18 @@ export function useChainCamera(): ChainCamera {
     (point: { x: number; y: number }, factor: number) => {
       stop();
       setView((current) => {
+        const a = aspectRef.current;
         const w = current.w / factor;
-        const next = constrain({
-          // Hold `point` at the same fraction across the frame as it was before.
-          x: point.x - ((point.x - current.x) / current.w) * w,
-          y: point.y - ((point.y - current.y) / current.h) * (w * (CHAIN_HEIGHT / CHAIN_WIDTH)),
-          w,
-          h: w * (CHAIN_HEIGHT / CHAIN_WIDTH),
-        });
-        return next;
+        return constrain(
+          {
+            // Hold `point` at the same fraction across the frame as it was before.
+            x: point.x - ((point.x - current.x) / current.w) * w,
+            y: point.y - ((point.y - current.y) / current.h) * (w * a),
+            w,
+            h: w * a,
+          },
+          a,
+        );
       });
     },
     [stop],
@@ -281,7 +339,9 @@ export function useChainCamera(): ChainCamera {
   const panBy = useCallback(
     (dx: number, dy: number) => {
       stop();
-      setView((current) => constrain({ ...current, x: current.x + dx, y: current.y + dy }));
+      setView((current) =>
+        constrain({ ...current, x: current.x + dx, y: current.y + dy }, aspectRef.current),
+      );
     },
     [stop],
   );

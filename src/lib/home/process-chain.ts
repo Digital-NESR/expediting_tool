@@ -30,7 +30,7 @@
  * clipped outright. Taller stages in a taller canvas buy back the room.
  */
 export const CHAIN_WIDTH = 1920;
-export const CHAIN_HEIGHT = 1322;
+export const CHAIN_HEIGHT = 1278;
 
 /** Every stage is the same size, so the eye reads position as meaning and not importance. */
 const NODE_H = 120;
@@ -93,11 +93,19 @@ const BOTTOM_ROUTE_Y = 1130;
  * picture at all -- an odd thing for a view whose job is showing the estate. They go here,
  * and the drawing costs not one unit more than it did.
  */
-const ASIDE_TOP = BOTTOM_ROUTE_Y + 26;
-const ASIDE_FIRST = ASIDE_TOP + 38;
-const ASIDE_NODE_H = 86;
-/** Three boxes in a row across the full width, under the whole chain. */
-const ASIDE_W = 574;
+const ASIDE_TOP = BOTTOM_ROUTE_Y + 22;
+const ASIDE_FIRST = ASIDE_TOP + 30;
+/**
+ * Smaller than a process stage, on purpose.
+ *
+ * These three are not steps; they sit beside the chain. Drawing them at the spine's size
+ * gave them the same weight as Supplier Assessment, and the full-width row made them the
+ * heaviest thing on the canvas. 74 is the floor -- a name, a gap and a chip need 70 inside
+ * the padding -- so this is as small as they go without the label shrinking.
+ */
+const ASIDE_NODE_H = 74;
+/** Three boxes in a centred row under the whole chain. */
+const ASIDE_W = 420;
 const ASIDE_GUTTER = 16;
 const ASIDE_X0 = Math.round((CHAIN_WIDTH - (3 * ASIDE_W + 2 * ASIDE_GUTTER)) / 2);
 const asideX = (i: number) => ASIDE_X0 + i * (ASIDE_W + ASIDE_GUTTER);
@@ -278,7 +286,7 @@ export const LANES: Lane[] = [
       x: 40,
       y: ASIDE_TOP,
       w: CHAIN_WIDTH - 80,
-      h: ASIDE_FIRST + ASIDE_NODE_H + 20 - ASIDE_TOP,
+      h: ASIDE_FIRST + ASIDE_NODE_H + 16 - ASIDE_TOP,
     },
   },
 ];
@@ -815,6 +823,25 @@ export function coverage(): { total: number; covered: number; gaps: number } {
 }
 
 /** The smallest rect containing these stages, plus padding. A camera target. */
+/**
+ * The rect the drawing actually occupies.
+ *
+ * Not the same as the canvas: the canvas is a coordinate space with margins, and letting
+ * the camera roam to its corners means panning into blank paper. Every limit the camera
+ * applies is measured against this instead.
+ */
+export const CONTENT: Rect = (() => {
+  const boxes = [...LANES.map((l) => l.box), ...STAGES];
+  const x = Math.min(...boxes.map((b) => b.x));
+  const y = Math.min(...boxes.map((b) => b.y));
+  return {
+    x,
+    y,
+    w: Math.max(...boxes.map((b) => b.x + b.w)) - x,
+    h: Math.max(...boxes.map((b) => b.y + b.h)) - y,
+  };
+})();
+
 export function boundsOf(stageIds: string[], pad = 70): Rect {
   const picked = stageIds.map((id) => STAGE_BY_ID[id]).filter(Boolean);
   if (!picked.length) return { x: 0, y: 0, w: CHAIN_WIDTH, h: CHAIN_HEIGHT };

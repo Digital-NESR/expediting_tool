@@ -441,14 +441,12 @@ export default function ToolLauncher({
                 </div>
               )}
             </div>
+
+            {/* ── SCAI Panel (server-rendered) ── */}
+            {scaiPanel}
           </div>
         </>
       )}
-
-      {/* ── SCAI Panel (server-rendered) ──
-          Outside the branch: it used to render only beside the card grid, so making the
-          chain the default would have quietly taken it off the home page altogether. */}
-      <div className={homeView === 'chain' ? 'mt-6' : 'mt-6 xl:hidden'}>{scaiPanel}</div>
 
       {/* ── Modals ── */}
       {modal?.kind === 'request' && (

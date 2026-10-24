@@ -13,7 +13,7 @@
  */
 
 import { LANES, LANE_BY_ID, PHASES, PHASE_BAND, STAGE_BY_ID } from '@/lib/home/process-chain';
-import { BOX, type Sizes } from './chainTheme';
+import { BOX, SCREEN_TYPE_CAP, type Sizes } from './chainTheme';
 
 /** The cap along a band's top edge, in canvas units. */
 const CAP_H = 5;
@@ -21,48 +21,63 @@ const CAP_H = 5;
 export function LaneBands({ u, size }: { u: (cssPx: number) => number; size: Sizes }) {
   return (
     <>
-      {LANES.map((lane) => (
-        <g key={lane.id}>
-          <rect
-            x={lane.box.x}
-            y={lane.box.y}
-            width={lane.box.w}
-            height={lane.box.h}
-            rx={18}
-            fill={`url(#lane-wash-${lane.id})`}
-            stroke={lane.colour}
-            strokeOpacity={0.22}
-            vectorEffect="non-scaling-stroke"
-          />
-          {/* The cap. Clipped to the band so it follows the rounded corners. */}
-          <clipPath id={`lane-cap-${lane.id}`}>
-            <rect x={lane.box.x} y={lane.box.y} width={lane.box.w} height={lane.box.h} rx={18} />
-          </clipPath>
-          <rect
-            x={lane.box.x}
-            y={lane.box.y}
-            width={lane.box.w}
-            height={CAP_H}
-            fill={lane.colour}
-            clipPath={`url(#lane-cap-${lane.id})`}
-            style={{ pointerEvents: 'none' }}
-          />
-          <text
-            x={lane.box.x + 14}
-            /* A fixed baseline inside the lane's header strip. Deriving it from the font
+      {LANES.map((lane) => {
+        /*
+         * A lane name is sized for the screen, capped in canvas units, AND made to fit the
+         * band it names -- three constraints, lowest wins.
+         *
+         * The third one is not belt-and-braces: Source to Catalog is a 180-unit column and
+         * "SOURCE TO CATALOG" is seventeen characters, so the first two constraints alone
+         * let it run out of its own band and across the drawing beside it.
+         */
+        const laneType = Math.min(
+          u(size.lane),
+          SCREEN_TYPE_CAP.lane,
+          (lane.box.w - 28) / (lane.label.length * 0.62),
+        );
+        return (
+          <g key={lane.id}>
+            <rect
+              x={lane.box.x}
+              y={lane.box.y}
+              width={lane.box.w}
+              height={lane.box.h}
+              rx={18}
+              fill={`url(#lane-wash-${lane.id})`}
+              stroke={lane.colour}
+              strokeOpacity={0.22}
+              vectorEffect="non-scaling-stroke"
+            />
+            {/* The cap. Clipped to the band so it follows the rounded corners. */}
+            <clipPath id={`lane-cap-${lane.id}`}>
+              <rect x={lane.box.x} y={lane.box.y} width={lane.box.w} height={lane.box.h} rx={18} />
+            </clipPath>
+            <rect
+              x={lane.box.x}
+              y={lane.box.y}
+              width={lane.box.w}
+              height={CAP_H}
+              fill={lane.colour}
+              clipPath={`url(#lane-cap-${lane.id})`}
+              style={{ pointerEvents: 'none' }}
+            />
+            <text
+              x={lane.box.x + 14}
+              /* A fixed baseline inside the lane's header strip. Deriving it from the font
                size moved the label as you zoomed, which is how it ended up on top of the
                first stage in the lane. */
-            y={lane.box.y + 28}
-            fontSize={u(size.lane)}
-            fontWeight={700}
-            letterSpacing={u(0.9)}
-            fill={lane.colour}
-            style={{ textTransform: 'uppercase' }}
-          >
-            {lane.label}
-          </text>
-        </g>
-      ))}
+              y={lane.box.y + 28}
+              fontSize={laneType}
+              fontWeight={700}
+              letterSpacing={Math.min(laneType * 0.07, 2)}
+              fill={lane.colour}
+              style={{ textTransform: 'uppercase' }}
+            >
+              {lane.label}
+            </text>
+          </g>
+        );
+      })}
     </>
   );
 }

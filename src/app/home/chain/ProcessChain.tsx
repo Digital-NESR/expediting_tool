@@ -25,6 +25,7 @@ import { Maximize2, Layers, X, MousePointer2, Star } from 'lucide-react';
 import {
   CHAIN_HEIGHT,
   CHAIN_WIDTH,
+  CONTENT,
   LANES,
   PHASES,
   STAGES,
@@ -88,7 +89,11 @@ export default function ProcessChain({
   onToggleFavourite,
   sessionLoading = false,
 }: ProcessChainProps) {
-  const camera = useChainCamera();
+  /* The camera matches the element's shape, so the viewBox is exactly what is on screen
+     and the <svg> never letterboxes a band of dead white down each side. */
+  const [svgAspect, setSvgAspect] = useState(CHAIN_HEIGHT / CHAIN_WIDTH);
+  const [measured, setMeasured] = useState(false);
+  const camera = useChainCamera(svgAspect);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [pickedFocus, setFocus] = useState<{ kind: 'lane' | 'phase'; id: string } | null>(null);
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
@@ -174,10 +179,28 @@ export default function ProcessChain({
         outerW: outer.width,
         outerH: outer.height,
       });
+      setSvgAspect(svg.height / svg.width);
+      setMeasured(true);
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  /*
+   * Frame the drawing once the element has a real size.
+   *
+   * The view the camera starts with is a guess made before anything had been laid out, and
+   * it has to be: the element's shape is what decides the framing and there is no element
+   * yet on the first render. An effect rather than a rAF inside the observer, because the
+   * camera reads the aspect from a ref written in ITS own effect -- a callback scheduled
+   * from the observer runs before React has committed that, and frames against the guess.
+   */
+  const framed = useRef(false);
+  useEffect(() => {
+    if (!measured || framed.current) return;
+    framed.current = true;
+    camera.fit(0);
+  }, [measured, camera]);
 
   const { total, covered, gaps } = useMemo(() => coverage(), []);
 
@@ -340,16 +363,18 @@ export default function ProcessChain({
       if (!svg) return;
       const r = svg.getBoundingClientRect();
       const w = CHAIN_WIDTH / followScale;
-      const h = CHAIN_HEIGHT / followScale;
+      const h = w * svgAspect;
       const fx = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
       const fy = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
+      /* Across the DRAWING, not across the canvas: mapping over the canvas spent the ends
+         of the pointer's travel panning into blank margin. */
       camera.pursue({
-        cx: w / 2 + fx * (CHAIN_WIDTH - w),
-        cy: h / 2 + fy * (CHAIN_HEIGHT - h),
+        cx: CONTENT.x + w / 2 + fx * Math.max(0, CONTENT.w - w),
+        cy: CONTENT.y + h / 2 + fy * Math.max(0, CONTENT.h - h),
         scale: followScale,
       });
     },
-    [camera, followScale],
+    [camera, followScale, svgAspect],
   );
 
   /* Wheel-to-zoom is registered by hand, non-passive, because React's onWheel is passive and
@@ -638,22 +663,17 @@ export default function ProcessChain({
              fills the element instead of being letterboxed inside it. The cap is because the
              canvas is a tall 1.67:1 -- three bands stacked -- and an uncapped full-width
              element pushes its own caption, and the panel under it, off the screen. */
-          style={{
-            aspectRatio: `${CHAIN_WIDTH} / ${CHAIN_HEIGHT}`,
-            /*
-             * HEIGHT, not max-height, and no `w-full`.
-             *
-             * A full-width element with a capped height does not shrink: it stays as wide
-             * as the card at the capped height, and the <svg> dutifully letterboxes the
-             * drawing inside all that extra width. The result was a small picture marooned
-             * in a wide white box. Setting the height and letting `aspect-ratio` derive
-             * the width makes the element hug the drawing; `max-width` then takes over on
-             * a tall window, where width is what runs out first.
-             */
-            height: maxCanvasH ?? '58vh',
-            maxWidth: '100%',
-          }}
-          className={`mx-auto block touch-none select-none ${
+          /*
+           * The full width of the card, and whatever height is going.
+           *
+           * It used to carry the canvas's aspect ratio, which made the element hug the
+           * drawing and left the rest of the card empty -- a small picture in a wide white
+           * box. The camera takes the element's shape instead, so the drawing fills every
+           * pixel of width available and the fitted view simply shows whatever of the
+           * height fits. Fit is a click away for the whole thing.
+           */
+          style={{ height: maxCanvasH ?? '58vh' }}
+          className={`block w-full touch-none select-none ${
             follow ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'
           }`}
           onPointerDown={onPointerDown}

@@ -89,6 +89,16 @@ export function tailMetrics(tailCount: number) {
   };
 }
 
+/**
+ * The largest a screen-sized label may be in CANVAS units, whatever the element's size.
+ *
+ * SIZES are rendered pixels converted through `u()`, and `u()` divides by the element's
+ * width -- so the smaller the element, the more canvas units one pixel buys. On a narrow
+ * card that inverts the intent: a 12.5-pixel lane name became fifty-odd units of canvas
+ * and ran straight out of its band. The conversion is right, it just needs a ceiling.
+ */
+export const SCREEN_TYPE_CAP = { lane: 30, edge: 20 } as const;
+
 export type SizeKey = keyof typeof SIZES;
 export type Sizes = Record<SizeKey, number>;
 

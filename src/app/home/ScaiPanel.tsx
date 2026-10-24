@@ -61,8 +61,14 @@ export default function ScaiPanel() {
         {/* Opens in this tab; the "Launch SCAI" button opens a new one.
             tabIndex={-1} keeps the pair to a single tab stop, as before. */}
         <a href="https://scai.nesr.com" tabIndex={-1} className="group cursor-pointer">
-          <h2 className="text-2xl font-bold text-slate-900 leading-tight group-hover:underline">
-            SCAI
+          <h2 className="flex items-center gap-2 text-2xl font-bold text-slate-900 leading-tight">
+            <span className="group-hover:underline">SCAI</span>
+            {/* Said out loud rather than left for people to discover. An assistant that
+                answers policy and stock questions is one people will act on, and they
+                should know how finished it is before they do. */}
+            <span className="rounded-full border border-[#307c4c]/25 bg-[#307c4c]/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#307c4c]">
+              Beta
+            </span>
           </h2>
           <p className="text-sm text-slate-500 mt-0.5">Supply Chain AI</p>
         </a>

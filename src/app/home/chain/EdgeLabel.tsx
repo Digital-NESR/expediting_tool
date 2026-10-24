@@ -3,7 +3,7 @@
 /* The caption the slide puts beside a cross-lane line, drawn on the line itself. */
 
 import { edgeMidpoint, EDGES } from '@/lib/home/process-chain';
-import { MUTED, type Sizes } from './chainTheme';
+import { MUTED, SCREEN_TYPE_CAP, type Sizes } from './chainTheme';
 
 /** A caption sitting on an edge, at its midpoint. */
 export default function EdgeLabel({
@@ -16,7 +16,7 @@ export default function EdgeLabel({
   size: Sizes;
 }) {
   const mid = edgeMidpoint(edge);
-  const em = u(size.edge);
+  const em = Math.min(u(size.edge), SCREEN_TYPE_CAP.edge);
   const width = (edge.label?.length ?? 0) * em * 0.56 + em;
   return (
     <g style={{ pointerEvents: 'none' }}>
