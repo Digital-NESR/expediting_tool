@@ -931,7 +931,7 @@ function MySessionsTable({
 
 function EmptyState() {
   return (
-    <div className="flex justify-center mt-16 animate-in fade-in duration-500">
+    <div className="flex justify-center mt-16">
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-12 max-w-md w-full text-center">
         <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <svg
@@ -1200,7 +1200,7 @@ export default function AnalyticsClient({ userName }: { userName: string }) {
 
           {/* Analytics content */}
           {hasData && analytics && (
-            <div className="space-y-8 animate-in fade-in duration-500">
+            <div className="space-y-8">
               {/* Row 1 — KPI cards */}
               <div>
                 <SectionTitle>Overview</SectionTitle>

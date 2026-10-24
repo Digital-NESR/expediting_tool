@@ -72,7 +72,7 @@ export default function MultiSelectDropdown({
 
       {isOpen && (
         <div
-          className="absolute top-full left-0 mt-1 bg-white rounded-xl shadow-[0_8px_40px_rgb(0,0,0,0.12)] border border-slate-200 z-50 overflow-hidden flex flex-col origin-top animate-in fade-in zoom-in-95 duration-150"
+          className="absolute top-full left-0 mt-1 bg-white rounded-xl shadow-[0_8px_40px_rgb(0,0,0,0.12)] border border-slate-200 z-50 overflow-hidden flex flex-col origin-top"
           style={{ minWidth: '100%', width: 'max-content', maxWidth: '480px' }}
         >
           {/* Search Header */}

@@ -35,7 +35,7 @@ export function AnalyticsSection({
           : 'text-red-600';
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300">
+    <div className="space-y-8">
       {/* Row 1 — KPI cards */}
       <div>
         <SectionTitle>Overview</SectionTitle>

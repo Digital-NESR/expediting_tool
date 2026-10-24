@@ -45,7 +45,7 @@ import {
   type SizeKey,
   type Sizes,
 } from './chainTheme';
-import EdgeLayer from './EdgeLayer';
+import EdgeLayer, { EdgeLabels } from './EdgeLayer';
 import { LaneBands, PhaseBands } from './LaneLayer';
 import ChainLegend from './ChainLegend';
 import StageNode from './StageNode';
@@ -142,8 +142,13 @@ export default function ProcessChain({
     const measure = () => {
       const el = cardRef.current;
       if (!el) return;
-      /* What stays below the drawing inside the card: its caption and the key. */
-      const BELOW = 92;
+      /*
+       * What stays below the drawing: the caption and key inside the card, and the hint
+       * panel under it. 92 covered the card's own footer and left the panel hanging over
+       * the fold, which is one line of scroll -- and one line of scroll on a page meant to
+       * be navigable the moment it opens is the same problem as a screenful of it.
+       */
+      const BELOW = 168;
       setMaxCanvasH(Math.max(280, window.innerHeight - el.getBoundingClientRect().top - BELOW));
     };
     measure();
@@ -724,10 +729,7 @@ export default function ProcessChain({
           <EdgeLayer
             litStageIds={litStageIds}
             focusedLaneId={focus?.kind === 'lane' ? focus.id : null}
-            showLabels={showEdgeLabels}
             arriving={arriving}
-            u={u}
-            size={size}
           />
 
           <PhaseBands
@@ -763,6 +765,8 @@ export default function ProcessChain({
               onPickStage={() => goTo(boundsOf([stage.id], 150))}
             />
           ))}
+
+          {showEdgeLabels && <EdgeLabels u={u} size={size} />}
         </svg>
 
         {hover && hoverAnchor && TOOL_BY_ID[hover.id] && (

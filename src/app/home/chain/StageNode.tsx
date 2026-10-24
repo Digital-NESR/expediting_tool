@@ -227,15 +227,25 @@ export default function StageNode({
         }}
       />
       {!isGap && (
-        <rect
-          x={stage.x}
-          y={stage.y}
-          width={4}
-          height={stage.h}
-          rx={2}
-          fill={lane.colour}
-          style={{ pointerEvents: 'none' }}
-        />
+        <>
+          {/* The lane stripe, clipped to the card.
+              It was a full-height rect with its own 2-unit radius sitting on a card with a
+              10-unit one, so at any real zoom its square top and bottom poked out past the
+              card's rounded corners -- the thing that made the boxes look slightly broken
+              close up. Clipping to the card's own shape means it can never escape it. */}
+          <clipPath id={`stage-clip-${stage.id}`}>
+            <rect x={stage.x} y={stage.y} width={stage.w} height={stage.h} rx={10} />
+          </clipPath>
+          <rect
+            x={stage.x}
+            y={stage.y}
+            width={5}
+            height={stage.h}
+            fill={lane.colour}
+            clipPath={`url(#stage-clip-${stage.id})`}
+            style={{ pointerEvents: 'none' }}
+          />
+        </>
       )}
 
       {lines.map((line, i) => (

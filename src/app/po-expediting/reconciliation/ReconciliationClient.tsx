@@ -970,7 +970,7 @@ export default function ReconciliationClient({ userName }: { userName: string })
 
           {/* ── Empty state ── */}
           {!isRefreshing && sessions.length === 0 && (
-            <div className="flex justify-center mt-16 animate-in fade-in duration-500">
+            <div className="flex justify-center mt-16">
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-12 max-w-md w-full text-center">
                 <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <svg
@@ -1000,7 +1000,7 @@ export default function ReconciliationClient({ userName }: { userName: string })
           {sessions.length > 0 && (
             <>
               {/* ── Multi-session export bar ── */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-4 mb-6 animate-in fade-in duration-500">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-4 mb-6">
                 <div className="flex items-center justify-between gap-3">
                   {/* Select all */}
                   <label className="flex items-center gap-2.5 cursor-pointer select-none">
@@ -1051,7 +1051,7 @@ export default function ReconciliationClient({ userName }: { userName: string })
               </div>
 
               {/* ── Session cards ── */}
-              <div className="space-y-4 animate-in fade-in duration-500">
+              <div className="space-y-4">
                 {sessions.map((session) => (
                   <SessionCard
                     key={session.session_ref}

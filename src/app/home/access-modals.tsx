@@ -230,7 +230,7 @@ export function AccessRequestModal({
   return (
     <ModalShell
       onClose={onClose}
-      panelClass="relative bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md z-10 animate-in fade-in zoom-in-95 duration-200"
+      panelClass="relative bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-md z-10 "
     >
       {/* Header */}
       <div className="px-6 pt-6 pb-4 border-b border-slate-100">
@@ -370,7 +370,7 @@ export function PendingModal({
   return (
     <ModalShell
       onClose={onClose}
-      panelClass="relative bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-sm z-10 animate-in fade-in zoom-in-95 duration-200 p-6 text-center"
+      panelClass="relative bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-sm z-10 p-6 text-center"
     >
       <div className="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
         <svg

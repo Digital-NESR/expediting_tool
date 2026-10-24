@@ -490,7 +490,7 @@ export default function Dashboard() {
 
           {/* ── KPI Cards ── */}
           {!loading && !error && (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8 animate-in fade-in duration-500">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
               <KpiCard
                 label="Distinct Open POs"
                 value={stats.distinctPOs.toLocaleString()}
@@ -511,7 +511,7 @@ export default function Dashboard() {
           )}
 
           {/* ── Table card ── */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden animate-in fade-in duration-500">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             {/* ── Filter bar ── */}
             {!loading && !error && (
               <>
@@ -884,7 +884,7 @@ export default function Dashboard() {
           className="fixed bottom-0 left-0 right-0 z-40 px-4 sm:px-8 py-4
           bg-slate-900/95 backdrop-blur-md border-t border-slate-700/60
           shadow-[0_-4px_32px_rgba(0,0,0,0.25)]
-          animate-in slide-in-from-bottom-2 duration-200"
+          "
         >
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
             {/* Left: selection summary */}

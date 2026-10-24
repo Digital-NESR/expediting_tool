@@ -239,7 +239,7 @@ export default function ConfirmDispatchPage() {
     if (!wh.ok) {
       return (
         <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center p-6">
-          <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-12 max-w-md w-full text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-500">
+          <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-12 max-w-md w-full text-center flex flex-col items-center">
             <div className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center mb-6">
               <svg
                 className="w-10 h-10 text-amber-600"
@@ -281,7 +281,7 @@ export default function ConfirmDispatchPage() {
 
     return (
       <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center p-6">
-        <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-12 max-w-md w-full text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-500">
+        <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-12 max-w-md w-full text-center flex flex-col items-center">
           <div className="w-20 h-20 rounded-full bg-[#307c4c]/10 flex items-center justify-center mb-6">
             <svg
               className="w-10 h-10 text-[#307c4c]"
@@ -320,7 +320,7 @@ export default function ConfirmDispatchPage() {
     const failed = sendPhase.results.filter((r) => !r.success);
     return (
       <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center p-6">
-        <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-10 max-w-lg w-full animate-in fade-in zoom-in-95 duration-500">
+        <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-10 max-w-lg w-full">
           <div className="flex items-center gap-3 mb-5">
             <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
               <svg
@@ -424,7 +424,7 @@ export default function ConfirmDispatchPage() {
       </header>
 
       {/* Content */}
-      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
         {/* Page header */}
         <header className="mb-8">
           <Link
@@ -728,7 +728,7 @@ export default function ConfirmDispatchPage() {
       </div>
 
       {/* ── Bottom action bar ── */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-[0_-4px_32px_rgba(0,0,0,0.05)] px-4 sm:px-6 py-4 animate-in slide-in-from-bottom-2 duration-300">
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-[0_-4px_32px_rgba(0,0,0,0.05)] px-4 sm:px-6 py-4">
         <div className="max-w-screen-xl mx-auto flex items-center justify-between gap-4">
           {/* Back */}
           <Link

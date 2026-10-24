@@ -37,7 +37,7 @@ export default function DetailModal({ isOpen, onClose, title, children }: Detail
       }}
     >
       <div
-        className="relative bg-white w-full sm:max-w-[95vw] sm:rounded-2xl shadow-2xl flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-200"
+        className="relative bg-white w-full sm:max-w-[95vw] sm:rounded-2xl shadow-2xl flex flex-col"
         style={{ maxHeight: '85vh' }}
         onMouseDown={(e) => e.stopPropagation()}
       >

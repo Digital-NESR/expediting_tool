@@ -12,22 +12,34 @@ import { EDGES, LANE_BY_ID, edgePath } from '@/lib/home/process-chain';
 import EdgeLabel from './EdgeLabel';
 import type { Sizes } from './chainTheme';
 
+/**
+ * The captions, drawn LAST so that nothing covers them.
+ *
+ * They used to live inside the edge layer, which is painted under the nodes so a line
+ * never crosses a label -- with the result that the labels themselves went under the
+ * boxes. "Tracking & update variations" was half-hidden behind Freight Procurement. A
+ * caption is text ABOUT the drawing rather than part of it, so it belongs on top of it.
+ */
+export function EdgeLabels({ u, size }: { u: (cssPx: number) => number; size: Sizes }) {
+  return (
+    <>
+      {EDGES.filter((e) => e.label).map((edge) => (
+        <EdgeLabel key={`${edge.from}-${edge.to}`} edge={edge} u={u} size={size} />
+      ))}
+    </>
+  );
+}
+
 export default function EdgeLayer({
   litStageIds,
   focusedLaneId,
-  showLabels,
   arriving,
-  u,
-  size,
 }: {
   /** Stages the hover, selection or search has lit. Null when nothing is lit. */
   litStageIds: Set<string> | null;
   focusedLaneId: string | null;
-  showLabels: boolean;
   /** True for the one-off reveal, when the connectors draw themselves rather than appear. */
   arriving: boolean;
-  u: (cssPx: number) => number;
-  size: Sizes;
 }) {
   return (
     <>
@@ -79,7 +91,6 @@ export default function EdgeLayer({
                 style={{ pointerEvents: 'none' }}
               />
             )}
-            {showLabels && edge.label && <EdgeLabel edge={edge} u={u} size={size} />}
           </g>
         );
       })}

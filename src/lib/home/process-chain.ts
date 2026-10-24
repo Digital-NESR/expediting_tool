@@ -32,16 +32,24 @@ import type { EdgeRoute, EdgeSpec, ProcessSpec, StageSpec } from '@/lib/diagram/
  * for two lines of a name and a tool chip, so names were being shrunk towards illegibility or
  * clipped outright. Taller stages in a taller canvas buy back the room.
  */
-export const CHAIN_WIDTH = 1920;
+/*
+ * 2180, not 1920, and the boxes are wider with it.
+ *
+ * The canvas is a shape, not a size -- what matters is its ratio to the card, because the
+ * drawing is scaled to fit. At 1920 by 834 it was narrower than the space it had and sat
+ * between two margins. Eleven 180-unit boxes instead of eleven 150s fills that width and
+ * gives every card room to breathe at the same time.
+ */
+export const CHAIN_WIDTH = 2220;
 
 /** Every stage is the same size, so the eye reads position as meaning and not importance. */
 const NODE_H = 120;
-const SPINE_W = 150;
+const SPINE_W = 180;
 const SPINE_GUTTER = 12;
 
 /* The one width that is not a lane default: Source to Catalog's column is wider than the
    spine's boxes. The spec reads it; nothing works out an x from it. */
-const S2C_W = 180;
+const S2C_W = 210;
 
 /* ─── The vertical bands ──────────────────────────────────────────────────────────────────
    Top to bottom, and everything else derives from them: a lane's box, the stages inside it
@@ -91,7 +99,7 @@ const ASIDE_PAD_TOP = 30;
  * the padding -- so this is as small as they go without the label shrinking.
  */
 const ASIDE_NODE_H = 74;
-const ASIDE_W = 340;
+const ASIDE_W = 400;
 const ASIDE_GUTTER = 16;
 
 export type LaneId = 'source-to-catalog' | 'demand-to-pay' | 'logistics' | 'inventory' | 'across';
@@ -418,7 +426,7 @@ const STAGE_DEFS: StageSpec[] = [
     id: 'stock-replenishment',
     laneId: 'inventory',
     label: 'Stock Replenishment Planning',
-    w: 180,
+    w: 210,
     toolIds: ['translytix'],
     systems: ['sap'],
   },
@@ -623,8 +631,21 @@ const SPINE_STAGE_IDS = [
 ];
 
 /** Only the edges that bend. Everything else runs centre to centre. */
+/**
+ * Only the lines that leave their lane.
+ *
+ * Everything inside a lane is a straight horizontal hop and needs nothing said about it.
+ * A line BETWEEN lanes, left to its own devices, runs diagonally from one centre to the
+ * other -- across whatever sits between them, at an angle nothing else on the drawing
+ * uses, and straight through the caption that explains it. These turn in the empty band
+ * between the two lanes instead.
+ */
 const EDGE_ROUTES: Record<string, EdgeRoute> = {
-  'source->demand-forecasting': 'h-then-v',
+  'source->demand-forecasting': 'v-h-v',
+  'catalog->supplier-assessment': 'v-h-v',
+  'supplier-acknowledgement->expediting-readiness': 'v-h-v',
+  'logistics-tracking->delivery': 'v-h-v',
+  'demand-forecasting->stock-replenishment': 'v-h-v',
   'goods-receipt->delivery-acknowledgment': 'channel-bottom',
 };
 
@@ -731,11 +752,11 @@ export const SUPPLY_CHAIN_SPEC: ProcessSpec = {
         kind: 'row',
         stageIds: ['stock-replenishment', 'physical-counting', 'goods-issue', 'goods-receipt'],
       },
-      nodeW: 150,
+      nodeW: SPINE_W,
       nodeH: NODE_H,
       gutterX: 16,
       gutterY: 0,
-      pad: { x: 35, top: INVENTORY_Y - INVENTORY_TOP, bottom: 16 },
+      pad: { x: 20, top: INVENTORY_Y - INVENTORY_TOP, bottom: 16 },
     },
     {
       id: 'across',

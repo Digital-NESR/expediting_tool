@@ -274,6 +274,32 @@ export function layoutProcess(spec: ProcessSpec): LaidOutProcess {
       case 'channel-bottom':
         points = [a, { x: a.x, y: channelY }, { x: b.x, y: channelY }, b];
         break;
+      case 'v-h-v': {
+        /* Turn in the gap between the two boxes. If they overlap vertically there is no
+           gap to turn in and a straight line is the honest answer. */
+        const gapBelow = to.y - (from.y + from.h);
+        const gapAbove = from.y - (to.y + to.h);
+        if (gapBelow > 0) {
+          const mid = from.y + from.h + gapBelow / 2;
+          points = [a, { x: a.x, y: mid }, { x: b.x, y: mid }, b];
+        } else if (gapAbove > 0) {
+          const mid = to.y + to.h + gapAbove / 2;
+          points = [a, { x: a.x, y: mid }, { x: b.x, y: mid }, b];
+        } else {
+          points = [a, b];
+        }
+        /* Turns that do not turn. Two boxes in the same column get three collinear
+           points out of the arithmetic above, which is a straight line carrying two
+           pointless vertices -- and a `d` attribute that redraws on every camera move
+           for nothing. Collapse anything that never leaves one axis. */
+        points = points.filter(
+          (p, i, all) => i === 0 || p.x !== all[i - 1].x || p.y !== all[i - 1].y,
+        );
+        const straight =
+          points.every((p) => p.x === points[0].x) || points.every((p) => p.y === points[0].y);
+        if (straight) points = [points[0], points[points.length - 1]];
+        break;
+      }
     }
     return { ...e, points };
   });

@@ -118,6 +118,16 @@ export type EdgeRoute =
   | 'h-then-v'
   /** Up or down first, then sideways. Corner at (from.cx, to.cy). */
   | 'v-then-h'
+  /**
+   * Out vertically, across the gap between the two bands, then vertically in.
+   *
+   * The one to reach for between lanes. A single diagonal from centre to centre is the
+   * shortest line and the worst one to read: it crosses whatever happens to be between
+   * the two boxes, and at an angle nothing else on the drawing uses. Three orthogonal
+   * segments turn in the empty band between the lanes, where the edge captions already
+   * live. Falls back to a straight line when the two boxes are side by side.
+   */
+  | 'v-h-v'
   /** Out, along a lane reserved clear of the whole drawing, and back in. */
   | 'channel-bottom';
 

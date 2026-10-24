@@ -20,41 +20,41 @@ import { CHAIN_HEIGHT, CHAIN_WIDTH, COMPUTED, PHASE_BAND } from '@/lib/home/proc
 
 /** id, x, y, w, h */
 const STAGE_GEOMETRY: [string, number, number, number, number][] = [
-  ['source', 154, 40, 180, 120],
-  ['contract', 350, 40, 180, 120],
-  ['catalog', 546, 40, 180, 120],
-  ['demand-forecasting', 75, 290, 150, 120],
-  ['demand-creation', 237, 290, 150, 120],
-  ['demand-pr-approval', 399, 290, 150, 120],
-  ['supplier-assessment', 561, 290, 150, 120],
-  ['supplier-po-approval', 723, 290, 150, 120],
-  ['supplier-acknowledgement', 885, 290, 150, 120],
-  ['delivery', 1047, 290, 150, 120],
-  ['delivery-acknowledgment', 1209, 290, 150, 120],
-  ['payment-request', 1371, 290, 150, 120],
-  ['three-way-match', 1533, 290, 150, 120],
-  ['pay', 1695, 290, 150, 120],
-  ['expediting-readiness', 885, 532, 150, 120],
-  ['logistics-procure', 1047, 532, 150, 120],
-  ['logistics-tracking', 1209, 532, 150, 120],
-  ['stock-replenishment', 75, 522, 180, 120],
-  ['physical-counting', 271, 522, 150, 120],
-  ['goods-issue', 437, 522, 150, 120],
-  ['goods-receipt', 603, 522, 150, 120],
-  ['across-analytics', 78, 738, 340, 74],
-  ['across-learning', 434, 738, 340, 74],
-  ['across-travel', 790, 738, 340, 74],
-  ['across-assistant', 1146, 738, 340, 74],
-  ['across-taxonomy', 1502, 738, 340, 74],
+  ['source', 169, 40, 210, 120],
+  ['contract', 395, 40, 210, 120],
+  ['catalog', 621, 40, 210, 120],
+  ['demand-forecasting', 60, 290, 180, 120],
+  ['demand-creation', 252, 290, 180, 120],
+  ['demand-pr-approval', 444, 290, 180, 120],
+  ['supplier-assessment', 636, 290, 180, 120],
+  ['supplier-po-approval', 828, 290, 180, 120],
+  ['supplier-acknowledgement', 1020, 290, 180, 120],
+  ['delivery', 1212, 290, 180, 120],
+  ['delivery-acknowledgment', 1404, 290, 180, 120],
+  ['payment-request', 1596, 290, 180, 120],
+  ['three-way-match', 1788, 290, 180, 120],
+  ['pay', 1980, 290, 180, 120],
+  ['expediting-readiness', 1020, 532, 180, 120],
+  ['logistics-procure', 1212, 532, 180, 120],
+  ['logistics-tracking', 1404, 532, 180, 120],
+  ['stock-replenishment', 60, 522, 210, 120],
+  ['physical-counting', 286, 522, 180, 120],
+  ['goods-issue', 482, 522, 180, 120],
+  ['goods-receipt', 678, 522, 180, 120],
+  ['across-analytics', 78, 738, 400, 74],
+  ['across-learning', 494, 738, 400, 74],
+  ['across-travel', 910, 738, 400, 74],
+  ['across-assistant', 1326, 738, 400, 74],
+  ['across-taxonomy', 1742, 738, 400, 74],
 ];
 
 /** id, x, y, w, h */
 const LANE_GEOMETRY: [string, number, number, number, number][] = [
-  ['source-to-catalog', 130, 8, 620, 172],
-  ['demand-to-pay', 40, 204, 1840, 238],
-  ['logistics', 835, 486, 574, 184],
-  ['inventory', 40, 486, 748, 172],
-  ['across', 40, 708, 1840, 120],
+  ['source-to-catalog', 145, 8, 710, 172],
+  ['demand-to-pay', 40, 204, 2140, 238],
+  ['logistics', 970, 486, 664, 184],
+  ['inventory', 40, 486, 838, 172],
+  ['across', 40, 708, 2140, 120],
 ];
 
 describe('the layout engine reproduces the drawing', () => {
@@ -76,7 +76,7 @@ describe('the layout engine reproduces the drawing', () => {
   });
 
   it('measures the canvas around them', () => {
-    expect({ w: COMPUTED.width, h: COMPUTED.height }).toEqual({ w: 1920, h: 834 });
+    expect({ w: COMPUTED.width, h: COMPUTED.height }).toEqual({ w: 2220, h: 834 });
     expect(CHAIN_WIDTH).toBe(COMPUTED.width);
     expect(CHAIN_HEIGHT).toBe(COMPUTED.height);
   });
@@ -89,13 +89,25 @@ describe('the layout engine reproduces the drawing', () => {
     expect(PHASE_BAND.y + PHASE_BAND.h).toBeLessThan(firstStage.y);
   });
 
-  it('routes the three bends the drawing has, and nothing else', () => {
+  it('turns every cross-lane connector in the gap, and runs the rest straight', () => {
     const bent = COMPUTED.edges.filter((e) => e.points.length > 2);
     expect(bent.map((e) => `${e.from}->${e.to}`).sort()).toEqual([
+      'demand-forecasting->stock-replenishment',
       'goods-receipt->delivery-acknowledgment',
+      'logistics-tracking->delivery',
       'source->demand-forecasting',
     ]);
-    const channel = bent.find((e) => e.from === 'goods-receipt')!;
-    expect(channel.points.map((p) => p.y)).toEqual([582, 686, 686, 350]);
+    /* Every turn is a right angle: consecutive points share an x or a y. A diagonal here
+       is the bug this replaced -- a line from centre to centre across whatever sat
+       between, at an angle nothing else on the drawing uses. */
+    for (const e of COMPUTED.edges) {
+      for (let i = 1; i < e.points.length; i += 1) {
+        const a = e.points[i - 1];
+        const b = e.points[i];
+        expect(a.x === b.x || a.y === b.y, `${e.from}->${e.to} segment ${i} runs diagonally`).toBe(
+          true,
+        );
+      }
+    }
   });
 });

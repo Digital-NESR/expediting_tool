@@ -684,7 +684,7 @@ export default function TiteAnalyticsClient({
   const barH = (n: number) => Math.max(160, n * 34 + 20);
 
   return (
-    <div className="space-y-5 animate-in fade-in slide-in-from-top-2 duration-300">
+    <div className="space-y-5">
       {/* Header */}
       <div>
         <h2 className="text-lg font-bold text-slate-900 tracking-tight">
