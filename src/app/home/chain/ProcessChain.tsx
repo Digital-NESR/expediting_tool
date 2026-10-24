@@ -46,8 +46,11 @@ const INK = '#1f2d2a';
 const MUTED = '#94a3b8';
 const GAP_STROKE = '#cbd5e1';
 
-/** Past these zoom levels, more of the diagram is worth drawing. */
-const SHOW_TOOL_NAMES = 1.5;
+/* Edge captions are hidden until there is room for them: they float free of any box and at
+   the overview they land on top of each other and on the lines they annotate. Tool names used
+   to be gated the same way and are not any more -- now that they scale with their chip they
+   are proportionally legible at every zoom, and a row of anonymous pills was its own kind of
+   unreadable. */
 const SHOW_EDGE_LABELS = 2.1;
 
 /** How far in the pointer pulls the camera, and the range the wheel may set that to. */
@@ -55,23 +58,49 @@ const FOLLOW_SCALE = 2.6;
 const FOLLOW_MIN = 1.3;
 
 /**
- * Rendered type sizes in CSS pixels: [at the fitted overview, approached when fully zoomed].
+ * Type that labels a REGION of the canvas, in rendered CSS pixels: [at the overview,
+ * approached when fully zoomed].
  *
- * The pair rather than a single number because the two views want different things. The
- * overview is a map and its labels should be small and dense; once you are inside a phase
- * there is room to breathe and the names should be comfortable to read. `grow` interpolates
- * on 1 - 1/scale, which reaches the upper figure asymptotically -- so 6x is only a little
- * larger than 3x, and no amount of zooming produces the forty-six-pixel phase heading that
- * scaling type with the diagram did.
+ * A lane name and an edge caption float free -- a lane band spans the whole canvas and a
+ * caption sits on open line -- so nothing bounds them but the drawing, and they are sized for
+ * the screen. `grow` interpolates on 1 - 1/scale, reaching the upper figure asymptotically,
+ * which is what stops a heading becoming forty six pixels of shouting at 6x.
+ *
+ * The phase heading is NOT here: its band is a fixed 32-unit pill, so it is bounded and
+ * belongs with the box type below. It was in this list and came out visibly smaller than the
+ * stage names underneath it, which is backwards for a heading.
  */
 const SIZES = {
-  lane: [12.5, 19],
-  phase: [14, 21],
-  stage: [11.5, 16.5],
-  gapNote: [8.5, 11],
-  chip: [9.5, 13],
-  chipH: [13, 17.5],
-  edge: [9.5, 12.5],
+  lane: [12.5, 22],
+  edge: [9.5, 15],
+} as const;
+
+/**
+ * Type INSIDE a stage box, in canvas units, which is to say a fixed fraction of the box.
+ *
+ * The opposite rule to SIZES above, and the distinction is the whole point. A stage box is
+ * 120 canvas units tall whatever the zoom; sizing its contents in screen pixels meant that
+ * going in made the box bigger and left the writing exactly where it was, so a stage ended up
+ * as a large empty rectangle with a word adrift in the middle of it. Text bounded by a box
+ * belongs to that box and should scale with it. Text labelling open canvas should not.
+ *
+ * The figures are chosen against the 120-unit box: a three-line name, a gap, and a chip come
+ * to about 110 of it including padding, so a full stage is comfortably filled and a one-word
+ * stage reads as generous padding rather than a hole.
+ */
+const BOX = {
+  label: 18,
+  /** Sized against PHASE_BAND.h, the 32-unit pill it sits in. */
+  phase: 19,
+  /** Line spacing, as a multiple of the label size. */
+  leading: 1.12,
+  chipH: 22,
+  chipText: 13,
+  chipGap: 5,
+  gapNote: 14,
+  /** Between the name and whatever follows it. */
+  blockGap: 10,
+  pad: 9,
 } as const;
 
 type SizeKey = keyof typeof SIZES;
@@ -136,7 +165,6 @@ export default function ProcessChain({
     return out;
   }, [camera.scale]);
 
-  const showToolNames = camera.scale >= SHOW_TOOL_NAMES;
   const showEdgeLabels = camera.scale >= SHOW_EDGE_LABELS;
 
   /**
@@ -527,8 +555,8 @@ export default function ProcessChain({
                 />
                 <text
                   x={phase.x + phase.w / 2}
-                  y={PHASE_BAND.y + PHASE_BAND.h / 2 + u(size.phase) * 0.35}
-                  fontSize={u(size.phase)}
+                  y={PHASE_BAND.y + PHASE_BAND.h / 2 + BOX.phase * 0.35}
+                  fontSize={BOX.phase}
                   fontWeight={700}
                   textAnchor="middle"
                   fill={active ? '#ffffff' : '#1f5733'}
@@ -545,9 +573,6 @@ export default function ProcessChain({
             <StageNode
               key={stage.id}
               stage={stage}
-              u={u}
-              size={size}
-              showToolNames={showToolNames}
               dimmed={litStageIds ? !litStageIds.has(stage.id) : false}
               selectedTool={selectedTool}
               onPickTool={openTool}
@@ -694,9 +719,6 @@ function EdgeLabel({
  */
 function StageNode({
   stage,
-  u,
-  size,
-  showToolNames,
   dimmed,
   selectedTool,
   onPickTool,
@@ -704,9 +726,6 @@ function StageNode({
   onPickStage,
 }: {
   stage: Stage;
-  u: (cssPx: number) => number;
-  size: Sizes;
-  showToolNames: boolean;
   dimmed: boolean;
   selectedTool: string | null;
   onPickTool: (id: string, newTab: boolean) => void;
@@ -717,33 +736,26 @@ function StageNode({
   const isGap = stage.toolIds.length === 0;
 
   /*
-   * The box's contents are laid out as one centred block, not pinned to its two ends.
+   * The contents are laid out as one centred block, not pinned to the box's two ends. Name at
+   * the top and chips at the floor was the obvious arrangement and it left the empty room
+   * collecting in the middle, where it reads as a fault rather than as spacing.
    *
-   * Name at the top and chips at the floor is the obvious arrangement and it was wrong: a
-   * stage is 120 units tall so that a three-line name has somewhere to go, and a stage whose
-   * name is one word then had a hundred units of nothing down the middle of it. Measuring the
-   * block and centring it means the empty room is distributed around the content instead of
-   * collecting in the middle, and a box with little in it simply looks like a small amount of
-   * content rather than a box that failed to load.
+   * Everything here is in canvas units -- see BOX -- so it is a constant fraction of the box
+   * at every zoom.
    */
-  const chipH = u(size.chipH);
-  const chipGap = u(4);
-  const blockGap = u(9);
-  const pad = u(9);
   /* What follows the name: the stacked tool chips, or the "no system yet" note. */
   const tailH = isGap
-    ? u(size.gapNote) * 1.3
-    : stage.toolIds.length * chipH + (stage.toolIds.length - 1) * chipGap;
+    ? BOX.gapNote * 1.3
+    : stage.toolIds.length * BOX.chipH + (stage.toolIds.length - 1) * BOX.chipGap;
 
-  const base = u(size.stage);
-  const room = stage.h - 2 * pad - blockGap - tailH;
-  const maxLines = Math.max(1, Math.floor(room / (base * 1.12)));
-  const { lines, size: fontSize } = fitLabel(stage.label, stage.w, base, maxLines);
-  const lineH = fontSize * 1.12;
+  const room = stage.h - 2 * BOX.pad - BOX.blockGap - tailH;
+  const maxLines = Math.max(1, Math.floor(room / (BOX.label * BOX.leading)));
+  const { lines, size: fontSize } = fitLabel(stage.label, stage.w, BOX.label, maxLines);
+  const lineH = fontSize * BOX.leading;
 
   const labelH = lines.length * lineH;
-  const top = stage.y + (stage.h - (labelH + blockGap + tailH)) / 2;
-  const tailTop = top + labelH + blockGap;
+  const top = stage.y + (stage.h - (labelH + BOX.blockGap + tailH)) / 2;
+  const tailTop = top + labelH + BOX.blockGap;
 
   return (
     <g
@@ -810,8 +822,8 @@ function StageNode({
       {isGap ? (
         <text
           x={stage.x + stage.w / 2}
-          y={tailTop + u(size.gapNote)}
-          fontSize={u(size.gapNote)}
+          y={tailTop + BOX.gapNote}
+          fontSize={BOX.gapNote}
           textAnchor="middle"
           fill={GAP_STROKE}
           fontWeight={600}
@@ -823,13 +835,9 @@ function StageNode({
         stage.toolIds.map((id, i) => {
           const tool = TOOL_BY_ID[id];
           if (!tool) return null;
-          const y = tailTop + i * (chipH + chipGap);
+          const y = tailTop + i * (BOX.chipH + BOX.chipGap);
           const label = typeof tool.name === 'string' ? tool.name : id;
-          /* A dot until the names are legible, then the name. Drawing both at every zoom means
-             either a smear at the overview or a row of anonymous pills close up. */
-          const w = showToolNames
-            ? Math.min(stage.w - 12, label.length * u(size.chip) * 0.58 + u(12))
-            : u(26);
+          const w = Math.min(stage.w - 12, label.length * BOX.chipText * 0.58 + 14);
           return (
             <g
               key={id}
@@ -861,26 +869,24 @@ function StageNode({
                 x={stage.x + stage.w / 2 - w / 2}
                 y={y}
                 width={w}
-                height={chipH}
-                rx={chipH / 2}
+                height={BOX.chipH}
+                rx={BOX.chipH / 2}
                 fill={selectedTool === id ? lane.colour : `${lane.colour}22`}
                 stroke={lane.colour}
                 strokeOpacity={0.5}
                 vectorEffect="non-scaling-stroke"
               />
-              {showToolNames && (
-                <text
-                  x={stage.x + stage.w / 2}
-                  y={y + chipH / 2 + u(size.chip) * 0.35}
-                  fontSize={u(size.chip)}
-                  fontWeight={700}
-                  textAnchor="middle"
-                  fill={selectedTool === id ? '#ffffff' : lane.colour}
-                  style={{ pointerEvents: 'none' }}
-                >
-                  {label}
-                </text>
-              )}
+              <text
+                x={stage.x + stage.w / 2}
+                y={y + BOX.chipH / 2 + BOX.chipText * 0.35}
+                fontSize={BOX.chipText}
+                fontWeight={700}
+                textAnchor="middle"
+                fill={selectedTool === id ? '#ffffff' : lane.colour}
+                style={{ pointerEvents: 'none' }}
+              >
+                {label}
+              </text>
             </g>
           );
         })

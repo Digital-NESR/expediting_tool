@@ -222,36 +222,37 @@ describe('the derived figures', () => {
 });
 
 describe('every stage name fits the box it is drawn in', () => {
-  /* The canvas's own arithmetic, from ProcessChain.tsx.
+  /* The canvas's own BOX constants, from ProcessChain.tsx.
    *
-   * Type there is written in the CSS pixels it should RENDER at and converted to canvas units
-   * against the measured width of the <svg>, so the same label occupies a different number of
-   * units on a wide monitor than on a narrow one. The fit is tightest at the fitted overview,
-   * where the viewBox is the whole canvas, and tighter the NARROWER the element -- so these
-   * walk a range of plausible widths rather than assuming one.
-   */
-  const STAGE_PX = 11.5; // SIZES.stage at the fitted view
-  const CHIP_PX = 13; // SIZES.chipH at the fitted view
-  const WIDTHS = [1024, 1200, 1440, 1920];
-
-  const layout = (stage: (typeof STAGES)[number], elementPx: number) => {
-    const u = (cssPx: number) => (cssPx * CHAIN_WIDTH) / elementPx;
-    const chipH = u(CHIP_PX);
-    const chipBand =
-      stage.toolIds.length === 0 ? u(16) : stage.toolIds.length * (chipH + u(2.5)) + u(5);
-    const base = u(STAGE_PX);
-    const maxLines = Math.max(1, Math.floor((stage.h - 10 - chipBand) / (base * 1.12)));
-    return { ...fitLabel(stage.label, stage.w, base, maxLines), base, maxLines };
+   * Type inside a stage is in canvas units -- a fixed fraction of the box -- so unlike the
+   * lane and phase labels it does not depend on the zoom or on how wide the element is, and
+   * one set of numbers describes every screen. */
+  const BOX = {
+    label: 18,
+    leading: 1.12,
+    chipH: 22,
+    chipGap: 5,
+    gapNote: 14,
+    blockGap: 10,
+    pad: 9,
   };
 
-  const cases = WIDTHS.flatMap((px) => STAGES.map((s) => [px, s.id, s.label] as const));
+  const layout = (stage: (typeof STAGES)[number]) => {
+    const tailH =
+      stage.toolIds.length === 0
+        ? BOX.gapNote * 1.3
+        : stage.toolIds.length * BOX.chipH + (stage.toolIds.length - 1) * BOX.chipGap;
+    const room = stage.h - 2 * BOX.pad - BOX.blockGap - tailH;
+    const maxLines = Math.max(1, Math.floor(room / (BOX.label * BOX.leading)));
+    return { ...fitLabel(stage.label, stage.w, BOX.label, maxLines), maxLines, tailH };
+  };
 
-  it.each(cases)('at %ipx wide, %s stays inside its box', (px, id) => {
+  it.each(STAGES.map((s) => [s.id, s.label] as const))('%s stays inside its box', (id) => {
     const stage = STAGE_BY_ID[id];
-    const { lines, size, maxLines } = layout(stage, px);
+    const { lines, size, maxLines } = layout(stage);
 
-    /* The failure this exists for: a label drawn wider than its box runs across the stage
-       next to it, which on a 12-unit gutter is every neighbour on the spine. */
+    /* A label drawn wider than its box runs across the stage next to it, which on a
+       12-unit gutter is every neighbour along the spine. */
     for (const line of lines) {
       const width = line.length * size * CHAR_W;
       expect(
@@ -265,27 +266,37 @@ describe('every stage name fits the box it is drawn in', () => {
       `"${stage.label}" needs more lines than "${id}" has room for`,
     ).toBeLessThanOrEqual(maxLines);
 
+    /* Shrinking is the escape hatch when a name will not fit, but a stage nobody can read
+       is no better than one that overlaps. */
+    expect(
+      size / BOX.label,
+      `"${id}" had to shrink to ${Math.round((size / BOX.label) * 100)}% to fit`,
+    ).toBeGreaterThan(0.78);
+
     /* And it must still say what it says -- clipping a word would hide which stage this is. */
     expect(lines.join(' ')).toBe(stage.label);
   });
 
-  it('keeps every label readable at a normal window width', () => {
-    /* Shrinking is the escape hatch when a name will not fit, but a stage nobody can read is
-       no better than one that overlaps. Checked at the width the view is actually used at --
-       narrower than this and the diagram is simply too dense, which is a layout question
-       rather than a wrapping one. */
+  it('fills a good share of every box', () => {
+    /* The complaint this replaced: a 120-unit box with a word adrift in the middle of it.
+       The name, the gap and the chips should take up most of the height available to them,
+       which is the box less its padding. */
     for (const stage of STAGES) {
-      const { size, base } = layout(stage, 1440);
+      const { lines, size, tailH } = layout(stage);
+      const content = lines.length * size * BOX.leading + BOX.blockGap + tailH;
+      const usable = stage.h - 2 * BOX.pad;
       expect(
-        size / base,
-        `"${stage.id}" had to shrink to ${Math.round((size / base) * 100)}% to fit`,
-      ).toBeGreaterThan(0.72);
+        content / usable,
+        `"${stage.id}" fills only ${Math.round((content / usable) * 100)}% of its box`,
+      ).toBeGreaterThan(0.4);
+      /* ...and must not spill out of it. */
+      expect(content, `"${stage.id}" overflows its box`).toBeLessThanOrEqual(usable);
     }
   });
 
   it('never breaks a word across lines', () => {
     for (const stage of STAGES) {
-      const { lines } = layout(stage, 1440);
+      const { lines } = layout(stage);
       for (const line of lines) expect(stage.label).toContain(line);
     }
   });
