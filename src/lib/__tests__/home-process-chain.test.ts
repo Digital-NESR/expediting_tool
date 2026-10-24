@@ -107,6 +107,29 @@ describe('the graph holds together', () => {
     }
   });
 
+  it('never lets two phase bands touch', () => {
+    /* Each band is a fully rounded pill, so bands that merely abut -- or, as three of these
+       did, overlap by four units -- read as one long pill with two names in it. The gap is
+       whatever the spine leaves between the two stages either side of the join, and the
+       component then insets what it draws by PHASE_BAND.inset on top of that. */
+    const bands = [...PHASES].sort((a, b) => a.x - b.x);
+    for (let i = 1; i < bands.length; i += 1) {
+      const gap = bands[i].x - (bands[i - 1].x + bands[i - 1].w);
+      expect(
+        gap + 2 * PHASE_BAND.inset,
+        `"${bands[i - 1].id}" and "${bands[i].id}" are drawn ${gap + 2 * PHASE_BAND.inset} units apart`,
+      ).toBeGreaterThanOrEqual(PHASE_BAND.h / 2);
+    }
+  });
+
+  it('spans each phase band across exactly the stages it names', () => {
+    for (const phase of PHASES) {
+      const boxes = phase.stageIds.map((id) => STAGE_BY_ID[id]);
+      expect(phase.x, phase.id).toBe(Math.min(...boxes.map((b) => b.x)));
+      expect(phase.x + phase.w, phase.id).toBe(Math.max(...boxes.map((b) => b.x + b.w)));
+    }
+  });
+
   it('keeps the phase band inside the spine lane', () => {
     const spine = LANES.find((l) => l.id === 'demand-to-pay')!;
     const firstStage = STAGES.find((s) => s.laneId === 'demand-to-pay')!;

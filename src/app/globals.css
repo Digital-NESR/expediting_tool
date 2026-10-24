@@ -159,6 +159,12 @@
   opacity: 0.85;
 }
 
+/* Some lanes are drawn in the opposite order to the one the work travels in; see the `flow`
+   field on Lane. Running the same keyframes backwards is all that takes. */
+.chain-flow-reverse {
+  animation-direction: reverse;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .chain-flow {
     animation: none;

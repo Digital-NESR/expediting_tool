@@ -478,7 +478,7 @@ export default function ProcessChain({
                 />
                 {flowing && (
                   <path
-                    className="chain-flow"
+                    className={`chain-flow${lane.flow === 'reverse' ? ' chain-flow-reverse' : ''}`}
                     d={edgePath(edge)}
                     fill="none"
                     stroke={lane.colour}
@@ -514,9 +514,9 @@ export default function ProcessChain({
                 className="chain-hit cursor-pointer"
               >
                 <rect
-                  x={phase.x}
+                  x={phase.x + PHASE_BAND.inset}
                   y={PHASE_BAND.y}
-                  width={phase.w}
+                  width={phase.w - 2 * PHASE_BAND.inset}
                   height={PHASE_BAND.h}
                   rx={PHASE_BAND.h / 2}
                   fill="#307c4c"
@@ -716,15 +716,34 @@ function StageNode({
   const lane = LANES.find((l) => l.id === stage.laneId)!;
   const isGap = stage.toolIds.length === 0;
 
+  /*
+   * The box's contents are laid out as one centred block, not pinned to its two ends.
+   *
+   * Name at the top and chips at the floor is the obvious arrangement and it was wrong: a
+   * stage is 120 units tall so that a three-line name has somewhere to go, and a stage whose
+   * name is one word then had a hundred units of nothing down the middle of it. Measuring the
+   * block and centring it means the empty room is distributed around the content instead of
+   * collecting in the middle, and a box with little in it simply looks like a small amount of
+   * content rather than a box that failed to load.
+   */
   const chipH = u(size.chipH);
-  const gap = u(2.5);
-  /* What the bottom of the box has already spoken for: the stacked tool chips, or the
-     "no system yet" note where there are none. The label gets what is left. */
-  const chipBand = isGap ? u(16) : stage.toolIds.length * (chipH + gap) + u(5);
+  const chipGap = u(4);
+  const blockGap = u(9);
+  const pad = u(9);
+  /* What follows the name: the stacked tool chips, or the "no system yet" note. */
+  const tailH = isGap
+    ? u(size.gapNote) * 1.3
+    : stage.toolIds.length * chipH + (stage.toolIds.length - 1) * chipGap;
+
   const base = u(size.stage);
-  const maxLines = Math.max(1, Math.floor((stage.h - 10 - chipBand) / (base * 1.12)));
+  const room = stage.h - 2 * pad - blockGap - tailH;
+  const maxLines = Math.max(1, Math.floor(room / (base * 1.12)));
   const { lines, size: fontSize } = fitLabel(stage.label, stage.w, base, maxLines);
   const lineH = fontSize * 1.12;
+
+  const labelH = lines.length * lineH;
+  const top = stage.y + (stage.h - (labelH + blockGap + tailH)) / 2;
+  const tailTop = top + labelH + blockGap;
 
   return (
     <g
@@ -777,7 +796,7 @@ function StageNode({
         <text
           key={i}
           x={stage.x + stage.w / 2}
-          y={stage.y + 9 + fontSize + i * lineH}
+          y={top + fontSize + i * lineH}
           fontSize={fontSize}
           fontWeight={700}
           textAnchor="middle"
@@ -791,7 +810,7 @@ function StageNode({
       {isGap ? (
         <text
           x={stage.x + stage.w / 2}
-          y={stage.y + stage.h - 11}
+          y={tailTop + u(size.gapNote)}
           fontSize={u(size.gapNote)}
           textAnchor="middle"
           fill={GAP_STROKE}
@@ -804,7 +823,7 @@ function StageNode({
         stage.toolIds.map((id, i) => {
           const tool = TOOL_BY_ID[id];
           if (!tool) return null;
-          const y = stage.y + stage.h - 7 - (stage.toolIds.length - i) * (chipH + gap);
+          const y = tailTop + i * (chipH + chipGap);
           const label = typeof tool.name === 'string' ? tool.name : id;
           /* A dot until the names are legible, then the name. Drawing both at every zoom means
              either a smear at the overview or a row of anonymous pills close up. */

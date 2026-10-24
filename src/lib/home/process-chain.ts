@@ -48,7 +48,10 @@ const S2C_TOP = 8;
 const S2C_FIRST = 40;
 const S2C_PITCH = 136;
 /** The phase bands, which sit inside the top of the spine lane rather than above it. */
-export const PHASE_BAND = { y: 520, h: 32 } as const;
+/* `inset` trims each end of the DRAWN pill. The band's span stays the true extent of its
+   stages, because that is what the camera flies to; the inset is only so two fully rounded
+   caps have visible air between them rather than nearly touching. */
+export const PHASE_BAND = { y: 520, h: 32, inset: 5 } as const;
 const SPINE_TOP = 486;
 const SPINE_Y = 572;
 const LOGISTICS_TOP = 768;
@@ -77,6 +80,17 @@ export interface Lane {
   tint: string;
   /** The lane's own bounding box, which is also its camera target. */
   box: Rect;
+  /**
+   * Which way the crawling dash travels along this lane's connectors.
+   *
+   * An edge is authored `from` the stage the drawing puts first, which is a statement about
+   * the geometry and not about the work. On two lanes the two disagree: Source to Catalog is
+   * drawn top-down into the spine but is read as feeding it from the catalog back up, and
+   * Inventory is drawn left to right while goods travel the other way through it. Reversing
+   * the animation is the honest fix -- re-authoring the edges would flip their captions and
+   * their endpoints to make a decoration come out right.
+   */
+  flow: 'forward' | 'reverse';
 }
 
 export interface Stage extends Rect {
@@ -131,6 +145,7 @@ export const LANES: Lane[] = [
     label: 'Source to Catalog',
     colour: '#C08A1E',
     tint: '#FDF8EC',
+    flow: 'reverse',
     box: { x: 460, y: S2C_TOP, w: 320, h: S2C_FIRST + 2 * S2C_PITCH + NODE_H + 24 },
   },
   {
@@ -138,6 +153,7 @@ export const LANES: Lane[] = [
     label: 'Demand to Pay',
     colour: '#307c4c',
     tint: '#EAF4EE',
+    flow: 'forward',
     /* Taller than the stages need. The extra 18 at the top is a row for the lane's own
        label, which would otherwise sit on the Demand phase band. */
     box: { x: 40, y: SPINE_TOP, w: 1840, h: SPINE_Y + NODE_H + 32 - SPINE_TOP },
@@ -147,6 +163,7 @@ export const LANES: Lane[] = [
     label: 'Logistics',
     colour: '#A8509B',
     tint: '#FAF2F9',
+    flow: 'forward',
     box: {
       x: 835,
       y: LOGISTICS_TOP,
@@ -159,6 +176,7 @@ export const LANES: Lane[] = [
     label: 'Inventory',
     colour: '#1F5C8B',
     tint: '#EEF4FA',
+    flow: 'reverse',
     box: { x: 40, y: INVENTORY_TOP, w: 720, h: INVENTORY_Y + NODE_H + 16 - INVENTORY_TOP },
   },
 ];
@@ -564,38 +582,38 @@ export const EDGES: Edge[] = [
 /* ─── Phases ─────────────────────────────────────────────────────────────────────────────────
    The four bands above the spine. They are what a reader clicks first, so each one's extent is
    also a camera target. */
-export const PHASES: Phase[] = [
-  {
-    id: 'demand',
-    label: 'Demand',
-    stageIds: ['demand-forecasting', 'demand-creation', 'demand-pr-approval'],
-    x: 52,
-    w: 490,
-  },
-  {
-    id: 'procure',
-    label: 'Procure',
-    stageIds: ['supplier-assessment', 'supplier-po-approval', 'supplier-acknowledgement'],
-    x: 538,
-    w: 490,
-  },
-  {
-    id: 'deliver',
-    label: 'Deliver',
-    stageIds: ['delivery', 'delivery-acknowledgment'],
-    x: 1024,
-    /* 316, not 328: at 328 this band's right edge met Pay's left edge exactly and the two
-       read as one long pill. */
-    w: 316,
-  },
-  {
-    id: 'pay',
-    label: 'Pay',
-    stageIds: ['payment-request', 'three-way-match', 'pay'],
-    x: 1348,
-    w: 490,
-  },
-];
+/**
+ * A band's extent is exactly the stages under it.
+ *
+ * These were four hand-typed pairs, and three of them were wrong: Demand ran four units into
+ * Procure and Procure four units into Deliver, which with a fully rounded end made each pair
+ * read as one long pill. Somebody had already found the Deliver/Pay case and patched that one
+ * number with a comment. Deriving the span fixes all of them at once and inherits the spine's
+ * own twelve-unit gutter, so the bands can never drift out of step with the stages again.
+ */
+const spanOf = (ids: string[]) => {
+  const boxes = ids.map((id) => STAGES.find((s) => s.id === id)!);
+  const x = Math.min(...boxes.map((b) => b.x));
+  return { x, w: Math.max(...boxes.map((b) => b.x + b.w)) - x };
+};
+
+export const PHASES: Phase[] = (
+  [
+    ['demand', 'Demand', ['demand-forecasting', 'demand-creation', 'demand-pr-approval']],
+    [
+      'procure',
+      'Procure',
+      ['supplier-assessment', 'supplier-po-approval', 'supplier-acknowledgement'],
+    ],
+    ['deliver', 'Deliver', ['delivery', 'delivery-acknowledgment']],
+    ['pay', 'Pay', ['payment-request', 'three-way-match', 'pay']],
+  ] as const
+).map(([id, label, stageIds]) => ({
+  id,
+  label,
+  stageIds: [...stageIds],
+  ...spanOf([...stageIds]),
+}));
 
 /* ─── Tools that serve no single stage ───────────────────────────────────────────────────────
    Analytics reads the whole chain, Learning Hub teaches it, and the Travel Portal is not part
