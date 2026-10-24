@@ -91,6 +91,13 @@ export interface Lane {
    * their endpoints to make a decoration come out right.
    */
   flow: 'forward' | 'reverse';
+  /**
+   * Whether this lane's connectors carry the crawling dash when nothing is focused.
+   *
+   * The backbone is the thing that flows, and saying so here rather than in the component
+   * is what lets a second process map name a different backbone. At most one lane.
+   */
+  restFlow?: boolean;
 }
 
 export interface Stage extends Rect {
@@ -154,6 +161,7 @@ export const LANES: Lane[] = [
     colour: '#307c4c',
     tint: '#EAF4EE',
     flow: 'forward',
+    restFlow: true,
     /* Taller than the stages need. The extra 18 at the top is a row for the lane's own
        label, which would otherwise sit on the Demand phase band. */
     box: { x: 40, y: SPINE_TOP, w: 1840, h: SPINE_Y + NODE_H + 32 - SPINE_TOP },
