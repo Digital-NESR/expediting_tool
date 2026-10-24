@@ -151,7 +151,7 @@ export interface Lane {
  * empty when what it meant was "we have not built anything here" -- which is a different
  * and much less alarming statement than "nothing happens here".
  */
-export type SystemId = 'sap' | 'sap-pir' | 'ariba' | 'quality-governor';
+export type SystemId = 'sap' | 'sap-pir' | 'ariba';
 
 export const SYSTEM_LABEL: Record<SystemId, string> = {
   sap: 'SAP',
@@ -159,10 +159,6 @@ export const SYSTEM_LABEL: Record<SystemId, string> = {
      here, because "the catalog lives in SAP" does not tell anybody where to look. */
   'sap-pir': 'SAP PIR',
   ariba: 'Ariba',
-  /* Not in the launcher. If it should be, it wants a row in src/app/home/tools.tsx and
-     this entry goes away -- a system badge is the honest place for something the chain
-     knows about but the estate does not yet list. */
-  'quality-governor': 'Quality Governor',
 };
 
 export interface Stage extends Rect {
@@ -433,8 +429,8 @@ const STAGE_DEFS: StageSpec[] = [
     id: 'physical-counting',
     laneId: 'inventory',
     label: 'Physical Counting',
-    toolIds: [],
-    systems: ['sap', 'quality-governor'],
+    toolIds: ['quality-governor'],
+    systems: ['sap'],
   },
   {
     id: 'goods-issue',

@@ -21,6 +21,7 @@ import {
   Laptop,
   Building2,
   GraduationCap,
+  ClipboardCheck,
   ListTree,
   Sparkles,
   Receipt,
@@ -326,6 +327,29 @@ export const TOOLS: ToolDef[] = [
     badge: { kind: 'lock', label: 'Portal Access' },
   },
 
+  {
+    id: 'quality-governor',
+    group: 'online',
+    keywords:
+      'quality governor invrecon inventory reconciliation count cycle count stock take warehouse sap variance quarterly powerapps',
+    name: 'Quality Governor',
+    subtitle: 'InvRecon — inventory reconciliation',
+    description:
+      'The quarterly inventory count, and the reconciliation behind it: what SAP says is in a warehouse against what is actually on the shelves.',
+    icon: <ClipboardCheck className="h-6 w-6 text-[#307c4c]" />,
+    logoClass: 'bg-[#f0f9f4]',
+    hoverClass: HOVER_GREEN,
+    accent: NESR_GREEN,
+    tone: 'live',
+    /* A PowerApps app rather than one of ours, and the oldest thing on the chain. Left as
+       `live` rather than marked legacy: people depend on it every quarter, and "legacy" on
+       the card would read as a warning about a tool that works. */
+    route:
+      'https://apps.powerapps.com/play/e/default-5f13d1c2-10ac-49b8-a85e-4bb3d91135b9/a/6c745dcd-eed0-43e1-b9e9-2ed143502425?tenantId=5f13d1c2-10ac-49b8-a85e-4bb3d91135b9&hint=040834ee-c812-4a75-a55a-0dd154fe5324&source=portal',
+    external: true,
+    access: { kind: 'always' },
+    badge: { kind: 'lock', label: 'Portal Access' },
+  },
   {
     id: 'spend-taxonomy',
     group: 'online',
