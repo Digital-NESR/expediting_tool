@@ -124,6 +124,49 @@
   }
 }
 
+/* ── Home process chain (src/app/home/chain) ───────────────────────────────
+   Two things the diagram cannot do from Tailwind, because its nodes are SVG.
+
+   `.chain-hit` is a focusable <g>. Browsers draw no usable focus ring on one -- `outline`
+   lands on the group's bounding box, not the shape -- so the ring is painted on the node's
+   own rect. :focus-visible, so a mouse click does not leave a ring behind it.
+
+   `.chain-flow` is a dash crawling an edge: a second copy of the path with one short dash in
+   a long gap, its offset animated. Nothing else moves on the canvas, so this is the whole of
+   the view's motion, and it stops entirely when the reader has asked for that. */
+.chain-hit {
+  outline: none;
+}
+
+.chain-hit:focus-visible > rect:first-of-type {
+  stroke: #0f172a;
+  stroke-width: 3;
+}
+
+@keyframes chain-flow {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    /* The dash plus the gap, so the loop point is invisible. */
+    stroke-dashoffset: -254;
+  }
+}
+
+.chain-flow {
+  stroke-dasharray: 14 240;
+  animation: chain-flow 3.4s linear infinite;
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chain-flow {
+    animation: none;
+    /* A dash frozen mid-edge reads as a rendering fault rather than a decision. */
+    display: none;
+  }
+}
+
 /* ── PO View sub-row expand/collapse (grid-rows trick — height-agnostic) ── */
 .expand-grid {
   display: grid;

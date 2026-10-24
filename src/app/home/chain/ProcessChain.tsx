@@ -4,10 +4,10 @@
    The home page's second view: every tool placed on the supply chain it serves, and every
    stage that has no tool at all drawn as a hole.
 
-   One inline <svg> driven by a viewBox camera (see ./useChainCamera). Text is sized in inverse
-   proportion to the zoom so it stays the same size on screen at every scale -- the thing that
-   changes as you zoom in is how MUCH is drawn, not how big it is. That is what makes it read
-   as a map rather than as a picture being magnified.
+   One inline <svg> driven by a viewBox camera (see ./useChainCamera). Text is damped against
+   the zoom rather than scaled with it or pinned against it (see TYPE), and what changes most
+   as you go in is how MUCH is drawn -- tool names, then edge captions. That is what makes it
+   read as a map rather than as a picture being magnified.
 
    It does not know how to open a tool. `onOpenTool` comes from ToolLauncher, which owns the
    access-request modal, the pending modal and the admin-preview gate; duplicating any of that
@@ -94,6 +94,27 @@ export default function ProcessChain({
   const t = (base: number) => base / Math.sqrt(camera.scale);
   const showToolNames = camera.scale >= SHOW_TOOL_NAMES;
   const showEdgeLabels = camera.scale >= SHOW_EDGE_LABELS;
+
+  /**
+   * Clicking a tool opens it, the same as clicking its card in the grid.
+   *
+   * It stays selected as well, so the panel beside the canvas keeps showing what you just
+   * opened and every other stage it sits on -- the chain is a map of the estate, and picking a
+   * place on a map should take you there, not merely describe it.
+   *
+   * `onOpenTool` is the launcher's own handler: it owns the access-request modal, the pending
+   * modal and the admin-preview gate, so a tool you may not open still behaves here exactly as
+   * it does in the grid.
+   */
+  const openTool = useCallback(
+    (id: string, newTab: boolean) => {
+      const tool = TOOL_BY_ID[id];
+      if (!tool) return;
+      setSelectedTool(id);
+      onOpenTool(tool, newTab);
+    },
+    [onOpenTool],
+  );
 
   /** The stages lit up right now: everything the hovered or selected tool touches. */
   const litStageIds = useMemo(() => {
@@ -261,7 +282,9 @@ export default function ProcessChain({
             onPointerMove={onPointerMove}
             onPointerUp={endDrag}
             onPointerCancel={endDrag}
-            role="img"
+            /* `group`, not `img`: an image hides its subtree from assistive technology,
+               which would make every focusable stage and tool below unreachable. */
+            role="group"
             aria-label="The NESR supply chain, with each tool placed on the stage it serves"
           >
             <title>Supply chain process cycles and the systems behind them</title>
@@ -303,6 +326,15 @@ export default function ProcessChain({
               const dim = litStageIds
                 ? !(litStageIds.has(edge.from) && litStageIds.has(edge.to))
                 : false;
+              /* A dash crawls the backbone at rest, and a focused lane's own connectors take
+                 it over. Enough to say which way the work flows and which lane you are in;
+                 not so much that a diagram you are reading keeps tugging at the eye. The
+                 class is inert under prefers-reduced-motion. */
+              const flowing = dim
+                ? false
+                : focus?.kind === 'lane'
+                  ? focus.id === edge.laneId
+                  : edge.laneId === 'demand-to-pay';
               return (
                 <g key={`${edge.from}-${edge.to}`} opacity={dim ? 0.18 : 1}>
                   <path
@@ -317,6 +349,18 @@ export default function ProcessChain({
                     strokeLinejoin="round"
                     vectorEffect="non-scaling-stroke"
                   />
+                  {flowing && (
+                    <path
+                      className="chain-flow"
+                      d={edgePath(edge)}
+                      fill="none"
+                      stroke={lane.colour}
+                      strokeWidth={4}
+                      strokeLinecap="round"
+                      vectorEffect="non-scaling-stroke"
+                      style={{ pointerEvents: 'none' }}
+                    />
+                  )}
                   {showEdgeLabels && edge.label && <EdgeLabel edge={edge} t={t} />}
                 </g>
               );
@@ -332,7 +376,15 @@ export default function ProcessChain({
                     e.stopPropagation();
                     focusPhase(phase.id);
                   }}
-                  className="cursor-pointer"
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== ' ') return;
+                    e.preventDefault();
+                    focusPhase(phase.id);
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`Zoom to the ${phase.label} phase`}
+                  className="chain-hit cursor-pointer"
                 >
                   <rect
                     x={phase.x}
@@ -370,7 +422,7 @@ export default function ProcessChain({
                 showToolNames={showToolNames}
                 dimmed={litStageIds ? !litStageIds.has(stage.id) : false}
                 selectedTool={selectedTool}
-                onPickTool={(id) => setSelectedTool(id)}
+                onPickTool={openTool}
                 onHoverTool={setHoverTool}
                 onPickStage={() => camera.flyTo(boundsOf([stage.id], 140))}
               />
@@ -381,8 +433,8 @@ export default function ProcessChain({
             <span className="font-semibold text-slate-700">
               {covered} of {total} stages have a system.
             </span>{' '}
-            {gaps} do not — drawn hollow. Scroll to zoom, drag to pan, click a phase or a lane to
-            fly to it.
+            {gaps} do not — drawn hollow. Click a tool to open it, a stage, phase or lane to fly to
+            it. Scroll to zoom, drag to pan.
           </p>
         </div>
 
@@ -427,8 +479,8 @@ export default function ProcessChain({
             <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-4">
               <Layers className="h-4 w-4 text-slate-300" />
               <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                Click a tool on the chain to see what it is and which stages it covers. Hover one to
-                light up everywhere it appears.
+                Hover a tool to light it up everywhere it appears on the chain. Click to open it —
+                it stays here, with every stage it covers.
               </p>
             </div>
           )}
@@ -449,7 +501,7 @@ export default function ProcessChain({
                   <button
                     key={id}
                     type="button"
-                    onClick={() => onOpenTool(tool, true)}
+                    onClick={(e) => onOpenTool(tool, e.metaKey || e.ctrlKey)}
                     className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:border-[#307c4c]/40 hover:text-[#307c4c]"
                   >
                     {tool.name}
@@ -514,7 +566,7 @@ function StageNode({
   showToolNames: boolean;
   dimmed: boolean;
   selectedTool: string | null;
-  onPickTool: (id: string) => void;
+  onPickTool: (id: string, newTab: boolean) => void;
   onHoverTool: (id: string | null) => void;
   onPickStage: () => void;
 }) {
@@ -525,7 +577,24 @@ function StageNode({
   const lines = wrap(stage.label, 20);
 
   return (
-    <g opacity={dimmed ? 0.25 : 1} className="cursor-pointer">
+    <g
+      opacity={dimmed ? 0.25 : 1}
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        onPickStage();
+      }}
+      tabIndex={0}
+      role="button"
+      aria-label={
+        isGap
+          ? `${stage.label}. No system yet.`
+          : `${stage.label}. Zoom in. ${stage.toolIds.length} tool${
+              stage.toolIds.length === 1 ? '' : 's'
+            }.`
+      }
+      className="chain-hit cursor-pointer"
+    >
       <rect
         x={stage.x}
         y={stage.y}
@@ -598,10 +667,27 @@ function StageNode({
               key={id}
               onClick={(e) => {
                 e.stopPropagation();
-                onPickTool(id);
+                onPickTool(id, e.metaKey || e.ctrlKey);
+              }}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                /* Without this the stage underneath also takes the key and flies the camera
+                   at the same moment the tool opens. */
+                e.stopPropagation();
+                e.preventDefault();
+                onPickTool(id, e.metaKey || e.ctrlKey);
               }}
               onMouseEnter={() => onHoverTool(id)}
               onMouseLeave={() => onHoverTool(null)}
+              /* Focus lights the tool up everywhere it appears, exactly as hovering does --
+                 the cross-lane highlight is most of the point of the chip, and a keyboard
+                 reader should not have to do without it. */
+              onFocus={() => onHoverTool(id)}
+              onBlur={() => onHoverTool(null)}
+              tabIndex={0}
+              role="button"
+              aria-label={`Open ${label}`}
+              className="chain-hit"
             >
               <rect
                 x={stage.x + stage.w / 2 - w / 2}
