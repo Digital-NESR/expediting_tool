@@ -26,6 +26,7 @@ import {
   coverage,
   edgeMidpoint,
   edgePath,
+  fitLabel,
   stagesForTool,
   type LaneId,
   type Stage,
@@ -572,9 +573,14 @@ function StageNode({
 }) {
   const lane = LANES.find((l) => l.id === stage.laneId)!;
   const isGap = stage.toolIds.length === 0;
-  /* Two lines, because "Demand Supply Validation (3WM)" does not fit on one at this width and
-     an SVG <text> will not wrap itself. */
-  const lines = wrap(stage.label, 20);
+
+  const chipH = t(17);
+  /* What the bottom of the box has already spoken for: the stacked tool chips, or the
+     "no system yet" note where there are none. The label gets what is left. */
+  const chipBand = isGap ? t(22) : stage.toolIds.length * (chipH + t(3)) + t(6);
+  const maxLines = Math.max(1, Math.floor((stage.h - 10 - chipBand) / (t(TYPE.stage) * 1.12)));
+  const { lines, size } = fitLabel(stage.label, stage.w, t(TYPE.stage), maxLines);
+  const lineH = size * 1.12;
 
   return (
     <g
@@ -627,8 +633,8 @@ function StageNode({
         <text
           key={i}
           x={stage.x + stage.w / 2}
-          y={stage.y + 8 + t(TYPE.stage) + i * t(TYPE.stageLine)}
-          fontSize={t(TYPE.stage)}
+          y={stage.y + 8 + size + i * lineH}
+          fontSize={size}
           fontWeight={700}
           textAnchor="middle"
           fill={isGap ? MUTED : INK}
@@ -654,7 +660,6 @@ function StageNode({
         stage.toolIds.map((id, i) => {
           const tool = TOOL_BY_ID[id];
           if (!tool) return null;
-          const chipH = t(17);
           const y = stage.y + stage.h - 8 - (stage.toolIds.length - i) * (chipH + t(3));
           const label = typeof tool.name === 'string' ? tool.name : id;
           /* A dot until the names are legible, then the name. Drawing both at every zoom means
@@ -719,21 +724,4 @@ function StageNode({
       )}
     </g>
   );
-}
-
-/** Greedy wrap to a character budget. Enough for labels of five words or fewer. */
-function wrap(text: string, max: number): string[] {
-  const words = text.split(' ');
-  const lines: string[] = [];
-  let line = '';
-  for (const word of words) {
-    if (!line) line = word;
-    else if (`${line} ${word}`.length <= max) line = `${line} ${word}`;
-    else {
-      lines.push(line);
-      line = word;
-    }
-  }
-  if (line) lines.push(line);
-  return lines.slice(0, 3);
 }

@@ -357,6 +357,67 @@ export const STAGES: Stage[] = [
   },
 ];
 
+/**
+ * Average advance of the bold label face, as a fraction of the font size.
+ *
+ * SVG neither wraps text nor offers the width of a string without a layout pass, so a wrap
+ * has to be predicted. Erring high is the safe direction: a prediction slightly too wide
+ * breaks a line early, and a prediction too narrow puts the word over the neighbouring box.
+ */
+export const CHAR_W = 0.58;
+
+/**
+ * Lay a stage's name out inside its box.
+ *
+ * What was here before wrapped at a flat twenty characters, a number with no relation to
+ * either the box (150 units across the spine) or the type (16 units at the fitted view).
+ * Twenty characters of bold sixteen runs about 185 units, so "Supplier Assessment" and
+ * "Demand Creation" were drawn straight across the stages either side of them.
+ *
+ * So the budget comes from the box: wrap to the characters that actually fit, and if the name
+ * still needs more lines than the box has room for -- or holds a single word too long for any
+ * wrap to help, which "Acknowledgement" very nearly is -- step the type down and try again.
+ *
+ * Shrinking rather than clipping, because the one thing a reader must be able to do on this
+ * diagram is tell which stage is which, and a truncated stage name defeats the entire view.
+ * Six steps of 10% bottom out near half size, which no label here comes close to needing.
+ */
+export function fitLabel(
+  label: string,
+  boxW: number,
+  base: number,
+  maxLines: number,
+): { lines: string[]; size: number } {
+  const usable = boxW - 14;
+  let size = base;
+  let lines = [label];
+  for (let step = 0; step < 6; step += 1) {
+    const budget = Math.max(4, Math.floor(usable / (size * CHAR_W)));
+    lines = wrap(label, budget);
+    const widest = Math.max(...lines.map((l) => l.length));
+    if (lines.length <= maxLines && widest * size * CHAR_W <= usable) return { lines, size };
+    size *= 0.9;
+  }
+  return { lines: lines.slice(0, maxLines), size };
+}
+
+/** Greedy wrap to a character budget. The caller decides how many lines it can take. */
+export function wrap(text: string, max: number): string[] {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let line = '';
+  for (const word of words) {
+    if (!line) line = word;
+    else if (`${line} ${word}`.length <= max) line = `${line} ${word}`;
+    else {
+      lines.push(line);
+      line = word;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
 export const STAGE_BY_ID: Record<string, Stage> = Object.fromEntries(
   STAGES.map((stage) => [stage.id, stage]),
 );

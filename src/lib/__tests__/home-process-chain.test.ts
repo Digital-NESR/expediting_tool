@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CHAIN_HEIGHT,
   CHAIN_WIDTH,
+  CHAR_W,
   EDGES,
   LANES,
   OFF_CHAIN_TOOL_IDS,
@@ -11,8 +12,10 @@ import {
   boundsOf,
   coverage,
   edgePath,
+  fitLabel,
   placedToolIds,
   stagesForTool,
+  wrap,
 } from '@/lib/home/process-chain';
 import { TOOLS } from '@/app/home/tools';
 
@@ -121,8 +124,7 @@ describe('the layout is inside the canvas and does not collide', () => {
       for (let j = i + 1; j < STAGES.length; j += 1) {
         const a = STAGES[i];
         const b = STAGES[j];
-        const apart =
-          a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y;
+        const apart = a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y;
         expect(apart, `"${a.id}" overlaps "${b.id}"`).toBe(true);
       }
     }
@@ -169,5 +171,70 @@ describe('the derived figures', () => {
   it('ignores an unknown stage id rather than producing NaN', () => {
     const box = boundsOf(['nope', 'demand-creation']);
     expect(Number.isFinite(box.x) && Number.isFinite(box.w)).toBe(true);
+  });
+});
+
+describe('every stage name fits the box it is drawn in', () => {
+  /* The canvas's own numbers, from ProcessChain.tsx. A stage name is laid out at TYPE.stage,
+     in what is left of the box once the tool chips (or the "no system yet" note) have taken
+     the bottom of it. These mirror that arithmetic at the fitted view, where the type is
+     largest relative to the box and the fit is therefore tightest. */
+  const BASE = 16;
+  const CHIP_H = 17;
+
+  const roomFor = (stage: (typeof STAGES)[number]) => {
+    const chipBand = stage.toolIds.length === 0 ? 22 : stage.toolIds.length * (CHIP_H + 3) + 6;
+    return Math.max(1, Math.floor((stage.h - 10 - chipBand) / (BASE * 1.12)));
+  };
+
+  it.each(STAGES.map((s) => [s.id, s.label] as const))('%s stays inside its box', (id) => {
+    const stage = STAGE_BY_ID[id];
+    const maxLines = roomFor(stage);
+    const { lines, size } = fitLabel(stage.label, stage.w, BASE, maxLines);
+
+    /* The failure this exists for: a label drawn wider than its box runs across the stage
+       next to it, which on a 12-unit gutter is every neighbour on the spine. */
+    for (const line of lines) {
+      const width = line.length * size * CHAR_W;
+      expect(
+        width,
+        `"${line}" is ${Math.round(width)} units wide in a ${stage.w}-unit box`,
+      ).toBeLessThanOrEqual(stage.w - 14);
+    }
+
+    expect(
+      lines.length,
+      `"${stage.label}" needs more lines than "${id}" has room for`,
+    ).toBeLessThanOrEqual(maxLines);
+
+    /* Shrinking is the escape hatch, but a stage nobody can read is no better than one that
+       overlaps. Nothing here should need to go below two thirds. */
+    expect(size / BASE, `"${id}" had to shrink to ${size.toFixed(1)}`).toBeGreaterThan(0.66);
+
+    /* And it must still say what it says -- clipping a word would hide which stage this is. */
+    expect(lines.join(' ')).toBe(stage.label);
+  });
+
+  it('never breaks a word across lines', () => {
+    for (const stage of STAGES) {
+      const { lines } = fitLabel(stage.label, stage.w, BASE, roomFor(stage));
+      for (const line of lines) expect(stage.label).toContain(line);
+    }
+  });
+
+  it('wraps to the budget it is given', () => {
+    expect(wrap('Demand Supply Validation (3WM)', 14)).toEqual([
+      'Demand Supply',
+      'Validation',
+      '(3WM)',
+    ]);
+  });
+
+  it('shrinks rather than overflow when one word is wider than the box', () => {
+    /* No wrap can help a single long word, so the only lever left is the type size. */
+    const { lines, size } = fitLabel('Acknowledgement', 120, BASE, 2);
+    expect(lines).toEqual(['Acknowledgement']);
+    expect(size).toBeLessThan(BASE);
+    expect(lines[0].length * size * CHAR_W).toBeLessThanOrEqual(120 - 14);
   });
 });
