@@ -338,6 +338,13 @@ export default function ToolLauncher({
           /* The same box that filters the grid. It sat above both views and only ever fed
              one of them, so in the chain you could type and watch nothing happen. */
           query={appSearch}
+          /* The same lookup the cards use, so a chip cannot claim a tool is openable when
+             the launcher would answer with an access modal. `sessionLoading` is passed for
+             the same reason the grid covers its cards: until the session lands every status
+             reads 'new', and the chain would draw tools this person already has as locked. */
+          statusOf={statusOf}
+          isAdmin={isAdmin}
+          sessionLoading={sessionStatus === 'loading'}
           /* The launcher keeps ownership of access: the chain calls back into the same
              handleOpen that the cards use, so a tool with a pending request still produces the
              pending modal rather than opening. */

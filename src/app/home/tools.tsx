@@ -59,6 +59,12 @@ export type ToolBadge =
   /** Grey pill reading "Admin Preview" / "Coming Soon". */
   | { kind: 'preview' };
 
+/**
+ * Live, in trial, or not here yet. The one thing the chain view wants to say about a tool
+ * that the card grid says only obliquely, through greying and a "Coming Soon" pill.
+ */
+export type Maturity = 'live' | 'beta' | 'coming-soon';
+
 export interface ToolDef {
   id: string;
   /** Which of the two grids the card belongs to. */
@@ -87,6 +93,15 @@ export interface ToolDef {
   accent: string;
   /** 'live' = full-colour card, 'preview' = greyed-out card. */
   tone: 'live' | 'preview';
+  /**
+   * How finished this tool is, as a thing to say out loud.
+   *
+   * Optional because it is almost always already implied: `tone`, `group` and `access.kind`
+   * between them say whether something has shipped, and `maturityOf` below reads that rather
+   * than making sixteen entries repeat themselves. Set it only to say something those three
+   * cannot -- which today means marking a shipped tool as `beta`.
+   */
+  maturity?: Maturity;
   route: string;
   /** Route is on another domain: the card action is a real external link. */
   external?: boolean;
@@ -103,6 +118,22 @@ export interface ToolDef {
   badge: ToolBadge;
   /** Defaults to "Open →". */
   openLabel?: string;
+}
+
+/**
+ * A tool's maturity, taken from what the registry already says.
+ *
+ * `tone: 'preview'`, `group: 'development'` and `access.kind: 'adminPreview'` are three
+ * spellings of "not shipped yet" that today always agree -- Catalog Repo and Supply Chain
+ * Analytics carry all three. Reading them instead of adding a fourth field to every entry
+ * keeps the registry honest: a tool cannot be greyed out on the card and announced as live
+ * on the chain, because there is only one fact.
+ */
+export function maturityOf(tool: ToolDef): Maturity {
+  if (tool.maturity) return tool.maturity;
+  const unshipped =
+    tool.tone === 'preview' || tool.group === 'development' || tool.access.kind === 'adminPreview';
+  return unshipped ? 'coming-soon' : 'live';
 }
 
 const HOVER_GREEN = 'hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10';

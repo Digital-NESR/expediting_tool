@@ -39,7 +39,8 @@ import {
   type LaneId,
   type Stage,
 } from '@/lib/home/process-chain';
-import { TOOLS, type ToolDef } from '../tools';
+import { TOOLS, type ToolDef, type ToolStatus } from '../tools';
+import { CHIP_STATE_LABEL, chipStateOf, type ChipState } from './chipState';
 import { MAX_SCALE, useChainCamera } from './useChainCamera';
 
 const INK = '#1f2d2a';
@@ -116,6 +117,19 @@ export interface ProcessChainProps {
   /** Rendered inside the detail panel, so the panel shows the real card. */
   renderToolCard: (tool: ToolDef) => React.ReactNode;
   offChainToolIds: string[];
+  /**
+   * The launcher's own access lookup, so a chip can say what it is before it is clicked.
+   * Same function the cards use -- see ./chipState for why it has to be the same one.
+   */
+  statusOf: (tool: ToolDef) => ToolStatus;
+  isAdmin: boolean;
+  /**
+   * True while the session is still resolving. Until it lands, every per-user access status
+   * reads 'new', so the chain would draw tools this person already has as locked. The grid
+   * covers its cards for exactly this reason; the chain does the same rather than flashing a
+   * wrong answer.
+   */
+  sessionLoading?: boolean;
 }
 
 export default function ProcessChain({
@@ -123,6 +137,9 @@ export default function ProcessChain({
   onOpenTool,
   renderToolCard,
   offChainToolIds,
+  statusOf,
+  isAdmin,
+  sessionLoading = false,
 }: ProcessChainProps) {
   const camera = useChainCamera();
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -224,6 +241,12 @@ export default function ProcessChain({
    * specific statement of what the reader wants to see, so it takes over the highlight while
    * it lasts and the search comes back when the pointer moves off.
    */
+  const chipStates = useMemo(() => {
+    const out = new Map<string, ChipState>();
+    for (const tool of TOOLS) out.set(tool.id, chipStateOf(tool, statusOf(tool), isAdmin));
+    return out;
+  }, [statusOf, isAdmin]);
+
   const litStageIds = useMemo(() => {
     const id = hoverTool ?? selectedTool;
     if (id) return new Set(stagesForTool(id).map((s) => s.id));
@@ -485,7 +508,16 @@ export default function ProcessChain({
       </div>
 
       {/* ── The canvas, full width: every pixel of width is a pixel of legibility ── */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        {/* Until the session resolves, every per-user access status reads 'new' and the chain
+            would draw tools this person already has as locked, then silently correct itself.
+            The card grid covers itself for the same reason. A wrong answer that looks
+            confident is worse than a moment of honest waiting. */}
+        {sessionLoading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-sm">
+            <p className="text-xs font-medium text-slate-500">Checking what you have access to…</p>
+          </div>
+        )}
         <svg
           ref={svgRef}
           viewBox={`${camera.view.x} ${camera.view.y} ${camera.view.w} ${camera.view.h}`}
@@ -640,6 +672,8 @@ export default function ProcessChain({
               stage={stage}
               dimmed={litStageIds ? !litStageIds.has(stage.id) : false}
               matchedToolIds={matchedToolIds}
+              chipStates={chipStates}
+              showGapNote={isAdmin}
               selectedTool={selectedTool}
               onPickTool={openTool}
               onHoverTool={setHoverTool}
@@ -673,10 +707,15 @@ export default function ProcessChain({
             )
           ) : (
             <>
+              {/* The gap count is an administrator's finding. On the page the whole company
+                  lands on it reads as a deficiency report, so everyone else gets the same
+                  diagram -- every stage drawn, uncovered ones hollow -- without the tally. */}
               <span className="font-semibold text-slate-700">
-                {covered} of {total} stages have a system.
+                {isAdmin
+                  ? `${covered} of ${total} stages have a system.`
+                  : `${TOOLS.length} systems across ${total} stages of the supply chain.`}
               </span>{' '}
-              {gaps} do not — drawn hollow.{' '}
+              {isAdmin && <>{gaps} do not — drawn hollow. </>}
               {follow
                 ? 'The camera is following your pointer; scroll to change how close. Click a tool to open it, or a stage, phase or lane to pin the view there.'
                 : 'Drag to pan, scroll to zoom, click a tool to open it. Turn Follow back on to let the pointer drive.'}
@@ -812,6 +851,74 @@ function EdgeLabel({
 }
 
 /**
+ * The mark on a chip that is not simply open.
+ *
+ * Drawn by hand rather than taken from lucide, because a lucide icon is a React component
+ * rendering its own <svg> with Tailwind sizing, and inside this canvas it would need
+ * wrapping and rescaling at every zoom. These are four paths in canvas units, which the
+ * surrounding BOX arithmetic already governs.
+ */
+function ChipGlyph({
+  state,
+  x,
+  y,
+  size,
+  colour,
+}: {
+  state: Exclude<ChipState, 'open'>;
+  x: number;
+  y: number;
+  size: number;
+  colour: string;
+}) {
+  const r = size / 2;
+  const common = {
+    stroke: colour,
+    strokeWidth: 1.6,
+    fill: 'none' as const,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    vectorEffect: 'non-scaling-stroke' as const,
+  };
+  return (
+    <g style={{ pointerEvents: 'none' }} aria-hidden>
+      {state === 'pending' ? (
+        /* A clock: asked for, not yet answered. */
+        <>
+          <circle cx={x} cy={y} r={r} {...common} />
+          <path d={`M${x} ${y - r * 0.5} L${x} ${y} L${x + r * 0.45} ${y + r * 0.3}`} {...common} />
+        </>
+      ) : state === 'coming-soon' ? (
+        /* A hollow ring: the place is marked out, nothing is in it yet. */
+        <circle cx={x} cy={y} r={r * 0.78} {...common} strokeDasharray="2.2 2" />
+      ) : state === 'denied' ? (
+        /* A struck circle, matching the card grid's red X for a refused request. */
+        <>
+          <circle cx={x} cy={y} r={r} {...common} />
+          <path d={`M${x - r * 0.5} ${y + r * 0.5} L${x + r * 0.5} ${y - r * 0.5}`} {...common} />
+        </>
+      ) : (
+        /* A padlock: a separate portal, or access not yet asked for. */
+        <>
+          <rect
+            x={x - r * 0.8}
+            y={y - r * 0.1}
+            width={r * 1.6}
+            height={r * 1.15}
+            rx={r * 0.25}
+            {...common}
+          />
+          <path
+            d={`M${x - r * 0.42} ${y - r * 0.1} V${y - r * 0.62} a${r * 0.42} ${r * 0.42} 0 0 1 ${r * 0.84} 0 V${y - r * 0.1}`}
+            {...common}
+          />
+        </>
+      )}
+    </g>
+  );
+}
+
+/**
  * One stage: its name, and the tools that serve it.
  *
  * A stage with no tools is drawn hollow and dashed, with the words said out loud. That is the
@@ -821,6 +928,8 @@ function StageNode({
   stage,
   dimmed,
   matchedToolIds,
+  chipStates,
+  showGapNote,
   selectedTool,
   onPickTool,
   onHoverTool,
@@ -830,6 +939,16 @@ function StageNode({
   dimmed: boolean;
   /** The search's hits, or null when nothing is being searched for. */
   matchedToolIds: Set<string> | null;
+  chipStates: Map<string, ChipState>;
+  /**
+   * Whether an uncovered stage says so in words.
+   *
+   * Everyone sees the stage drawn hollow -- hiding it would make the diagram misrepresent
+   * the process. Only an administrator gets "NO SYSTEM YET" spelled out, because on the page
+   * the whole company lands on that reads as a deficiency report rather than as a fact about
+   * where the systems are.
+   */
+  showGapNote: boolean;
   selectedTool: string | null;
   onPickTool: (id: string, newTab: boolean) => void;
   onHoverTool: (id: string | null) => void;
@@ -922,81 +1041,102 @@ function StageNode({
         </text>
       ))}
 
-      {isGap ? (
-        <text
-          x={stage.x + stage.w / 2}
-          y={tailTop + BOX.gapNote}
-          fontSize={BOX.gapNote}
-          textAnchor="middle"
-          fill={GAP_STROKE}
-          fontWeight={600}
-          style={{ pointerEvents: 'none', textTransform: 'uppercase' }}
-        >
-          No system yet
-        </text>
-      ) : (
-        stage.toolIds.map((id, i) => {
-          const tool = TOOL_BY_ID[id];
-          if (!tool) return null;
-          const y = tailTop + i * (BOX.chipH + BOX.chipGap);
-          const label = typeof tool.name === 'string' ? tool.name : id;
-          const w = Math.min(stage.w - 12, label.length * BOX.chipText * 0.58 + 14);
-          return (
-            <g
-              key={id}
-              /* A stage can hold a tool the search did not ask for; it stays drawn, because
+      {isGap
+        ? showGapNote && (
+            <text
+              x={stage.x + stage.w / 2}
+              y={tailTop + BOX.gapNote}
+              fontSize={BOX.gapNote}
+              textAnchor="middle"
+              fill={GAP_STROKE}
+              fontWeight={600}
+              style={{ pointerEvents: 'none', textTransform: 'uppercase' }}
+            >
+              No system yet
+            </text>
+          )
+        : stage.toolIds.map((id, i) => {
+            const tool = TOOL_BY_ID[id];
+            if (!tool) return null;
+            const y = tailTop + i * (BOX.chipH + BOX.chipGap);
+            const label = typeof tool.name === 'string' ? tool.name : id;
+            const state = chipStates.get(id) ?? 'open';
+            const glyph = state === 'open' ? null : state;
+            /* The glyph eats into the pill, so a chip that carries one is drawn wider rather
+             than letting the mark crowd the name. */
+            const w = Math.min(
+              stage.w - 12,
+              label.length * BOX.chipText * 0.58 + 14 + (glyph ? BOX.chipText + 4 : 0),
+            );
+            const left = stage.x + stage.w / 2 - w / 2;
+            const muted = state === 'coming-soon';
+            return (
+              <g
+                key={id}
+                /* A stage can hold a tool the search did not ask for; it stays drawn, because
                  the point of the chain is what sits where, but it steps back. */
-              opacity={matchedToolIds && !matchedToolIds.has(id) ? 0.3 : 1}
-              onClick={(e) => {
-                e.stopPropagation();
-                onPickTool(id, e.metaKey || e.ctrlKey);
-              }}
-              onKeyDown={(e) => {
-                if (e.key !== 'Enter' && e.key !== ' ') return;
-                /* Without this the stage underneath also takes the key and flies the camera
+                opacity={matchedToolIds && !matchedToolIds.has(id) ? 0.3 : 1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPickTool(id, e.metaKey || e.ctrlKey);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter' && e.key !== ' ') return;
+                  /* Without this the stage underneath also takes the key and flies the camera
                    at the same moment the tool opens. */
-                e.stopPropagation();
-                e.preventDefault();
-                onPickTool(id, e.metaKey || e.ctrlKey);
-              }}
-              onMouseEnter={() => onHoverTool(id)}
-              onMouseLeave={() => onHoverTool(null)}
-              /* Focus lights the tool up everywhere it appears, exactly as hovering does --
+                  e.stopPropagation();
+                  e.preventDefault();
+                  onPickTool(id, e.metaKey || e.ctrlKey);
+                }}
+                onMouseEnter={() => onHoverTool(id)}
+                onMouseLeave={() => onHoverTool(null)}
+                /* Focus lights the tool up everywhere it appears, exactly as hovering does --
                  the cross-lane highlight is most of the point of the chip, and a keyboard
                  reader should not have to do without it. */
-              onFocus={() => onHoverTool(id)}
-              onBlur={() => onHoverTool(null)}
-              tabIndex={0}
-              role="button"
-              aria-label={`Open ${label}`}
-              className="chain-hit"
-            >
-              <rect
-                x={stage.x + stage.w / 2 - w / 2}
-                y={y}
-                width={w}
-                height={BOX.chipH}
-                rx={BOX.chipH / 2}
-                fill={selectedTool === id ? lane.colour : `${lane.colour}22`}
-                stroke={lane.colour}
-                strokeOpacity={0.5}
-                vectorEffect="non-scaling-stroke"
-              />
-              <text
-                x={stage.x + stage.w / 2}
-                y={y + BOX.chipH / 2 + BOX.chipText * 0.35}
-                fontSize={BOX.chipText}
-                fontWeight={700}
-                textAnchor="middle"
-                fill={selectedTool === id ? '#ffffff' : lane.colour}
-                style={{ pointerEvents: 'none' }}
+                onFocus={() => onHoverTool(id)}
+                onBlur={() => onHoverTool(null)}
+                tabIndex={0}
+                role="button"
+                aria-label={
+                  state === 'open' ? `Open ${label}` : `${label}. ${CHIP_STATE_LABEL[state]}.`
+                }
+                className="chain-hit"
               >
-                {label}
-              </text>
-            </g>
-          );
-        })
-      )}
+                <rect
+                  x={left}
+                  y={y}
+                  width={w}
+                  height={BOX.chipH}
+                  rx={BOX.chipH / 2}
+                  fill={selectedTool === id ? lane.colour : muted ? '#ffffff' : `${lane.colour}22`}
+                  stroke={muted ? GAP_STROKE : lane.colour}
+                  strokeOpacity={muted ? 1 : 0.5}
+                  strokeDasharray={muted ? '4 3' : undefined}
+                  vectorEffect="non-scaling-stroke"
+                />
+                {glyph && (
+                  <ChipGlyph
+                    state={glyph}
+                    x={left + BOX.chipText * 0.75 + 4}
+                    y={y + BOX.chipH / 2}
+                    size={BOX.chipText * 0.92}
+                    colour={selectedTool === id ? '#ffffff' : muted ? GAP_STROKE : lane.colour}
+                  />
+                )}
+                <text
+                  x={stage.x + stage.w / 2 + (glyph ? (BOX.chipText + 4) / 2 : 0)}
+                  y={y + BOX.chipH / 2 + BOX.chipText * 0.35}
+                  fontSize={BOX.chipText}
+                  fontWeight={700}
+                  textAnchor="middle"
+                  fill={selectedTool === id ? '#ffffff' : muted ? MUTED : lane.colour}
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {label}
+                </text>
+              </g>
+            );
+          })}
     </g>
   );
 }

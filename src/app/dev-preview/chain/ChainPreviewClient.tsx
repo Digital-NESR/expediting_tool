@@ -10,15 +10,49 @@
 
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
+import type { ToolStatus } from '@/app/home/tools';
 
 const ProcessChain = dynamic(() => import('@/app/home/chain/ProcessChain'), { ssr: false });
 
 export default function ChainPreviewClient({ offChainToolIds }: { offChainToolIds: string[] }) {
   const [opened, setOpened] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  /* Stand-ins for the session. Every per-user access state has to be reachable here, because
+     this page exists precisely so the chain can be looked at without one. */
+  const [status, setStatus] = useState<ToolStatus>('new');
+  const [isAdmin, setIsAdmin] = useState(false);
 
   return (
     <>
+      <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/60 p-2.5 text-xs">
+        <span className="font-semibold text-amber-800">Pretend session:</span>
+        {(['new', 'pending', 'approved', 'denied'] as const).map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setStatus(s)}
+            className={`rounded-full border px-2.5 py-1 font-semibold transition-colors ${
+              status === s
+                ? 'border-transparent bg-amber-600 text-white'
+                : 'border-amber-200 bg-white text-amber-800 hover:border-amber-400'
+            }`}
+          >
+            {s}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => setIsAdmin((on) => !on)}
+          className={`ml-2 rounded-full border px-2.5 py-1 font-semibold transition-colors ${
+            isAdmin
+              ? 'border-transparent bg-amber-600 text-white'
+              : 'border-amber-200 bg-white text-amber-800 hover:border-amber-400'
+          }`}
+        >
+          admin
+        </button>
+      </div>
+
       <div className="mb-4 max-w-md">
         <label htmlFor="chain-search" className="sr-only">
           Search applications
@@ -36,6 +70,8 @@ export default function ChainPreviewClient({ offChainToolIds }: { offChainToolId
       <ProcessChain
         query={query}
         offChainToolIds={offChainToolIds}
+        statusOf={() => status}
+        isAdmin={isAdmin}
         onOpenTool={(tool, newTab) => setOpened(`${tool.name}${newTab ? ' (new tab)' : ''}`)}
         renderToolCard={(tool) => (
           <div className="rounded-xl border border-slate-200 bg-white p-3">
