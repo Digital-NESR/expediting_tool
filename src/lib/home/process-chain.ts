@@ -645,16 +645,27 @@ export const SUPPLY_CHAIN_SPEC: ProcessSpec = {
       colour: '#C08A1E',
       tint: '#FDF8EC',
       flow: 'reverse',
-      /* It descends INTO Supplier Assessment, so it is drawn over it. Move that stage
-         along the spine and this whole column follows. */
-      anchorX: { at: 'stage-centre', stageId: 'supplier-assessment' },
-      anchorY: { at: 'top', offset: S2C_TOP },
-      layout: { kind: 'column', stageIds: ['source', 'contract', 'catalog'] },
+      /*
+       * A row, not a column.
+       *
+       * It was three boxes stacked, which is how the slide draws it and cost 270 units of
+       * height -- and height is the only thing that limits how big this drawing lands,
+       * because the card is always wider than the drawing needs. Laid out left to right
+       * the sequence reads exactly the same and the whole picture gets a third taller on
+       * screen.
+       *
+       * Aligned by its LAST box: Catalog is what feeds Supplier Assessment, so Catalog is
+       * what sits over it. Centring the row instead would leave that connector running
+       * diagonally across two other boxes.
+       */
+      anchorX: { at: 'align-stages', mine: 'catalog', onto: 'supplier-assessment' },
+      anchorY: { at: 'top', offset: 8 },
+      layout: { kind: 'row', stageIds: ['source', 'contract', 'catalog'] },
       nodeW: S2C_W,
       nodeH: NODE_H,
-      gutterX: 0,
-      gutterY: S2C_PITCH - NODE_H,
-      pad: { x: 70, top: S2C_FIRST - S2C_TOP, bottom: 32 },
+      gutterX: 16,
+      gutterY: 0,
+      pad: { x: 24, top: 32, bottom: 20 },
     },
     {
       id: 'demand-to-pay',
@@ -664,7 +675,7 @@ export const SUPPLY_CHAIN_SPEC: ProcessSpec = {
       flow: 'forward',
       restFlow: true,
       anchorX: { at: 'canvas-centre' },
-      anchorY: { at: 'below', laneId: 'source-to-catalog', gap: 22 },
+      anchorY: { at: 'below', laneId: 'source-to-catalog', gap: 24 },
       layout: { kind: 'row', stageIds: SPINE_STAGE_IDS },
       nodeW: SPINE_W,
       nodeH: NODE_H,

@@ -43,7 +43,16 @@ export type AnchorX =
   /** Content's left edge meets this stage's left edge. */
   | { at: 'stage-left'; stageId: string }
   /** Content is centred on this stage. */
-  | { at: 'stage-centre'; stageId: string };
+  | { at: 'stage-centre'; stageId: string }
+  /**
+   * One of THIS lane's boxes is centred on a box of another's.
+   *
+   * `stage-centre` centres the whole lane, which is right for a column descending into
+   * the spine and wrong for a row: Source to Catalog ends at Catalog, and it is Catalog
+   * that feeds Supplier Assessment, so centring the row would leave that connector
+   * running diagonally across two other boxes.
+   */
+  | { at: 'align-stages'; mine: string; onto: string };
 
 /** Where a lane's band starts vertically. */
 export type AnchorY =

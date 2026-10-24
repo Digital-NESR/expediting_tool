@@ -20,41 +20,41 @@ import { CHAIN_HEIGHT, CHAIN_WIDTH, COMPUTED, PHASE_BAND } from '@/lib/home/proc
 
 /** id, x, y, w, h */
 const STAGE_GEOMETRY: [string, number, number, number, number][] = [
-  ['source', 546, 40, 180, 120],
-  ['contract', 546, 176, 180, 120],
-  ['catalog', 546, 312, 180, 120],
-  ['demand-forecasting', 75, 572, 150, 120],
-  ['demand-creation', 237, 572, 150, 120],
-  ['demand-pr-approval', 399, 572, 150, 120],
-  ['supplier-assessment', 561, 572, 150, 120],
-  ['supplier-po-approval', 723, 572, 150, 120],
-  ['supplier-acknowledgement', 885, 572, 150, 120],
-  ['delivery', 1047, 572, 150, 120],
-  ['delivery-acknowledgment', 1209, 572, 150, 120],
-  ['payment-request', 1371, 572, 150, 120],
-  ['three-way-match', 1533, 572, 150, 120],
-  ['pay', 1695, 572, 150, 120],
-  ['expediting-readiness', 885, 814, 150, 120],
-  ['logistics-procure', 1047, 814, 150, 120],
-  ['logistics-tracking', 1209, 814, 150, 120],
-  ['stock-replenishment', 75, 804, 180, 120],
-  ['physical-counting', 271, 804, 150, 120],
-  ['goods-issue', 437, 804, 150, 120],
-  ['goods-receipt', 603, 804, 150, 120],
-  ['across-analytics', 78, 1020, 340, 74],
-  ['across-learning', 434, 1020, 340, 74],
-  ['across-travel', 790, 1020, 340, 74],
-  ['across-assistant', 1146, 1020, 340, 74],
-  ['across-taxonomy', 1502, 1020, 340, 74],
+  ['source', 154, 40, 180, 120],
+  ['contract', 350, 40, 180, 120],
+  ['catalog', 546, 40, 180, 120],
+  ['demand-forecasting', 75, 290, 150, 120],
+  ['demand-creation', 237, 290, 150, 120],
+  ['demand-pr-approval', 399, 290, 150, 120],
+  ['supplier-assessment', 561, 290, 150, 120],
+  ['supplier-po-approval', 723, 290, 150, 120],
+  ['supplier-acknowledgement', 885, 290, 150, 120],
+  ['delivery', 1047, 290, 150, 120],
+  ['delivery-acknowledgment', 1209, 290, 150, 120],
+  ['payment-request', 1371, 290, 150, 120],
+  ['three-way-match', 1533, 290, 150, 120],
+  ['pay', 1695, 290, 150, 120],
+  ['expediting-readiness', 885, 532, 150, 120],
+  ['logistics-procure', 1047, 532, 150, 120],
+  ['logistics-tracking', 1209, 532, 150, 120],
+  ['stock-replenishment', 75, 522, 180, 120],
+  ['physical-counting', 271, 522, 150, 120],
+  ['goods-issue', 437, 522, 150, 120],
+  ['goods-receipt', 603, 522, 150, 120],
+  ['across-analytics', 78, 738, 340, 74],
+  ['across-learning', 434, 738, 340, 74],
+  ['across-travel', 790, 738, 340, 74],
+  ['across-assistant', 1146, 738, 340, 74],
+  ['across-taxonomy', 1502, 738, 340, 74],
 ];
 
 /** id, x, y, w, h */
 const LANE_GEOMETRY: [string, number, number, number, number][] = [
-  ['source-to-catalog', 476, 8, 320, 456],
-  ['demand-to-pay', 40, 486, 1840, 238],
-  ['logistics', 835, 768, 574, 184],
-  ['inventory', 40, 768, 748, 172],
-  ['across', 40, 990, 1840, 120],
+  ['source-to-catalog', 130, 8, 620, 172],
+  ['demand-to-pay', 40, 204, 1840, 238],
+  ['logistics', 835, 486, 574, 184],
+  ['inventory', 40, 486, 748, 172],
+  ['across', 40, 708, 1840, 120],
 ];
 
 describe('the layout engine reproduces the drawing', () => {
@@ -76,13 +76,13 @@ describe('the layout engine reproduces the drawing', () => {
   });
 
   it('measures the canvas around them', () => {
-    expect({ w: COMPUTED.width, h: COMPUTED.height }).toEqual({ w: 1920, h: 1116 });
+    expect({ w: COMPUTED.width, h: COMPUTED.height }).toEqual({ w: 1920, h: 834 });
     expect(CHAIN_WIDTH).toBe(COMPUTED.width);
     expect(CHAIN_HEIGHT).toBe(COMPUTED.height);
   });
 
   it('puts the phase pills on one row inside the spine band', () => {
-    expect(PHASE_BAND.y).toBe(520);
+    expect(PHASE_BAND.y).toBe(238);
     const spine = COMPUTED.laneById['demand-to-pay'].box;
     const firstStage = COMPUTED.stageById['demand-forecasting'];
     expect(PHASE_BAND.y).toBeGreaterThan(spine.y);
@@ -96,6 +96,6 @@ describe('the layout engine reproduces the drawing', () => {
       'source->demand-forecasting',
     ]);
     const channel = bent.find((e) => e.from === 'goods-receipt')!;
-    expect(channel.points.map((p) => p.y)).toEqual([864, 968, 968, 632]);
+    expect(channel.points.map((p) => p.y)).toEqual([582, 686, 686, 350]);
   });
 });

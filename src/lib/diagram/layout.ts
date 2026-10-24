@@ -132,16 +132,21 @@ export function layoutProcess(spec: ProcessSpec): LaidOutProcess {
         moved = true;
         continue;
       }
-      const target = stageById.get(a.stageId) ?? fail(`"${lane.id}" anchors to unknown stage`);
+      const ontoId = a.at === 'align-stages' ? a.onto : a.stageId;
+      const target = stageById.get(ontoId) ?? fail(`"${lane.id}" anchors to unknown "${ontoId}"`);
       const targetOrigin = originX.get(target.laneId);
       if (targetOrigin === undefined) continue;
-      const targetPack = packed.get(target.laneId)!;
-      const local = targetPack.local[target.id];
-      const absX = targetOrigin + local.x;
-      originX.set(
-        lane.id,
-        a.at === 'stage-left' ? absX : Math.round(absX + local.w / 2 - pack.w / 2),
-      );
+      const local = packed.get(target.laneId)!.local[target.id];
+      const absCentre = targetOrigin + local.x + local.w / 2;
+
+      if (a.at === 'stage-left') {
+        originX.set(lane.id, targetOrigin + local.x);
+      } else if (a.at === 'stage-centre') {
+        originX.set(lane.id, Math.round(absCentre - pack.w / 2));
+      } else {
+        const mine = pack.local[a.mine] ?? fail(`"${lane.id}" aligns unknown box "${a.mine}"`);
+        originX.set(lane.id, Math.round(absCentre - mine.x - mine.w / 2));
+      }
       moved = true;
     }
     if (originX.size === spec.lanes.length) break;
