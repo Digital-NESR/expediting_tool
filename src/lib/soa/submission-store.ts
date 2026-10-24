@@ -2,7 +2,11 @@ import type { PoolClient } from 'pg';
 import { withTransaction } from '@/lib/db/tx';
 import { logger } from '@/lib/logger';
 import { soaPool } from './db';
-import { UnreadableStatementError, parseSupplierWorkbook, type ParsedLine } from './submission-lines';
+import {
+  UnreadableStatementError,
+  parseSupplierWorkbook,
+  type ParsedLine,
+} from './submission-lines';
 
 /**
  * Recording a returned statement.

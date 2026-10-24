@@ -834,10 +834,20 @@ function writeResponseTrackingSheet(
       note: `${pct(respondedOfFloated, floated.length)} of those contacted`,
       accent: GREEN,
     },
-    { label: 'SPREADSHEET ONLY', value: spreadsheet.length, note: 'workbook, no email', accent: GREEN },
+    {
+      label: 'SPREADSHEET ONLY',
+      value: spreadsheet.length,
+      note: 'workbook, no email',
+      accent: GREEN,
+    },
     { label: 'EMAIL ONLY', value: email.length, note: 'email, no workbook', accent: GREEN },
     { label: 'BOTH', value: both.length, note: 'spreadsheet and email', accent: GREEN },
-    { label: 'NO RESPONSE', value: noResponse.length, note: `${pct(noResponse.length, floated.length)} of those contacted`, accent: 'FFC00000' },
+    {
+      label: 'NO RESPONSE',
+      value: noResponse.length,
+      note: `${pct(noResponse.length, floated.length)} of those contacted`,
+      accent: 'FFC00000',
+    },
   ];
 
   /* Derived rather than fixed, so adding a card re-spaces them instead of pushing one off the

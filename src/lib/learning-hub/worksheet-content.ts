@@ -136,7 +136,12 @@ export function worksheetFields(
           kind: 'text',
         });
       else if (block.type === 'grid')
-        out.push({ id: block.id, label: block.head.join(' · '), section: section.title, kind: 'grid' });
+        out.push({
+          id: block.id,
+          label: block.head.join(' · '),
+          section: section.title,
+          kind: 'grid',
+        });
     }
   }
   return out;

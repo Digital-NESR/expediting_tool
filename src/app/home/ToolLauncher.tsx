@@ -168,10 +168,7 @@ export default function ToolLauncher({
   const displayName = session?.user?.name || userEmail;
 
   const isAdmin = session?.user?.isAdmin ?? false;
-  /* The process-chain view is ADMIN_EMAILS-only for now. `useHomeView` is passed the same flag
-     and forces 'grid' without it, so a stale localStorage value cannot show it to somebody who
-     has since lost admin. */
-  const [homeView, setHomeView] = useHomeView(isAdmin);
+  const [homeView, setHomeView] = useHomeView();
   const procureGuardAccessType: ProcureGuardAccessType =
     session?.user?.toolAccess?.procure_guard?.accessType ?? 'requester';
 
@@ -259,10 +256,21 @@ export default function ToolLauncher({
 
   return (
     <>
-      <div className="mb-10">
-        <div className="flex items-start justify-between gap-4">
+      <div className={homeView === 'chain' ? 'mb-4' : 'mb-10'}>
+        {/*
+          Greeting, search and view switch on one row.
+          The chain wants the screen. Search used to sit on a row of its own under the
+          greeting, which cost about sixty vertical pixels before the diagram even started
+          -- and on a 900-pixel laptop that is the difference between landing on something
+          you can use and landing on something you have to scroll to.
+        */}
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+            <h1
+              className={`font-bold tracking-tight text-slate-900 ${
+                homeView === 'chain' ? 'text-2xl' : 'text-3xl'
+              }`}
+            >
               Welcome, {firstName}
             </h1>
             <p className="text-slate-500 mt-1 text-base">
@@ -270,92 +278,105 @@ export default function ToolLauncher({
                 ? 'Every tool, on the process it serves.'
                 : 'Select a tool to get started.'}
             </p>
-            <p className="text-xs text-slate-400 mt-1.5">
-              {new Date().toLocaleDateString('en-GB', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-              })}
-            </p>
+            {/* The date is a nicety, and the chain needs the row more than the reader
+                needs to be told what day it is. */}
+            {homeView !== 'chain' && (
+              <p className="text-xs text-slate-400 mt-1.5">
+                {new Date().toLocaleDateString('en-GB', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </p>
+            )}
           </div>
-          {isAdmin && <HomeViewToggle view={homeView} onChange={setHomeView} />}
-        </div>
 
-        {/* Search bar. The placeholder is not a label: it disappears the moment somebody types,
-            and a screen reader announces an unlabelled text box. */}
-        <div className="relative mt-5 max-w-md">
-          <label htmlFor="app-search" className="sr-only">
-            Search applications
-          </label>
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-          <input
-            id="app-search"
-            ref={searchRef}
-            type="text"
-            placeholder="Search applications..."
-            value={appSearch}
-            onChange={(e) => setAppSearch(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key !== 'Escape') return;
-              // First Escape clears a search, a second gives the page back.
-              if (appSearch) setAppSearch('');
-              else e.currentTarget.blur();
-            }}
-            className="w-full pl-10 pr-16 py-2.5 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors placeholder-slate-400 shadow-sm"
-          />
-          {/* The hint stands down once there is something to clear, so the two never collide. */}
-          {!appSearch && (
-            <kbd
-              aria-hidden
-              className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-sans text-[11px] font-medium text-slate-400 sm:block"
-            >
-              /
-            </kbd>
-          )}
-          {appSearch && (
-            <button
-              onClick={() => setAppSearch('')}
-              aria-label="Clear the search"
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-300 transition-colors"
-            >
-              <svg
-                className="w-3 h-3"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2.5}
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {/* Search bar. The placeholder is not a label: it disappears the moment somebody
+                types, and a screen reader announces an unlabelled text box. */}
+            <div className="relative w-[min(22rem,60vw)]">
+              <label htmlFor="app-search" className="sr-only">
+                Search applications
+              </label>
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input
+                id="app-search"
+                ref={searchRef}
+                type="text"
+                placeholder="Search applications..."
+                value={appSearch}
+                onChange={(e) => setAppSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Escape') return;
+                  // First Escape clears a search, a second gives the page back.
+                  if (appSearch) setAppSearch('');
+                  else e.currentTarget.blur();
+                }}
+                className="w-full pl-10 pr-16 py-2.5 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors placeholder-slate-400 shadow-sm"
+              />
+              {/* The hint stands down once there is something to clear, so the two never collide. */}
+              {!appSearch && (
+                <kbd
+                  aria-hidden
+                  className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-sans text-[11px] font-medium text-slate-400 sm:block"
+                >
+                  /
+                </kbd>
+              )}
+              {appSearch && (
+                <button
+                  onClick={() => setAppSearch('')}
+                  aria-label="Clear the search"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-300 transition-colors"
+                >
+                  <svg
+                    className="w-3 h-3"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2.5}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+            <HomeViewToggle view={homeView} onChange={setHomeView} />
+          </div>
         </div>
       </div>
 
       {homeView === 'chain' ? (
-        <ProcessChain
-          /* The same box that filters the grid. It sat above both views and only ever fed
+        <>
+          <ProcessChain
+            /* The same box that filters the grid. It sat above both views and only ever fed
              one of them, so in the chain you could type and watch nothing happen. */
-          query={appSearch}
-          /* The same lookup the cards use, so a chip cannot claim a tool is openable when
+            query={appSearch}
+            /* The same lookup the cards use, so a chip cannot claim a tool is openable when
              the launcher would answer with an access modal. `sessionLoading` is passed for
              the same reason the grid covers its cards: until the session lands every status
              reads 'new', and the chain would draw tools this person already has as locked. */
-          statusOf={statusOf}
-          isAdmin={isAdmin}
-          /* The same pins the grid shows, and the same optimistic list, so starring a tool
+            statusOf={statusOf}
+            isAdmin={isAdmin}
+            /* The same pins the grid shows, and the same optimistic list, so starring a tool
              on the chain and starring it on a card are one action with one piece of state. */
-          favouriteIds={shownFavourites}
-          onToggleFavourite={onToggleFavourite}
-          sessionLoading={sessionStatus === 'loading'}
-          /* The launcher keeps ownership of access: the chain calls back into the same
+            favouriteIds={shownFavourites}
+            onToggleFavourite={onToggleFavourite}
+            sessionLoading={sessionStatus === 'loading'}
+            /* The launcher keeps ownership of access: the chain calls back into the same
              handleOpen that the cards use, so a tool with a pending request still produces the
              pending modal rather than opening. */
-          onOpenTool={handleOpen}
-          renderToolCard={(tool) => renderToolCard(tool, false)}
-          offChainToolIds={OFF_CHAIN_TOOL_IDS}
-        />
+            onOpenTool={handleOpen}
+            renderToolCard={(tool) => renderToolCard(tool, false)}
+            offChainToolIds={OFF_CHAIN_TOOL_IDS}
+          />
+          {/* The SCAI panel rendered only inside the grid branch, so making the chain the
+              default would have quietly taken it off the home page. It sits under the
+              diagram rather than beside it: canvas width is what makes the chain legible,
+              and a 320px column is the most expensive thing to spend it on. */}
+          <div className="mt-6">{scaiPanel}</div>
+        </>
       ) : (
         <>
           {/* Cards beside the SCAI panel on a wide screen, stacked under it below xl.
@@ -420,12 +441,14 @@ export default function ToolLauncher({
                 </div>
               )}
             </div>
-
-            {/* ── SCAI Panel (server-rendered) ── */}
-            {scaiPanel}
           </div>
         </>
       )}
+
+      {/* ── SCAI Panel (server-rendered) ──
+          Outside the branch: it used to render only beside the card grid, so making the
+          chain the default would have quietly taken it off the home page altogether. */}
+      <div className={homeView === 'chain' ? 'mt-6' : 'mt-6 xl:hidden'}>{scaiPanel}</div>
 
       {/* ── Modals ── */}
       {modal?.kind === 'request' && (

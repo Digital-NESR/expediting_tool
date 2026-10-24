@@ -67,18 +67,19 @@ export function LaneBands({ u, size }: { u: (cssPx: number) => number; size: Siz
   );
 }
 
+/*
+ * The bands carried a coverage count for a while -- "Procure · 2/3". Two things were wrong
+ * with it. The reader has to guess what the fraction counts, which is a sign the label is
+ * doing the work the designer should have; and now that every stage has either a tool or a
+ * system behind it, every band reads n/n and the figure says nothing at all. The coverage
+ * figure lives in the line above the canvas, once, where there is room to say what it means.
+ */
 export function PhaseBands({
   focusedPhaseId,
   onPick,
-  showCounts,
 }: {
   focusedPhaseId: string | null;
   onPick: (id: string) => void;
-  /**
-   * Whether a band reports how many of its stages have a system. An administrator's
-   * finding; see the gap note on StageNode for why it is not everybody's.
-   */
-  showCounts: boolean;
 }) {
   return (
     <>
@@ -87,10 +88,7 @@ export function PhaseBands({
         /* A phase belongs to whichever lane its stages are on. Reading it rather than
            hardcoding the spine's green is what lets a second grouped lane exist. */
         const lane = LANE_BY_ID[STAGE_BY_ID[phase.stageIds[0]].laneId];
-        const covered = phase.stageIds.filter((id) => STAGE_BY_ID[id].toolIds.length > 0).length;
-        const label = showCounts
-          ? `${phase.label}  ·  ${covered}/${phase.stageIds.length}`
-          : phase.label;
+
         return (
           <g
             key={phase.id}
@@ -105,11 +103,7 @@ export function PhaseBands({
             }}
             tabIndex={0}
             role="button"
-            aria-label={
-              showCounts
-                ? `Zoom to the ${phase.label} phase. ${covered} of ${phase.stageIds.length} stages have a system.`
-                : `Zoom to the ${phase.label} phase`
-            }
+            aria-label={`Zoom to the ${phase.label} phase`}
             className="chain-hit cursor-pointer"
           >
             <rect
@@ -133,7 +127,7 @@ export function PhaseBands({
               fill={active ? '#ffffff' : lane.colour}
               style={{ pointerEvents: 'none' }}
             >
-              {label}
+              {phase.label}
             </text>
           </g>
         );

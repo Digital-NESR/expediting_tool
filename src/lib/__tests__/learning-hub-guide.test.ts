@@ -43,7 +43,10 @@ describe('the Supply Chain guide', () => {
       for (const take of role.takes) {
         const level = guide.levels.find((l) => l.key === take.level)!;
         for (const title of take.releases ?? []) {
-          expect(level.releases.map((r) => r.title), `${role.key} / ${take.level}`).toContain(title);
+          expect(
+            level.releases.map((r) => r.title),
+            `${role.key} / ${take.level}`,
+          ).toContain(title);
         }
       }
     }

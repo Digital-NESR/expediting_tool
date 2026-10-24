@@ -63,11 +63,7 @@ function score(value: string, query: string, level: number): number {
  * sub-categories and each is a different place to land, so each is its own hit, told apart on
  * screen by the trail above it.
  */
-export function searchTaxonomy(
-  rows: SgTaxonomyRow[],
-  query: string,
-  limit = 40,
-): TaxonomyHit[] {
+export function searchTaxonomy(rows: SgTaxonomyRow[], query: string, limit = 40): TaxonomyHit[] {
   const q = query.trim().toLowerCase();
   if (q.length < 2) return [];
 

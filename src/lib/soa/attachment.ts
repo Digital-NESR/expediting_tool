@@ -311,9 +311,11 @@ export async function buildSupplierWorkbook(
    * Invoice Date, which is where it turned up. Assigning `undefined` to `cell.dataValidation` does
    * not remove the entry, so the sheet's own collection is emptied instead.
    */
-  const validations = (sheet as unknown as {
-    dataValidations?: { model?: Record<string, unknown> };
-  }).dataValidations;
+  const validations = (
+    sheet as unknown as {
+      dataValidations?: { model?: Record<string, unknown> };
+    }
+  ).dataValidations;
   if (validations?.model) {
     // Deleted rather than `remove`d: that method leaves a `{ type: 'any' }` placeholder behind,
     // which is one more thing in the file for a supplier's Excel to interpret.
@@ -350,26 +352,30 @@ export async function buildSupplierWorkbook(
           'Excel did not recognise that as a date. Check the day and month are the right way round for your regional settings.',
       },
     },
-    ...(['TAX / VAT (Amount)', 'Total Amount (Including TAX or VAT)', 'Total Amount Outstanding'] as const).map(
-      (name) => ({
-        column: col(name),
-        rule: {
-          type: 'decimal',
-          operator: 'between',
-          allowBlank: true,
-          formulae: [-1000000000000, 1000000000000],
-          showInputMessage: true,
-          promptTitle: 'Amount',
-          prompt:
-            'Numbers only. Do not type a currency symbol or code here, that goes in the Currency column. Use a minus sign for a credit note.',
-          showErrorMessage: true,
-          errorStyle: 'warning',
-          errorTitle: 'That is not a number',
-          error:
-            'Enter the amount as a plain number, without a currency symbol, and without thousands separators typed by hand.',
-        } as ExcelJS.DataValidation,
-      }),
-    ),
+    ...(
+      [
+        'TAX / VAT (Amount)',
+        'Total Amount (Including TAX or VAT)',
+        'Total Amount Outstanding',
+      ] as const
+    ).map((name) => ({
+      column: col(name),
+      rule: {
+        type: 'decimal',
+        operator: 'between',
+        allowBlank: true,
+        formulae: [-1000000000000, 1000000000000],
+        showInputMessage: true,
+        promptTitle: 'Amount',
+        prompt:
+          'Numbers only. Do not type a currency symbol or code here, that goes in the Currency column. Use a minus sign for a credit note.',
+        showErrorMessage: true,
+        errorStyle: 'warning',
+        errorTitle: 'That is not a number',
+        error:
+          'Enter the amount as a plain number, without a currency symbol, and without thousands separators typed by hand.',
+      } as ExcelJS.DataValidation,
+    })),
     {
       column: col('Invoice Outstanding Days'),
       rule: {
@@ -432,7 +438,6 @@ export async function buildSupplierWorkbook(
   }
   // An unknown country id leaves the column as free text rather than offering somebody else's
   // entities; every id the tool actually has does resolve.
-
 
   const entities = wb.getWorksheet('Legal Entities');
   if (entities) entities.state = 'veryHidden';

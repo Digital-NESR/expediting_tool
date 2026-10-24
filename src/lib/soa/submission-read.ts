@@ -145,7 +145,9 @@ export async function loadSubmissionsFor(
  * Rows whose amount could not be read are counted but contribute nothing, which is why the line
  * count is shown beside each total.
  */
-export function totalsByCurrencyOf(lines: SubmissionLineView[]): SubmissionView['totalsByCurrency'] {
+export function totalsByCurrencyOf(
+  lines: SubmissionLineView[],
+): SubmissionView['totalsByCurrency'] {
   const acc = new Map<string, { outstanding: number; lines: number }>();
   for (const l of lines) {
     const ccy = (l.currency ?? 'unknown').toUpperCase();

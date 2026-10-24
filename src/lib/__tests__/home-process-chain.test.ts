@@ -197,9 +197,14 @@ describe('the derived figures', () => {
     expect(inProcess.length).toBeLessThan(STAGES.length);
     expect(c.total).toBe(inProcess.length);
     expect(c.covered + c.gaps).toBe(c.total);
-    /* The whole premise of the view: there ARE gaps. If this ever reaches zero the wording
-       under the canvas needs rethinking, not just the number. */
-    expect(c.gaps).toBeGreaterThan(0);
+    /* This used to assert there ARE gaps, with a note that reaching zero would mean the
+       wording needed rethinking rather than the number. It reached zero -- ShipWaves took
+       Freight Procurement, the last uncovered step -- and the wording was rethought: the
+       heading reads "Every one of the 21 stages has a system", and the key drops its
+       hollow line because nothing is drawn hollow. So the invariant is not "there are
+       gaps", it is that the count and the covered count still describe the same set. */
+    expect(c.covered + c.gaps).toBe(c.total);
+    expect(c.gaps).toBeGreaterThanOrEqual(0);
   });
 
   it('finds every stage a tool appears on, across lanes', () => {

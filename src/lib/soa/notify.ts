@@ -119,8 +119,8 @@ export async function notifySoaHandoff(input: {
       to: input.apEmails,
       cc: input.championEmails,
       subject: input.shortOfTarget
-      ? `SOA ${input.cycleLabel} closed below target, ${input.countryName}`
-      : `SOA ${input.cycleLabel} closed, ${input.countryName}`,
+        ? `SOA ${input.cycleLabel} closed below target, ${input.countryName}`
+        : `SOA ${input.cycleLabel} closed, ${input.countryName}`,
       bodyHtml,
       bodyText: rows.map(([k, v]) => `${k}: ${v}`).join('\n'),
       attachments,

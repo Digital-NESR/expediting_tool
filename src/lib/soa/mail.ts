@@ -153,7 +153,9 @@ function postWithoutVerifying(
         );
       },
     );
-    req.on('timeout', () => req.destroy(Object.assign(new Error('timed out'), { name: 'TimeoutError' })));
+    req.on('timeout', () =>
+      req.destroy(Object.assign(new Error('timed out'), { name: 'TimeoutError' })),
+    );
     req.on('error', reject);
     req.write(body);
     req.end();

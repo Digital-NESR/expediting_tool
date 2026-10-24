@@ -84,7 +84,10 @@ describe('the worksheet set', () => {
         for (const block of section.blocks) {
           if (block.type !== 'grid') continue;
           const inputs = block.rows.flat().filter((c) => c.input).length;
-          expect(inputs, `${sheet.key} / ${block.id} is a grid with nothing to complete`).toBeGreaterThan(0);
+          expect(
+            inputs,
+            `${sheet.key} / ${block.id} is a grid with nothing to complete`,
+          ).toBeGreaterThan(0);
           // Every row has to be as wide as the header, or cells land under the wrong column.
           for (const row of block.rows) expect(row).toHaveLength(block.head.length);
         }

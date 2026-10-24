@@ -46,21 +46,30 @@ function subscribe(onChange: () => void): () => void {
 
 /* Returns a primitive, so React's referential check compares by value and this can read
    storage on every call without causing a re-render loop. */
+/**
+ * The chain is what you get unless you have asked for the grid.
+ *
+ * It was the other way round while the chain was an admin-only experiment. It answers the
+ * two questions the grid cannot -- where does a tool sit, and what have we got -- and it
+ * now carries everything the grid does: access state, pinned tools, search, and every one
+ * of the sixteen. Somebody who prefers the dictionary is one click and one stored word
+ * away, and that choice sticks.
+ */
 function getSnapshot(): HomeView {
   try {
-    const raw = window.localStorage.getItem(KEY);
-    return raw === 'chain' ? 'chain' : 'grid';
+    return window.localStorage.getItem(KEY) === 'grid' ? 'grid' : 'chain';
   } catch {
-    return 'grid';
+    return 'chain';
   }
 }
 
-/** There is no browser on the server, and the grid is the default anyway. */
+/* The same default on the server, so the first paint reserves the layout the client is
+   about to render rather than drawing the grid and replacing it. */
 function getServerSnapshot(): HomeView {
-  return 'grid';
+  return 'chain';
 }
 
-export function useHomeView(enabled: boolean): [HomeView, (next: HomeView) => void] {
+export function useHomeView(): [HomeView, (next: HomeView) => void] {
   const stored = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   const choose = useCallback((next: HomeView) => {
@@ -73,7 +82,5 @@ export function useHomeView(enabled: boolean): [HomeView, (next: HomeView) => vo
     emit();
   }, []);
 
-  /* Belt and braces. Somebody who loses admin keeps a stale 'chain' in their browser, and the
-     view it names is not theirs to see — forced back here as well as hidden at the call site. */
-  return [enabled ? stored : 'grid', choose];
+  return [stored, choose];
 }

@@ -149,8 +149,7 @@ const SUPPLY_CHAIN: TrackGuide = {
       key: 'L3',
       label: 'Level 3 — Advanced',
       courseTitle: 'Supply Chain Expert',
-      audience:
-        'Managers who design or decide, and anyone working towards certification.',
+      audience: 'Managers who design or decide, and anyone working towards certification.',
       prerequisite: 'Level 1 and the relevant Level 2 releases first',
       videos: 56,
       videoMinutes: 772,

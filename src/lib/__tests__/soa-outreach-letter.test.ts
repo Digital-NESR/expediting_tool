@@ -122,14 +122,18 @@ describe('sanitizeTemplateHtml', () => {
   });
 
   it('keeps mailto links, which the letter depends on', () => {
-    expect(sanitizeTemplateHtml('<a href="mailto:ap@nesr.com">ap</a>')).toContain('mailto:ap@nesr.com');
+    expect(sanitizeTemplateHtml('<a href="mailto:ap@nesr.com">ap</a>')).toContain(
+      'mailto:ap@nesr.com',
+    );
   });
 
   it('strips script and event handlers', () => {
     // The stored HTML is rendered back into our own pages, so this is sanitised on the way in.
     expect(sanitizeTemplateHtml('<p>ok</p><script>alert(1)</script>')).toBe('<p>ok</p>');
     expect(sanitizeTemplateHtml('<p onclick="alert(1)">ok</p>')).toBe('<p>ok</p>');
-    expect(sanitizeTemplateHtml('<a href="javascript:alert(1)">x</a>')).not.toContain('javascript:');
+    expect(sanitizeTemplateHtml('<a href="javascript:alert(1)">x</a>')).not.toContain(
+      'javascript:',
+    );
   });
 
   it('drops images and iframes, which have no business in this letter', () => {
@@ -191,7 +195,9 @@ describe('the default letter survives being saved', () => {
 
 describe('htmlToText', () => {
   it('produces a plain-text alternative', () => {
-    expect(htmlToText('<h2>Request</h2><p>Dear <strong>Partner</strong></p>')).toContain('Dear Partner');
+    expect(htmlToText('<h2>Request</h2><p>Dear <strong>Partner</strong></p>')).toContain(
+      'Dear Partner',
+    );
     expect(htmlToText('<p>a</p>')).not.toContain('<');
   });
 });
@@ -221,7 +227,11 @@ describe('resolveAddresses', () => {
 
   it('honours a suppression over both sources', () => {
     const gone = new Set(['dead@vendor.com']);
-    const { to } = resolveAddresses(['dead@vendor.com', 'ap@vendor.com'], ['dead@vendor.com'], gone);
+    const { to } = resolveAddresses(
+      ['dead@vendor.com', 'ap@vendor.com'],
+      ['dead@vendor.com'],
+      gone,
+    );
     expect(to.map((a) => a.email)).toEqual(['ap@vendor.com']);
   });
 

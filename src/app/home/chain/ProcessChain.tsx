@@ -121,6 +121,31 @@ export default function ProcessChain({
    * once its height is capped the <svg> is narrower than its container and centred in it.
    * Measured by rect difference rather than `offsetLeft`, which SVG elements do not have.
    */
+  /**
+   * How tall the drawing may be before the page starts scrolling.
+   *
+   * Measured, not guessed. A fixed vh cap is a bet on how much chrome sits above the
+   * canvas, and it is wrong on the dev preview, which carries an extra banner -- there the
+   * drawing ran off the bottom of the window and the last lane could not be reached
+   * without scrolling, which is the exact thing the cap exists to prevent. Reading the
+   * card's own distance from the top of the window gets it right on any page that hosts
+   * this component.
+   */
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const [maxCanvasH, setMaxCanvasH] = useState<number | null>(null);
+  useEffect(() => {
+    const measure = () => {
+      const el = cardRef.current;
+      if (!el) return;
+      /* What stays below the drawing inside the card: its caption and the key. */
+      const BELOW = 92;
+      setMaxCanvasH(Math.max(280, window.innerHeight - el.getBoundingClientRect().top - BELOW));
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
   const [svgBox, setSvgBox] = useState({
     left: 0,
     top: 0,
@@ -464,14 +489,18 @@ export default function ProcessChain({
       */}
       <div>
         <h2 className="text-[15px] font-bold tracking-tight text-slate-900">
-          {isAdmin
-            ? `${covered} of ${total} stages of the supply chain have a system.`
-            : `${TOOLS.length} of our tools across ${total} stages of the supply chain.`}
+          {!isAdmin
+            ? `${TOOLS.length} of our tools across ${total} stages of the supply chain.`
+            : gaps === 0
+              ? `Every one of the ${total} stages of the supply chain has a system.`
+              : `${covered} of ${total} stages of the supply chain have a system.`}
         </h2>
         <p className="mt-0.5 text-xs text-slate-500">
-          {isAdmin
-            ? `${gaps === 1 ? 'One does' : `${gaps} do`} not — drawn hollow. Point at anything to see what it is and where it is used.`
-            : 'SAP and Ariba are marked where the process runs on them. Point at anything to see what it is and where it is used.'}
+          {!isAdmin
+            ? 'SAP and Ariba are marked where the process runs on them. Point at anything to see what it is and where it is used.'
+            : gaps === 0
+              ? 'Point at anything to see what it is and where it is used.'
+              : `${gaps === 1 ? 'One does' : `${gaps} do`} not — drawn hollow. Point at anything to see what it is and where it is used.`}
         </p>
       </div>
 
@@ -589,7 +618,10 @@ export default function ProcessChain({
       </div>
 
       {/* ── The canvas, full width: every pixel of width is a pixel of legibility ── */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div
+        ref={cardRef}
+        className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+      >
         {/* Until the session resolves, every per-user access status reads 'new' and the chain
             would draw tools this person already has as locked, then silently correct itself.
             The card grid covers itself for the same reason. A wrong answer that looks
@@ -606,8 +638,22 @@ export default function ProcessChain({
              fills the element instead of being letterboxed inside it. The cap is because the
              canvas is a tall 1.67:1 -- three bands stacked -- and an uncapped full-width
              element pushes its own caption, and the panel under it, off the screen. */
-          style={{ aspectRatio: `${CHAIN_WIDTH} / ${CHAIN_HEIGHT}`, maxHeight: '68vh' }}
-          className={`mx-auto block w-full touch-none select-none ${
+          style={{
+            aspectRatio: `${CHAIN_WIDTH} / ${CHAIN_HEIGHT}`,
+            /*
+             * HEIGHT, not max-height, and no `w-full`.
+             *
+             * A full-width element with a capped height does not shrink: it stays as wide
+             * as the card at the capped height, and the <svg> dutifully letterboxes the
+             * drawing inside all that extra width. The result was a small picture marooned
+             * in a wide white box. Setting the height and letting `aspect-ratio` derive
+             * the width makes the element hug the drawing; `max-width` then takes over on
+             * a tall window, where width is what runs out first.
+             */
+            height: maxCanvasH ?? '58vh',
+            maxWidth: '100%',
+          }}
+          className={`mx-auto block touch-none select-none ${
             follow ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'
           }`}
           onPointerDown={onPointerDown}
@@ -659,7 +705,6 @@ export default function ProcessChain({
           <PhaseBands
             focusedPhaseId={focus?.kind === 'phase' ? focus.id : null}
             onPick={focusPhase}
-            showCounts={isAdmin}
           />
 
           {/* Stages. */}
@@ -738,7 +783,8 @@ export default function ProcessChain({
           )}
         </p>
 
-        <ChainLegend showGaps={isAdmin} />
+        {/* The hollow line only earns its place while something is drawn hollow. */}
+        <ChainLegend showGaps={isAdmin && gaps > 0} />
       </div>
 
       {/* ── What is selected, and what sits beside the chain rather than on it ── */}
@@ -812,12 +858,11 @@ export default function ProcessChain({
             </div>
           </div>
         ) : (
-          <div className="flex items-start gap-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-4">
-            <Layers className="mt-0.5 h-4 w-4 shrink-0 text-slate-300" />
-            <p className="text-xs leading-relaxed text-slate-500">
-              Move the pointer across the chain and the camera follows it. Hover a tool to light it
-              up everywhere it appears; click to open it, and it stays here with every stage it
-              covers.
+          <div className="flex items-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-3 py-2">
+            <Layers className="h-3.5 w-3.5 shrink-0 text-slate-300" />
+            <p className="text-[11px] text-slate-500">
+              Move the pointer across the chain and the camera follows it. Click a tool to open it,
+              and it stays here with every stage it covers.
             </p>
           </div>
         )}

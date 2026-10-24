@@ -30,13 +30,35 @@
  * clipped outright. Taller stages in a taller canvas buy back the room.
  */
 export const CHAIN_WIDTH = 1920;
-export const CHAIN_HEIGHT = 1150;
+export const CHAIN_HEIGHT = 1322;
 
 /** Every stage is the same size, so the eye reads position as meaning and not importance. */
 const NODE_H = 120;
 const SPINE_W = 150;
+const SPINE_GUTTER = 12;
+/**
+ * Where the spine starts, so that eleven stages sit centred on the canvas.
+ *
+ * It began at a round 60, which left 60 units of margin on the left and 90 on the right --
+ * close enough to look deliberate and not close enough to look right. Derived now, so the
+ * backbone stays centred if a stage is ever added to it or taken away.
+ */
+const SPINE_SPAN = 11 * SPINE_W + 10 * SPINE_GUTTER;
+const SPINE_X0 = Math.round((CHAIN_WIDTH - SPINE_SPAN) / 2);
 /** Stage pitch along the spine: eleven stages at 150 wide with a 12 gutter. */
-const spineX = (i: number) => 60 + i * (SPINE_W + 12);
+const spineX = (i: number) => SPINE_X0 + i * (SPINE_W + SPINE_GUTTER);
+
+/* Everything that hangs off the spine is measured FROM the spine, so centring it moved
+   these too rather than leaving them behind. */
+const S2C_W = 180;
+/** The Source-to-Catalog column descends into Supplier Assessment, so it is centred on it. */
+const S2C_X = spineX(3) + SPINE_W / 2 - S2C_W / 2;
+/** Logistics hangs below Supplier Acknowledgement, on the spine's own column pitch. */
+const LOGISTICS_X = spineX(5);
+const INV_X0 = SPINE_X0;
+const INV_X1 = INV_X0 + 180 + 16;
+const INV_X2 = INV_X1 + 150 + 16;
+const INV_X3 = INV_X2 + 150 + 16;
 
 /* ─── The vertical bands ──────────────────────────────────────────────────────────────────
    Top to bottom, and everything else derives from them: a lane's box, the stages inside it
@@ -71,11 +93,14 @@ const BOTTOM_ROUTE_Y = 1130;
  * picture at all -- an odd thing for a view whose job is showing the estate. They go here,
  * and the drawing costs not one unit more than it did.
  */
-const ASIDE_X = 1300;
-const ASIDE_TOP = 768;
-const ASIDE_FIRST = 814;
-const ASIDE_PITCH = 110;
+const ASIDE_TOP = BOTTOM_ROUTE_Y + 26;
+const ASIDE_FIRST = ASIDE_TOP + 38;
 const ASIDE_NODE_H = 86;
+/** Three boxes in a row across the full width, under the whole chain. */
+const ASIDE_W = 574;
+const ASIDE_GUTTER = 16;
+const ASIDE_X0 = Math.round((CHAIN_WIDTH - (3 * ASIDE_W + 2 * ASIDE_GUTTER)) / 2);
+const asideX = (i: number) => ASIDE_X0 + i * (ASIDE_W + ASIDE_GUTTER);
 
 export type LaneId = 'source-to-catalog' | 'demand-to-pay' | 'logistics' | 'inventory' | 'across';
 
@@ -131,9 +156,19 @@ export interface Lane {
  * empty when what it meant was "we have not built anything here" -- which is a different
  * and much less alarming statement than "nothing happens here".
  */
-export type SystemId = 'sap' | 'ariba';
+export type SystemId = 'sap' | 'sap-pir' | 'ariba' | 'quality-governor';
 
-export const SYSTEM_LABEL: Record<SystemId, string> = { sap: 'SAP', ariba: 'Ariba' };
+export const SYSTEM_LABEL: Record<SystemId, string> = {
+  sap: 'SAP',
+  /* Purchasing Info Records -- the same SAP, but naming the object is the useful part
+     here, because "the catalog lives in SAP" does not tell anybody where to look. */
+  'sap-pir': 'SAP PIR',
+  ariba: 'Ariba',
+  /* Not in the launcher. If it should be, it wants a row in src/app/home/tools.tsx and
+     this entry goes away -- a system badge is the honest place for something the chain
+     knows about but the estate does not yet list. */
+  'quality-governor': 'Quality Governor',
+};
 
 export interface Stage extends Rect {
   id: string;
@@ -240,10 +275,10 @@ export const LANES: Lane[] = [
     flow: 'forward',
     aside: true,
     box: {
-      x: ASIDE_X - 36,
+      x: 40,
       y: ASIDE_TOP,
-      w: 616,
-      h: ASIDE_FIRST + 2 * ASIDE_PITCH + ASIDE_NODE_H + 18 - ASIDE_TOP,
+      w: CHAIN_WIDTH - 80,
+      h: ASIDE_FIRST + ASIDE_NODE_H + 20 - ASIDE_TOP,
     },
   },
 ];
@@ -260,9 +295,9 @@ export const STAGES: Stage[] = [
     id: 'source',
     laneId: 'source-to-catalog',
     label: 'Source',
-    x: 531,
+    x: S2C_X,
     y: S2C_FIRST,
-    w: 180,
+    w: S2C_W,
     h: NODE_H,
     toolIds: ['sourceguide', 'sns-registry'],
     systems: ['ariba'],
@@ -271,23 +306,22 @@ export const STAGES: Stage[] = [
     id: 'contract',
     laneId: 'source-to-catalog',
     label: 'Contract',
-    x: 531,
+    x: S2C_X,
     y: S2C_FIRST + S2C_PITCH,
-    w: 180,
+    w: S2C_W,
     h: NODE_H,
     toolIds: ['sirion'],
-    systems: ['ariba'],
   },
   {
     id: 'catalog',
     laneId: 'source-to-catalog',
     label: 'Catalog',
-    x: 531,
+    x: S2C_X,
     y: S2C_FIRST + 2 * S2C_PITCH,
-    w: 180,
+    w: S2C_W,
     h: NODE_H,
     toolIds: ['catalog-manager', 'spend-taxonomy'],
-    systems: ['ariba'],
+    systems: ['sap-pir'],
   },
 
   // ── Demand to Pay: the spine, eleven stages on one row ──
@@ -321,7 +355,7 @@ export const STAGES: Stage[] = [
     y: SPINE_Y,
     w: SPINE_W,
     h: NODE_H,
-    toolIds: ['laptop-procurement'],
+    toolIds: [],
     systems: ['sap'],
   },
   {
@@ -343,7 +377,7 @@ export const STAGES: Stage[] = [
     y: SPINE_Y,
     w: SPINE_W,
     h: NODE_H,
-    toolIds: ['rfx-officer'],
+    toolIds: [],
     systems: ['sap'],
   },
   {
@@ -409,7 +443,7 @@ export const STAGES: Stage[] = [
     y: SPINE_Y,
     w: SPINE_W,
     h: NODE_H,
-    toolIds: ['soa-consolidation'],
+    toolIds: [],
     systems: ['sap'],
   },
 
@@ -421,7 +455,7 @@ export const STAGES: Stage[] = [
     id: 'expediting-readiness',
     laneId: 'logistics',
     label: 'Expediting / Readiness',
-    x: 870,
+    x: LOGISTICS_X,
     y: LOGISTICS_Y,
     w: 150,
     h: NODE_H,
@@ -431,17 +465,17 @@ export const STAGES: Stage[] = [
     id: 'logistics-procure',
     laneId: 'logistics',
     label: 'Freight Procurement',
-    x: 870,
+    x: LOGISTICS_X,
     y: LOGISTICS_PROCURE_Y,
     w: 150,
     h: NODE_H,
-    toolIds: [],
+    toolIds: ['shipwaves'],
   },
   {
     id: 'logistics-tracking',
     laneId: 'logistics',
     label: 'Tracking',
-    x: 1032,
+    x: LOGISTICS_X + SPINE_W + SPINE_GUTTER,
     y: LOGISTICS_Y,
     w: 150,
     h: NODE_H,
@@ -453,7 +487,7 @@ export const STAGES: Stage[] = [
     id: 'stock-replenishment',
     laneId: 'inventory',
     label: 'Stock Replenishment Planning',
-    x: 60,
+    x: INV_X0,
     y: INVENTORY_Y,
     w: 180,
     h: NODE_H,
@@ -464,18 +498,18 @@ export const STAGES: Stage[] = [
     id: 'physical-counting',
     laneId: 'inventory',
     label: 'Physical Counting',
-    x: 256,
+    x: INV_X1,
     y: INVENTORY_Y,
     w: 150,
     h: NODE_H,
     toolIds: [],
-    systems: ['sap'],
+    systems: ['sap', 'quality-governor'],
   },
   {
     id: 'goods-issue',
     laneId: 'inventory',
     label: 'Goods Issue',
-    x: 422,
+    x: INV_X2,
     y: INVENTORY_Y,
     w: 150,
     h: NODE_H,
@@ -486,7 +520,7 @@ export const STAGES: Stage[] = [
     id: 'goods-receipt',
     laneId: 'inventory',
     label: 'Goods Receipt',
-    x: 588,
+    x: INV_X3,
     y: INVENTORY_Y,
     w: 150,
     h: NODE_H,
@@ -501,9 +535,9 @@ export const STAGES: Stage[] = [
     id: 'across-analytics',
     laneId: 'across',
     label: 'Analytics & Dashboards',
-    x: ASIDE_X,
+    x: asideX(0),
     y: ASIDE_FIRST,
-    w: 544,
+    w: ASIDE_W,
     h: ASIDE_NODE_H,
     toolIds: ['supply-chain-analytics'],
   },
@@ -511,9 +545,9 @@ export const STAGES: Stage[] = [
     id: 'across-learning',
     laneId: 'across',
     label: 'Learning & Training',
-    x: ASIDE_X,
-    y: ASIDE_FIRST + ASIDE_PITCH,
-    w: 544,
+    x: asideX(1),
+    y: ASIDE_FIRST,
+    w: ASIDE_W,
     h: ASIDE_NODE_H,
     toolIds: ['learning-hub'],
   },
@@ -521,9 +555,9 @@ export const STAGES: Stage[] = [
     id: 'across-travel',
     laneId: 'across',
     label: 'Travel',
-    x: ASIDE_X,
-    y: ASIDE_FIRST + 2 * ASIDE_PITCH,
-    w: 544,
+    x: asideX(2),
+    y: ASIDE_FIRST,
+    w: ASIDE_W,
     h: ASIDE_NODE_H,
     toolIds: ['travel-portal'],
   },
@@ -626,7 +660,7 @@ export const EDGES: Edge[] = [
     to: 'demand-forecasting',
     laneId: 'source-to-catalog',
     dash: 'dashed',
-    via: [{ x: 135, y: S2C_FIRST + NODE_H / 2 }],
+    via: [{ x: spineX(0) + SPINE_W / 2, y: S2C_FIRST + NODE_H / 2 }],
   },
 
   // The spine.
@@ -671,7 +705,12 @@ export const EDGES: Edge[] = [
     laneId: 'logistics',
     dash: 'solid',
     label: 'FF Bid & Award',
-    via: [{ x: 1107, y: LOGISTICS_PROCURE_Y + NODE_H / 2 }],
+    via: [
+      {
+        x: LOGISTICS_X + SPINE_W + SPINE_GUTTER + SPINE_W / 2,
+        y: LOGISTICS_PROCURE_Y + NODE_H / 2,
+      },
+    ],
   },
   {
     from: 'logistics-tracking',
@@ -692,8 +731,8 @@ export const EDGES: Edge[] = [
     laneId: 'inventory',
     dash: 'dotted',
     via: [
-      { x: 663, y: BOTTOM_ROUTE_Y },
-      { x: 1269, y: BOTTOM_ROUTE_Y },
+      { x: INV_X3 + 75, y: BOTTOM_ROUTE_Y },
+      { x: spineX(7) + SPINE_W / 2, y: BOTTOM_ROUTE_Y },
     ],
   },
 ];

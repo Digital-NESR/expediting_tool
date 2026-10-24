@@ -2,8 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { summariseTaxonomy } from '@/lib/sourceguide/taxonomy';
 import type { SgTaxonomyRow } from '@/lib/sourceguide/types';
 
-const row = (category: string, name: string): SgTaxonomyRow =>
-  ['Direct', category, 'Sub', 'Family', name];
+const row = (category: string, name: string): SgTaxonomyRow => [
+  'Direct',
+  category,
+  'Sub',
+  'Family',
+  name,
+];
 
 /**
  * These two numbers sit on the home page of every employee, so a confident wrong one is worse

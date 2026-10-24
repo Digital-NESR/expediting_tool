@@ -353,13 +353,7 @@ describe('adhoc approval chain', () => {
       ),
     ).toBe('canReviewAdhocSapTeam');
     expect(
-      getRequiredPermissionForTransition(
-        'adhoc',
-        'Verified by SAP Team',
-        'Approved',
-        1000,
-        'USD',
-      ),
+      getRequiredPermissionForTransition('adhoc', 'Verified by SAP Team', 'Approved', 1000, 'USD'),
     ).toBe('canReviewAdhocDirector');
   });
 

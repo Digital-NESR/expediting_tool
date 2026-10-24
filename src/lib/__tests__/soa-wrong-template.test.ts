@@ -19,9 +19,7 @@ import { StatementRejected, storeStatement } from '@/lib/soa/submission-store';
  * happen before any database work, so they can be exercised without one.
  */
 
-async function workbook(
-  sheets: { name: string; rows: unknown[][] }[],
-): Promise<Buffer> {
+async function workbook(sheets: { name: string; rows: unknown[][] }[]): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   for (const { name, rows } of sheets) {
     const ws = wb.addWorksheet(name);
@@ -44,7 +42,13 @@ describe('uploading the wrong workbook', () => {
   it('says plainly that it is the wrong file, not that something went wrong', async () => {
     const message = await refusal(
       await workbook([
-        { name: 'Sheet1', rows: [['PO Number', 'Item', 'Qty', 'Rate'], ['4100007296', 'Pump', 2, 50]] },
+        {
+          name: 'Sheet1',
+          rows: [
+            ['PO Number', 'Item', 'Qty', 'Rate'],
+            ['4100007296', 'Pump', 2, 50],
+          ],
+        },
       ]),
     );
     expect(message).toContain('not the statement template');
@@ -55,7 +59,13 @@ describe('uploading the wrong workbook', () => {
   it('lists the columns it actually found', async () => {
     const message = await refusal(
       await workbook([
-        { name: 'Sheet1', rows: [['PO Number', 'Item', 'Qty', 'Rate'], ['4100007296', 'Pump', 2, 50]] },
+        {
+          name: 'Sheet1',
+          rows: [
+            ['PO Number', 'Item', 'Qty', 'Rate'],
+            ['4100007296', 'Pump', 2, 50],
+          ],
+        },
       ]),
     );
     expect(message).toContain('"PO Number"');
@@ -190,7 +200,14 @@ describe('what the uploader is told to do next', () => {
       {
         name: 'SOA',
         rows: [
-          ['Legal Entity', 'Invoice Number', 'Invoice Date', 'PO Number', 'Currency', 'Total Amount Outstanding'],
+          [
+            'Legal Entity',
+            'Invoice Number',
+            'Invoice Date',
+            'PO Number',
+            'Currency',
+            'Total Amount Outstanding',
+          ],
           ['NESR', 'INV-001', '2026-09-30', '4100007296', 'AED', 1500],
         ],
       },

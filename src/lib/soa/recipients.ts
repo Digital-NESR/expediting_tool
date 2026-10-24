@@ -316,10 +316,10 @@ export async function setVendorContact(input: {
   }
 
   if (input.action === 'restore') {
-    await sql(`DELETE FROM vendor_contact_overrides WHERE vendor_id = ? AND email = ? AND kind = 'suppressed'`, [
-      input.vendorId,
-      email,
-    ]);
+    await sql(
+      `DELETE FROM vendor_contact_overrides WHERE vendor_id = ? AND email = ? AND kind = 'suppressed'`,
+      [input.vendorId, email],
+    );
     return;
   }
 
@@ -346,10 +346,9 @@ export async function resolvedContactsFor(vendorId: number, vendorNo: string): P
   await ensureSoaSchema();
   const [directory, overrides] = await Promise.all([
     directoryEmails([vendorNo]),
-    sql<QueryResultRow[]>(
-      `SELECT email, kind FROM vendor_contact_overrides WHERE vendor_id = ?`,
-      [vendorId],
-    ),
+    sql<QueryResultRow[]>(`SELECT email, kind FROM vendor_contact_overrides WHERE vendor_id = ?`, [
+      vendorId,
+    ]),
   ]);
 
   const added = overrides.filter((o) => o.kind === 'added').map((o) => String(o.email));
@@ -457,7 +456,10 @@ export async function resolvedContactsForMany(
       added.get(v.id) ?? [],
       suppressed.get(v.id) ?? new Set(),
     );
-    out.set(v.vendorNo, to.map((a) => a.email));
+    out.set(
+      v.vendorNo,
+      to.map((a) => a.email),
+    );
   }
   return out;
 }

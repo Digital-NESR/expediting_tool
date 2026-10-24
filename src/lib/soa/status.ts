@@ -8,12 +8,7 @@
  */
 
 export type VendorCycleStatus =
-  | 'scoped'
-  | 'requested'
-  | 'reminded'
-  | 'received'
-  | 'nil_balance'
-  | 'non_responder';
+  'scoped' | 'requested' | 'reminded' | 'received' | 'nil_balance' | 'non_responder';
 
 /**
  * The two ways a vendor's balance can be settled.

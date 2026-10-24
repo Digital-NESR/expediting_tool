@@ -71,7 +71,11 @@ const HEADERS: Record<keyof Omit<ParsedLine, 'lineNo' | 'issues' | 'invoiceDateR
   remarks: ['remarks', 'remark', 'comments', 'notes'],
 };
 
-const norm = (v: unknown): string => String(v ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+const norm = (v: unknown): string =>
+  String(v ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 
 /** Flatten whatever ExcelJS hands back for a cell into plain text. */
 function cellText(value: ExcelJS.CellValue): string {
@@ -211,7 +215,10 @@ function findHeaderRow(sheet: ExcelJS.Worksheet, sheetNames: string[]): number {
   }
 
   const found = widestRow(sheet);
-  const shown = found.slice(0, 6).map((t) => `"${t}"`).join(', ');
+  const shown = found
+    .slice(0, 6)
+    .map((t) => `"${t}"`)
+    .join(', ');
   const more = found.length > 6 ? `, and ${found.length - 6} more` : '';
 
   /* Named only when there is a choice to be wrong about. On a one-sheet workbook saying which
@@ -255,7 +262,9 @@ export async function parseSupplierWorkbook(bytes: Buffer): Promise<ParseResult>
   const sheet = pickSheet(wb);
   const headerRow = findHeaderRow(
     sheet,
-    wb.worksheets.filter((w) => w.state !== 'hidden' && w.state !== 'veryHidden').map((w) => w.name),
+    wb.worksheets
+      .filter((w) => w.state !== 'hidden' && w.state !== 'veryHidden')
+      .map((w) => w.name),
   );
 
   const columns = new Map<keyof typeof HEADERS, number>();
@@ -264,7 +273,10 @@ export async function parseSupplierWorkbook(bytes: Buffer): Promise<ParseResult>
     const text = norm(cellText(cell.value));
     if (!text) return;
     seen.push({ text, col });
-    for (const [field, spellings] of Object.entries(HEADERS) as [keyof typeof HEADERS, string[]][]) {
+    for (const [field, spellings] of Object.entries(HEADERS) as [
+      keyof typeof HEADERS,
+      string[],
+    ][]) {
       if (!columns.has(field) && spellings.includes(text)) columns.set(field, col);
     }
   });
@@ -318,8 +330,7 @@ export async function parseSupplierWorkbook(bytes: Buffer): Promise<ParseResult>
     const outstandingAmount = parseAmount(outstandingCell);
     if (cellText(outstandingCell).trim() && outstandingAmount === null)
       issues.push(`Outstanding amount "${cellText(outstandingCell).trim()}" could not be read`);
-    if (outstandingAmount === null && totalAmount === null)
-      issues.push('No amount on this row');
+    if (outstandingAmount === null && totalAmount === null) issues.push('No amount on this row');
 
     lineNo += 1;
     lines.push({

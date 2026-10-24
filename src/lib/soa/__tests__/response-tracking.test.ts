@@ -61,7 +61,12 @@ async function sheetOf(tracking: ResponseTrackingRow[]) {
 /** The cards sit on rows 4-6; the value of the nth card is row 5 of its two-column block. */
 const cardValue = (ws: ExcelJS.Worksheet, i: number) => ws.getCell(5, 1 + i * 2).value;
 const cardNote = (ws: ExcelJS.Worksheet, i: number) => String(ws.getCell(6, 1 + i * 2).value ?? '');
-const FLOATED = 0, RESPONDED = 1, SPREADSHEET = 2, EMAIL_ONLY = 3, BOTH = 4, NONE = 5;
+const FLOATED = 0,
+  RESPONDED = 1,
+  SPREADSHEET = 2,
+  EMAIL_ONLY = 3,
+  BOTH = 4,
+  NONE = 5;
 
 describe('the Response Tracking tab', () => {
   it('is added to the workbook', async () => {
@@ -72,10 +77,7 @@ describe('the Response Tracking tab', () => {
   /* The whole reason the tab exists: the consolidated sheet can only describe suppliers who sent
      something, so a non-responder is invisible in the file AP receives. */
   it('lists a supplier who never answered', async () => {
-    const ws = await sheetOf([
-      track('V1', 'Acme', { workbook: FILE }),
-      track('V9', 'Silent Ltd'),
-    ]);
+    const ws = await sheetOf([track('V1', 'Acme', { workbook: FILE }), track('V9', 'Silent Ltd')]);
     const names = [ws.getCell(9, 1).value, ws.getCell(10, 1).value];
     expect(names).toContain('Silent Ltd');
   });
