@@ -18,16 +18,46 @@
  * fails the day somebody adds a tool and does not place it.
  */
 
-/** The canvas every coordinate below is expressed in. */
+/**
+ * The canvas every coordinate below is expressed in.
+ *
+ * The WIDTH is forced: eleven spine stages side by side, and a stage can therefore never be
+ * much more than eight percent of it. The HEIGHT is the free variable, and it is what decides
+ * how big the drawing lands on screen -- the <svg> is given the canvas aspect ratio, so a
+ * shorter canvas makes a shorter, and therefore proportionally smaller, element. It was 1000
+ * with 76-unit stages, which worked out at a 47-pixel-tall box on a normal monitor: too short
+ * for two lines of a name and a tool chip, so names were being shrunk towards illegibility or
+ * clipped outright. Taller stages in a taller canvas buy back the room.
+ */
 export const CHAIN_WIDTH = 1920;
-export const CHAIN_HEIGHT = 1000;
+export const CHAIN_HEIGHT = 1150;
 
 /** Every stage is the same size, so the eye reads position as meaning and not importance. */
-const NODE_H = 76;
+const NODE_H = 120;
 const SPINE_W = 150;
-const SPINE_Y = 440;
 /** Stage pitch along the spine: eleven stages at 150 wide with a 12 gutter. */
 const spineX = (i: number) => 60 + i * (SPINE_W + 12);
+
+/* ─── The vertical bands ──────────────────────────────────────────────────────────────────
+   Top to bottom, and everything else derives from them: a lane's box, the stages inside it
+   and the connectors between them all move together when one of these changes. They were
+   two dozen loose literals, which is how a hand-placed waypoint came to sit at y=955 on a
+   930-unit canvas -- off the bottom of the drawing, invisible, and true until somebody
+   measured it. */
+const S2C_TOP = 8;
+const S2C_FIRST = 40;
+const S2C_PITCH = 136;
+/** The phase bands, which sit inside the top of the spine lane rather than above it. */
+export const PHASE_BAND = { y: 520, h: 32 } as const;
+const SPINE_TOP = 486;
+const SPINE_Y = 572;
+const LOGISTICS_TOP = 768;
+const LOGISTICS_Y = 814;
+const LOGISTICS_PROCURE_Y = 984;
+const INVENTORY_TOP = 916;
+const INVENTORY_Y = 952;
+/** The dotted return from Goods Receipt, routed under everything else. */
+const BOTTOM_ROUTE_Y = 1130;
 
 export type LaneId = 'source-to-catalog' | 'demand-to-pay' | 'logistics' | 'inventory';
 
@@ -101,7 +131,7 @@ export const LANES: Lane[] = [
     label: 'Source to Catalog',
     colour: '#C08A1E',
     tint: '#FDF8EC',
-    box: { x: 460, y: 8, w: 320, h: 348 },
+    box: { x: 460, y: S2C_TOP, w: 320, h: S2C_FIRST + 2 * S2C_PITCH + NODE_H + 24 },
   },
   {
     id: 'demand-to-pay',
@@ -110,21 +140,26 @@ export const LANES: Lane[] = [
     tint: '#EAF4EE',
     /* Taller than the stages need. The extra 18 at the top is a row for the lane's own
        label, which would otherwise sit on the Demand phase band. */
-    box: { x: 40, y: 362, w: 1840, h: 218 },
+    box: { x: 40, y: SPINE_TOP, w: 1840, h: SPINE_Y + NODE_H + 32 - SPINE_TOP },
   },
   {
     id: 'logistics',
     label: 'Logistics',
     colour: '#A8509B',
     tint: '#FAF2F9',
-    box: { x: 835, y: 630, w: 430, h: 284 },
+    box: {
+      x: 835,
+      y: LOGISTICS_TOP,
+      w: 430,
+      h: LOGISTICS_PROCURE_Y + NODE_H + 18 - LOGISTICS_TOP,
+    },
   },
   {
     id: 'inventory',
     label: 'Inventory',
     colour: '#1F5C8B',
     tint: '#EEF4FA',
-    box: { x: 40, y: 770, w: 720, h: 140 },
+    box: { x: 40, y: INVENTORY_TOP, w: 720, h: INVENTORY_Y + NODE_H + 16 - INVENTORY_TOP },
   },
 ];
 
@@ -141,7 +176,7 @@ export const STAGES: Stage[] = [
     laneId: 'source-to-catalog',
     label: 'Source',
     x: 531,
-    y: 46,
+    y: S2C_FIRST,
     w: 180,
     h: NODE_H,
     toolIds: ['sourceguide', 'sns-registry'],
@@ -151,7 +186,7 @@ export const STAGES: Stage[] = [
     laneId: 'source-to-catalog',
     label: 'Contract',
     x: 531,
-    y: 158,
+    y: S2C_FIRST + S2C_PITCH,
     w: 180,
     h: NODE_H,
     toolIds: ['sirion'],
@@ -161,7 +196,7 @@ export const STAGES: Stage[] = [
     laneId: 'source-to-catalog',
     label: 'Catalog',
     x: 531,
-    y: 270,
+    y: S2C_FIRST + 2 * S2C_PITCH,
     w: 180,
     h: NODE_H,
     toolIds: ['catalog-manager', 'spend-taxonomy'],
@@ -288,7 +323,7 @@ export const STAGES: Stage[] = [
     laneId: 'logistics',
     label: 'Expediting / Readiness',
     x: 870,
-    y: 674,
+    y: LOGISTICS_Y,
     w: 150,
     h: NODE_H,
     toolIds: ['po-expediting'],
@@ -298,7 +333,7 @@ export const STAGES: Stage[] = [
     laneId: 'logistics',
     label: 'Freight Procurement',
     x: 870,
-    y: 804,
+    y: LOGISTICS_PROCURE_Y,
     w: 150,
     h: NODE_H,
     toolIds: [],
@@ -308,7 +343,7 @@ export const STAGES: Stage[] = [
     laneId: 'logistics',
     label: 'Tracking',
     x: 1032,
-    y: 674,
+    y: LOGISTICS_Y,
     w: 150,
     h: NODE_H,
     toolIds: ['shipwaves', 'tite'],
@@ -320,7 +355,7 @@ export const STAGES: Stage[] = [
     laneId: 'inventory',
     label: 'Stock Replenishment Planning',
     x: 60,
-    y: 800,
+    y: INVENTORY_Y,
     w: 180,
     h: NODE_H,
     toolIds: ['translytix'],
@@ -330,7 +365,7 @@ export const STAGES: Stage[] = [
     laneId: 'inventory',
     label: 'Physical Counting',
     x: 256,
-    y: 800,
+    y: INVENTORY_Y,
     w: 150,
     h: NODE_H,
     toolIds: [],
@@ -340,7 +375,7 @@ export const STAGES: Stage[] = [
     laneId: 'inventory',
     label: 'Goods Issue',
     x: 422,
-    y: 800,
+    y: INVENTORY_Y,
     w: 150,
     h: NODE_H,
     toolIds: [],
@@ -350,7 +385,7 @@ export const STAGES: Stage[] = [
     laneId: 'inventory',
     label: 'Goods Receipt',
     x: 588,
-    y: 800,
+    y: INVENTORY_Y,
     w: 150,
     h: NODE_H,
     toolIds: [],
@@ -454,7 +489,7 @@ export const EDGES: Edge[] = [
     to: 'demand-forecasting',
     laneId: 'source-to-catalog',
     dash: 'dashed',
-    via: [{ x: 135, y: 84 }],
+    via: [{ x: 135, y: S2C_FIRST + NODE_H / 2 }],
   },
 
   // The spine.
@@ -499,7 +534,7 @@ export const EDGES: Edge[] = [
     laneId: 'logistics',
     dash: 'solid',
     label: 'FF Bid & Award',
-    via: [{ x: 1107, y: 842 }],
+    via: [{ x: 1107, y: LOGISTICS_PROCURE_Y + NODE_H / 2 }],
   },
   {
     from: 'logistics-tracking',
@@ -520,8 +555,8 @@ export const EDGES: Edge[] = [
     laneId: 'inventory',
     dash: 'dotted',
     via: [
-      { x: 663, y: 955 },
-      { x: 1269, y: 955 },
+      { x: 663, y: BOTTOM_ROUTE_Y },
+      { x: 1269, y: BOTTOM_ROUTE_Y },
     ],
   },
 ];

@@ -22,11 +22,30 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CHAIN_HEIGHT, CHAIN_WIDTH, type Rect } from '@/lib/home/process-chain';
 
 /** How far in and out the camera may go, as a multiple of the fitted view. */
-const MIN_SCALE = 0.85;
-const MAX_SCALE = 6;
+const MIN_SCALE = 0.95;
+export const MAX_SCALE = 6;
 const DEFAULT_MS = 620;
 
+/**
+ * How long the pursuit takes to cover about two thirds of the distance to its target.
+ *
+ * A tween cannot do this job: a tween is aimed once at a fixed destination, and the pointer
+ * moves the destination every frame, so re-aiming one would either snap or spend its whole
+ * duration being restarted. An exponential approach has no duration -- it closes the same
+ * FRACTION of whatever gap is left each second -- so it absorbs a target that keeps moving,
+ * arrives without overshoot, and decelerates on its own when the pointer stops.
+ */
+const PURSUE_TAU = 0.17;
+
 const FULL: Rect = { x: 0, y: 0, w: CHAIN_WIDTH, h: CHAIN_HEIGHT };
+const ASPECT = CHAIN_HEIGHT / CHAIN_WIDTH;
+
+/** Where the camera is being pulled: a centre in canvas units, and how far in to be. */
+export interface Pursuit {
+  cx: number;
+  cy: number;
+  scale: number;
+}
 
 /**
  * `cubic-bezier(0.16, 1, 0.3, 1)` solved for y at a given x.
@@ -103,11 +122,25 @@ export interface ChainCamera {
   /** Zoom about a point given in CANVAS coordinates, so the point stays put. */
   zoomAt: (point: { x: number; y: number }, factor: number) => void;
   panBy: (dx: number, dy: number) => void;
+  /**
+   * Chase a target continuously until it is cleared with `null`.
+   *
+   * Call it as often as the pointer moves; it re-aims rather than restarting. Any fly-to in
+   * flight is cancelled, because two things writing the view fight and the newer one is the
+   * one the reader is causing.
+   */
+  pursue: (target: Pursuit | null) => void;
 }
 
 export function useChainCamera(): ChainCamera {
   const [view, setView] = useState<Rect>(FULL);
   const frame = useRef<number | null>(null);
+  const chase = useRef<Pursuit | null>(null);
+  const chaseFrame = useRef<number | null>(null);
+  const chaseAt = useRef(0);
+  /* Frames in a row the pursuit has not moved the view. The loop retires after enough of
+     them, so a pointer resting on the canvas is not re-rendering it sixty times a second. */
+  const chaseIdle = useRef(0);
   /* Read once rather than per call: the preference does not change mid-session in practice,
      and `DecisionDialog` reads it the same way. There is no shared hook for this yet. */
   const reduceMotion = useRef(false);
@@ -118,15 +151,75 @@ export function useChainCamera(): ChainCamera {
       window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     return () => {
       if (frame.current !== null) cancelAnimationFrame(frame.current);
+      if (chaseFrame.current !== null) cancelAnimationFrame(chaseFrame.current);
     };
   }, []);
 
-  const stop = useCallback(() => {
+  /** Cancels a fly-to only. The pursuit has its own loop and its own reason to stop. */
+  const stopTween = useCallback(() => {
     if (frame.current !== null) {
       cancelAnimationFrame(frame.current);
       frame.current = null;
     }
   }, []);
+
+  /* Everything the reader drives directly -- a click, a wheel, a drag -- ends the pursuit as
+     well as any tween. Otherwise the pointer drags the camera straight back off the thing
+     they just asked to look at. */
+  const stop = useCallback(() => {
+    stopTween();
+    chase.current = null;
+  }, [stopTween]);
+
+  const pursue = useCallback(
+    (target: Pursuit | null) => {
+      chase.current = target;
+      if (!target || chaseFrame.current !== null) return;
+
+      stopTween();
+      chaseAt.current = performance.now();
+      chaseIdle.current = 0;
+
+      const step = (now: number) => {
+        const to = chase.current;
+        if (!to) {
+          chaseFrame.current = null;
+          return;
+        }
+        /* Clamped, so a tab returning to the foreground after a long pause does not apply one
+           enormous timestep and teleport the camera. */
+        const dt = Math.min(0.064, (now - chaseAt.current) / 1000);
+        chaseAt.current = now;
+        const k = reduceMotion.current ? 1 : 1 - Math.exp(-dt / PURSUE_TAU);
+
+        setView((current) => {
+          const w = lerp(current.w, CHAIN_WIDTH / to.scale, k);
+          const next = constrain({
+            x: lerp(current.x + current.w / 2, to.cx, k) - w / 2,
+            y: lerp(current.y + current.h / 2, to.cy, k) - (w * ASPECT) / 2,
+            w,
+            h: w * ASPECT,
+          });
+          /* Returning the same object lets React bail out of the render entirely, which is
+             what makes a resting pointer free rather than merely cheap. */
+          const settled =
+            Math.abs(next.x - current.x) < 0.05 &&
+            Math.abs(next.y - current.y) < 0.05 &&
+            Math.abs(next.w - current.w) < 0.05;
+          chaseIdle.current = settled ? chaseIdle.current + 1 : 0;
+          return settled ? current : next;
+        });
+
+        if (chaseIdle.current > 20) {
+          chaseFrame.current = null;
+          return;
+        }
+        chaseFrame.current = requestAnimationFrame(step);
+      };
+      chaseFrame.current = requestAnimationFrame(step);
+    },
+    [stopTween],
+  );
 
   const flyTo = useCallback(
     (target: Rect, ms = DEFAULT_MS) => {
@@ -199,7 +292,7 @@ export function useChainCamera(): ChainCamera {
   const isFitted = Math.abs(view.w - CHAIN_WIDTH) < 2 && Math.abs(view.x) < 2;
 
   return useMemo(
-    () => ({ view, scale, isFitted, flyTo, fit, zoomAt, panBy }),
-    [view, scale, isFitted, flyTo, fit, zoomAt, panBy],
+    () => ({ view, scale, isFitted, flyTo, fit, zoomAt, panBy, pursue }),
+    [view, scale, isFitted, flyTo, fit, zoomAt, panBy, pursue],
   );
 }

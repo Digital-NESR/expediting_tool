@@ -7,6 +7,7 @@ import {
   LANES,
   OFF_CHAIN_TOOL_IDS,
   PHASES,
+  PHASE_BAND,
   STAGES,
   STAGE_BY_ID,
   boundsOf,
@@ -89,6 +90,29 @@ describe('the graph holds together', () => {
   it('gives every stage a unique id', () => {
     const ids = STAGES.map((s) => s.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('routes every edge inside the canvas', () => {
+    /* The dotted return from Goods Receipt is routed under the whole diagram by a pair of
+       hand-placed waypoints, and they sat at y=955 after the canvas was shortened to 930 --
+       so the line left the bottom of the drawing and came back, invisibly, and every test
+       passed. Waypoints are derived from the layout constants now; this is what says so. */
+    for (const edge of EDGES) {
+      for (const point of edge.via ?? []) {
+        expect(point.x, `${edge.from}->${edge.to} waypoint x`).toBeGreaterThanOrEqual(0);
+        expect(point.x, `${edge.from}->${edge.to} waypoint x`).toBeLessThanOrEqual(CHAIN_WIDTH);
+        expect(point.y, `${edge.from}->${edge.to} waypoint y`).toBeGreaterThanOrEqual(0);
+        expect(point.y, `${edge.from}->${edge.to} waypoint y`).toBeLessThanOrEqual(CHAIN_HEIGHT);
+      }
+    }
+  });
+
+  it('keeps the phase band inside the spine lane', () => {
+    const spine = LANES.find((l) => l.id === 'demand-to-pay')!;
+    const firstStage = STAGES.find((s) => s.laneId === 'demand-to-pay')!;
+    expect(PHASE_BAND.y).toBeGreaterThan(spine.box.y);
+    /* Below the lane's own label, and clear of the stages underneath it. */
+    expect(PHASE_BAND.y + PHASE_BAND.h).toBeLessThan(firstStage.y);
   });
 
   it('draws a path for every edge', () => {
@@ -175,22 +199,33 @@ describe('the derived figures', () => {
 });
 
 describe('every stage name fits the box it is drawn in', () => {
-  /* The canvas's own numbers, from ProcessChain.tsx. A stage name is laid out at TYPE.stage,
-     in what is left of the box once the tool chips (or the "no system yet" note) have taken
-     the bottom of it. These mirror that arithmetic at the fitted view, where the type is
-     largest relative to the box and the fit is therefore tightest. */
-  const BASE = 16;
-  const CHIP_H = 17;
+  /* The canvas's own arithmetic, from ProcessChain.tsx.
+   *
+   * Type there is written in the CSS pixels it should RENDER at and converted to canvas units
+   * against the measured width of the <svg>, so the same label occupies a different number of
+   * units on a wide monitor than on a narrow one. The fit is tightest at the fitted overview,
+   * where the viewBox is the whole canvas, and tighter the NARROWER the element -- so these
+   * walk a range of plausible widths rather than assuming one.
+   */
+  const STAGE_PX = 11.5; // SIZES.stage at the fitted view
+  const CHIP_PX = 13; // SIZES.chipH at the fitted view
+  const WIDTHS = [1024, 1200, 1440, 1920];
 
-  const roomFor = (stage: (typeof STAGES)[number]) => {
-    const chipBand = stage.toolIds.length === 0 ? 22 : stage.toolIds.length * (CHIP_H + 3) + 6;
-    return Math.max(1, Math.floor((stage.h - 10 - chipBand) / (BASE * 1.12)));
+  const layout = (stage: (typeof STAGES)[number], elementPx: number) => {
+    const u = (cssPx: number) => (cssPx * CHAIN_WIDTH) / elementPx;
+    const chipH = u(CHIP_PX);
+    const chipBand =
+      stage.toolIds.length === 0 ? u(16) : stage.toolIds.length * (chipH + u(2.5)) + u(5);
+    const base = u(STAGE_PX);
+    const maxLines = Math.max(1, Math.floor((stage.h - 10 - chipBand) / (base * 1.12)));
+    return { ...fitLabel(stage.label, stage.w, base, maxLines), base, maxLines };
   };
 
-  it.each(STAGES.map((s) => [s.id, s.label] as const))('%s stays inside its box', (id) => {
+  const cases = WIDTHS.flatMap((px) => STAGES.map((s) => [px, s.id, s.label] as const));
+
+  it.each(cases)('at %ipx wide, %s stays inside its box', (px, id) => {
     const stage = STAGE_BY_ID[id];
-    const maxLines = roomFor(stage);
-    const { lines, size } = fitLabel(stage.label, stage.w, BASE, maxLines);
+    const { lines, size, maxLines } = layout(stage, px);
 
     /* The failure this exists for: a label drawn wider than its box runs across the stage
        next to it, which on a 12-unit gutter is every neighbour on the spine. */
@@ -207,17 +242,27 @@ describe('every stage name fits the box it is drawn in', () => {
       `"${stage.label}" needs more lines than "${id}" has room for`,
     ).toBeLessThanOrEqual(maxLines);
 
-    /* Shrinking is the escape hatch, but a stage nobody can read is no better than one that
-       overlaps. Nothing here should need to go below two thirds. */
-    expect(size / BASE, `"${id}" had to shrink to ${size.toFixed(1)}`).toBeGreaterThan(0.66);
-
     /* And it must still say what it says -- clipping a word would hide which stage this is. */
     expect(lines.join(' ')).toBe(stage.label);
   });
 
+  it('keeps every label readable at a normal window width', () => {
+    /* Shrinking is the escape hatch when a name will not fit, but a stage nobody can read is
+       no better than one that overlaps. Checked at the width the view is actually used at --
+       narrower than this and the diagram is simply too dense, which is a layout question
+       rather than a wrapping one. */
+    for (const stage of STAGES) {
+      const { size, base } = layout(stage, 1440);
+      expect(
+        size / base,
+        `"${stage.id}" had to shrink to ${Math.round((size / base) * 100)}% to fit`,
+      ).toBeGreaterThan(0.72);
+    }
+  });
+
   it('never breaks a word across lines', () => {
     for (const stage of STAGES) {
-      const { lines } = fitLabel(stage.label, stage.w, BASE, roomFor(stage));
+      const { lines } = layout(stage, 1440);
       for (const line of lines) expect(stage.label).toContain(line);
     }
   });
@@ -232,9 +277,9 @@ describe('every stage name fits the box it is drawn in', () => {
 
   it('shrinks rather than overflow when one word is wider than the box', () => {
     /* No wrap can help a single long word, so the only lever left is the type size. */
-    const { lines, size } = fitLabel('Acknowledgement', 120, BASE, 2);
+    const { lines, size } = fitLabel('Acknowledgement', 120, 16, 2);
     expect(lines).toEqual(['Acknowledgement']);
-    expect(size).toBeLessThan(BASE);
+    expect(size).toBeLessThan(16);
     expect(lines[0].length * size * CHAR_W).toBeLessThanOrEqual(120 - 14);
   });
 });

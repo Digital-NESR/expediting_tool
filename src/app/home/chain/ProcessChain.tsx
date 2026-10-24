@@ -4,23 +4,31 @@
    The home page's second view: every tool placed on the supply chain it serves, and every
    stage that has no tool at all drawn as a hole.
 
-   One inline <svg> driven by a viewBox camera (see ./useChainCamera). Text is damped against
-   the zoom rather than scaled with it or pinned against it (see TYPE), and what changes most
-   as you go in is how MUCH is drawn -- tool names, then edge captions. That is what makes it
-   read as a map rather than as a picture being magnified.
+   One inline <svg> driven by a viewBox camera (see ./useChainCamera).
+
+   TYPE IS SIZED IN REAL PIXELS, which took three goes to get right. An SVG font-size is in
+   canvas units, and how big a canvas unit lands on screen depends on both the zoom and how
+   wide the element happens to be -- so every rule of the form "font-size 16" is really a
+   guess about the reader's monitor. Sizing by a fixed number of units made the overview
+   nine-pixel type; dividing by the zoom pinned everything at seven pixels forever. So the
+   element is measured, and sizes are written as the CSS pixels they should RENDER at, with
+   `u()` converting. `grow()` then says what those pixels should be at the overview and what
+   they may reach when fully zoomed in, and the curve between is gentle enough that going in
+   six-fold does not produce headlines.
 
    It does not know how to open a tool. `onOpenTool` comes from ToolLauncher, which owns the
    access-request modal, the pending modal and the admin-preview gate; duplicating any of that
    here would be a second, quietly different answer to "may this person open this". */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize2, Layers, X } from 'lucide-react';
+import { Maximize2, Layers, X, MousePointer2 } from 'lucide-react';
 import {
   CHAIN_HEIGHT,
   CHAIN_WIDTH,
   EDGES,
   LANES,
   PHASES,
+  PHASE_BAND,
   STAGES,
   boundsOf,
   coverage,
@@ -32,39 +40,42 @@ import {
   type Stage,
 } from '@/lib/home/process-chain';
 import { TOOLS, type ToolDef } from '../tools';
-import { useChainCamera } from './useChainCamera';
+import { MAX_SCALE, useChainCamera } from './useChainCamera';
 
 const INK = '#1f2d2a';
 const MUTED = '#94a3b8';
 const GAP_STROKE = '#cbd5e1';
 
 /** Past these zoom levels, more of the diagram is worth drawing. */
-const SHOW_TOOL_NAMES = 1.6;
-const SHOW_EDGE_LABELS = 2.2;
+const SHOW_TOOL_NAMES = 1.5;
+const SHOW_EDGE_LABELS = 2.1;
+
+/** How far in the pointer pulls the camera, and the range the wheel may set that to. */
+const FOLLOW_SCALE = 2.6;
+const FOLLOW_MIN = 1.3;
 
 /**
- * Base type sizes, in canvas units, damped against the zoom.
+ * Rendered type sizes in CSS pixels: [at the fitted overview, approached when fully zoomed].
  *
- * Two wrong answers either side of this one. Dividing by the zoom held every label at a
- * constant size on screen -- the arithmetic was right and the result unusable, because a
- * canvas unit is about half a screen pixel at the fitted view, so it pinned everything at
- * seven pixels and zooming in moved the diagram without ever making a word of it readable.
- * Not scaling at all put the labels straight back in proportion, which reads well on a stage
- * and turns a phase heading into forty-six pixels of shouting once you are inside it.
- *
- * Dividing by the SQUARE ROOT of the zoom lands between them: rendered size grows as
- * sqrt(zoom), so text is legible at the overview, comfortably bigger at 3x, and never absurd
- * at 6x. Zooming visibly enlarges, which is the thing that was actually broken.
+ * The pair rather than a single number because the two views want different things. The
+ * overview is a map and its labels should be small and dense; once you are inside a phase
+ * there is room to breathe and the names should be comfortable to read. `grow` interpolates
+ * on 1 - 1/scale, which reaches the upper figure asymptotically -- so 6x is only a little
+ * larger than 3x, and no amount of zooming produces the forty-six-pixel phase heading that
+ * scaling type with the diagram did.
  */
-const TYPE = {
-  lane: 24,
-  phase: 27,
-  stage: 16,
-  stageLine: 18,
-  gapNote: 13,
-  chip: 15,
-  edge: 15,
+const SIZES = {
+  lane: [12.5, 19],
+  phase: [14, 21],
+  stage: [11.5, 16.5],
+  gapNote: [8.5, 11],
+  chip: [9.5, 13],
+  chipH: [13, 17.5],
+  edge: [9.5, 12.5],
 } as const;
+
+type SizeKey = keyof typeof SIZES;
+export type Sizes = Record<SizeKey, number>;
 
 const TOOL_BY_ID: Record<string, ToolDef> = Object.fromEntries(TOOLS.map((t) => [t.id, t]));
 
@@ -87,25 +98,53 @@ export default function ProcessChain({
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [hoverTool, setHoverTool] = useState<string | null>(null);
 
+  /* Follow mode: the camera goes where the pointer goes. It is the default because it is the
+     fastest way to read a diagram too wide to show at a legible size all at once -- you move
+     across it and it comes to you, instead of a scroll-zoom-drag negotiation at every step.
+     Anything that asks for a particular place (a stage, a phase, a lane, a drag) switches it
+     off, because following would immediately pull the camera back off the chosen thing. */
+  const [follow, setFollow] = useState(true);
+  const [followScale, setFollowScale] = useState(FOLLOW_SCALE);
+
+  /* The element's real width in CSS pixels, so type can be sized in pixels rather than in
+     canvas units that mean something different on every screen. */
+  const [svgW, setSvgW] = useState(1200);
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    /* No initial read here: observe() delivers a first callback of its own, so measuring
+       synchronously would only set the same value a frame earlier and cascade a render. */
+    const ro = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width > 0) setSvgW(entry.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const { total, covered, gaps } = useMemo(() => coverage(), []);
 
-  /* Damped against the zoom; see TYPE. Everything drawn in canvas units that should read as
-     type -- sizes, line spacing, chip heights -- goes through this, so one rule governs all of
-     it rather than each call site picking its own. */
-  const t = (base: number) => base / Math.sqrt(camera.scale);
+  /** CSS pixels to canvas units, at whatever the camera and the element are doing right now. */
+  const u = useCallback((cssPx: number) => (cssPx * camera.view.w) / svgW, [camera.view.w, svgW]);
+
+  const size = useMemo(() => {
+    const t = 1 - 1 / camera.scale;
+    const out = {} as Sizes;
+    for (const key of Object.keys(SIZES) as SizeKey[]) {
+      const [lo, hi] = SIZES[key];
+      out[key] = lo + (hi - lo) * t;
+    }
+    return out;
+  }, [camera.scale]);
+
   const showToolNames = camera.scale >= SHOW_TOOL_NAMES;
   const showEdgeLabels = camera.scale >= SHOW_EDGE_LABELS;
 
   /**
    * Clicking a tool opens it, the same as clicking its card in the grid.
    *
-   * It stays selected as well, so the panel beside the canvas keeps showing what you just
+   * It stays selected as well, so the panel below the canvas keeps showing what you just
    * opened and every other stage it sits on -- the chain is a map of the estate, and picking a
    * place on a map should take you there, not merely describe it.
-   *
-   * `onOpenTool` is the launcher's own handler: it owns the access-request modal, the pending
-   * modal and the admin-preview gate, so a tool you may not open still behaves here exactly as
-   * it does in the grid.
    */
   const openTool = useCallback(
     (id: string, newTab: boolean) => {
@@ -137,28 +176,76 @@ export default function ProcessChain({
     [camera.view],
   );
 
+  /** Stop following and go somewhere specific. Every "take me there" goes through this. */
+  const goTo = useCallback(
+    (rect: Parameters<typeof camera.flyTo>[0]) => {
+      setFollow(false);
+      camera.flyTo(rect);
+    },
+    [camera],
+  );
+
+  /**
+   * Point the camera at wherever the pointer is.
+   *
+   * The pointer's position across the element maps proportionally onto the content: hard left
+   * shows the left edge, hard right the right edge. Deliberately NOT "centre the canvas point
+   * under the cursor", which sounds more direct and is a feedback loop -- moving the view
+   * moves what is under the cursor, so the camera creeps while the hand holds still, and the
+   * far edges become unreachable because the cursor runs out of screen before the content
+   * runs out of diagram.
+   */
+  const aimAt = useCallback(
+    (clientX: number, clientY: number) => {
+      const svg = svgRef.current;
+      if (!svg) return;
+      const r = svg.getBoundingClientRect();
+      const w = CHAIN_WIDTH / followScale;
+      const h = CHAIN_HEIGHT / followScale;
+      const fx = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+      const fy = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
+      camera.pursue({
+        cx: w / 2 + fx * (CHAIN_WIDTH - w),
+        cy: h / 2 + fy * (CHAIN_HEIGHT - h),
+        scale: followScale,
+      });
+    },
+    [camera, followScale],
+  );
+
   /* Wheel-to-zoom is registered by hand, non-passive, because React's onWheel is passive and
      cannot preventDefault -- without that the page scrolls behind the diagram at the same
-     time, which is the single worst thing a zoomable canvas can do on a scrolling page. */
+     time, which is the single worst thing a zoomable canvas can do on a scrolling page.
+     Following turns the wheel into a magnification control instead of a camera move: the
+     pointer already says where to look, so all the wheel has left to say is how close. */
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      camera.zoomAt(toCanvas(e.clientX, e.clientY), e.deltaY < 0 ? 1.12 : 1 / 1.12);
+      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      if (follow) {
+        setFollowScale((s) => Math.min(MAX_SCALE, Math.max(FOLLOW_MIN, s * factor)));
+        return;
+      }
+      camera.zoomAt(toCanvas(e.clientX, e.clientY), factor);
     };
     svg.addEventListener('wheel', onWheel, { passive: false });
     return () => svg.removeEventListener('wheel', onWheel);
-  }, [camera, toCanvas]);
+  }, [camera, toCanvas, follow]);
 
-  /** Drag to pan. Pointer events so a trackpad, a mouse and a pen all behave the same. */
+  /** Drag to pan, when not following. Pointer events so trackpad, mouse and pen all agree. */
   const drag = useRef<{ x: number; y: number } | null>(null);
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || follow) return;
     drag.current = { x: e.clientX, y: e.clientY };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (follow) {
+      aimAt(e.clientX, e.clientY);
+      return;
+    }
     if (!drag.current) return;
     const svg = svgRef.current;
     if (!svg) return;
@@ -173,33 +260,45 @@ export default function ProcessChain({
     drag.current = null;
   };
 
+  /* Leaving the canvas while following eases back out to the whole chain, so the view always
+     has a resting state to return to rather than being left wherever the hand last was. */
+  const onPointerLeave = () => {
+    drag.current = null;
+    if (!follow) return;
+    camera.pursue(null);
+    camera.fit();
+  };
+
   const focusPhase = (id: string) => {
     const phase = PHASES.find((p) => p.id === id);
     if (!phase) return;
     setFocus({ kind: 'phase', id });
-    camera.flyTo(boundsOf(phase.stageIds));
+    goTo(boundsOf(phase.stageIds));
   };
 
   const focusLane = (id: LaneId) => {
     const lane = LANES.find((l) => l.id === id);
     if (!lane) return;
     setFocus({ kind: 'lane', id });
-    camera.flyTo(lane.box);
+    goTo(lane.box);
   };
+
+  const resetView = useCallback(() => {
+    setFocus(null);
+    camera.pursue(null);
+    camera.fit();
+  }, [camera]);
 
   /** Escape backs out one level at a time rather than jumping straight to the top. */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (selectedTool) setSelectedTool(null);
-      else if (focus) {
-        setFocus(null);
-        camera.fit();
-      }
+      else if (focus) resetView();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [camera, focus, selectedTool]);
+  }, [focus, selectedTool, resetView]);
 
   const selected = selectedTool ? TOOL_BY_ID[selectedTool] : null;
   const focusLabel =
@@ -211,14 +310,13 @@ export default function ProcessChain({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* ── Breadcrumb, lane filters and Fit ── */}
+      {/* ── Breadcrumb, lane filters, follow and Fit ── */}
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => {
-            setFocus(null);
             setSelectedTool(null);
-            camera.fit();
+            resetView();
           }}
           className="text-xs font-semibold text-slate-500 transition-colors hover:text-[#307c4c]"
         >
@@ -256,12 +354,33 @@ export default function ProcessChain({
               {lane.label}
             </button>
           ))}
+
           <button
             type="button"
             onClick={() => {
+              setFollow((on) => !on);
               setFocus(null);
-              camera.fit();
+              if (follow) camera.pursue(null);
             }}
+            aria-pressed={follow}
+            title={
+              follow
+                ? 'The camera is following your pointer. Scroll to change how close.'
+                : 'Let the camera follow your pointer again'
+            }
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+              follow
+                ? 'border-transparent bg-[#307c4c] text-white'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+            }`}
+          >
+            <MousePointer2 className="h-3 w-3" />
+            Follow
+          </button>
+
+          <button
+            type="button"
+            onClick={resetView}
             disabled={camera.isFitted}
             title="Fit the whole chain"
             className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition-colors hover:border-slate-300 disabled:opacity-40"
@@ -272,192 +391,203 @@ export default function ProcessChain({
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 xl:flex-row">
-        {/* ── The canvas ── */}
-        <div className="relative flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <svg
-            ref={svgRef}
-            viewBox={`${camera.view.x} ${camera.view.y} ${camera.view.w} ${camera.view.h}`}
-            className="h-[560px] w-full cursor-grab touch-none select-none active:cursor-grabbing"
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={endDrag}
-            onPointerCancel={endDrag}
-            /* `group`, not `img`: an image hides its subtree from assistive technology,
-               which would make every focusable stage and tool below unreachable. */
-            role="group"
-            aria-label="The NESR supply chain, with each tool placed on the stage it serves"
-          >
-            <title>Supply chain process cycles and the systems behind them</title>
+      {/* ── The canvas, full width: every pixel of width is a pixel of legibility ── */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <svg
+          ref={svgRef}
+          viewBox={`${camera.view.x} ${camera.view.y} ${camera.view.w} ${camera.view.h}`}
+          /* Locked to the canvas aspect rather than given a fixed height, so the drawing
+             fills the element instead of being letterboxed inside it. The cap is because the
+             canvas is a tall 1.67:1 -- three bands stacked -- and an uncapped full-width
+             element pushes its own caption, and the panel under it, off the screen. */
+          style={{ aspectRatio: `${CHAIN_WIDTH} / ${CHAIN_HEIGHT}`, maxHeight: '68vh' }}
+          className={`mx-auto block w-full touch-none select-none ${
+            follow ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'
+          }`}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onPointerLeave={onPointerLeave}
+          /* `group`, not `img`: an image hides its subtree from assistive technology,
+             which would make every focusable stage and tool below unreachable. */
+          role="group"
+          aria-label="The NESR supply chain, with each tool placed on the stage it serves"
+        >
+          <title>Supply chain process cycles and the systems behind them</title>
 
-            {/* Lane bands, behind everything. */}
-            {LANES.map((lane) => (
-              <g key={lane.id}>
-                <rect
-                  x={lane.box.x}
-                  y={lane.box.y}
-                  width={lane.box.w}
-                  height={lane.box.h}
-                  rx={18}
-                  fill={lane.tint}
+          {/* Lane bands, behind everything. */}
+          {LANES.map((lane) => (
+            <g key={lane.id}>
+              <rect
+                x={lane.box.x}
+                y={lane.box.y}
+                width={lane.box.w}
+                height={lane.box.h}
+                rx={18}
+                fill={lane.tint}
+                stroke={lane.colour}
+                strokeOpacity={0.22}
+                vectorEffect="non-scaling-stroke"
+              />
+              <text
+                x={lane.box.x + 14}
+                /* A fixed baseline inside the lane's header strip. Deriving it from the font
+                   size moved the label as you zoomed, which is how it ended up on top of the
+                   first stage in the lane. */
+                y={lane.box.y + 26}
+                fontSize={u(size.lane)}
+                fontWeight={700}
+                letterSpacing={u(0.9)}
+                fill={lane.colour}
+                style={{ textTransform: 'uppercase' }}
+              >
+                {lane.label}
+              </text>
+            </g>
+          ))}
+
+          {/* Edges under the nodes, so a line never crosses a label. */}
+          {EDGES.map((edge) => {
+            const lane = LANES.find((l) => l.id === edge.laneId)!;
+            const dim = litStageIds
+              ? !(litStageIds.has(edge.from) && litStageIds.has(edge.to))
+              : false;
+            /* A dash crawls the backbone at rest, and a focused lane's own connectors take
+               it over. Enough to say which way the work flows and which lane you are in;
+               not so much that a diagram you are reading keeps tugging at the eye. The
+               class is inert under prefers-reduced-motion. */
+            const flowing = dim
+              ? false
+              : focus?.kind === 'lane'
+                ? focus.id === edge.laneId
+                : edge.laneId === 'demand-to-pay';
+            return (
+              <g key={`${edge.from}-${edge.to}`} opacity={dim ? 0.18 : 1}>
+                <path
+                  d={edgePath(edge)}
+                  fill="none"
                   stroke={lane.colour}
-                  strokeOpacity={0.22}
+                  strokeWidth={edge.dash === 'solid' ? 2.5 : 1.75}
+                  strokeDasharray={
+                    edge.dash === 'dashed' ? '9 7' : edge.dash === 'dotted' ? '2 7' : undefined
+                  }
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                   vectorEffect="non-scaling-stroke"
                 />
-                <text
-                  x={lane.box.x + 14}
-                  /* A fixed baseline inside the lane's header strip. Deriving it from the
-                     damped font size moved the label as you zoomed, which is how it ended up
-                     on top of the first stage in the lane. */
-                  y={lane.box.y + 26}
-                  fontSize={t(TYPE.lane)}
-                  fontWeight={700}
-                  letterSpacing={t(1.6)}
-                  fill={lane.colour}
-                  style={{ textTransform: 'uppercase' }}
-                >
-                  {lane.label}
-                </text>
-              </g>
-            ))}
-
-            {/* Edges under the nodes, so a line never crosses a label. */}
-            {EDGES.map((edge) => {
-              const lane = LANES.find((l) => l.id === edge.laneId)!;
-              const dim = litStageIds
-                ? !(litStageIds.has(edge.from) && litStageIds.has(edge.to))
-                : false;
-              /* A dash crawls the backbone at rest, and a focused lane's own connectors take
-                 it over. Enough to say which way the work flows and which lane you are in;
-                 not so much that a diagram you are reading keeps tugging at the eye. The
-                 class is inert under prefers-reduced-motion. */
-              const flowing = dim
-                ? false
-                : focus?.kind === 'lane'
-                  ? focus.id === edge.laneId
-                  : edge.laneId === 'demand-to-pay';
-              return (
-                <g key={`${edge.from}-${edge.to}`} opacity={dim ? 0.18 : 1}>
+                {flowing && (
                   <path
+                    className="chain-flow"
                     d={edgePath(edge)}
                     fill="none"
                     stroke={lane.colour}
-                    strokeWidth={edge.dash === 'solid' ? 2.5 : 1.75}
-                    strokeDasharray={
-                      edge.dash === 'dashed' ? '9 7' : edge.dash === 'dotted' ? '2 7' : undefined
-                    }
+                    strokeWidth={4}
                     strokeLinecap="round"
-                    strokeLinejoin="round"
                     vectorEffect="non-scaling-stroke"
-                  />
-                  {flowing && (
-                    <path
-                      className="chain-flow"
-                      d={edgePath(edge)}
-                      fill="none"
-                      stroke={lane.colour}
-                      strokeWidth={4}
-                      strokeLinecap="round"
-                      vectorEffect="non-scaling-stroke"
-                      style={{ pointerEvents: 'none' }}
-                    />
-                  )}
-                  {showEdgeLabels && edge.label && <EdgeLabel edge={edge} t={t} />}
-                </g>
-              );
-            })}
-
-            {/* Phase bands above the spine. */}
-            {PHASES.map((phase) => {
-              const active = focus?.kind === 'phase' && focus.id === phase.id;
-              return (
-                <g
-                  key={phase.id}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    focusPhase(phase.id);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key !== 'Enter' && e.key !== ' ') return;
-                    e.preventDefault();
-                    focusPhase(phase.id);
-                  }}
-                  tabIndex={0}
-                  role="button"
-                  aria-label={`Zoom to the ${phase.label} phase`}
-                  className="chain-hit cursor-pointer"
-                >
-                  <rect
-                    x={phase.x}
-                    y={396}
-                    width={phase.w}
-                    height={30}
-                    rx={15}
-                    fill="#307c4c"
-                    fillOpacity={active ? 1 : 0.12}
-                    stroke="#307c4c"
-                    strokeOpacity={active ? 1 : 0.35}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                  <text
-                    x={phase.x + phase.w / 2}
-                    y={416}
-                    fontSize={t(TYPE.phase)}
-                    fontWeight={700}
-                    textAnchor="middle"
-                    fill={active ? '#ffffff' : '#1f5733'}
                     style={{ pointerEvents: 'none' }}
-                  >
-                    {phase.label}
-                  </text>
-                </g>
-              );
-            })}
+                  />
+                )}
+                {showEdgeLabels && edge.label && <EdgeLabel edge={edge} u={u} size={size} />}
+              </g>
+            );
+          })}
 
-            {/* Stages. */}
-            {STAGES.map((stage) => (
-              <StageNode
-                key={stage.id}
-                stage={stage}
-                t={t}
-                showToolNames={showToolNames}
-                dimmed={litStageIds ? !litStageIds.has(stage.id) : false}
-                selectedTool={selectedTool}
-                onPickTool={openTool}
-                onHoverTool={setHoverTool}
-                onPickStage={() => camera.flyTo(boundsOf([stage.id], 140))}
-              />
-            ))}
-          </svg>
-
-          <p className="border-t border-slate-100 px-4 py-2 text-[11px] text-slate-500">
-            <span className="font-semibold text-slate-700">
-              {covered} of {total} stages have a system.
-            </span>{' '}
-            {gaps} do not — drawn hollow. Click a tool to open it, a stage, phase or lane to fly to
-            it. Scroll to zoom, drag to pan.
-          </p>
-        </div>
-
-        {/* ── Detail panel ── */}
-        <aside className="w-full shrink-0 xl:w-72">
-          {selected ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-              <div className="mb-2 flex items-start justify-between gap-2">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                  On the chain
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setSelectedTool(null)}
-                  aria-label="Close"
-                  className="rounded-md p-0.5 text-slate-400 transition-colors hover:text-slate-700"
+          {/* Phase bands above the spine. */}
+          {PHASES.map((phase) => {
+            const active = focus?.kind === 'phase' && focus.id === phase.id;
+            return (
+              <g
+                key={phase.id}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  focusPhase(phase.id);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Enter' && e.key !== ' ') return;
+                  e.preventDefault();
+                  focusPhase(phase.id);
+                }}
+                tabIndex={0}
+                role="button"
+                aria-label={`Zoom to the ${phase.label} phase`}
+                className="chain-hit cursor-pointer"
+              >
+                <rect
+                  x={phase.x}
+                  y={PHASE_BAND.y}
+                  width={phase.w}
+                  height={PHASE_BAND.h}
+                  rx={PHASE_BAND.h / 2}
+                  fill="#307c4c"
+                  fillOpacity={active ? 1 : 0.12}
+                  stroke="#307c4c"
+                  strokeOpacity={active ? 1 : 0.35}
+                  vectorEffect="non-scaling-stroke"
+                />
+                <text
+                  x={phase.x + phase.w / 2}
+                  y={PHASE_BAND.y + PHASE_BAND.h / 2 + u(size.phase) * 0.35}
+                  fontSize={u(size.phase)}
+                  fontWeight={700}
+                  textAnchor="middle"
+                  fill={active ? '#ffffff' : '#1f5733'}
+                  style={{ pointerEvents: 'none' }}
                 >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              </div>
+                  {phase.label}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Stages. */}
+          {STAGES.map((stage) => (
+            <StageNode
+              key={stage.id}
+              stage={stage}
+              u={u}
+              size={size}
+              showToolNames={showToolNames}
+              dimmed={litStageIds ? !litStageIds.has(stage.id) : false}
+              selectedTool={selectedTool}
+              onPickTool={openTool}
+              onHoverTool={setHoverTool}
+              onPickStage={() => goTo(boundsOf([stage.id], 150))}
+            />
+          ))}
+        </svg>
+
+        <p className="border-t border-slate-100 px-4 py-2 text-[11px] text-slate-500">
+          <span className="font-semibold text-slate-700">
+            {covered} of {total} stages have a system.
+          </span>{' '}
+          {gaps} do not — drawn hollow.{' '}
+          {follow
+            ? 'The camera is following your pointer; scroll to change how close. Click a tool to open it, or a stage, phase or lane to pin the view there.'
+            : 'Drag to pan, scroll to zoom, click a tool to open it. Turn Follow back on to let the pointer drive.'}
+        </p>
+      </div>
+
+      {/* ── What is selected, and what sits beside the chain rather than on it ── */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+        {selected ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="mb-2 flex items-start justify-between gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                On the chain
+              </p>
+              <button
+                type="button"
+                onClick={() => setSelectedTool(null)}
+                aria-label="Close"
+                className="rounded-md p-0.5 text-slate-400 transition-colors hover:text-slate-700"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
               {renderToolCard(selected)}
-              <div className="mt-3 border-t border-slate-100 pt-2.5">
+              <div className="sm:border-l sm:border-slate-100 sm:pl-3">
                 <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                   Stages it serves
                 </p>
@@ -466,7 +596,7 @@ export default function ProcessChain({
                     <li key={stage.id}>
                       <button
                         type="button"
-                        onClick={() => camera.flyTo(boundsOf([stage.id], 140))}
+                        onClick={() => goTo(boundsOf([stage.id], 150))}
                         className="text-left text-xs text-slate-600 transition-colors hover:text-[#307c4c]"
                       >
                         {stage.label}
@@ -476,66 +606,76 @@ export default function ProcessChain({
                 </ul>
               </div>
             </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-4">
-              <Layers className="h-4 w-4 text-slate-300" />
-              <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                Hover a tool to light it up everywhere it appears on the chain. Click to open it —
-                it stays here, with every stage it covers.
-              </p>
-            </div>
-          )}
-
-          {/* ── The off-chain rail ── */}
-          <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-              Across the chain
-            </p>
-            <p className="mt-1 text-[11px] leading-snug text-slate-500">
-              These serve every stage or none, so they sit beside the chain rather than on it.
-            </p>
-            <div className="mt-2.5 flex flex-wrap gap-1.5">
-              {offChainToolIds.map((id) => {
-                const tool = TOOL_BY_ID[id];
-                if (!tool) return null;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={(e) => onOpenTool(tool, e.metaKey || e.ctrlKey)}
-                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:border-[#307c4c]/40 hover:text-[#307c4c]"
-                  >
-                    {tool.name}
-                  </button>
-                );
-              })}
-            </div>
           </div>
-        </aside>
+        ) : (
+          <div className="flex items-start gap-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-4">
+            <Layers className="mt-0.5 h-4 w-4 shrink-0 text-slate-300" />
+            <p className="text-xs leading-relaxed text-slate-500">
+              Move the pointer across the chain and the camera follows it. Hover a tool to light it
+              up everywhere it appears; click to open it, and it stays here with every stage it
+              covers.
+            </p>
+          </div>
+        )}
+
+        {/* ── The off-chain rail ── */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+            Across the chain
+          </p>
+          <p className="mt-1 text-[11px] leading-snug text-slate-500">
+            These serve every stage or none, so they sit beside the chain rather than on it.
+          </p>
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
+            {offChainToolIds.map((id) => {
+              const tool = TOOL_BY_ID[id];
+              if (!tool) return null;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={(e) => onOpenTool(tool, e.metaKey || e.ctrlKey)}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:border-[#307c4c]/40 hover:text-[#307c4c]"
+                >
+                  {tool.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
 /** A caption sitting on an edge, at its midpoint. */
-function EdgeLabel({ edge, t }: { edge: (typeof EDGES)[number]; t: (b: number) => number }) {
+function EdgeLabel({
+  edge,
+  u,
+  size,
+}: {
+  edge: (typeof EDGES)[number];
+  u: (cssPx: number) => number;
+  size: Sizes;
+}) {
   const mid = edgeMidpoint(edge);
-  const width = (edge.label?.length ?? 0) * t(TYPE.edge * 0.56) + t(14);
+  const em = u(size.edge);
+  const width = (edge.label?.length ?? 0) * em * 0.56 + em;
   return (
     <g style={{ pointerEvents: 'none' }}>
       <rect
         x={mid.x - width / 2}
-        y={mid.y - t(TYPE.edge)}
+        y={mid.y - em}
         width={width}
-        height={t(TYPE.edge * 2)}
-        rx={t(TYPE.edge)}
+        height={em * 2}
+        rx={em}
         fill="#ffffff"
         fillOpacity={0.92}
       />
       <text
         x={mid.x}
-        y={mid.y + t(TYPE.edge * 0.36)}
-        fontSize={t(TYPE.edge)}
+        y={mid.y + em * 0.36}
+        fontSize={em}
         textAnchor="middle"
         fill={MUTED}
         fontWeight={600}
@@ -554,7 +694,8 @@ function EdgeLabel({ edge, t }: { edge: (typeof EDGES)[number]; t: (b: number) =
  */
 function StageNode({
   stage,
-  t,
+  u,
+  size,
   showToolNames,
   dimmed,
   selectedTool,
@@ -563,7 +704,8 @@ function StageNode({
   onPickStage,
 }: {
   stage: Stage;
-  t: (base: number) => number;
+  u: (cssPx: number) => number;
+  size: Sizes;
   showToolNames: boolean;
   dimmed: boolean;
   selectedTool: string | null;
@@ -574,13 +716,15 @@ function StageNode({
   const lane = LANES.find((l) => l.id === stage.laneId)!;
   const isGap = stage.toolIds.length === 0;
 
-  const chipH = t(17);
+  const chipH = u(size.chipH);
+  const gap = u(2.5);
   /* What the bottom of the box has already spoken for: the stacked tool chips, or the
      "no system yet" note where there are none. The label gets what is left. */
-  const chipBand = isGap ? t(22) : stage.toolIds.length * (chipH + t(3)) + t(6);
-  const maxLines = Math.max(1, Math.floor((stage.h - 10 - chipBand) / (t(TYPE.stage) * 1.12)));
-  const { lines, size } = fitLabel(stage.label, stage.w, t(TYPE.stage), maxLines);
-  const lineH = size * 1.12;
+  const chipBand = isGap ? u(16) : stage.toolIds.length * (chipH + gap) + u(5);
+  const base = u(size.stage);
+  const maxLines = Math.max(1, Math.floor((stage.h - 10 - chipBand) / (base * 1.12)));
+  const { lines, size: fontSize } = fitLabel(stage.label, stage.w, base, maxLines);
+  const lineH = fontSize * 1.12;
 
   return (
     <g
@@ -633,8 +777,8 @@ function StageNode({
         <text
           key={i}
           x={stage.x + stage.w / 2}
-          y={stage.y + 8 + size + i * lineH}
-          fontSize={size}
+          y={stage.y + 9 + fontSize + i * lineH}
+          fontSize={fontSize}
           fontWeight={700}
           textAnchor="middle"
           fill={isGap ? MUTED : INK}
@@ -647,8 +791,8 @@ function StageNode({
       {isGap ? (
         <text
           x={stage.x + stage.w / 2}
-          y={stage.y + stage.h - 12}
-          fontSize={t(TYPE.gapNote)}
+          y={stage.y + stage.h - 11}
+          fontSize={u(size.gapNote)}
           textAnchor="middle"
           fill={GAP_STROKE}
           fontWeight={600}
@@ -660,13 +804,13 @@ function StageNode({
         stage.toolIds.map((id, i) => {
           const tool = TOOL_BY_ID[id];
           if (!tool) return null;
-          const y = stage.y + stage.h - 8 - (stage.toolIds.length - i) * (chipH + t(3));
+          const y = stage.y + stage.h - 7 - (stage.toolIds.length - i) * (chipH + gap);
           const label = typeof tool.name === 'string' ? tool.name : id;
           /* A dot until the names are legible, then the name. Drawing both at every zoom means
              either a smear at the overview or a row of anonymous pills close up. */
           const w = showToolNames
-            ? Math.min(stage.w - 14, label.length * t(TYPE.chip * 0.58) + t(14))
-            : t(34);
+            ? Math.min(stage.w - 12, label.length * u(size.chip) * 0.58 + u(12))
+            : u(26);
           return (
             <g
               key={id}
@@ -708,8 +852,8 @@ function StageNode({
               {showToolNames && (
                 <text
                   x={stage.x + stage.w / 2}
-                  y={y + chipH - t(5)}
-                  fontSize={t(TYPE.chip)}
+                  y={y + chipH / 2 + u(size.chip) * 0.35}
+                  fontSize={u(size.chip)}
                   fontWeight={700}
                   textAnchor="middle"
                   fill={selectedTool === id ? '#ffffff' : lane.colour}

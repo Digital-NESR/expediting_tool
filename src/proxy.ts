@@ -28,6 +28,10 @@ const PUBLIC_PATHS = [
      which is where the enforcement has to live for a route this gate lets through. */
   '/soa-upload',
   '/help',
+  /* The chain view's dev preview. Outside production only, and the page itself calls
+     notFound() in a production build, so this cannot open a hole in a deployed app --
+     see src/app/dev-preview/chain/page.tsx for why it exists at all. */
+  ...(process.env.NODE_ENV === 'production' ? [] : ['/dev-preview']),
 ];
 
 // Machine-to-machine API endpoints. Their callers (Vercel Cron, n8n) never carry a
