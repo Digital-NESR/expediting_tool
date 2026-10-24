@@ -30,17 +30,16 @@ export const FOLLOW_MIN = 1.3;
  * Type that labels a REGION of the canvas, in rendered CSS pixels: [at the overview,
  * approached when fully zoomed].
  *
- * A lane name and an edge caption float free -- a lane band spans the whole canvas and a
- * caption sits on open line -- so nothing bounds them but the drawing, and they are sized for
- * the screen. `grow` interpolates on 1 - 1/scale, reaching the upper figure asymptotically,
- * which is what stops a heading becoming forty six pixels of shouting at 6x.
+ * An edge caption floats free -- it sits on open line, with nothing to bound it but the
+ * drawing -- so it is sized for the screen. `grow` interpolates on 1 - 1/scale, reaching the
+ * upper figure asymptotically, which is what stops a caption becoming forty six pixels of
+ * shouting at 6x.
  *
- * The phase heading is NOT here: its band is a fixed 32-unit pill, so it is bounded and
- * belongs with the box type below. It was in this list and came out visibly smaller than the
- * stage names underneath it, which is backwards for a heading.
+ * It was a list of two. The lane names left the canvas with the bands they were written in,
+ * and live on the filter pills above it now. The phase heading was never here: its pill is a
+ * fixed 32 units, so it is bounded and belongs with the box type below.
  */
 export const SIZES = {
-  lane: [12.5, 22],
   edge: [9.5, 15],
 } as const;
 
@@ -94,10 +93,11 @@ export function tailMetrics(tailCount: number) {
  *
  * SIZES are rendered pixels converted through `u()`, and `u()` divides by the element's
  * width -- so the smaller the element, the more canvas units one pixel buys. On a narrow
- * card that inverts the intent: a 12.5-pixel lane name became fifty-odd units of canvas
- * and ran straight out of its band. The conversion is right, it just needs a ceiling.
+ * card that inverts the intent: a 9.5-pixel caption becomes forty-odd units of canvas and
+ * runs across the boxes either side of the line it annotates. The conversion is right, it
+ * just needs a ceiling.
  */
-export const SCREEN_TYPE_CAP = { lane: 30, edge: 20 } as const;
+export const SCREEN_TYPE_CAP = { edge: 20 } as const;
 
 export type SizeKey = keyof typeof SIZES;
 export type Sizes = Record<SizeKey, number>;

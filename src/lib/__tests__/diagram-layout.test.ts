@@ -16,7 +16,6 @@ import type { LaneSpec, ProcessSpec, StageSpec } from '@/lib/diagram/types';
 const lane = (over: Partial<LaneSpec> & Pick<LaneSpec, 'id' | 'layout'>): LaneSpec => ({
   label: over.id,
   colour: '#000',
-  tint: '#fff',
   flow: 'forward',
   anchorX: { at: 'canvas-centre' },
   anchorY: { at: 'top', offset: 0 },

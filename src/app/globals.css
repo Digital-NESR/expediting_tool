@@ -166,9 +166,9 @@
 }
 
 /* ── The arrival ──────────────────────────────────────────────────────────
-   The diagram assembles itself once, on first paint: the lane bands settle, the
-   connectors draw themselves, and the stages arrive along the spine left to right -- the
-   direction the work travels, which is the one thing the drawing is about.
+   The diagram assembles itself once, on first paint: the routes draw themselves and the
+   stations arrive along the spine left to right -- the direction the work travels, which
+   is the one thing the drawing is about.
 
    Under a second in total, and `both` so nothing is parked invisible if a frame is
    missed. Pointer events are never blocked: the whole thing is `pointer-events: none`
@@ -194,10 +194,6 @@
   }
 }
 
-.chain-arrive-lanes {
-  animation: chain-settle 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
 .chain-arrive-edges {
   /* pathLength=1 on the path makes one unit mean "the whole line", whatever its length,
      so every connector draws in the same time regardless of how long it is. */
@@ -214,7 +210,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .chain-arrive-lanes,
   .chain-arrive-edges,
   .chain-arrive-node {
     animation: none;

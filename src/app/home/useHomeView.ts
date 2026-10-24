@@ -47,26 +47,30 @@ function subscribe(onChange: () => void): () => void {
 /* Returns a primitive, so React's referential check compares by value and this can read
    storage on every call without causing a re-render loop. */
 /**
- * The chain is what you get unless you have asked for the grid.
+ * The grid is what you get unless you have asked for the chain.
  *
- * It was the other way round while the chain was an admin-only experiment. It answers the
- * two questions the grid cannot -- where does a tool sit, and what have we got -- and it
- * now carries everything the grid does: access state, pinned tools, search, and every one
- * of the sixteen. Somebody who prefers the dictionary is one click and one stored word
- * away, and that choice sticks.
+ * The chain is open to everyone -- it is not an admin experiment any more, and the toggle
+ * is on every home page -- but it is not what the building lands on. The grid answers the
+ * question most visits actually arrive with, which is "open the thing I use", in one
+ * glance and one click. The chain answers the two it cannot: where does a tool sit in the
+ * process, and what have we got. Making it the default was a bet that the second pair of
+ * questions is the common one, and it is not.
+ *
+ * So: published for all, chosen by each. The choice is one click and it sticks per
+ * browser; flipping the building back is these two literals.
  */
 function getSnapshot(): HomeView {
   try {
-    return window.localStorage.getItem(KEY) === 'grid' ? 'grid' : 'chain';
+    return window.localStorage.getItem(KEY) === 'chain' ? 'chain' : 'grid';
   } catch {
-    return 'chain';
+    return 'grid';
   }
 }
 
 /* The same default on the server, so the first paint reserves the layout the client is
-   about to render rather than drawing the grid and replacing it. */
+   about to render rather than drawing one view and replacing it. */
 function getServerSnapshot(): HomeView {
-  return 'chain';
+  return 'grid';
 }
 
 export function useHomeView(): [HomeView, (next: HomeView) => void] {

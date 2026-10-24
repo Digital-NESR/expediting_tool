@@ -1,94 +1,29 @@
 'use client';
 
 /**
- * The lane bands behind everything, and the phase pills that sit inside the spine's.
+ * The phase pills over the spine.
  *
- * Both take their colour from the lane they belong to. The phase pills used to be painted
- * `#307c4c` by hand, which happens to be the spine's colour and would be wrong the moment a
- * second process map, or a second grouped lane, existed.
+ * This file used to draw the lane bands as well: a tinted, rounded rect per lane with a
+ * solid colour cap along its top and the lane's name in it. That is the swimlane idiom,
+ * and it was doing the opposite of what this view is for. A band says "these things are
+ * in the same container"; it draws a boundary and leaves the connections between
+ * containers as an afterthought. A route map says "these things are on the same line",
+ * which is the same information carried by the thing a reader actually follows -- so the
+ * junctions, which are the whole point of drawing a supply chain rather than listing it,
+ * stop being incidental and become the structure.
  *
- * A band is a plain rect with one solid cap along its top edge, the gesture `StatCard` in
- * `catalog-manager` already uses: enough colour to tell four processes apart at a glance,
- * not so much that it competes with the stages sitting on it.
+ * So the colour moved from the band to the line. `EdgeLayer` draws the routes, and the
+ * lane names live on the filter pills above the canvas and in the key below it, where a
+ * metro map puts them too.
+ *
+ * The pills take their colour from the lane they belong to. They used to be painted
+ * `#307c4c` by hand, which happens to be the spine's colour and would be wrong the moment
+ * a second grouped lane existed.
  */
 
-import { LANES, LANE_BY_ID, PHASES, PHASE_BAND, STAGE_BY_ID } from '@/lib/home/process-chain';
-import { BOX, SCREEN_TYPE_CAP, type Sizes } from './chainTheme';
+import { LANE_BY_ID, PHASES, PHASE_BAND, STAGE_BY_ID } from '@/lib/home/process-chain';
+import { BOX } from './chainTheme';
 
-/** The cap along a band's top edge, in canvas units. */
-const CAP_H = 5;
-
-export function LaneBands({ u, size }: { u: (cssPx: number) => number; size: Sizes }) {
-  return (
-    <>
-      {LANES.map((lane) => {
-        /*
-         * A lane name is sized for the screen, capped in canvas units, AND made to fit the
-         * band it names -- three constraints, lowest wins.
-         *
-         * The third one is not belt-and-braces: Source to Catalog is a 180-unit column and
-         * "SOURCE TO CATALOG" is seventeen characters, so the first two constraints alone
-         * let it run out of its own band and across the drawing beside it.
-         */
-        const laneType = Math.min(
-          u(size.lane),
-          SCREEN_TYPE_CAP.lane,
-          (lane.box.w - 28) / (lane.label.length * 0.62),
-        );
-        return (
-          <g key={lane.id}>
-            <rect
-              x={lane.box.x}
-              y={lane.box.y}
-              width={lane.box.w}
-              height={lane.box.h}
-              rx={18}
-              fill={`url(#lane-wash-${lane.id})`}
-              stroke={lane.colour}
-              strokeOpacity={0.22}
-              vectorEffect="non-scaling-stroke"
-            />
-            {/* The cap. Clipped to the band so it follows the rounded corners. */}
-            <clipPath id={`lane-cap-${lane.id}`}>
-              <rect x={lane.box.x} y={lane.box.y} width={lane.box.w} height={lane.box.h} rx={18} />
-            </clipPath>
-            <rect
-              x={lane.box.x}
-              y={lane.box.y}
-              width={lane.box.w}
-              height={CAP_H}
-              fill={lane.colour}
-              clipPath={`url(#lane-cap-${lane.id})`}
-              style={{ pointerEvents: 'none' }}
-            />
-            <text
-              x={lane.box.x + 14}
-              /* A fixed baseline inside the lane's header strip. Deriving it from the font
-               size moved the label as you zoomed, which is how it ended up on top of the
-               first stage in the lane. */
-              y={lane.box.y + 28}
-              fontSize={laneType}
-              fontWeight={700}
-              letterSpacing={Math.min(laneType * 0.07, 2)}
-              fill={lane.colour}
-              style={{ textTransform: 'uppercase' }}
-            >
-              {lane.label}
-            </text>
-          </g>
-        );
-      })}
-    </>
-  );
-}
-
-/*
- * The bands carried a coverage count for a while -- "Procure · 2/3". Two things were wrong
- * with it. The reader has to guess what the fraction counts, which is a sign the label is
- * doing the work the designer should have; and now that every stage has either a tool or a
- * system behind it, every band reads n/n and the figure says nothing at all. The coverage
- * figure lives in the line above the canvas, once, where there is room to say what it means.
- */
 export function PhaseBands({
   focusedPhaseId,
   onPick,

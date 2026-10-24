@@ -21,8 +21,9 @@
    here would be a second, quietly different answer to "may this person open this". */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize2, Layers, X, MousePointer2, Star } from 'lucide-react';
+import { Maximize2, X, MousePointer2, Star } from 'lucide-react';
 import {
+  ACROSS_THE_CHAIN,
   CHAIN_HEIGHT,
   CHAIN_WIDTH,
   CONTENT,
@@ -45,8 +46,8 @@ import {
   type SizeKey,
   type Sizes,
 } from './chainTheme';
-import EdgeLayer, { EdgeLabels } from './EdgeLayer';
-import { LaneBands, PhaseBands } from './LaneLayer';
+import EdgeLayer, { EdgeLabels, Junctions } from './EdgeLayer';
+import { PhaseBands } from './LaneLayer';
 import ChainLegend from './ChainLegend';
 import StageNode from './StageNode';
 import ToolHoverCard, { type HoverAnchor } from './ToolHoverCard';
@@ -143,10 +144,13 @@ export default function ProcessChain({
       const el = cardRef.current;
       if (!el) return;
       /*
-       * What stays below the drawing: the caption and key inside the card, and the hint
-       * panel under it. 92 covered the card's own footer and left the panel hanging over
-       * the fold, which is one line of scroll -- and one line of scroll on a page meant to
-       * be navigable the moment it opens is the same problem as a screenful of it.
+       * What stays below the drawing: the caption and key inside the card, the hint panel
+       * under it, and the "across the chain" strip at the foot of the page.
+       *
+       * Measured, not guessed, and worth re-measuring whenever anything is added down
+       * there. It was 92 when the card's footer was all there was, which left the panel
+       * hanging over the fold -- and one line of scroll on a page meant to be navigable
+       * the moment it opens is the same problem as a screenful of it.
        */
       const BELOW = 168;
       setMaxCanvasH(Math.max(280, window.innerHeight - el.getBoundingClientRect().top - BELOW));
@@ -599,9 +603,12 @@ export default function ProcessChain({
                   : undefined
               }
             >
+              {/* A segment of the route rather than a dot: this row is the only place
+                  the lane names are written now that the bands are gone, so it is the key
+                  to the lines on the canvas and should look like what it names. */}
               <span
                 aria-hidden
-                className="h-2 w-2 rounded-full"
+                className="h-1 w-4 rounded-full"
                 style={{ background: lane.colour }}
               />
               {lane.label}
@@ -701,9 +708,9 @@ export default function ProcessChain({
         >
           <title>Supply chain process cycles and the systems behind them</title>
 
-          {/* Paint shared by every node. A drop shadow in canvas units, so a box lifts off
-              its lane by the same proportion at every zoom, and one shallow top-to-bottom
-              wash per lane so a band reads as a surface rather than a flat fill. */}
+          {/* Paint shared by every node: a drop shadow in canvas units, so a box lifts off
+              the paper by the same proportion at every zoom. The per-lane gradient washes
+              went with the bands they filled. */}
           <defs>
             <filter id="chain-lift" x="-25%" y="-25%" width="150%" height="150%">
               <feDropShadow
@@ -714,17 +721,7 @@ export default function ProcessChain({
                 floodOpacity="0.10"
               />
             </filter>
-            {LANES.map((lane) => (
-              <linearGradient key={lane.id} id={`lane-wash-${lane.id}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={lane.tint} />
-                <stop offset="100%" stopColor="#ffffff" stopOpacity={0.6} />
-              </linearGradient>
-            ))}
           </defs>
-
-          <g className={arriving ? 'chain-arrive-lanes' : undefined}>
-            <LaneBands u={u} size={size} />
-          </g>
 
           <EdgeLayer
             litStageIds={litStageIds}
@@ -766,6 +763,9 @@ export default function ProcessChain({
             />
           ))}
 
+          {/* Both of these go on top of the stations, for the same reason: a mark that
+              explains the drawing is no use half-hidden under part of it. */}
+          <Junctions litStageIds={litStageIds} onPickStage={(id) => goTo(boundsOf([id], 150))} />
           {showEdgeLabels && <EdgeLabels u={u} size={size} />}
         </svg>
 
@@ -819,13 +819,14 @@ export default function ProcessChain({
         <ChainLegend showGaps={isAdmin && gaps > 0} />
       </div>
 
-      {/* ── What is selected, and what sits beside the chain rather than on it ── */}
-      <div
-        className={`grid gap-4 ${
-          offChainToolIds.length > 0 ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]' : ''
-        }`}
-      >
-        {selected ? (
+      {/* ── What is selected, when something is ──
+          There used to be a dashed placeholder here reading "move the pointer across the
+          chain and the camera follows it. Click a tool to open it". The caption inside the
+          card says that already, two lines higher, and the second copy cost the drawing
+          sixty pixels of height for nothing -- height the drawing is sized from. An empty
+          panel explaining a panel you have not opened is furniture. */}
+      {selected && (
+        <div>
           <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
             <div className="mb-2 flex items-start justify-between gap-2">
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
@@ -889,53 +890,57 @@ export default function ProcessChain({
               </div>
             </div>
           </div>
-        ) : (
-          <div className="flex items-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-3 py-2">
-            <Layers className="h-3.5 w-3.5 shrink-0 text-slate-300" />
-            <p className="text-[11px] text-slate-500">
-              Move the pointer across the chain and the camera follows it. Click a tool to open it,
-              and it stays here with every stage it covers.
-            </p>
-          </div>
-        )}
+        </div>
+      )}
 
-        {/* ── The off-chain rail ──
-            Empty now that the "across the chain" lane exists, so it renders nothing. Kept
-            because the next tool that fits nowhere on the drawing needs somewhere to go. */}
-        {offChainToolIds.length > 0 && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-              Across the chain
-            </p>
-            <p className="mt-1 text-[11px] leading-snug text-slate-500">
-              These serve every stage or none, so they sit beside the chain rather than on it.
-            </p>
-            <div className="mt-2.5 flex flex-wrap gap-1.5">
-              {offChainToolIds.map((id) => {
-                const tool = TOOL_BY_ID[id];
-                if (!tool) return null;
-                const hit = matchedToolIds?.has(id) ?? false;
-                const missed = matchedToolIds != null && !hit;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={(e) => onOpenTool(tool, e.metaKey || e.ctrlKey)}
-                    className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
-                      hit
-                        ? 'border-[#307c4c] bg-[#307c4c]/10 text-[#307c4c]'
-                        : missed
-                          ? 'border-slate-200 bg-white text-slate-300'
-                          : 'border-slate-200 bg-white text-slate-700 hover:border-[#307c4c]/40 hover:text-[#307c4c]'
-                    }`}
-                  >
-                    {tool.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+      {/* ── Across the chain ──
+          Off the canvas, at the foot of the page, on purpose. These four serve every stage
+          or none, and they had a lane of their own along the bottom of the drawing for a
+          while -- which was honest about what they are and wrong about where they belong.
+          A full-width row of boxes under a process map reads as a fifth process, and it
+          put the heaviest objects on the canvas furthest from the thing the canvas is for.
+
+          One line, not a panel. Every pixel this takes is a pixel off the drawing, because
+          the canvas is sized from whatever height is left on the screen below it.
+
+          `offChainToolIds` is appended rather than replaced: it is the escape hatch for the
+          next tool that fits nowhere on either, and it is empty today. */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+          Across the chain
+        </span>
+        {[...ACROSS_THE_CHAIN, ...offChainToolIds.map((toolId) => ({ toolId, label: null }))].map(
+          ({ toolId, label }) => {
+            const tool = TOOL_BY_ID[toolId];
+            if (!tool) return null;
+            const hit = matchedToolIds?.has(toolId) ?? false;
+            const missed = matchedToolIds != null && !hit;
+            return (
+              <button
+                key={toolId}
+                type="button"
+                onClick={(e) => onOpenTool(tool, e.metaKey || e.ctrlKey)}
+                className={`inline-flex items-baseline gap-1.5 rounded-lg border px-2.5 py-1 transition-colors ${
+                  hit
+                    ? 'border-[#307c4c] bg-[#307c4c]/10'
+                    : missed
+                      ? 'border-slate-200 bg-white opacity-40'
+                      : 'border-slate-200 bg-white hover:border-[#307c4c]/40'
+                }`}
+              >
+                <span
+                  className={`text-[11px] font-semibold ${hit ? 'text-[#307c4c]' : 'text-slate-700'}`}
+                >
+                  {tool.name}
+                </span>
+                {label && <span className="text-[10px] text-slate-400">{label}</span>}
+              </button>
+            );
+          },
         )}
+        <span className="ml-auto text-[11px] text-slate-400">
+          Not steps in the process — these serve every stage, or none.
+        </span>
       </div>
     </div>
   );

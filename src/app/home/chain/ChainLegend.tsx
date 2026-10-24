@@ -3,11 +3,15 @@
 /**
  * The key.
  *
- * The diagram now says five things at once -- which lane a stage belongs to, which of our
- * tools serve it, whether you can open them, which enterprise system it runs on, and
- * whether anything covers it at all -- and a reader who has to infer that vocabulary will
- * get some of it wrong. Four lines spent saying it outright is the cheapest honesty
- * available, and an editorial diagram is expected to carry a key.
+ * The diagram says five things at once -- which route a stage is on, which of our tools
+ * serve it, whether you can open them, which enterprise system it runs on, and whether
+ * anything covers it at all -- and a reader who has to infer that vocabulary will get some
+ * of it wrong. A few lines spent saying it outright is the cheapest honesty available, and
+ * a map of this kind is expected to carry a key.
+ *
+ * The interchange ring is the one that earns its place twice over. It is new, it is the
+ * mark this drawing is organised around now that the lane bands are gone, and nothing else
+ * on the page explains it.
  *
  * Only the marks that are not self-evident. A padlock does not need explaining; "this box
  * is hollow because nothing covers this step" does.
@@ -40,6 +44,16 @@ export default function ChainLegend({ showGaps }: { showGaps: boolean }) {
           </svg>
         </Swatch>
         One of our tools
+      </span>
+
+      <span className="inline-flex items-center gap-1.5">
+        <Swatch>
+          <svg viewBox="0 0 28 16" className="h-4 w-7" aria-hidden>
+            <path d="M0 8 H28" stroke="#1F5C8B" strokeWidth="3" strokeLinecap="round" />
+            <circle cx="14" cy="8" r="4.5" fill="#ffffff" stroke="#1F5C8B" strokeWidth="2" />
+          </svg>
+        </Swatch>
+        A ring is where one line joins another
       </span>
 
       <span className="inline-flex items-center gap-1.5">

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ACROSS_THE_CHAIN,
   CHAIN_HEIGHT,
   CHAIN_WIDTH,
   CHAR_W,
@@ -37,24 +38,38 @@ import { BOX, tailMetrics } from '@/app/home/chain/chainTheme';
 
 describe('every tool is accounted for', () => {
   const placed = new Set(placedToolIds());
+  const across = new Set(ACROSS_THE_CHAIN.map((a) => a.toolId));
   const offChain = new Set(OFF_CHAIN_TOOL_IDS);
 
   it.each(TOOLS.map((t) => [t.id, t.name] as const))(
-    '%s is placed on a stage or declared off-chain',
+    '%s is on a stage, on the rail, or declared off-chain',
     (id) => {
       expect(
-        placed.has(id) || offChain.has(id),
-        `"${id}" is in the launcher but nowhere on the chain. Put it on a stage in ` +
-          'src/lib/home/process-chain.ts, or add it to OFF_CHAIN_TOOL_IDS if it serves no ' +
-          'single stage.',
+        placed.has(id) || across.has(id) || offChain.has(id),
+        `"${id}" is in the launcher but nowhere on the home page's chain view. Put it on ` +
+          'a stage in src/lib/home/process-chain.ts, add it to ACROSS_THE_CHAIN if it ' +
+          'serves every stage, or to OFF_CHAIN_TOOL_IDS if it serves none.',
       ).toBe(true);
     },
   );
 
   it('places no tool that the launcher does not have', () => {
     const known = new Set(TOOLS.map((t) => t.id));
-    for (const id of [...placed, ...offChain]) {
+    for (const id of [...placed, ...across, ...offChain]) {
       expect(known.has(id), `the chain places "${id}", which is not a tool`).toBe(true);
+    }
+  });
+
+  it('never shows a tool on the rail AND on a stage', () => {
+    /* Spend Classification was on both -- on Catalog, where it belongs, and again on the
+       rail -- and a reader seeing one tool in two places has to work out whether they are
+       the same thing. The rail is for tools with no single home, which is a claim the
+       drawing can contradict. */
+    for (const { toolId } of ACROSS_THE_CHAIN) {
+      expect(
+        placed.has(toolId),
+        `"${toolId}" is on the "across the chain" rail and also on a stage`,
+      ).toBe(false);
     }
   });
 
@@ -191,11 +206,12 @@ describe('the layout is inside the canvas and does not collide', () => {
 describe('the derived figures', () => {
   it('counts coverage over the process, and not over what sits beside it', () => {
     const c = coverage();
-    /* The "across the chain" lane holds tools that serve every stage rather than one, so
-       its boxes are not steps anybody performs. Counting them would report "18 of 24",
-       which is a worse answer than "15 of 21" because three of those are not stages. */
+    /* Every box on the canvas is a step again, now that the tools serving the whole chain
+       are on a rail below it rather than in a lane of their own. The filter stays: it is
+       what stops a future aside lane quietly inflating both halves of the figure, and it
+       is the reason the rail's four tools are not counted as four more stages. */
     const inProcess = STAGES.filter((s) => !LANE_BY_ID[s.laneId].aside);
-    expect(inProcess.length).toBeLessThan(STAGES.length);
+    expect(inProcess.length).toBe(STAGES.length);
     expect(c.total).toBe(inProcess.length);
     expect(c.covered + c.gaps).toBe(c.total);
     /* This used to assert there ARE gaps, with a note that reaching zero would mean the

@@ -1,21 +1,28 @@
 /**
  * The supply chain as a drawable graph, and where each tool sits on it.
  *
- * The home page's card grid answers "what do we have". It cannot answer the question an
- * administrator actually asks, which is where in the chain each of those sits and what has no
- * system at all. This is the model behind the second view: the four lanes from the
- * `Supply Chain Process Cycles & Systems` slide, every stage on them, and the tool ids pinned
- * to each.
+ * The home page's card grid answers "what do we have". It cannot answer the two questions
+ * behind it: where in the chain each of those sits, and what has no system at all. This is
+ * the model for the view that can -- the four routes from the `Supply Chain Process Cycles
+ * & Systems` slide, every stage on them, and the tool ids pinned to each.
  *
- * COORDINATES ARE HAND-AUTHORED, deliberately. An auto-layout would place these by its own
- * rules, and the whole point is the slide's arrangement: the spine running left to right with
- * Source-to-Catalog descending into it, Logistics looping out below it and Inventory tied back
- * at both ends. Twenty-one stages is small enough that hand placement is cheap, exact, and
- * reviewable in a diff.
+ * IT IS A ROUTE MAP, not a set of swimlanes, and the difference is the only design decision
+ * in the file that the arithmetic below will not explain. A swimlane says "these things are
+ * in the same container": it draws a boundary and leaves what passes between containers as
+ * an afterthought. Everything interesting about a supply chain is what passes between them
+ * -- Source to Catalog feeding Supplier Assessment, Logistics leaving at Supplier
+ * Acknowledgement and rejoining at Delivery, Inventory tied to the spine at both ends.
+ * So the colour is in the LINE and not in a band behind it, the gutter between stages is
+ * wide enough that a line is visible crossing it, and every point where one route meets
+ * another is marked. The stages are stations; the lanes are lines.
  *
- * Pure data and pure functions. Nothing here imports React or touches the DOM, so the shape of
- * the chain is testable on its own -- which matters most for the tool mapping, where the test
- * fails the day somebody adds a tool and does not place it.
+ * Everything here is declared, not placed: `SUPPLY_CHAIN_SPEC` says how each lane arranges
+ * its own boxes and where it sits relative to the others, and `layoutProcess` works out the
+ * coordinates. Position comes from array order, so adding a stage is inserting a string.
+ *
+ * Pure data and pure functions. Nothing here imports React or touches the DOM, so the shape
+ * of the chain is testable on its own -- which matters most for the tool mapping, where the
+ * test fails the day somebody adds a tool and does not place it.
  */
 
 import { layoutProcess } from '@/lib/diagram/layout';
@@ -33,23 +40,37 @@ import type { EdgeRoute, EdgeSpec, ProcessSpec, StageSpec } from '@/lib/diagram/
  * clipped outright. Taller stages in a taller canvas buy back the room.
  */
 /*
- * 2180, not 1920, and the boxes are wider with it.
- *
- * The canvas is a shape, not a size -- what matters is its ratio to the card, because the
- * drawing is scaled to fit. At 1920 by 834 it was narrower than the space it had and sat
- * between two margins. Eleven 180-unit boxes instead of eleven 150s fills that width and
- * gives every card room to breathe at the same time.
+ * The canvas is a shape, not a size -- what matters is its RATIO to the card, because the
+ * drawing is scaled to fit inside it. Showing the whole chain at once means height is the
+ * binding constraint, so the ratio decides how big the thing lands: too tall and the
+ * drawing is small between two side margins; too wide and it is small between a top and a
+ * bottom one. The card is about 1600 by 490, so the target is a shade over 3.2 and the
+ * height below is what was spent to reach it.
  */
 export const CHAIN_WIDTH = 2220;
 
 /** Every stage is the same size, so the eye reads position as meaning and not importance. */
 const NODE_H = 120;
-const SPINE_W = 180;
-const SPINE_GUTTER = 12;
+/**
+ * Narrower boxes, and a gutter three times the old one.
+ *
+ * This is the change that makes the drawing a route map rather than a row of tiles. A
+ * connector is drawn from one box's centre to the next's, so the only part of it anybody
+ * ever sees is the piece crossing the gutter -- at a gutter of 12 that was a stub, and the
+ * lines between stages read as joins rather than as routes. At 36 there is a visible run
+ * of track between every pair of stations, which is what lets a reader follow a line
+ * across the picture and see where it meets another.
+ *
+ * Narrowing the box to pay for it costs nothing on screen: the drawing as a whole is a
+ * third shorter than it was, so it renders larger, and a 160-unit box at the new scale is
+ * wider in pixels than a 180-unit box was at the old one.
+ */
+const SPINE_W = 160;
+const SPINE_GUTTER = 36;
 
-/* The one width that is not a lane default: Source to Catalog's column is wider than the
-   spine's boxes. The spec reads it; nothing works out an x from it. */
-const S2C_W = 210;
+/* Source to Catalog's three boxes are wider than the spine's: the lane is short, so there
+   is room, and it keeps "Catalog" from looking like a spine stage that wandered upwards. */
+const S2C_W = 190;
 
 /* ─── The vertical bands ──────────────────────────────────────────────────────────────────
    Top to bottom, and everything else derives from them: a lane's box, the stages inside it
@@ -62,47 +83,29 @@ const S2C_W = 210;
    between them. The band's own row is computed; only these two are chosen. */
 const PHASE_BAND_H = 32;
 const PHASE_BAND_INSET = 5;
-/*
- * Logistics is one row, not two.
- *
- * It was a 2x2 loop, which cost 170 units of height -- and height is what decides how big
- * the drawing lands, because the card is far wider than it is tall, so a fully visible
- * chain is bound by its height and never by its width. Three boxes left to right say the
- * same thing: out of the spine at Supplier Acknowledgement, through freight procurement,
- * back in at Delivery.
- *
- * Inventory rises beside it for the same reason. The two do not overlap horizontally, so
- * they cost one band between them rather than two.
- */
-const LOGISTICS_TOP = 768;
-const LOGISTICS_Y = 814;
-const INVENTORY_TOP = 768;
-const INVENTORY_Y = 804;
-
-/*
- * The "across the chain" lane, in the bottom-right quarter.
- *
- * Logistics stops at x 1265 and Inventory at y 1088, which left roughly 590 by 370 units of
- * canvas doing nothing. Three tools serve the whole process rather than any one stage and
- * used to live in a list in a side panel, which meant three of the sixteen were not on the
- * picture at all -- an odd thing for a view whose job is showing the estate. They go here,
- * and the drawing costs not one unit more than it did.
- */
-/** Air above the three boxes, inside their band -- the lane's own name sits in it. */
-const ASIDE_PAD_TOP = 30;
 /**
- * Smaller than a process stage, on purpose.
+ * The air between one row of stations and the next.
  *
- * These three are not steps; they sit beside the chain. Drawing them at the spine's size
- * gave them the same weight as Supplier Assessment, and the full-width row made them the
- * heaviest thing on the canvas. 74 is the floor -- a name, a gap and a chip need 70 inside
- * the padding -- so this is as small as they go without the label shrinking.
+ * This is where the junctions are drawn, so it is not slack: a line leaving the spine turns
+ * in here, the caption saying why sits on the turn, and the interchange rings sit on the two
+ * box edges it runs between. Below about 90 units the turn, the caption and the two rings
+ * are on top of each other.
  */
-const ASIDE_NODE_H = 74;
-const ASIDE_W = 400;
-const ASIDE_GUTTER = 16;
+const ROW_GAP = 92;
 
-export type LaneId = 'source-to-catalog' | 'demand-to-pay' | 'logistics' | 'inventory' | 'across';
+/* Logistics and Inventory share one row. They do not overlap horizontally, so they cost one
+   gap between them rather than two -- which is the whole reason the drawing is three rows
+   tall and not four. */
+/* 98, so the clear band between the spine and the row below it is exactly 120 units:
+   the two routes crossing it turn at a half and a quarter of the way down, and a round
+   number is the difference between a turn at 480 and a turn at 481.5. */
+const LOWER_ROW_GAP = 98;
+
+/** Air inside a row, above and below the boxes, now that no band is drawn behind them. */
+const ROW_PAD_TOP = 10;
+const ROW_PAD_BOTTOM = 12;
+
+export type LaneId = 'source-to-catalog' | 'demand-to-pay' | 'logistics' | 'inventory';
 
 export interface Rect {
   x: number;
@@ -114,10 +117,8 @@ export interface Rect {
 export interface Lane {
   id: LaneId;
   label: string;
-  /** Stroke and text. */
+  /** The route's own colour: its line, its interchange rings and its name on the key. */
   colour: string;
-  /** Fill behind a stage on this lane. */
-  tint: string;
   /** The lane's own bounding box, which is also its camera target. */
   box: Rect;
   /**
@@ -224,7 +225,9 @@ export interface Phase {
 
    Each is pulled towards the house palette rather than taken raw from the slide: the greens
    are NESR's #307c4c, and the amber, orchid and blue are desaturated to sit beside it without
-   shouting. The tints are the same hues at about 6% for the lane bands.
+   shouting. They had a 6% tint apiece for the lane bands; the bands are gone and so are the
+   tints, and the hue now appears at full strength in exactly two places -- the route line and
+   the rings where it meets another route.
 
    The lanes themselves are declared on SUPPLY_CHAIN_SPEC below, with their colours; the
    array the renderer reads is the laid-out version at the foot of this file.
@@ -426,7 +429,6 @@ const STAGE_DEFS: StageSpec[] = [
     id: 'stock-replenishment',
     laneId: 'inventory',
     label: 'Stock Replenishment Planning',
-    w: 210,
     toolIds: ['translytix'],
     systems: ['sap'],
   },
@@ -451,40 +453,6 @@ const STAGE_DEFS: StageSpec[] = [
     toolIds: [],
     systems: ['sap'],
   },
-
-  /* ── Across the chain ──
-     Not steps in the process. Each box is named for what the tool is FOR rather than for
-     the tool itself, so the lane reads as three capabilities rather than three logos. */
-  {
-    id: 'across-analytics',
-    laneId: 'across',
-    label: 'Analytics & Dashboards',
-    toolIds: ['supply-chain-analytics'],
-  },
-  {
-    id: 'across-learning',
-    laneId: 'across',
-    label: 'Learning & Training',
-    toolIds: ['learning-hub'],
-  },
-  {
-    id: 'across-travel',
-    laneId: 'across',
-    label: 'Travel',
-    toolIds: ['travel-portal'],
-  },
-  {
-    id: 'across-assistant',
-    laneId: 'across',
-    label: 'Ask the Assistant',
-    toolIds: ['scai'],
-  },
-  {
-    id: 'across-taxonomy',
-    laneId: 'across',
-    label: 'Spend Classification',
-    toolIds: ['spend-taxonomy'],
-  },
 ];
 
 /**
@@ -506,7 +474,11 @@ const EDGE_DEFS: Omit<EdgeSpec, 'route'>[] = [
     to: 'catalog',
     laneId: 'source-to-catalog',
     dash: 'solid',
-    label: 'Approval Workflow · Contracts Repository',
+    /* "Contracts Repository" on the slide as well, and dropped: Sirion is the contracts
+       repository and its chip is on the Contract box this line leaves. Two captions on one
+       row have to fit side by side in the band under it, and the half worth keeping is the
+       half the boxes do not already say. */
+    label: 'Approval workflow',
   },
   {
     from: 'catalog',
@@ -587,34 +559,32 @@ const EDGE_DEFS: Omit<EdgeSpec, 'route'>[] = [
   },
 ];
 
-/* ─── Phases ─────────────────────────────────────────────────────────────────────────────────
-   The four bands above the spine. They are what a reader clicks first, so each one's extent is
-   also a camera target. */
-/* ─── Tools that serve no single stage ───────────────────────────────────────────────────────
-   Analytics reads the whole chain, Learning Hub teaches it, and the Travel Portal is not part
-   of it at all. Pinning each to its nearest stage would be three small lies, so they get a rail
-   of their own beneath the diagram and the view says plainly that they sit across it. */
+/* ─── Phases ─────────────────────────────────────────────────────────────────────────────
+   The four pills over the spine. They are what a reader clicks first, so each one's extent
+   is also a camera target. */
 /**
- * Tools that serve no single stage AND have no home on the aside lane either.
+ * Tools that are on neither the map nor the rail beneath it.
  *
- * Empty now that the aside lane exists, and kept rather than deleted because the next tool
- * that fits nowhere needs somewhere to go, and the test that every tool is accounted for
- * needs the escape hatch to exist. The panel that lists these hides itself when it is empty.
+ * Empty, and kept rather than deleted: the test that every tool is accounted for needs an
+ * escape hatch to name, and the next tool that fits nowhere needs somewhere to go. Anything
+ * listed here joins the "across the chain" rail with no capability label beside it.
+ *
+ * See `ACROSS_THE_CHAIN` near the foot of this file for the four that are deliberately off
+ * the canvas.
  */
 export const OFF_CHAIN_TOOL_IDS: string[] = [];
 
-/* ─── The same drawing, declared ─────────────────────────────────────────────────────────
-   Everything above is absolute coordinates. This is the spec they came from, and
-   `layoutProcess` recomputes them from it.
-
-   Written beside the literals rather than instead of them, with a test asserting the two
-   agree to the unit, because the only convincing argument that a layout engine reproduces
-   a hand-made drawing is the drawing itself coming back unchanged. Once that test has
-   passed, the literals go and this becomes the single source.
+/* ─── The drawing, declared ──────────────────────────────────────────────────────────────
+   One spec, from which `layoutProcess` works out all twenty-one boxes, four lane hulls and
+   twenty-four lines.
 
    What it buys: positions come from array order, so adding a stage is inserting a string;
-   a lane anchored to another lane's stage moves with it; the canvas is measured rather
-   than declared; and a second, unrelated process map is a second file like this one. */
+   a lane anchored to another lane's stage moves with it; the canvas is measured rather than
+   declared; and a second, unrelated process map is a second file like this one.
+
+   `home-chain-parity.test.ts` holds every resulting coordinate. Nothing else would stop
+   somebody nudging a row gap and silently redrawing the picture, because every other test
+   checks relationships rather than positions -- a diff of that table is a diff of the map. */
 
 const SPINE_STAGE_IDS = [
   'demand-forecasting',
@@ -640,13 +610,26 @@ const SPINE_STAGE_IDS = [
  * uses, and straight through the caption that explains it. These turn in the empty band
  * between the two lanes instead.
  */
-const EDGE_ROUTES: Record<string, EdgeRoute> = {
-  'source->demand-forecasting': 'v-h-v',
-  'catalog->supplier-assessment': 'v-h-v',
-  'supplier-acknowledgement->expediting-readiness': 'v-h-v',
-  'logistics-tracking->delivery': 'v-h-v',
-  'demand-forecasting->stock-replenishment': 'v-h-v',
-  'goods-receipt->delivery-acknowledgment': 'channel-bottom',
+const EDGE_ROUTES: Record<string, { route: EdgeRoute; turn?: number }> = {
+  'source->demand-forecasting': { route: 'v-h-v' },
+  /* These three are declared rather than left straight because they are only straight by
+     arithmetic: the boxes happen to share a column today, and `v-h-v` collapses a run that
+     never leaves one axis to a single line. Move either end and the turn comes back on its
+     own, in the corridor, instead of becoming a diagonal. */
+  'catalog->supplier-assessment': { route: 'v-h-v' },
+  'logistics-tracking->delivery': { route: 'v-h-v' },
+  'demand-forecasting->stock-replenishment': { route: 'v-h-v' },
+  'supplier-acknowledgement->expediting-readiness': { route: 'v-h-v' },
+  /*
+   * A quarter of the way down rather than halfway, and no longer round the bottom.
+   *
+   * It used to run in a channel below the whole drawing, which meant climbing back up
+   * through Tracking to reach Delivery Acknowledgment -- a line crossing a box, hidden
+   * only because the lines were thin enough to disappear under it. Turning in the corridor
+   * is shorter and clear of every box; the quarter keeps it off Logistics' own turn, which
+   * crosses the same corridor at the halfway mark.
+   */
+  'goods-receipt->delivery-acknowledgment': { route: 'v-h-v', turn: 0.25 },
 };
 
 export const SUPPLY_CHAIN_SPEC: ProcessSpec = {
@@ -654,14 +637,15 @@ export const SUPPLY_CHAIN_SPEC: ProcessSpec = {
   marginBottom: 6,
   channelGap: 16,
   groupBand: { h: PHASE_BAND_H, gap: 20, inset: PHASE_BAND_INSET },
-  laneLabelH: 34,
+  /* Air above the phase pills. It used to be the strip a lane's own name was written in;
+     the names are gone from the canvas with the bands, and the pills moved up into it. */
+  laneLabelH: 10,
 
   lanes: [
     {
       id: 'source-to-catalog',
       label: 'Source to Catalog',
       colour: '#C08A1E',
-      tint: '#FDF8EC',
       flow: 'reverse',
       /*
        * A row, not a column.
@@ -677,30 +661,30 @@ export const SUPPLY_CHAIN_SPEC: ProcessSpec = {
        * diagonally across two other boxes.
        */
       anchorX: { at: 'align-stages', mine: 'catalog', onto: 'supplier-assessment' },
-      anchorY: { at: 'top', offset: 8 },
+      anchorY: { at: 'top', offset: 10 },
       layout: { kind: 'row', stageIds: ['source', 'contract', 'catalog'] },
       nodeW: S2C_W,
       nodeH: NODE_H,
-      gutterX: 16,
+      gutterX: SPINE_GUTTER,
       gutterY: 0,
-      pad: { x: 24, top: 32, bottom: 20 },
+      pad: { x: 24, top: ROW_PAD_TOP, bottom: ROW_PAD_BOTTOM },
     },
     {
       id: 'demand-to-pay',
       label: 'Demand to Pay',
       colour: '#307c4c',
-      tint: '#EAF4EE',
       flow: 'forward',
       restFlow: true,
       anchorX: { at: 'canvas-centre' },
-      anchorY: { at: 'below', laneId: 'source-to-catalog', gap: 24 },
+      anchorY: { at: 'below', laneId: 'source-to-catalog', gap: ROW_GAP },
       layout: { kind: 'row', stageIds: SPINE_STAGE_IDS },
       nodeW: SPINE_W,
       nodeH: NODE_H,
       gutterX: SPINE_GUTTER,
       gutterY: 0,
-      /* `top` holds the lane's own name AND the phase pills under it. */
-      pad: { x: 20, top: 86, bottom: 32 },
+      /* `top` is the phase pills and the air around them; the lane's own name is no
+         longer drawn on the canvas. */
+      pad: { x: 20, top: 56, bottom: ROW_PAD_BOTTOM },
       stretch: true,
       groups: [
         {
@@ -725,11 +709,22 @@ export const SUPPLY_CHAIN_SPEC: ProcessSpec = {
       id: 'logistics',
       label: 'Logistics',
       colour: '#A8509B',
-      tint: '#FAF2F9',
       flow: 'forward',
-      /* Hangs directly below the stage it leaves, on the spine's own column pitch. */
-      anchorX: { at: 'stage-left', stageId: 'supplier-acknowledgement' },
-      anchorY: { at: 'below', laneId: 'demand-to-pay', gap: 44 },
+      /*
+       * Anchored one column LEFT of the stage it leaves, which is the whole trick.
+       *
+       * It used to start under Supplier Acknowledgement, which put Tracking under Delivery
+       * Acknowledgment -- so the line back into Delivery had to turn, and it turned in the
+       * same corridor and the same column as Inventory's line back into Delivery
+       * Acknowledgment. Two routes, one corridor, drawn on top of each other.
+       *
+       * Starting a column earlier costs nothing and buys two straight verticals instead:
+       * Tracking sits directly under Delivery, so the return line is a plain drop, and the
+       * column Inventory needs is clear. A line that does not have to turn is one a reader
+       * does not have to follow.
+       */
+      anchorX: { at: 'stage-left', stageId: 'supplier-po-approval' },
+      anchorY: { at: 'below', laneId: 'demand-to-pay', gap: LOWER_ROW_GAP },
       layout: {
         kind: 'row',
         stageIds: ['expediting-readiness', 'logistics-procure', 'logistics-tracking'],
@@ -738,51 +733,27 @@ export const SUPPLY_CHAIN_SPEC: ProcessSpec = {
       nodeH: NODE_H,
       gutterX: SPINE_GUTTER,
       gutterY: 0,
-      pad: { x: 50, top: LOGISTICS_Y - LOGISTICS_TOP, bottom: 18 },
+      pad: { x: 16, top: ROW_PAD_TOP, bottom: ROW_PAD_BOTTOM },
     },
     {
       id: 'inventory',
       label: 'Inventory',
       colour: '#1F5C8B',
-      tint: '#EEF4FA',
       flow: 'reverse',
       anchorX: { at: 'stage-left', stageId: 'demand-forecasting' },
-      anchorY: { at: 'below', laneId: 'demand-to-pay', gap: 44 },
+      anchorY: { at: 'below', laneId: 'demand-to-pay', gap: LOWER_ROW_GAP },
       layout: {
         kind: 'row',
         stageIds: ['stock-replenishment', 'physical-counting', 'goods-issue', 'goods-receipt'],
       },
       nodeW: SPINE_W,
       nodeH: NODE_H,
-      gutterX: 16,
+      /* The spine's gutter, not its own: four boxes on the spine's pitch from the spine's
+         own left edge land in the spine's columns, so Stock Replenishment sits exactly
+         under Planning and the tie between them is a straight drop. */
+      gutterX: SPINE_GUTTER,
       gutterY: 0,
-      pad: { x: 20, top: INVENTORY_Y - INVENTORY_TOP, bottom: 16 },
-    },
-    {
-      id: 'across',
-      label: 'Across the chain',
-      colour: '#58595B',
-      tint: '#F5F6F7',
-      flow: 'forward',
-      aside: true,
-      anchorX: { at: 'canvas-centre' },
-      anchorY: { at: 'below', laneId: 'logistics', gap: 38 },
-      layout: {
-        kind: 'row',
-        stageIds: [
-          'across-analytics',
-          'across-learning',
-          'across-travel',
-          'across-assistant',
-          'across-taxonomy',
-        ],
-      },
-      nodeW: ASIDE_W,
-      nodeH: ASIDE_NODE_H,
-      gutterX: ASIDE_GUTTER,
-      gutterY: 0,
-      pad: { x: 20, top: ASIDE_PAD_TOP, bottom: 16 },
-      stretch: true,
+      pad: { x: 16, top: ROW_PAD_TOP, bottom: ROW_PAD_BOTTOM },
     },
   ],
 
@@ -790,7 +761,7 @@ export const SUPPLY_CHAIN_SPEC: ProcessSpec = {
 
   edges: EDGE_DEFS.map((edge) => ({
     ...edge,
-    route: EDGE_ROUTES[`${edge.from}->${edge.to}`] ?? 'direct',
+    ...(EDGE_ROUTES[`${edge.from}->${edge.to}`] ?? { route: 'direct' as const }),
   })),
 };
 
@@ -815,6 +786,83 @@ export const PHASE_BAND = {
   h: PHASE_BAND_H,
   inset: PHASE_BAND_INSET,
 } as const;
+
+/* ─── Interchanges ───────────────────────────────────────────────────────────────────────
+   Where one route meets another, which on a map of this kind is the single most useful
+   thing it can say. */
+
+export interface Junction {
+  id: string;
+  x: number;
+  y: number;
+  /** The route arriving. Its colour is what the ring is drawn in. */
+  laneId: LaneId;
+  /** The stage it lands on, so a click can take the camera there. */
+  stageId: string;
+}
+
+/**
+ * Where a connector crosses the edge of the box it leaves or enters.
+ *
+ * Every line is drawn centre to centre, so the ends of it are underneath the two boxes and
+ * the join is invisible -- you can see that Logistics goes somewhere, not that it comes out
+ * of Supplier Acknowledgement specifically. The boundary crossing is the point a reader is
+ * actually looking for, and marking it is what turns a set of boxes with lines between them
+ * into something you can trace.
+ *
+ * Only for lines that change route. A hop between two stations on the same line is not an
+ * interchange and ringing it would say nothing.
+ */
+function boundaryPoint(
+  box: Rect,
+  centre: { x: number; y: number },
+  toward: { x: number; y: number },
+) {
+  /* Every segment is axis-aligned, so "which edge" is decided by which coordinate moves. */
+  if (toward.x === centre.x) {
+    return { x: centre.x, y: toward.y > centre.y ? box.y + box.h : box.y };
+  }
+  return { x: toward.x > centre.x ? box.x + box.w : box.x, y: centre.y };
+}
+
+export const JUNCTIONS: Junction[] = EDGES.flatMap((edge) => {
+  const from = STAGE_BY_ID[edge.from];
+  const to = STAGE_BY_ID[edge.to];
+  if (from.laneId === to.laneId) return [];
+  const pts = edge.points;
+  return [
+    {
+      id: `${edge.from}->${edge.to}@out`,
+      ...boundaryPoint(from, pts[0], pts[1]),
+      laneId: edge.laneId,
+      stageId: edge.from,
+    },
+    {
+      id: `${edge.from}->${edge.to}@in`,
+      ...boundaryPoint(to, pts[pts.length - 1], pts[pts.length - 2]),
+      laneId: edge.laneId,
+      stageId: edge.to,
+    },
+  ];
+});
+
+/* ─── Beside the chain, not on it ────────────────────────────────────────────────────────
+   Four tools serve every stage or none: analytics reads the whole chain, the Learning Hub
+   teaches it, the assistant answers about it, and the Travel Portal is not part of it at
+   all. They had a lane of their own along the foot of the canvas for a while, which was
+   honest about what they are and wrong about where they belong -- a full-width row of the
+   heaviest boxes on the drawing, under a process map, implying a fifth process. They are a
+   list below the picture instead.
+
+   Spend Classification is NOT here. It was, and it was also on Catalog, which is the one
+   place it genuinely belongs; a tool in two places on one page is a tool the reader has to
+   reconcile. */
+export const ACROSS_THE_CHAIN: { label: string; toolId: string }[] = [
+  { label: 'Analytics & dashboards', toolId: 'supply-chain-analytics' },
+  { label: 'Learning & training', toolId: 'learning-hub' },
+  { label: 'Ask the assistant', toolId: 'scai' },
+  { label: 'Travel', toolId: 'travel-portal' },
+];
 
 /* ─── Derived ────────────────────────────────────────────────────────────────────────────────
    Computed rather than written down, so a stage added above cannot leave a stale count or
@@ -869,7 +917,7 @@ export function centreOf(rect: Rect): { x: number; y: number } {
  * a straight run was printed on top of the node it pointed at. Walking the polyline gives the
  * real midpoint, and on a bent edge it lands on the longer leg where there is room for it.
  */
-export function edgeMidpoint(edge: Edge): { x: number; y: number } {
+export function edgeMidpoint(edge: Edge): { x: number; y: number; horizontal: boolean } {
   const points = edge.points;
   const segments = points.slice(1).map((p, i) => Math.hypot(p.x - points[i].x, p.y - points[i].y));
   const half = segments.reduce((a2, b2) => a2 + b2, 0) / 2;
@@ -881,11 +929,15 @@ export function edgeMidpoint(edge: Edge): { x: number; y: number } {
       return {
         x: points[i].x + (points[i + 1].x - points[i].x) * f,
         y: points[i].y + (points[i + 1].y - points[i].y) * f,
+        /* Which way the line is running HERE, so the caption can step aside from it
+           rather than sit on top of it. Every segment is axis-aligned. */
+        horizontal: points[i].y === points[i + 1].y,
       };
     }
     walked += segments[i];
   }
-  return points[points.length - 1];
+  const last = points[points.length - 1];
+  return { ...last, horizontal: points[points.length - 2].y === last.y };
 }
 
 /**
