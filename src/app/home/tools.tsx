@@ -22,6 +22,7 @@ import {
   Building2,
   GraduationCap,
   ListTree,
+  Sparkles,
   Receipt,
   ShieldCheck,
   BarChart3,
@@ -147,6 +148,35 @@ const SOURCE_GREEN = '#2A7E4F';
 const PREVIEW_GREY = '#6b7280';
 
 export const TOOLS: ToolDef[] = [
+  {
+    id: 'scai',
+    group: 'online',
+    keywords:
+      'scai supply chain ai assistant agent materials policy sourceguide track my order chatbot llm',
+    name: 'SCAI',
+    subtitle: 'Supply Chain AI',
+    description:
+      'Four assistants in one place: material duplicate checks and stock lookups, instant answers from NESR supply chain policy, approved-supplier lookups, and where an order actually is.',
+    icon: <Sparkles className="h-6 w-6 text-[#307c4c]" />,
+    logoClass: 'bg-[#f0f9f4]',
+    hoverClass: HOVER_GREEN,
+    accent: NESR_GREEN,
+    tone: 'live',
+    maturity: 'beta',
+    route: 'https://scai.nesr.com',
+    external: true,
+    /*
+     * Findable, but not a card.
+     *
+     * The grid already gives SCAI a panel of its own with all four agents spelled out, so
+     * a card beside it would be the same thing twice. `searchOnly` is the mechanism Spend
+     * Taxonomy already uses for exactly this -- present in the registry, placeable on the
+     * chain, reachable by search, absent from the grid.
+     */
+    searchOnly: true,
+    access: { kind: 'always' },
+    badge: { kind: 'lock', label: 'Portal Access' },
+  },
   /* ── Available (launched) — alphabetical ── */
 
   {

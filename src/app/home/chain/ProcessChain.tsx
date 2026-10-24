@@ -645,7 +645,7 @@ export default function ProcessChain({
       {/* ── The canvas, full width: every pixel of width is a pixel of legibility ── */}
       <div
         ref={cardRef}
-        className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+        className="relative mx-auto w-fit max-w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
       >
         {/* Until the session resolves, every per-user access status reads 'new' and the chain
             would draw tools this person already has as locked, then silently correct itself.
@@ -664,16 +664,24 @@ export default function ProcessChain({
              canvas is a tall 1.67:1 -- three bands stacked -- and an uncapped full-width
              element pushes its own caption, and the panel under it, off the screen. */
           /*
-           * The full width of the card, and whatever height is going.
+           * Whatever height is going, and whatever width that implies.
            *
-           * It used to carry the canvas's aspect ratio, which made the element hug the
-           * drawing and left the rest of the card empty -- a small picture in a wide white
-           * box. The camera takes the element's shape instead, so the drawing fills every
-           * pixel of width available and the fitted view simply shows whatever of the
-           * height fits. Fit is a click away for the whole thing.
+           * THE CARD HUGS THE DRAWING. Showing the whole chain means the size is set by
+           * height alone -- the card is far wider than it is tall, so there is always
+           * width to spare and never height, and any width the drawing does not need can
+           * only become dead white inside the card. Giving the element the canvas's aspect
+           * ratio makes the leftover space fall OUTSIDE the card, where it reads as page
+           * margin instead of as a small picture marooned in a big box.
+           *
+           * Which also means: widening the page does not make the drawing bigger. Only a
+           * shorter drawing does. That is why Logistics is one row.
            */
-          style={{ height: maxCanvasH ?? '58vh' }}
-          className={`block w-full touch-none select-none ${
+          style={{
+            aspectRatio: `${CHAIN_WIDTH} / ${CHAIN_HEIGHT}`,
+            height: maxCanvasH ?? '58vh',
+            maxWidth: '100%',
+          }}
+          className={`block touch-none select-none ${
             follow ? 'cursor-crosshair' : 'cursor-grab active:cursor-grabbing'
           }`}
           onPointerDown={onPointerDown}

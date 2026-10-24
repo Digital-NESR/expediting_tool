@@ -371,11 +371,10 @@ export default function ToolLauncher({
             renderToolCard={(tool) => renderToolCard(tool, false)}
             offChainToolIds={OFF_CHAIN_TOOL_IDS}
           />
-          {/* The SCAI panel rendered only inside the grid branch, so making the chain the
-              default would have quietly taken it off the home page. It sits under the
-              diagram rather than beside it: canvas width is what makes the chain legible,
-              and a 320px column is the most expensive thing to spend it on. */}
-          <div className="mt-6">{scaiPanel}</div>
+          {/* No SCAI panel here. It sat under the drawing looking like an afterthought,
+              and both of the things in it -- the assistant and the spend taxonomy -- are
+              on the chain itself now, in the "across the chain" lane where the rest of the
+              estate is. The grid still carries the full panel. */}
         </>
       ) : (
         <>

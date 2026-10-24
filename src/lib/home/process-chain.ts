@@ -30,7 +30,7 @@
  * clipped outright. Taller stages in a taller canvas buy back the room.
  */
 export const CHAIN_WIDTH = 1920;
-export const CHAIN_HEIGHT = 1278;
+export const CHAIN_HEIGHT = 1116;
 
 /** Every stage is the same size, so the eye reads position as meaning and not importance. */
 const NODE_H = 120;
@@ -76,13 +76,24 @@ const S2C_PITCH = 136;
 export const PHASE_BAND = { y: 520, h: 32, inset: 5 } as const;
 const SPINE_TOP = 486;
 const SPINE_Y = 572;
+/*
+ * Logistics is one row, not two.
+ *
+ * It was a 2x2 loop, which cost 170 units of height -- and height is what decides how big
+ * the drawing lands, because the card is far wider than it is tall, so a fully visible
+ * chain is bound by its height and never by its width. Three boxes left to right say the
+ * same thing: out of the spine at Supplier Acknowledgement, through freight procurement,
+ * back in at Delivery.
+ *
+ * Inventory rises beside it for the same reason. The two do not overlap horizontally, so
+ * they cost one band between them rather than two.
+ */
 const LOGISTICS_TOP = 768;
 const LOGISTICS_Y = 814;
-const LOGISTICS_PROCURE_Y = 984;
-const INVENTORY_TOP = 916;
-const INVENTORY_Y = 952;
+const INVENTORY_TOP = 768;
+const INVENTORY_Y = 804;
 /** The dotted return from Goods Receipt, routed under everything else. */
-const BOTTOM_ROUTE_Y = 1130;
+const BOTTOM_ROUTE_Y = 968;
 
 /*
  * The "across the chain" lane, in the bottom-right quarter.
@@ -105,9 +116,12 @@ const ASIDE_FIRST = ASIDE_TOP + 30;
  */
 const ASIDE_NODE_H = 74;
 /** Three boxes in a centred row under the whole chain. */
-const ASIDE_W = 420;
+const ASIDE_W = 340;
 const ASIDE_GUTTER = 16;
-const ASIDE_X0 = Math.round((CHAIN_WIDTH - (3 * ASIDE_W + 2 * ASIDE_GUTTER)) / 2);
+const ASIDE_COUNT = 5;
+const ASIDE_X0 = Math.round(
+  (CHAIN_WIDTH - (ASIDE_COUNT * ASIDE_W + (ASIDE_COUNT - 1) * ASIDE_GUTTER)) / 2,
+);
 const asideX = (i: number) => ASIDE_X0 + i * (ASIDE_W + ASIDE_GUTTER);
 
 export type LaneId = 'source-to-catalog' | 'demand-to-pay' | 'logistics' | 'inventory' | 'across';
@@ -261,8 +275,8 @@ export const LANES: Lane[] = [
     box: {
       x: 835,
       y: LOGISTICS_TOP,
-      w: 430,
-      h: LOGISTICS_PROCURE_Y + NODE_H + 18 - LOGISTICS_TOP,
+      w: 592,
+      h: LOGISTICS_Y + NODE_H + 18 - LOGISTICS_TOP,
     },
   },
   {
@@ -473,8 +487,8 @@ export const STAGES: Stage[] = [
     id: 'logistics-procure',
     laneId: 'logistics',
     label: 'Freight Procurement',
-    x: LOGISTICS_X,
-    y: LOGISTICS_PROCURE_Y,
+    x: LOGISTICS_X + SPINE_W + SPINE_GUTTER,
+    y: LOGISTICS_Y,
     w: 150,
     h: NODE_H,
     toolIds: ['shipwaves'],
@@ -483,7 +497,7 @@ export const STAGES: Stage[] = [
     id: 'logistics-tracking',
     laneId: 'logistics',
     label: 'Tracking',
-    x: LOGISTICS_X + SPINE_W + SPINE_GUTTER,
+    x: LOGISTICS_X + 2 * (SPINE_W + SPINE_GUTTER),
     y: LOGISTICS_Y,
     w: 150,
     h: NODE_H,
@@ -568,6 +582,26 @@ export const STAGES: Stage[] = [
     w: ASIDE_W,
     h: ASIDE_NODE_H,
     toolIds: ['travel-portal'],
+  },
+  {
+    id: 'across-assistant',
+    laneId: 'across',
+    label: 'Ask the Assistant',
+    x: asideX(3),
+    y: ASIDE_FIRST,
+    w: ASIDE_W,
+    h: ASIDE_NODE_H,
+    toolIds: ['scai'],
+  },
+  {
+    id: 'across-taxonomy',
+    laneId: 'across',
+    label: 'Spend Classification',
+    x: asideX(4),
+    y: ASIDE_FIRST,
+    w: ASIDE_W,
+    h: ASIDE_NODE_H,
+    toolIds: ['spend-taxonomy'],
   },
 ];
 
@@ -713,12 +747,6 @@ export const EDGES: Edge[] = [
     laneId: 'logistics',
     dash: 'solid',
     label: 'FF Bid & Award',
-    via: [
-      {
-        x: LOGISTICS_X + SPINE_W + SPINE_GUTTER + SPINE_W / 2,
-        y: LOGISTICS_PROCURE_Y + NODE_H / 2,
-      },
-    ],
   },
   {
     from: 'logistics-tracking',

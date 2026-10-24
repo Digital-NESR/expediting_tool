@@ -295,22 +295,16 @@ export function useChainCamera(aspect: number): ChainCamera {
   );
 
   /**
-   * Fill the width with the drawing, from the top.
+   * The whole drawing, every time.
    *
-   * Not "show everything": the drawing is two-thirds as tall as it is wide and the card is
-   * three times as wide as it is tall, so fitting the whole height means shrinking the
-   * whole thing into a stamp in the middle with dead white either side -- the card full of
-   * nothing again, only now inside the viewBox instead of outside it. Filling the width
-   * puts the backbone on screen at a size worth reading, and the lanes below are a pointer
-   * -move away. Scrolling the wheel out still reaches the whole picture.
+   * Filling the width and letting the lower lanes fall off the bottom was tried and is
+   * wrong: the first thing this view owes a reader is the shape of the whole process, and
+   * a chain whose last third is out of frame on arrival is not that. Which means the size
+   * it lands at is governed by HEIGHT -- the card is much wider than it is tall, so there
+   * is always width to spare and never height. Making the drawing SHORTER is the only
+   * thing that makes it bigger; widening the card does nothing.
    */
-  const fit = useCallback(
-    (ms = DEFAULT_MS) => {
-      const a = aspectRef.current;
-      flyTo({ x: CONTENT.x, y: CONTENT.y, w: CONTENT.w, h: CONTENT.w * a }, ms);
-    },
-    [flyTo],
-  );
+  const fit = useCallback((ms = DEFAULT_MS) => flyTo(CONTENT, ms), [flyTo]);
 
   /* Pan and zoom are direct, never tweened. They follow a wheel or a drag, which is already a
      stream of small continuous changes -- easing on top of that is what makes a canvas feel
