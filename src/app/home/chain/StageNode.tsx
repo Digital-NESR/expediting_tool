@@ -89,6 +89,7 @@ export default function StageNode({
   selectedTool,
   onPickTool,
   onHoverTool,
+  onOverStage,
   onPickStage,
 }: {
   stage: Stage;
@@ -107,7 +108,18 @@ export default function StageNode({
   showGapNote: boolean;
   selectedTool: string | null;
   onPickTool: (id: string, newTab: boolean) => void;
-  onHoverTool: (id: string | null) => void;
+  /**
+   * Hovering reports WHERE the chip is as well as which tool it holds, in canvas units, so
+   * the shell can put a card beside it. The shell owns the conversion to pixels because it
+   * is the one that knows the camera and the element's size.
+   */
+  onHoverTool: (id: string | null, at?: { x: number; top: number; bottom: number }) => void;
+  /**
+   * Called as the pointer crosses the box. The shell stops the camera chasing while it is
+   * true: following is for crossing open canvas, and once somebody has reached a stage the
+   * last thing they want is the thing they are reaching for sliding away from them.
+   */
+  onOverStage: (over: boolean) => void;
   onPickStage: () => void;
 }) {
   const lane = LANES.find((l) => l.id === stage.laneId)!;
@@ -143,6 +155,8 @@ export default function StageNode({
         e.preventDefault();
         onPickStage();
       }}
+      onMouseEnter={() => onOverStage(true)}
+      onMouseLeave={() => onOverStage(false)}
       tabIndex={0}
       role="button"
       aria-label={
@@ -244,12 +258,24 @@ export default function StageNode({
                   e.preventDefault();
                   onPickTool(id, e.metaKey || e.ctrlKey);
                 }}
-                onMouseEnter={() => onHoverTool(id)}
+                onMouseEnter={() =>
+                  onHoverTool(id, {
+                    x: stage.x + stage.w / 2,
+                    top: y,
+                    bottom: y + BOX.chipH,
+                  })
+                }
                 onMouseLeave={() => onHoverTool(null)}
                 /* Focus lights the tool up everywhere it appears, exactly as hovering does --
                  the cross-lane highlight is most of the point of the chip, and a keyboard
                  reader should not have to do without it. */
-                onFocus={() => onHoverTool(id)}
+                onFocus={() =>
+                  onHoverTool(id, {
+                    x: stage.x + stage.w / 2,
+                    top: y,
+                    bottom: y + BOX.chipH,
+                  })
+                }
                 onBlur={() => onHoverTool(null)}
                 tabIndex={0}
                 role="button"

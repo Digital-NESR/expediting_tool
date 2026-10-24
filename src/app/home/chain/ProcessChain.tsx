@@ -47,6 +47,7 @@ import {
 import EdgeLayer from './EdgeLayer';
 import { LaneBands, PhaseBands } from './LaneLayer';
 import StageNode from './StageNode';
+import ToolHoverCard, { type HoverAnchor } from './ToolHoverCard';
 import { MAX_SCALE, useChainCamera } from './useChainCamera';
 
 export interface ProcessChainProps {
@@ -85,7 +86,14 @@ export default function ProcessChain({
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [pickedFocus, setFocus] = useState<{ kind: 'lane' | 'phase'; id: string } | null>(null);
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
-  const [hoverTool, setHoverTool] = useState<string | null>(null);
+  /** The hovered chip and where it sits on the canvas, so a card can be put beside it. */
+  const [hover, setHover] = useState<{
+    id: string;
+    at: { x: number; top: number; bottom: number };
+  } | null>(null);
+  const hoverTool = hover?.id ?? null;
+  /** True while the pointer is inside a stage box, which holds the follow camera still. */
+  const [overStage, setOverStage] = useState(false);
 
   /* Follow mode: the camera goes where the pointer goes. It is the default because it is the
      fastest way to read a diagram too wide to show at a legible size all at once -- you move
@@ -97,14 +105,41 @@ export default function ProcessChain({
 
   /* The element's real width in CSS pixels, so type can be sized in pixels rather than in
      canvas units that mean something different on every screen. */
-  const [svgW, setSvgW] = useState(1200);
+  /**
+   * Where the <svg> sits inside the card, in pixels, and how big the card is.
+   *
+   * The hover card is positioned against the CARD, and the drawing is not the whole of it:
+   * once its height is capped the <svg> is narrower than its container and centred in it.
+   * Measured by rect difference rather than `offsetLeft`, which SVG elements do not have.
+   */
+  const [svgBox, setSvgBox] = useState({
+    left: 0,
+    top: 0,
+    width: 1200,
+    height: 620,
+    outerW: 1200,
+    outerH: 620,
+  });
+  const svgW = svgBox.width;
   useEffect(() => {
     const el = svgRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
     /* No initial read here: observe() delivers a first callback of its own, so measuring
        synchronously would only set the same value a frame earlier and cascade a render. */
-    const ro = new ResizeObserver(([entry]) => {
-      if (entry.contentRect.width > 0) setSvgW(entry.contentRect.width);
+    const ro = new ResizeObserver(() => {
+      const parent = el.parentElement;
+      if (!parent) return;
+      const svg = el.getBoundingClientRect();
+      const outer = parent.getBoundingClientRect();
+      if (svg.width <= 0) return;
+      setSvgBox({
+        left: svg.left - outer.left,
+        top: svg.top - outer.top,
+        width: svg.width,
+        height: svg.height,
+        outerW: outer.width,
+        outerH: outer.height,
+      });
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -181,6 +216,23 @@ export default function ProcessChain({
    * specific statement of what the reader wants to see, so it takes over the highlight while
    * it lasts and the search comes back when the pointer moves off.
    */
+  /**
+   * The hovered chip's anchor, in container pixels.
+   *
+   * Recomputed each render from the canvas rect and the live camera rather than frozen at
+   * hover time, so the card stays on its chip if anything moves the view underneath it.
+   */
+  const hoverAnchor: HoverAnchor | null = useMemo(() => {
+    if (!hover) return null;
+    const px = (cx: number, cy: number) => ({
+      x: svgBox.left + ((cx - camera.view.x) / camera.view.w) * svgBox.width,
+      y: svgBox.top + ((cy - camera.view.y) / camera.view.h) * svgBox.height,
+    });
+    const top = px(hover.at.x, hover.at.top);
+    const bottom = px(hover.at.x, hover.at.bottom);
+    return { x: top.x, top: top.y, bottom: bottom.y };
+  }, [hover, camera.view, svgBox]);
+
   const chipStates = useMemo(() => {
     const out = new Map<string, ChipState>();
     for (const tool of TOOLS) out.set(tool.id, chipStateOf(tool, statusOf(tool), isAdmin));
@@ -274,7 +326,11 @@ export default function ProcessChain({
   };
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
     if (follow) {
-      aimAt(e.clientX, e.clientY);
+      /* Not while the pointer is on a stage, and not while a card is up. Following is for
+         crossing open canvas; once somebody has arrived somewhere, a camera that keeps
+         moving takes the thing they arrived at out from under them -- and it would slide a
+         card out from under the eye of whoever is reading it. */
+      if (!hover && !overStage) aimAt(e.clientX, e.clientY);
       return;
     }
     if (!drag.current) return;
@@ -508,11 +564,34 @@ export default function ProcessChain({
               showGapNote={isAdmin}
               selectedTool={selectedTool}
               onPickTool={openTool}
-              onHoverTool={setHoverTool}
+              onOverStage={(over) => {
+                setOverStage(over);
+                if (over) camera.pursue(null);
+              }}
+              onHoverTool={(id, at) => {
+                if (id && at) {
+                  camera.pursue(null);
+                  setHover({ id, at });
+                } else {
+                  setHover(null);
+                }
+              }}
               onPickStage={() => goTo(boundsOf([stage.id], 150))}
             />
           ))}
         </svg>
+
+        {hover && hoverAnchor && TOOL_BY_ID[hover.id] && (
+          <ToolHoverCard
+            tool={TOOL_BY_ID[hover.id]}
+            state={chipStates.get(hover.id) ?? 'open'}
+            status={statusOf(TOOL_BY_ID[hover.id])}
+            isAdmin={isAdmin}
+            stageLabels={stagesForTool(hover.id).map((st) => st.label)}
+            anchor={hoverAnchor}
+            bounds={{ width: svgBox.outerW, height: svgBox.outerH }}
+          />
+        )}
 
         <p className="border-t border-slate-100 px-4 py-2 text-[11px] text-slate-500">
           {matchedToolIds ? (
