@@ -335,6 +335,9 @@ export default function ToolLauncher({
 
       {homeView === 'chain' ? (
         <ProcessChain
+          /* The same box that filters the grid. It sat above both views and only ever fed
+             one of them, so in the chain you could type and watch nothing happen. */
+          query={appSearch}
           /* The launcher keeps ownership of access: the chain calls back into the same
              handleOpen that the cards use, so a tool with a pending request still produces the
              pending modal rather than opening. */

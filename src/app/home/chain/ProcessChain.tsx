@@ -109,6 +109,8 @@ export type Sizes = Record<SizeKey, number>;
 const TOOL_BY_ID: Record<string, ToolDef> = Object.fromEntries(TOOLS.map((t) => [t.id, t]));
 
 export interface ProcessChainProps {
+  /** The home page's search box. Empty means no search is running. */
+  query?: string;
   /** Opens a tool through the launcher's own access path. */
   onOpenTool: (tool: ToolDef, newTab: boolean) => void;
   /** Rendered inside the detail panel, so the panel shows the real card. */
@@ -117,13 +119,14 @@ export interface ProcessChainProps {
 }
 
 export default function ProcessChain({
+  query = '',
   onOpenTool,
   renderToolCard,
   offChainToolIds,
 }: ProcessChainProps) {
   const camera = useChainCamera();
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const [focus, setFocus] = useState<{ kind: 'lane' | 'phase'; id: string } | null>(null);
+  const [pickedFocus, setFocus] = useState<{ kind: 'lane' | 'phase'; id: string } | null>(null);
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [hoverTool, setHoverTool] = useState<string | null>(null);
 
@@ -132,7 +135,7 @@ export default function ProcessChain({
      across it and it comes to you, instead of a scroll-zoom-drag negotiation at every step.
      Anything that asks for a particular place (a stage, a phase, a lane, a drag) switches it
      off, because following would immediately pull the camera back off the chosen thing. */
-  const [follow, setFollow] = useState(true);
+  const [followPref, setFollow] = useState(true);
   const [followScale, setFollowScale] = useState(FOLLOW_SCALE);
 
   /* The element's real width in CSS pixels, so type can be sized in pixels rather than in
@@ -184,11 +187,48 @@ export default function ProcessChain({
     [onOpenTool],
   );
 
-  /** The stages lit up right now: everything the hovered or selected tool touches. */
+  /*
+   * The search, matched the same way the card grid matches it -- against `keywords`, so a
+   * tool answers to the same words in both views and nobody has to learn two vocabularies.
+   */
+  const q = query.trim().toLowerCase();
+  const matchedToolIds = useMemo(
+    () =>
+      q
+        ? new Set(TOOLS.filter((t) => t.keywords.toLowerCase().includes(q)).map((t) => t.id))
+        : null,
+    [q],
+  );
+
+  const matchedStageIds = useMemo(() => {
+    if (!matchedToolIds) return null;
+    const ids = new Set<string>();
+    for (const id of matchedToolIds) for (const stage of stagesForTool(id)) ids.add(stage.id);
+    return ids;
+  }, [matchedToolIds]);
+
+  /*
+   * A search that found something on the chain takes the camera over for as long as it runs.
+   * Both of these are DERIVED rather than pushed into state by an effect: following and the
+   * breadcrumb are a function of "is a search pinning the view", and computing that beats
+   * keeping a second copy of it in sync.
+   */
+  const searchPinned = !!q && (matchedStageIds?.size ?? 0) > 0;
+  const follow = followPref && !searchPinned;
+  const focus = searchPinned ? null : pickedFocus;
+
+  /**
+   * The stages lit up right now.
+   *
+   * Pointing at something beats searching for it: a hover is the more recent and more
+   * specific statement of what the reader wants to see, so it takes over the highlight while
+   * it lasts and the search comes back when the pointer moves off.
+   */
   const litStageIds = useMemo(() => {
     const id = hoverTool ?? selectedTool;
-    return id ? new Set(stagesForTool(id).map((s) => s.id)) : null;
-  }, [hoverTool, selectedTool]);
+    if (id) return new Set(stagesForTool(id).map((s) => s.id));
+    return matchedStageIds && matchedStageIds.size ? matchedStageIds : null;
+  }, [hoverTool, selectedTool, matchedStageIds]);
 
   /** Canvas coordinates for a pointer event, so zoom can hold a point under the cursor. */
   const toCanvas = useCallback(
@@ -317,6 +357,28 @@ export default function ProcessChain({
     camera.fit();
   }, [camera]);
 
+  /*
+   * A search moves the camera to what it found, and clearing it gives the whole chain back.
+   *
+   * Following is switched off for the duration: the pointer would drag the view straight off
+   * the match, and having just been shown where something is, being shown somewhere else is
+   * worse than not being shown at all. The ref is so this fires on a CHANGE of query rather
+   * than on every render that happens to have one.
+   */
+  const flownFor = useRef<string>('');
+  useEffect(() => {
+    if (flownFor.current === q) return;
+    flownFor.current = q;
+    camera.pursue(null);
+    if (!q) {
+      camera.fit();
+      return;
+    }
+    const ids = [...(matchedStageIds ?? [])];
+    /* A query that only matches an off-chain tool has nowhere to fly to; the rail marks it. */
+    if (ids.length) camera.flyTo(boundsOf(ids, 90));
+  }, [q, matchedStageIds, camera]);
+
   /** Escape backs out one level at a time rather than jumping straight to the top. */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -390,13 +452,16 @@ export default function ProcessChain({
               setFocus(null);
               if (follow) camera.pursue(null);
             }}
+            disabled={searchPinned}
             aria-pressed={follow}
             title={
-              follow
-                ? 'The camera is following your pointer. Scroll to change how close.'
-                : 'Let the camera follow your pointer again'
+              searchPinned
+                ? 'A search is holding the view. Clear it to let the pointer drive again.'
+                : follow
+                  ? 'The camera is following your pointer. Scroll to change how close.'
+                  : 'Let the camera follow your pointer again'
             }
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors disabled:opacity-40 ${
               follow
                 ? 'border-transparent bg-[#307c4c] text-white'
                 : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
@@ -574,6 +639,7 @@ export default function ProcessChain({
               key={stage.id}
               stage={stage}
               dimmed={litStageIds ? !litStageIds.has(stage.id) : false}
+              matchedToolIds={matchedToolIds}
               selectedTool={selectedTool}
               onPickTool={openTool}
               onHoverTool={setHoverTool}
@@ -583,13 +649,39 @@ export default function ProcessChain({
         </svg>
 
         <p className="border-t border-slate-100 px-4 py-2 text-[11px] text-slate-500">
-          <span className="font-semibold text-slate-700">
-            {covered} of {total} stages have a system.
-          </span>{' '}
-          {gaps} do not — drawn hollow.{' '}
-          {follow
-            ? 'The camera is following your pointer; scroll to change how close. Click a tool to open it, or a stage, phase or lane to pin the view there.'
-            : 'Drag to pan, scroll to zoom, click a tool to open it. Turn Follow back on to let the pointer drive.'}
+          {matchedToolIds ? (
+            matchedToolIds.size === 0 ? (
+              <span className="font-semibold text-slate-700">
+                Nothing on the chain matches “{query.trim()}”.
+              </span>
+            ) : (
+              <>
+                <span className="font-semibold text-[#307c4c]">
+                  {matchedToolIds.size === 1
+                    ? '1 tool matches'
+                    : `${matchedToolIds.size} tools match`}{' '}
+                  “{query.trim()}”
+                </span>{' '}
+                {matchedStageIds?.size
+                  ? `— lit across ${matchedStageIds.size} stage${
+                      matchedStageIds.size === 1 ? '' : 's'
+                    }. Clear the search to get the whole chain back.`
+                  : matchedToolIds.size === 1
+                    ? '— it serves the whole chain rather than one stage, so it is on the rail below.'
+                    : '— they serve the whole chain rather than one stage, so they are on the rail below.'}
+              </>
+            )
+          ) : (
+            <>
+              <span className="font-semibold text-slate-700">
+                {covered} of {total} stages have a system.
+              </span>{' '}
+              {gaps} do not — drawn hollow.{' '}
+              {follow
+                ? 'The camera is following your pointer; scroll to change how close. Click a tool to open it, or a stage, phase or lane to pin the view there.'
+                : 'Drag to pan, scroll to zoom, click a tool to open it. Turn Follow back on to let the pointer drive.'}
+            </>
+          )}
         </p>
       </div>
 
@@ -655,12 +747,20 @@ export default function ProcessChain({
             {offChainToolIds.map((id) => {
               const tool = TOOL_BY_ID[id];
               if (!tool) return null;
+              const hit = matchedToolIds?.has(id) ?? false;
+              const missed = matchedToolIds != null && !hit;
               return (
                 <button
                   key={id}
                   type="button"
                   onClick={(e) => onOpenTool(tool, e.metaKey || e.ctrlKey)}
-                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 transition-colors hover:border-[#307c4c]/40 hover:text-[#307c4c]"
+                  className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+                    hit
+                      ? 'border-[#307c4c] bg-[#307c4c]/10 text-[#307c4c]'
+                      : missed
+                        ? 'border-slate-200 bg-white text-slate-300'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-[#307c4c]/40 hover:text-[#307c4c]'
+                  }`}
                 >
                   {tool.name}
                 </button>
@@ -720,6 +820,7 @@ function EdgeLabel({
 function StageNode({
   stage,
   dimmed,
+  matchedToolIds,
   selectedTool,
   onPickTool,
   onHoverTool,
@@ -727,6 +828,8 @@ function StageNode({
 }: {
   stage: Stage;
   dimmed: boolean;
+  /** The search's hits, or null when nothing is being searched for. */
+  matchedToolIds: Set<string> | null;
   selectedTool: string | null;
   onPickTool: (id: string, newTab: boolean) => void;
   onHoverTool: (id: string | null) => void;
@@ -841,6 +944,9 @@ function StageNode({
           return (
             <g
               key={id}
+              /* A stage can hold a tool the search did not ask for; it stays drawn, because
+                 the point of the chain is what sits where, but it steps back. */
+              opacity={matchedToolIds && !matchedToolIds.has(id) ? 0.3 : 1}
               onClick={(e) => {
                 e.stopPropagation();
                 onPickTool(id, e.metaKey || e.ctrlKey);

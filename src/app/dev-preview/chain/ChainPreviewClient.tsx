@@ -1,7 +1,12 @@
 'use client';
 
-/* The client half of the dev preview: stubs for the two props the chain takes from
-   ToolLauncher, which it cannot have here because both need a session. */
+/* The client half of the dev preview: stubs for the props the chain takes from ToolLauncher,
+   which it cannot have here because they need a session.
+
+   The search box is a stand-in for the launcher's own, which sits above both home views and
+   is passed down as `query`. It is here so the search can be driven on this page rather than
+   only behind SSO -- it was reported broken in the chain, and it was: the box fed the card
+   grid and nothing else. */
 
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
@@ -10,10 +15,26 @@ const ProcessChain = dynamic(() => import('@/app/home/chain/ProcessChain'), { ss
 
 export default function ChainPreviewClient({ offChainToolIds }: { offChainToolIds: string[] }) {
   const [opened, setOpened] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   return (
     <>
+      <div className="mb-4 max-w-md">
+        <label htmlFor="chain-search" className="sr-only">
+          Search applications
+        </label>
+        <input
+          id="chain-search"
+          type="text"
+          placeholder="Search applications..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm shadow-sm transition-colors placeholder-slate-400 focus:border-[#307c4c] focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20"
+        />
+      </div>
+
       <ProcessChain
+        query={query}
         offChainToolIds={offChainToolIds}
         onOpenTool={(tool, newTab) => setOpened(`${tool.name}${newTab ? ' (new tab)' : ''}`)}
         renderToolCard={(tool) => (
