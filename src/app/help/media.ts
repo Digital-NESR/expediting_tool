@@ -34,6 +34,16 @@ export const TITE_TRAINING_VIDEO_EMBED_URL =
 export const TITE_TRAINING_DOC_URL =
   process.env.NEXT_PUBLIC_HELP_TITE_TRAINING_DOC_URL ?? '/help/documentation.pdf';
 
+/**
+ * RFx Officer introduction, the first thing on the help page.
+ *
+ * On the shared digitalstudio site library rather than a personal OneDrive, which is the
+ * shape the note at the top of this file asks the rest to end up in.
+ */
+export const RFX_INTRO_VIDEO_EMBED_URL =
+  process.env.NEXT_PUBLIC_HELP_RFX_INTRO_VIDEO_EMBED_URL ??
+  'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=292ea1ca-35c1-43ea-8352-a12ad13762a0&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create';
+
 /** RFx Officer full walkthrough, played inline. */
 export const RFX_FULL_GUIDE_VIDEO_EMBED_URL =
   process.env.NEXT_PUBLIC_HELP_RFX_FULL_GUIDE_VIDEO_EMBED_URL ??
