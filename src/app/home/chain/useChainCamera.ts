@@ -21,8 +21,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CHAIN_HEIGHT, CHAIN_WIDTH, CONTENT, type Rect } from '@/lib/home/process-chain';
 
-/** How far in and out the camera may go, as a multiple of the fitted view. */
-const MIN_SCALE = 0.95;
+/** How far IN the camera may go. How far out is the fitted view, not a number. */
 export const MAX_SCALE = 6;
 const DEFAULT_MS = 620;
 
@@ -36,6 +35,30 @@ const DEFAULT_MS = 620;
  * arrives without overshoot, and decelerates on its own when the pointer stops.
  */
 const PURSUE_TAU = 0.42;
+
+/**
+ * Air around the drawing, in canvas units.
+ *
+ * `CONTENT` is the drawing's exact extent, and framing exactly that leaves the outermost
+ * route half outside the picture: a line is eight units wide and centred on its own path,
+ * so four of them fall beyond a frame drawn through it. The channel along the bottom is
+ * where that shows.
+ */
+const FRAME_PAD = 12;
+
+/**
+ * What "the whole drawing" means to the camera: everything there is, plus that air.
+ *
+ * Both the rect Fit flies to and the limit that panning and zooming are held inside, so
+ * there is one definition of how far out the view goes and it is the one the Fit button
+ * produces.
+ */
+const FRAME: Rect = {
+  x: CONTENT.x - FRAME_PAD,
+  y: CONTENT.y - FRAME_PAD,
+  w: CONTENT.w + FRAME_PAD * 2,
+  h: CONTENT.h + FRAME_PAD * 2,
+};
 
 const FULL: Rect = { x: 0, y: 0, w: CHAIN_WIDTH, h: CHAIN_HEIGHT };
 
@@ -92,25 +115,26 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
  * And it allowed half a screen of overscroll past the canvas edge, which at the fitted
  * view is a lot of blank paper: zooming near an edge left a thick invisible margin with
  * the drawing shoved out of the way behind it. Panning now stops where the drawing stops,
- * measured against CONTENT rather than the canvas, which has margins of its own.
+ * measured against FRAME rather than the canvas, which has margins of its own.
+ *
+ * Zooming out stops there too. It used to be allowed a little further -- the floor was
+ * 0.95 of the CANVAS width -- which bought nothing but white paper and made "as far out as
+ * it goes" and "the fitted view" two slightly different pictures.
  */
-function constrain(rect: Rect, aspect: number): Rect {
-  const minW = CHAIN_WIDTH / MAX_SCALE;
-  const maxW = Math.max(CHAIN_WIDTH / MIN_SCALE, CONTENT.h / aspect);
+function fittedWidth(aspect: number): number {
+  return Math.max(FRAME.w, FRAME.h / aspect);
+}
 
-  const w = clamp(rect.w, minW, maxW);
+function constrain(rect: Rect, aspect: number): Rect {
+  const w = clamp(rect.w, CHAIN_WIDTH / MAX_SCALE, fittedWidth(aspect));
   const h = w * aspect;
 
   /* Centre on the drawing in whichever direction the view is bigger than it is, and
      otherwise keep the view's edges inside the drawing's. */
   const x =
-    w >= CONTENT.w
-      ? CONTENT.x + CONTENT.w / 2 - w / 2
-      : clamp(rect.x, CONTENT.x, CONTENT.x + CONTENT.w - w);
+    w >= FRAME.w ? FRAME.x + FRAME.w / 2 - w / 2 : clamp(rect.x, FRAME.x, FRAME.x + FRAME.w - w);
   const y =
-    h >= CONTENT.h
-      ? CONTENT.y + CONTENT.h / 2 - h / 2
-      : clamp(rect.y, CONTENT.y, CONTENT.y + CONTENT.h - h);
+    h >= FRAME.h ? FRAME.y + FRAME.h / 2 - h / 2 : clamp(rect.y, FRAME.y, FRAME.y + FRAME.h - h);
   return { x, y, w, h };
 }
 
@@ -137,7 +161,11 @@ export function toViewBox(target: Rect, aspect: number): Rect {
 
 export interface ChainCamera {
   view: Rect;
-  /** How far in we are, 1 at the fitted view. Drives which labels are drawn. */
+  /**
+   * How far in we are, as a multiple of the canvas width -- so a shade under 1 at the
+   * fitted view, which frames the drawing plus a margin rather than the canvas. Drives
+   * which labels are drawn.
+   */
   scale: number;
   isFitted: boolean;
   flyTo: (target: Rect, ms?: number) => void;
@@ -304,7 +332,7 @@ export function useChainCamera(aspect: number): ChainCamera {
    * is always width to spare and never height. Making the drawing SHORTER is the only
    * thing that makes it bigger; widening the card does nothing.
    */
-  const fit = useCallback((ms = DEFAULT_MS) => flyTo(CONTENT, ms), [flyTo]);
+  const fit = useCallback((ms = DEFAULT_MS) => flyTo(FRAME, ms), [flyTo]);
 
   /* Pan and zoom are direct, never tweened. They follow a wheel or a drag, which is already a
      stream of small continuous changes -- easing on top of that is what makes a canvas feel
@@ -341,9 +369,16 @@ export function useChainCamera(aspect: number): ChainCamera {
   );
 
   const scale = CHAIN_WIDTH / view.w;
-  /* A tolerance rather than equality: a tween lands within a fraction of a pixel of FULL and
-     the Fit button should not stay lit because of it. */
-  const isFitted = Math.abs(view.w - CHAIN_WIDTH) < 2 && Math.abs(view.x) < 2;
+  /*
+   * Fitted means "showing what Fit would show", which is not "showing the whole canvas".
+   *
+   * This compared the view against the CANVAS -- 0 to CHAIN_WIDTH -- while `fit` flies to
+   * the DRAWING, which is inset from it. The two could never agree, so the Fit button never
+   * went dim, and pressing it while already fitted did nothing and looked broken. Comparing
+   * against the width `fit` actually lands on is the repair. A tolerance rather than
+   * equality, because a tween finishes within a fraction of a unit of its target.
+   */
+  const isFitted = Math.abs(view.w - fittedWidth(aspect)) < 2;
 
   return useMemo(
     () => ({ view, scale, isFitted, flyTo, fit, zoomAt, panBy, pursue }),

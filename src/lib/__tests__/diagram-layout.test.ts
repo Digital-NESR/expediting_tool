@@ -261,6 +261,34 @@ describe('the canvas is measured, not declared', () => {
     );
     expect(out.content).toEqual(out.laneById.r.box);
   });
+
+  it('counts the LINES in that rect, not only the boxes', () => {
+    /*
+     * A channel route runs below everything, so it is the one thing on the drawing that is
+     * outside every lane box. Content left it out, and the camera -- which fits to content
+     * and clamps panning to it -- cut that connector off at the bottom of the frame. "Fit"
+     * showed the whole drawing except the one line that most needed the room.
+     */
+    const out = layoutProcess(
+      spec({
+        lanes: [
+          lane({ id: 'top', layout: { kind: 'row', stageIds: ['a'] } }),
+          lane({
+            id: 'bot',
+            layout: { kind: 'row', stageIds: ['b'] },
+            anchorX: { at: 'stage-left', stageId: 'a' },
+            anchorY: { at: 'below', laneId: 'top', gap: 40 },
+          }),
+        ],
+        stages: [stage('a', 'top'), stage('b', 'bot')],
+        edges: [{ from: 'a', to: 'b', laneId: 'top', dash: 'solid', route: 'channel-bottom' }],
+      }),
+    );
+    const channelY = out.edges[0].points[1].y;
+    const lowestBox = Math.max(...out.lanes.map((l) => l.box.y + l.box.h));
+    expect(channelY, 'the channel should be below every band').toBeGreaterThan(lowestBox);
+    expect(out.content.y + out.content.h).toBeGreaterThanOrEqual(channelY);
+  });
 });
 
 describe('what the engine refuses', () => {

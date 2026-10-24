@@ -310,14 +310,26 @@ export function layoutProcess(spec: ProcessSpec): LaidOutProcess {
   );
   const height = Math.round(bottom + spec.marginBottom);
 
+  /*
+   * The rect the drawing occupies -- which includes the LINES, not only the boxes.
+   *
+   * It did not, and the bug that caused was invisible until a line went somewhere no box
+   * does: a route running in a channel below the lowest band sat outside `content`, so the
+   * camera, which clamps to `content` and fits to it, cut it off at the bottom of the
+   * frame. "Fit" showed everything except the one connector that most needed the room.
+   */
   const boxes: Rect[] = [...lanes.map((l) => l.box), ...stages];
-  const cx = Math.min(...boxes.map((b) => b.x));
-  const cy = Math.min(...boxes.map((b) => b.y));
+  const xs = [...boxes.map((b) => b.x), ...edges.flatMap((e) => e.points.map((p) => p.x))];
+  const ys = [...boxes.map((b) => b.y), ...edges.flatMap((e) => e.points.map((p) => p.y))];
+  const x2 = [...boxes.map((b) => b.x + b.w), ...edges.flatMap((e) => e.points.map((p) => p.x))];
+  const y2 = [...boxes.map((b) => b.y + b.h), ...edges.flatMap((e) => e.points.map((p) => p.y))];
+  const cx = Math.min(...xs);
+  const cy = Math.min(...ys);
   const content: Rect = {
     x: cx,
     y: cy,
-    w: Math.max(...boxes.map((b) => b.x + b.w)) - cx,
-    h: Math.max(...boxes.map((b) => b.y + b.h)) - cy,
+    w: Math.max(...x2) - cx,
+    h: Math.max(...y2) - cy,
   };
 
   return {
