@@ -12,6 +12,8 @@ import { TOOLS, type ToolDef } from '../tools';
 export const INK = '#1f2d2a';
 export const MUTED = '#94a3b8';
 export const GAP_STROKE = '#cbd5e1';
+/** SAP and Ariba badges. One slate-blue for both: they are the same kind of thing. */
+export const SYSTEM_INK = '#5B7A99';
 
 /* Edge captions are hidden until there is room for them: they float free of any box and at
    the overview they land on top of each other and on the lines they annotate. Tool names used
@@ -69,6 +71,23 @@ export const BOX = {
   blockGap: 10,
   pad: 9,
 } as const;
+
+/**
+ * How the chips and system badges at the foot of a stage pack.
+ *
+ * Three of them at full size overflow a 120-unit box -- Source carries SourceGuide, S&S
+ * Registry and Ariba -- so a crowded tail tightens rather than spilling. Exported because
+ * the layout test has to model this exactly, and a transcribed copy of it in the test file
+ * is how the last set of constants drifted.
+ */
+export function tailMetrics(tailCount: number) {
+  const tight = tailCount >= 3;
+  return {
+    chipH: tight ? 18 : BOX.chipH,
+    chipText: tight ? 11 : BOX.chipText,
+    chipGap: tight ? 4 : BOX.chipGap,
+  };
+}
 
 export type SizeKey = keyof typeof SIZES;
 export type Sizes = Record<SizeKey, number>;

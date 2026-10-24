@@ -2,9 +2,9 @@
 
 /* One box on the chain, and the mark that says whether you can open what is inside it. */
 
-import { LANES, fitLabel, type Stage } from '@/lib/home/process-chain';
+import { LANES, SYSTEM_LABEL, fitLabel, type Stage } from '@/lib/home/process-chain';
 import { CHIP_STATE_LABEL, type ChipState } from './chipState';
-import { BOX, GAP_STROKE, INK, MUTED, TOOL_BY_ID } from './chainTheme';
+import { BOX, GAP_STROKE, INK, MUTED, SYSTEM_INK, TOOL_BY_ID, tailMetrics } from './chainTheme';
 
 /**
  * The mark on a chip that is not simply open.
@@ -107,6 +107,13 @@ export default function StageNode({
    */
   showGapNote: boolean;
   selectedTool: string | null;
+  /**
+   * Opens the tool, always in a new tab.
+   *
+   * The chain is a place people come back to -- it is the whole estate on one screen -- and
+   * navigating away from it to open one thing means finding your way back to the diagram
+   * every time.
+   */
   onPickTool: (id: string, newTab: boolean) => void;
   /**
    * Hovering reports WHERE the chip is as well as which tool it holds, in canvas units, so
@@ -123,7 +130,16 @@ export default function StageNode({
   onPickStage: () => void;
 }) {
   const lane = LANES.find((l) => l.id === stage.laneId)!;
-  const isGap = stage.toolIds.length === 0;
+  const systems = stage.systems ?? [];
+  /*
+   * A hole is a stage with nothing at all on it.
+   *
+   * Before SAP and Ariba were drawn, "no tool of ours" and "nothing happens here" were the
+   * same picture, and those are very different claims. A stage running on SAP is a place we
+   * have not built anything, which is worth knowing and is not a gap.
+   */
+  const isGap = stage.toolIds.length === 0 && systems.length === 0;
+  const tailCount = stage.toolIds.length + systems.length;
 
   /*
    * The contents are laid out as one centred block, not pinned to the box's two ends. Name at
@@ -134,9 +150,8 @@ export default function StageNode({
    * at every zoom.
    */
   /* What follows the name: the stacked tool chips, or the "no system yet" note. */
-  const tailH = isGap
-    ? BOX.gapNote * 1.3
-    : stage.toolIds.length * BOX.chipH + (stage.toolIds.length - 1) * BOX.chipGap;
+  const { chipH, chipText, chipGap } = tailMetrics(tailCount);
+  const tailH = isGap ? BOX.gapNote * 1.3 : tailCount * chipH + (tailCount - 1) * chipGap;
 
   const room = stage.h - 2 * BOX.pad - BOX.blockGap - tailH;
   const maxLines = Math.max(1, Math.floor(room / (BOX.label * BOX.leading)));
@@ -175,6 +190,10 @@ export default function StageNode({
         height={stage.h}
         rx={10}
         fill="#ffffff"
+        /* A stage sits ON its lane rather than in it. The shadow is the cheapest thing
+           that says so, and an uncovered stage does not get one -- there is nothing there
+           to lift. */
+        filter={isGap ? undefined : 'url(#chain-lift)'}
         stroke={isGap ? GAP_STROKE : lane.colour}
         strokeWidth={isGap ? 1.5 : 2}
         strokeDasharray={isGap ? '6 5' : undefined}
@@ -228,7 +247,7 @@ export default function StageNode({
         : stage.toolIds.map((id, i) => {
             const tool = TOOL_BY_ID[id];
             if (!tool) return null;
-            const y = tailTop + i * (BOX.chipH + BOX.chipGap);
+            const y = tailTop + i * (chipH + chipGap);
             const label = typeof tool.name === 'string' ? tool.name : id;
             const state = chipStates.get(id) ?? 'open';
             const glyph = state === 'open' ? null : state;
@@ -236,7 +255,7 @@ export default function StageNode({
              than letting the mark crowd the name. */
             const w = Math.min(
               stage.w - 12,
-              label.length * BOX.chipText * 0.58 + 14 + (glyph ? BOX.chipText + 4 : 0),
+              label.length * chipText * 0.58 + 14 + (glyph ? chipText + 4 : 0),
             );
             const left = stage.x + stage.w / 2 - w / 2;
             const muted = state === 'coming-soon';
@@ -248,7 +267,7 @@ export default function StageNode({
                 opacity={matchedToolIds && !matchedToolIds.has(id) ? 0.3 : 1}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onPickTool(id, e.metaKey || e.ctrlKey);
+                  onPickTool(id, true);
                 }}
                 onKeyDown={(e) => {
                   if (e.key !== 'Enter' && e.key !== ' ') return;
@@ -256,7 +275,7 @@ export default function StageNode({
                    at the same moment the tool opens. */
                   e.stopPropagation();
                   e.preventDefault();
-                  onPickTool(id, e.metaKey || e.ctrlKey);
+                  onPickTool(id, true);
                 }}
                 onMouseEnter={() =>
                   onHoverTool(id, {
@@ -288,8 +307,8 @@ export default function StageNode({
                   x={left}
                   y={y}
                   width={w}
-                  height={BOX.chipH}
-                  rx={BOX.chipH / 2}
+                  height={chipH}
+                  rx={chipH / 2}
                   fill={selectedTool === id ? lane.colour : muted ? '#ffffff' : `${lane.colour}22`}
                   stroke={muted ? GAP_STROKE : lane.colour}
                   strokeOpacity={muted ? 1 : 0.5}
@@ -299,16 +318,16 @@ export default function StageNode({
                 {glyph && (
                   <ChipGlyph
                     state={glyph}
-                    x={left + BOX.chipText * 0.75 + 4}
-                    y={y + BOX.chipH / 2}
-                    size={BOX.chipText * 0.92}
+                    x={left + chipText * 0.75 + 4}
+                    y={y + chipH / 2}
+                    size={chipText * 0.92}
                     colour={selectedTool === id ? '#ffffff' : muted ? GAP_STROKE : lane.colour}
                   />
                 )}
                 <text
-                  x={stage.x + stage.w / 2 + (glyph ? (BOX.chipText + 4) / 2 : 0)}
-                  y={y + BOX.chipH / 2 + BOX.chipText * 0.35}
-                  fontSize={BOX.chipText}
+                  x={stage.x + stage.w / 2 + (glyph ? (chipText + 4) / 2 : 0)}
+                  y={y + chipH / 2 + chipText * 0.35}
+                  fontSize={chipText}
                   fontWeight={700}
                   textAnchor="middle"
                   fill={selectedTool === id ? '#ffffff' : muted ? MUTED : lane.colour}
@@ -319,6 +338,42 @@ export default function StageNode({
               </g>
             );
           })}
+
+      {/* The systems the stage runs on, below our own tools and deliberately quieter: they
+          say what this step IS, and are not something this page can open. A square-ish pill
+          rather than the chips' fully rounded one, so a system of record reads as a
+          different kind of thing and not as another tool in another colour. */}
+      {systems.map((sys, i) => {
+        const y = tailTop + (stage.toolIds.length + i) * (chipH + chipGap);
+        const label = SYSTEM_LABEL[sys];
+        const w = label.length * chipText * 0.62 + 18;
+        return (
+          <g key={sys} style={{ pointerEvents: 'none' }}>
+            <rect
+              x={stage.x + stage.w / 2 - w / 2}
+              y={y}
+              width={w}
+              height={chipH}
+              rx={4}
+              fill="#ffffff"
+              stroke={SYSTEM_INK}
+              strokeOpacity={0.45}
+              vectorEffect="non-scaling-stroke"
+            />
+            <text
+              x={stage.x + stage.w / 2}
+              y={y + chipH / 2 + chipText * 0.35}
+              fontSize={chipText}
+              fontWeight={700}
+              textAnchor="middle"
+              fill={SYSTEM_INK}
+              letterSpacing={0.4}
+            >
+              {label}
+            </text>
+          </g>
+        );
+      })}
     </g>
   );
 }

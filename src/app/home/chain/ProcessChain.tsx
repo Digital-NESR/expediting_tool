@@ -419,6 +419,26 @@ export default function ProcessChain({
 
   return (
     <div className="flex flex-col gap-4">
+      {/*
+        The view's opening line, which is a finding rather than a title.
+        What this page is for is "here is the estate and where it sits", and saying so in
+        one sentence costs a line and saves the reader working it out from the drawing.
+        An administrator gets the sharper version; see StageNode's gap note for why the
+        shortfall is not everybody's business.
+      */}
+      <div>
+        <h2 className="text-[15px] font-bold tracking-tight text-slate-900">
+          {isAdmin
+            ? `${covered} of ${total} stages of the supply chain have a system.`
+            : `${TOOLS.length} of our tools across ${total} stages of the supply chain.`}
+        </h2>
+        <p className="mt-0.5 text-xs text-slate-500">
+          {isAdmin
+            ? `${gaps === 1 ? 'One does' : `${gaps} do`} not — drawn hollow. Point at anything to see what it is and where it is used.`
+            : 'SAP and Ariba are marked where the process runs on them. Point at anything to see what it is and where it is used.'}
+        </p>
+      </div>
+
       {/* ── Breadcrumb, lane filters, follow and Fit ── */}
       <div className="flex flex-wrap items-center gap-2">
         <button
@@ -537,6 +557,27 @@ export default function ProcessChain({
         >
           <title>Supply chain process cycles and the systems behind them</title>
 
+          {/* Paint shared by every node. A drop shadow in canvas units, so a box lifts off
+              its lane by the same proportion at every zoom, and one shallow top-to-bottom
+              wash per lane so a band reads as a surface rather than a flat fill. */}
+          <defs>
+            <filter id="chain-lift" x="-25%" y="-25%" width="150%" height="150%">
+              <feDropShadow
+                dx="0"
+                dy="2"
+                stdDeviation="2.5"
+                floodColor="#0f172a"
+                floodOpacity="0.10"
+              />
+            </filter>
+            {LANES.map((lane) => (
+              <linearGradient key={lane.id} id={`lane-wash-${lane.id}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={lane.tint} />
+                <stop offset="100%" stopColor="#ffffff" stopOpacity={0.6} />
+              </linearGradient>
+            ))}
+          </defs>
+
           <LaneBands u={u} size={size} />
 
           <EdgeLayer
@@ -618,15 +659,8 @@ export default function ProcessChain({
             )
           ) : (
             <>
-              {/* The gap count is an administrator's finding. On the page the whole company
-                  lands on it reads as a deficiency report, so everyone else gets the same
-                  diagram -- every stage drawn, uncovered ones hollow -- without the tally. */}
-              <span className="font-semibold text-slate-700">
-                {isAdmin
-                  ? `${covered} of ${total} stages have a system.`
-                  : `${TOOLS.length} systems across ${total} stages of the supply chain.`}
-              </span>{' '}
-              {isAdmin && <>{gaps} do not — drawn hollow. </>}
+              {/* What the figures are is said above the canvas now; this line is only ever
+                  about how to drive it. */}
               {follow
                 ? 'The camera is following your pointer; scroll to change how close. Click a tool to open it, or a stage, phase or lane to pin the view there.'
                 : 'Drag to pan, scroll to zoom, click a tool to open it. Turn Follow back on to let the pointer drive.'}

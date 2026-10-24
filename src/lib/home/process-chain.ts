@@ -123,6 +123,18 @@ export interface Lane {
   aside?: boolean;
 }
 
+/**
+ * An enterprise system the process runs on, as distinct from a tool we built.
+ *
+ * SAP and Ariba are where most of this process actually happens; the sixteen tools in the
+ * launcher sit around them. A diagram that showed only our own tools called six stages
+ * empty when what it meant was "we have not built anything here" -- which is a different
+ * and much less alarming statement than "nothing happens here".
+ */
+export type SystemId = 'sap' | 'ariba';
+
+export const SYSTEM_LABEL: Record<SystemId, string> = { sap: 'SAP', ariba: 'Ariba' };
+
 export interface Stage extends Rect {
   id: string;
   laneId: LaneId;
@@ -132,6 +144,14 @@ export interface Stage extends Rect {
    * single most useful thing this view reports.
    */
   toolIds: string[];
+  /**
+   * Enterprise systems this stage runs on.
+   *
+   * A FIRST PASS, inferred from where SAP and Ariba normally sit in a procure-to-pay
+   * process rather than from how NESR is configured. Five of what the diagram used to call
+   * gaps are SAP steps, which is worth knowing and worth correcting if any of it is wrong.
+   */
+  systems?: SystemId[];
 }
 
 export interface Edge {
@@ -245,6 +265,7 @@ export const STAGES: Stage[] = [
     w: 180,
     h: NODE_H,
     toolIds: ['sourceguide', 'sns-registry'],
+    systems: ['ariba'],
   },
   {
     id: 'contract',
@@ -255,6 +276,7 @@ export const STAGES: Stage[] = [
     w: 180,
     h: NODE_H,
     toolIds: ['sirion'],
+    systems: ['ariba'],
   },
   {
     id: 'catalog',
@@ -265,6 +287,7 @@ export const STAGES: Stage[] = [
     w: 180,
     h: NODE_H,
     toolIds: ['catalog-manager', 'spend-taxonomy'],
+    systems: ['ariba'],
   },
 
   // ── Demand to Pay: the spine, eleven stages on one row ──
@@ -277,6 +300,7 @@ export const STAGES: Stage[] = [
     w: SPINE_W,
     h: NODE_H,
     toolIds: ['translytix'],
+    systems: ['sap'],
   },
   {
     id: 'demand-creation',
@@ -287,6 +311,7 @@ export const STAGES: Stage[] = [
     w: SPINE_W,
     h: NODE_H,
     toolIds: ['laptop-procurement'],
+    systems: ['sap'],
   },
   {
     id: 'demand-pr-approval',
@@ -297,6 +322,7 @@ export const STAGES: Stage[] = [
     w: SPINE_W,
     h: NODE_H,
     toolIds: ['laptop-procurement'],
+    systems: ['sap'],
   },
   {
     id: 'supplier-assessment',
@@ -307,6 +333,7 @@ export const STAGES: Stage[] = [
     w: SPINE_W,
     h: NODE_H,
     toolIds: ['rfx-officer'],
+    systems: ['ariba'],
   },
   {
     id: 'supplier-po-approval',
@@ -317,6 +344,7 @@ export const STAGES: Stage[] = [
     w: SPINE_W,
     h: NODE_H,
     toolIds: ['rfx-officer'],
+    systems: ['sap'],
   },
   {
     id: 'supplier-acknowledgement',
@@ -327,6 +355,7 @@ export const STAGES: Stage[] = [
     w: SPINE_W,
     h: NODE_H,
     toolIds: [],
+    systems: ['sap'],
   },
   {
     id: 'delivery',
@@ -337,6 +366,7 @@ export const STAGES: Stage[] = [
     w: SPINE_W,
     h: NODE_H,
     toolIds: ['po-expediting'],
+    systems: ['sap'],
   },
   {
     id: 'delivery-acknowledgment',
@@ -347,6 +377,7 @@ export const STAGES: Stage[] = [
     w: SPINE_W,
     h: NODE_H,
     toolIds: [],
+    systems: ['sap'],
   },
   {
     id: 'payment-request',
@@ -357,6 +388,7 @@ export const STAGES: Stage[] = [
     w: SPINE_W,
     h: NODE_H,
     toolIds: ['procure-guard'],
+    systems: ['sap'],
   },
   {
     id: 'three-way-match',
@@ -367,6 +399,7 @@ export const STAGES: Stage[] = [
     w: SPINE_W,
     h: NODE_H,
     toolIds: ['soa-consolidation'],
+    systems: ['sap'],
   },
   {
     id: 'pay',
@@ -377,6 +410,7 @@ export const STAGES: Stage[] = [
     w: SPINE_W,
     h: NODE_H,
     toolIds: ['soa-consolidation'],
+    systems: ['sap'],
   },
 
   // ── Logistics: out of Supplier Acknowledgement, round, and back up into Delivery ──
@@ -424,6 +458,7 @@ export const STAGES: Stage[] = [
     w: 180,
     h: NODE_H,
     toolIds: ['translytix'],
+    systems: ['sap'],
   },
   {
     id: 'physical-counting',
@@ -434,6 +469,7 @@ export const STAGES: Stage[] = [
     w: 150,
     h: NODE_H,
     toolIds: [],
+    systems: ['sap'],
   },
   {
     id: 'goods-issue',
@@ -444,6 +480,7 @@ export const STAGES: Stage[] = [
     w: 150,
     h: NODE_H,
     toolIds: [],
+    systems: ['sap'],
   },
   {
     id: 'goods-receipt',
@@ -454,6 +491,7 @@ export const STAGES: Stage[] = [
     w: 150,
     h: NODE_H,
     toolIds: [],
+    systems: ['sap'],
   },
 
   /* ── Across the chain ──
@@ -728,7 +766,12 @@ export function coverage(): { total: number; covered: number; gaps: number } {
   /* Aside lanes are not part of the process, so counting their boxes would inflate both
      halves of the figure and make the view less true, not more. */
   const inProcess = STAGES.filter((stage) => !LANE_BY_ID[stage.laneId].aside);
-  const covered = inProcess.filter((stage) => stage.toolIds.length > 0).length;
+  /* "Has a system" means exactly that, and SAP is a system. A stage running on SAP with no
+     tool of ours is not a hole in the process -- it is a place we have not built anything,
+     which is a different statement and the diagram should not conflate them. */
+  const covered = inProcess.filter(
+    (stage) => stage.toolIds.length > 0 || (stage.systems?.length ?? 0) > 0,
+  ).length;
   return { total: inProcess.length, covered, gaps: inProcess.length - covered };
 }
 
