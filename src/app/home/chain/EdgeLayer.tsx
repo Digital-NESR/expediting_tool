@@ -16,6 +16,7 @@ export default function EdgeLayer({
   litStageIds,
   focusedLaneId,
   showLabels,
+  arriving,
   u,
   size,
 }: {
@@ -23,6 +24,8 @@ export default function EdgeLayer({
   litStageIds: Set<string> | null;
   focusedLaneId: string | null;
   showLabels: boolean;
+  /** True for the one-off reveal, when the connectors draw themselves rather than appear. */
+  arriving: boolean;
   u: (cssPx: number) => number;
   size: Sizes;
 }) {
@@ -47,8 +50,18 @@ export default function EdgeLayer({
               fill="none"
               stroke={lane.colour}
               strokeWidth={edge.dash === 'solid' ? 2.5 : 1.75}
+              className={arriving ? 'chain-arrive-edges' : undefined}
+              /* One unit means the whole line, so every connector draws in the same time
+                 however long it is. Ignored once the reveal has run. */
+              pathLength={arriving ? 1 : undefined}
               strokeDasharray={
-                edge.dash === 'dashed' ? '9 7' : edge.dash === 'dotted' ? '2 7' : undefined
+                arriving
+                  ? undefined
+                  : edge.dash === 'dashed'
+                    ? '9 7'
+                    : edge.dash === 'dotted'
+                      ? '2 7'
+                      : undefined
               }
               strokeLinecap="round"
               strokeLinejoin="round"

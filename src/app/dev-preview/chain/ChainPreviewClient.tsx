@@ -21,6 +21,7 @@ export default function ChainPreviewClient({ offChainToolIds }: { offChainToolId
      this page exists precisely so the chain can be looked at without one. */
   const [status, setStatus] = useState<ToolStatus>('new');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [favourites, setFavourites] = useState<string[]>(['procure-guard']);
 
   return (
     <>
@@ -72,6 +73,10 @@ export default function ChainPreviewClient({ offChainToolIds }: { offChainToolId
         offChainToolIds={offChainToolIds}
         statusOf={() => status}
         isAdmin={isAdmin}
+        favouriteIds={favourites}
+        onToggleFavourite={(id) =>
+          setFavourites((f) => (f.includes(id) ? f.filter((x) => x !== id) : [...f, id]))
+        }
         onOpenTool={(tool, newTab) => setOpened(`${tool.name}${newTab ? ' (new tab)' : ''}`)}
         renderToolCard={(tool) => (
           <div className="rounded-xl border border-slate-200 bg-white p-3">

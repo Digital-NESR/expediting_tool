@@ -75,9 +75,7 @@ export default function ScaiPanel() {
           Launch SCAI
         </a>
       </div>
-      <p className="text-xs text-slate-400">
-        {AGENTS.length} specialized agents, one platform
-      </p>
+      <p className="text-xs text-slate-400">{AGENTS.length} specialized agents, one platform</p>
 
       <div className="flex flex-col gap-3">
         {AGENTS.map(({ name, icon: Icon, blurb }) => (

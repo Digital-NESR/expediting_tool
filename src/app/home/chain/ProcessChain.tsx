@@ -21,7 +21,7 @@
    here would be a second, quietly different answer to "may this person open this". */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize2, Layers, X, MousePointer2 } from 'lucide-react';
+import { Maximize2, Layers, X, MousePointer2, Star } from 'lucide-react';
 import {
   CHAIN_HEIGHT,
   CHAIN_WIDTH,
@@ -46,6 +46,7 @@ import {
 } from './chainTheme';
 import EdgeLayer from './EdgeLayer';
 import { LaneBands, PhaseBands } from './LaneLayer';
+import ChainLegend from './ChainLegend';
 import StageNode from './StageNode';
 import ToolHoverCard, { type HoverAnchor } from './ToolHoverCard';
 import { MAX_SCALE, useChainCamera } from './useChainCamera';
@@ -64,6 +65,9 @@ export interface ProcessChainProps {
    */
   statusOf: (tool: ToolDef) => ToolStatus;
   isAdmin: boolean;
+  /** Tool ids this person has pinned. Starred on the chain and listed above it. */
+  favouriteIds?: string[];
+  onToggleFavourite?: (toolId: string) => void;
   /**
    * True while the session is still resolving. Until it lands, every per-user access status
    * reads 'new', so the chain would draw tools this person already has as locked. The grid
@@ -80,6 +84,8 @@ export default function ProcessChain({
   offChainToolIds,
   statusOf,
   isAdmin,
+  favouriteIds = [],
+  onToggleFavourite,
   sessionLoading = false,
 }: ProcessChainProps) {
   const camera = useChainCamera();
@@ -91,7 +97,10 @@ export default function ProcessChain({
     id: string;
     at: { x: number; top: number; bottom: number };
   } | null>(null);
-  const hoverTool = hover?.id ?? null;
+  /* Pointing at a pin lights the tool on the chain without raising a card over it: the
+     pin is outside the canvas, so there is nothing for a card to be anchored to. */
+  const [pinHover, setPinHover] = useState<string | null>(null);
+  const hoverTool = hover?.id ?? pinHover;
   /** True while the pointer is inside a stage box, which holds the follow camera still. */
   const [overStage, setOverStage] = useState(false);
 
@@ -232,6 +241,28 @@ export default function ProcessChain({
     const bottom = px(hover.at.x, hover.at.bottom);
     return { x: top.x, top: top.y, bottom: bottom.y };
   }, [hover, camera.view, svgBox]);
+
+  const favourites = useMemo(() => new Set(favouriteIds), [favouriteIds]);
+
+  /*
+   * The arrival, which runs exactly once.
+   *
+   * A timer rather than animation classes left on forever: a node that keeps its
+   * `animation` would replay it on any re-render that remounts it, and the diagram
+   * re-renders constantly as the camera moves. Switched off after the longest delay plus
+   * the longest duration, after which no node carries an animation at all.
+   */
+  const [arriving, setArriving] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setArriving(false), 1400);
+    return () => clearTimeout(t);
+  }, []);
+
+  /** Left to right along the canvas, so the chain assembles the way the work flows. */
+  const arriveDelayOf = useCallback(
+    (x: number) => (arriving ? 0.18 + (x / CHAIN_WIDTH) * 0.45 : null),
+    [arriving],
+  );
 
   const chipStates = useMemo(() => {
     const out = new Map<string, ChipState>();
@@ -409,6 +440,11 @@ export default function ProcessChain({
     return () => window.removeEventListener('keydown', onKey);
   }, [focus, selectedTool, resetView]);
 
+  const favouritePins = useMemo(
+    () => favouriteIds.map((id) => TOOL_BY_ID[id]).filter(Boolean),
+    [favouriteIds],
+  );
+
   const selected = selectedTool ? TOOL_BY_ID[selectedTool] : null;
   const focusLabel =
     focus?.kind === 'phase'
@@ -438,6 +474,35 @@ export default function ProcessChain({
             : 'SAP and Ariba are marked where the process runs on them. Point at anything to see what it is and where it is used.'}
         </p>
       </div>
+
+      {/*
+        Pinned tools, straight across the top.
+
+        Three kinds of visit arrive at a home page: open the thing I use daily, find what I
+        use for X, and see what we have. The chain is built for the last two and was the
+        worst of the three at the first -- you had to find your tool on a map to click it.
+        Anybody who pins anything now has it one click away, above the diagram.
+      */}
+      {favouritePins.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+            Pinned
+          </span>
+          {favouritePins.map((tool) => (
+            <button
+              key={tool.id}
+              type="button"
+              onClick={() => onOpenTool(tool, true)}
+              onMouseEnter={() => setPinHover(tool.id)}
+              onMouseLeave={() => setPinHover(null)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 shadow-sm transition-colors hover:border-[#307c4c]/40 hover:text-[#307c4c]"
+            >
+              <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+              {tool.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── Breadcrumb, lane filters, follow and Fit ── */}
       <div className="flex flex-wrap items-center gap-2">
@@ -578,12 +643,15 @@ export default function ProcessChain({
             ))}
           </defs>
 
-          <LaneBands u={u} size={size} />
+          <g className={arriving ? 'chain-arrive-lanes' : undefined}>
+            <LaneBands u={u} size={size} />
+          </g>
 
           <EdgeLayer
             litStageIds={litStageIds}
             focusedLaneId={focus?.kind === 'lane' ? focus.id : null}
             showLabels={showEdgeLabels}
+            arriving={arriving}
             u={u}
             size={size}
           />
@@ -602,6 +670,8 @@ export default function ProcessChain({
               dimmed={litStageIds ? !litStageIds.has(stage.id) : false}
               matchedToolIds={matchedToolIds}
               chipStates={chipStates}
+              favourites={favourites}
+              arriveDelay={arriveDelayOf(stage.x)}
               showGapNote={isAdmin}
               selectedTool={selectedTool}
               onPickTool={openTool}
@@ -667,6 +737,8 @@ export default function ProcessChain({
             </>
           )}
         </p>
+
+        <ChainLegend showGaps={isAdmin} />
       </div>
 
       {/* ── What is selected, and what sits beside the chain rather than on it ── */}
@@ -681,14 +753,41 @@ export default function ProcessChain({
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
                 On the chain
               </p>
-              <button
-                type="button"
-                onClick={() => setSelectedTool(null)}
-                aria-label="Close"
-                className="rounded-md p-0.5 text-slate-400 transition-colors hover:text-slate-700"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
+              <div className="flex items-center gap-1">
+                {/* Pinning lives here rather than on the hover card: the card is inert by
+                    design, because moving the pointer onto it would mean leaving the chip
+                    that raised it. */}
+                {onToggleFavourite && (
+                  <button
+                    type="button"
+                    onClick={() => onToggleFavourite(selected.id)}
+                    aria-pressed={favourites.has(selected.id)}
+                    aria-label={
+                      favourites.has(selected.id)
+                        ? `Unpin ${selected.name}`
+                        : `Pin ${selected.name} to the top`
+                    }
+                    title={favourites.has(selected.id) ? 'Unpin' : 'Pin to the top'}
+                    className="rounded-md p-0.5 transition-colors"
+                  >
+                    <Star
+                      className={`h-3.5 w-3.5 ${
+                        favourites.has(selected.id)
+                          ? 'fill-amber-400 text-amber-400'
+                          : 'text-slate-300 hover:text-slate-500'
+                      }`}
+                    />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedTool(null)}
+                  aria-label="Close"
+                  className="rounded-md p-0.5 text-slate-400 transition-colors hover:text-slate-700"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
               {renderToolCard(selected)}

@@ -344,6 +344,10 @@ export default function ToolLauncher({
              reads 'new', and the chain would draw tools this person already has as locked. */
           statusOf={statusOf}
           isAdmin={isAdmin}
+          /* The same pins the grid shows, and the same optimistic list, so starring a tool
+             on the chain and starring it on a card are one action with one piece of state. */
+          favouriteIds={shownFavourites}
+          onToggleFavourite={onToggleFavourite}
           sessionLoading={sessionStatus === 'loading'}
           /* The launcher keeps ownership of access: the chain calls back into the same
              handleOpen that the cards use, so a tool with a pending request still produces the

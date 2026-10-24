@@ -6,6 +6,17 @@ import { LANES, SYSTEM_LABEL, fitLabel, type Stage } from '@/lib/home/process-ch
 import { CHIP_STATE_LABEL, type ChipState } from './chipState';
 import { BOX, GAP_STROKE, INK, MUTED, SYSTEM_INK, TOOL_BY_ID, tailMetrics } from './chainTheme';
 
+/** A five-pointed star as a single path, in canvas units. */
+function starPath(cx: number, cy: number, r: number): string {
+  const pts: string[] = [];
+  for (let i = 0; i < 10; i += 1) {
+    const radius = i % 2 === 0 ? r : r * 0.44;
+    const a = (Math.PI / 5) * i - Math.PI / 2;
+    pts.push(`${(cx + radius * Math.cos(a)).toFixed(2)} ${(cy + radius * Math.sin(a)).toFixed(2)}`);
+  }
+  return `M${pts.join('L')}Z`;
+}
+
 /**
  * The mark on a chip that is not simply open.
  *
@@ -85,6 +96,8 @@ export default function StageNode({
   dimmed,
   matchedToolIds,
   chipStates,
+  favourites,
+  arriveDelay,
   showGapNote,
   selectedTool,
   onPickTool,
@@ -97,6 +110,15 @@ export default function StageNode({
   /** The search's hits, or null when nothing is being searched for. */
   matchedToolIds: Set<string> | null;
   chipStates: Map<string, ChipState>;
+  /** Tool ids this person has pinned, marked so a daily tool is findable at a glance. */
+  favourites: Set<string>;
+  /**
+   * Seconds to wait before this node arrives, or null once the reveal is over.
+   *
+   * Staggered by horizontal position rather than by array order, so the diagram assembles
+   * left to right -- the direction the work travels, which is the one thing it is about.
+   */
+  arriveDelay: number | null;
   /**
    * Whether an uncovered stage says so in words.
    *
@@ -181,7 +203,8 @@ export default function StageNode({
               stage.toolIds.length === 1 ? '' : 's'
             }.`
       }
-      className="chain-hit cursor-pointer"
+      className={`chain-hit cursor-pointer${arriveDelay === null ? '' : ' chain-arrive-node'}`}
+      style={arriveDelay === null ? undefined : { animationDelay: `${arriveDelay.toFixed(2)}s` }}
     >
       <rect
         x={stage.x}
@@ -255,7 +278,10 @@ export default function StageNode({
              than letting the mark crowd the name. */
             const w = Math.min(
               stage.w - 12,
-              label.length * chipText * 0.58 + 14 + (glyph ? chipText + 4 : 0),
+              label.length * chipText * 0.58 +
+                14 +
+                (glyph ? chipText + 4 : 0) +
+                (favourites.has(id) ? chipText : 0),
             );
             const left = stage.x + stage.w / 2 - w / 2;
             const muted = state === 'coming-soon';
@@ -322,6 +348,15 @@ export default function StageNode({
                     y={y + chipH / 2}
                     size={chipText * 0.92}
                     colour={selectedTool === id ? '#ffffff' : muted ? GAP_STROKE : lane.colour}
+                  />
+                )}
+                {favourites.has(id) && (
+                  /* A pinned tool keeps its star on the map as well as in the row above the
+                     canvas, so the two ways of finding the same thing agree. */
+                  <path
+                    d={starPath(left + w - chipText * 0.62 - 3, y + chipH / 2, chipText * 0.44)}
+                    fill="#f59e0b"
+                    style={{ pointerEvents: 'none' }}
                   />
                 )}
                 <text

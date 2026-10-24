@@ -165,6 +165,65 @@
   animation-direction: reverse;
 }
 
+/* ── The arrival ──────────────────────────────────────────────────────────
+   The diagram assembles itself once, on first paint: the lane bands settle, the
+   connectors draw themselves, and the stages arrive along the spine left to right -- the
+   direction the work travels, which is the one thing the drawing is about.
+
+   Under a second in total, and `both` so nothing is parked invisible if a frame is
+   missed. Pointer events are never blocked: the whole thing is `pointer-events: none`
+   inherited from nothing -- these only animate paint, so a click during the reveal lands
+   exactly where it looks like it lands. */
+@keyframes chain-settle {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes chain-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.chain-arrive-lanes {
+  animation: chain-settle 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.chain-arrive-edges {
+  /* pathLength=1 on the path makes one unit mean "the whole line", whatever its length,
+     so every connector draws in the same time regardless of how long it is. */
+  stroke-dasharray: 1;
+  animation: chain-draw 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
+}
+
+.chain-arrive-node {
+  animation: chain-settle 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* transform-box, or the translate is measured against the whole SVG and the node flies
+     in from somewhere far away rather than nudging into place. */
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chain-arrive-lanes,
+  .chain-arrive-edges,
+  .chain-arrive-node {
+    animation: none;
+  }
+  .chain-arrive-edges {
+    stroke-dasharray: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .chain-flow {
     animation: none;
