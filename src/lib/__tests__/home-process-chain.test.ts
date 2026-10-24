@@ -5,6 +5,7 @@ import {
   CHAR_W,
   EDGES,
   LANES,
+  LANE_BY_ID,
   OFF_CHAIN_TOOL_IDS,
   PHASES,
   PHASE_BAND,
@@ -186,9 +187,14 @@ describe('the layout is inside the canvas and does not collide', () => {
 });
 
 describe('the derived figures', () => {
-  it('counts coverage over every stage', () => {
+  it('counts coverage over the process, and not over what sits beside it', () => {
     const c = coverage();
-    expect(c.total).toBe(STAGES.length);
+    /* The "across the chain" lane holds tools that serve every stage rather than one, so
+       its boxes are not steps anybody performs. Counting them would report "18 of 24",
+       which is a worse answer than "15 of 21" because three of those are not stages. */
+    const inProcess = STAGES.filter((s) => !LANE_BY_ID[s.laneId].aside);
+    expect(inProcess.length).toBeLessThan(STAGES.length);
+    expect(c.total).toBe(inProcess.length);
     expect(c.covered + c.gaps).toBe(c.total);
     /* The whole premise of the view: there ARE gaps. If this ever reaches zero the wording
        under the canvas needs rethinking, not just the number. */

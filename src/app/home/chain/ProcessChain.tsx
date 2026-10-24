@@ -636,7 +636,11 @@ export default function ProcessChain({
       </div>
 
       {/* ── What is selected, and what sits beside the chain rather than on it ── */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+      <div
+        className={`grid gap-4 ${
+          offChainToolIds.length > 0 ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]' : ''
+        }`}
+      >
         {selected ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
             <div className="mb-2 flex items-start justify-between gap-2">
@@ -685,39 +689,43 @@ export default function ProcessChain({
           </div>
         )}
 
-        {/* ── The off-chain rail ── */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-            Across the chain
-          </p>
-          <p className="mt-1 text-[11px] leading-snug text-slate-500">
-            These serve every stage or none, so they sit beside the chain rather than on it.
-          </p>
-          <div className="mt-2.5 flex flex-wrap gap-1.5">
-            {offChainToolIds.map((id) => {
-              const tool = TOOL_BY_ID[id];
-              if (!tool) return null;
-              const hit = matchedToolIds?.has(id) ?? false;
-              const missed = matchedToolIds != null && !hit;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={(e) => onOpenTool(tool, e.metaKey || e.ctrlKey)}
-                  className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
-                    hit
-                      ? 'border-[#307c4c] bg-[#307c4c]/10 text-[#307c4c]'
-                      : missed
-                        ? 'border-slate-200 bg-white text-slate-300'
-                        : 'border-slate-200 bg-white text-slate-700 hover:border-[#307c4c]/40 hover:text-[#307c4c]'
-                  }`}
-                >
-                  {tool.name}
-                </button>
-              );
-            })}
+        {/* ── The off-chain rail ──
+            Empty now that the "across the chain" lane exists, so it renders nothing. Kept
+            because the next tool that fits nowhere on the drawing needs somewhere to go. */}
+        {offChainToolIds.length > 0 && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+              Across the chain
+            </p>
+            <p className="mt-1 text-[11px] leading-snug text-slate-500">
+              These serve every stage or none, so they sit beside the chain rather than on it.
+            </p>
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              {offChainToolIds.map((id) => {
+                const tool = TOOL_BY_ID[id];
+                if (!tool) return null;
+                const hit = matchedToolIds?.has(id) ?? false;
+                const missed = matchedToolIds != null && !hit;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={(e) => onOpenTool(tool, e.metaKey || e.ctrlKey)}
+                    className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+                      hit
+                        ? 'border-[#307c4c] bg-[#307c4c]/10 text-[#307c4c]'
+                        : missed
+                          ? 'border-slate-200 bg-white text-slate-300'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-[#307c4c]/40 hover:text-[#307c4c]'
+                    }`}
+                  >
+                    {tool.name}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

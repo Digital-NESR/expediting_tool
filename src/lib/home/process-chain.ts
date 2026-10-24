@@ -62,7 +62,22 @@ const INVENTORY_Y = 952;
 /** The dotted return from Goods Receipt, routed under everything else. */
 const BOTTOM_ROUTE_Y = 1130;
 
-export type LaneId = 'source-to-catalog' | 'demand-to-pay' | 'logistics' | 'inventory';
+/*
+ * The "across the chain" lane, in the bottom-right quarter.
+ *
+ * Logistics stops at x 1265 and Inventory at y 1088, which left roughly 590 by 370 units of
+ * canvas doing nothing. Three tools serve the whole process rather than any one stage and
+ * used to live in a list in a side panel, which meant three of the sixteen were not on the
+ * picture at all -- an odd thing for a view whose job is showing the estate. They go here,
+ * and the drawing costs not one unit more than it did.
+ */
+const ASIDE_X = 1300;
+const ASIDE_TOP = 768;
+const ASIDE_FIRST = 814;
+const ASIDE_PITCH = 110;
+const ASIDE_NODE_H = 86;
+
+export type LaneId = 'source-to-catalog' | 'demand-to-pay' | 'logistics' | 'inventory' | 'across';
 
 export interface Rect {
   x: number;
@@ -98,6 +113,14 @@ export interface Lane {
    * is what lets a second process map name a different backbone. At most one lane.
    */
   restFlow?: boolean;
+  /**
+   * This lane sits BESIDE the process rather than in it.
+   *
+   * Its boxes are not steps anybody performs, so they are not counted when the view reports
+   * how much of the chain has a system -- "18 of 24 stages" would be a worse answer than
+   * "15 of 21", because three of those twenty-four are not stages.
+   */
+  aside?: boolean;
 }
 
 export interface Stage extends Rect {
@@ -186,6 +209,22 @@ export const LANES: Lane[] = [
     tint: '#EEF4FA',
     flow: 'reverse',
     box: { x: 40, y: INVENTORY_TOP, w: 720, h: INVENTORY_Y + NODE_H + 16 - INVENTORY_TOP },
+  },
+  {
+    id: 'across',
+    label: 'Across the chain',
+    /* Deliberately not one of the four process colours. These serve every stage, so taking
+       any lane's colour would imply they belong to it. */
+    colour: '#58595B',
+    tint: '#F5F6F7',
+    flow: 'forward',
+    aside: true,
+    box: {
+      x: ASIDE_X - 36,
+      y: ASIDE_TOP,
+      w: 616,
+      h: ASIDE_FIRST + 2 * ASIDE_PITCH + ASIDE_NODE_H + 18 - ASIDE_TOP,
+    },
   },
 ];
 
@@ -416,6 +455,40 @@ export const STAGES: Stage[] = [
     h: NODE_H,
     toolIds: [],
   },
+
+  /* ── Across the chain ──
+     Not steps in the process. Each box is named for what the tool is FOR rather than for
+     the tool itself, so the lane reads as three capabilities rather than three logos. */
+  {
+    id: 'across-analytics',
+    laneId: 'across',
+    label: 'Analytics & Dashboards',
+    x: ASIDE_X,
+    y: ASIDE_FIRST,
+    w: 544,
+    h: ASIDE_NODE_H,
+    toolIds: ['supply-chain-analytics'],
+  },
+  {
+    id: 'across-learning',
+    laneId: 'across',
+    label: 'Learning & Training',
+    x: ASIDE_X,
+    y: ASIDE_FIRST + ASIDE_PITCH,
+    w: 544,
+    h: ASIDE_NODE_H,
+    toolIds: ['learning-hub'],
+  },
+  {
+    id: 'across-travel',
+    laneId: 'across',
+    label: 'Travel',
+    x: ASIDE_X,
+    y: ASIDE_FIRST + 2 * ASIDE_PITCH,
+    w: 544,
+    h: ASIDE_NODE_H,
+    toolIds: ['travel-portal'],
+  },
 ];
 
 /**
@@ -627,11 +700,14 @@ export const PHASES: Phase[] = (
    Analytics reads the whole chain, Learning Hub teaches it, and the Travel Portal is not part
    of it at all. Pinning each to its nearest stage would be three small lies, so they get a rail
    of their own beneath the diagram and the view says plainly that they sit across it. */
-export const OFF_CHAIN_TOOL_IDS: string[] = [
-  'supply-chain-analytics',
-  'learning-hub',
-  'travel-portal',
-];
+/**
+ * Tools that serve no single stage AND have no home on the aside lane either.
+ *
+ * Empty now that the aside lane exists, and kept rather than deleted because the next tool
+ * that fits nowhere needs somewhere to go, and the test that every tool is accounted for
+ * needs the escape hatch to exist. The panel that lists these hides itself when it is empty.
+ */
+export const OFF_CHAIN_TOOL_IDS: string[] = [];
 
 /* ─── Derived ────────────────────────────────────────────────────────────────────────────────
    Computed rather than written down, so a stage added above cannot leave a stale count or
@@ -649,8 +725,11 @@ export function placedToolIds(): string[] {
 
 /** The headline under the canvas: how much of the chain has a system behind it. */
 export function coverage(): { total: number; covered: number; gaps: number } {
-  const covered = STAGES.filter((stage) => stage.toolIds.length > 0).length;
-  return { total: STAGES.length, covered, gaps: STAGES.length - covered };
+  /* Aside lanes are not part of the process, so counting their boxes would inflate both
+     halves of the figure and make the view less true, not more. */
+  const inProcess = STAGES.filter((stage) => !LANE_BY_ID[stage.laneId].aside);
+  const covered = inProcess.filter((stage) => stage.toolIds.length > 0).length;
+  return { total: inProcess.length, covered, gaps: inProcess.length - covered };
 }
 
 /** The smallest rect containing these stages, plus padding. A camera target. */
