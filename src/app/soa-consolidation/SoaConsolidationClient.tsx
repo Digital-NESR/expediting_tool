@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
-import { csvSafe } from '@/lib/catalog-manager-utils';
+import { vendorStatusCsv } from '@/lib/soa/vendor-status-csv';
 import {
   applySoaScopeSelection,
   enrolSoaCountry,
@@ -529,38 +529,11 @@ export default function SoaConsolidationClient({
             addToast('info', 'Nothing to export', 'This country has no vendors in this cycle.');
             return;
           }
-          // The prototype named a file it never produced. This one is built from the rows the
-          // server just returned and handed to the browser.
-          const head = [
-            'Vendor No.',
-            'Vendor Name',
-            'Amount (USD)',
-            'Currency',
-            'Status',
-            'Requested',
-            'Reminded',
-            'Responded',
-            'Invoices',
-          ];
-          const csv = [
-            head.join(','),
-            ...rows.map((r) =>
-              [
-                r.vendorNo,
-                r.vendorName,
-                r.amount,
-                r.currency,
-                r.status,
-                r.requestedAt ?? '',
-                r.remindedAt ?? '',
-                r.respondedAt ?? '',
-                r.invoiceCount,
-              ]
-                .map((cell) => `"${csvSafe(cell).replace(/"/g, '""')}"`)
-                .join(','),
-            ),
-          ].join('\n');
-          const blob = new Blob([csv], { type: 'text/csv' });
+          /* The prototype named a file it never produced. This one is built from the rows the
+             server just returned and handed to the browser. The columns live in
+             `vendor-status-csv.ts`, where they can be tested -- this file leaves the building
+             and an auditor reads it. */
+          const blob = new Blob([vendorStatusCsv(rows)], { type: 'text/csv' });
           const url = URL.createObjectURL(blob);
           const anchor = document.createElement('a');
           anchor.href = url;

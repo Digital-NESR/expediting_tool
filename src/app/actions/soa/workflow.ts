@@ -22,6 +22,8 @@ import { logger } from '@/lib/logger';
 import { validateUploadSignature, uploadMimeTypeFor } from '@/lib/documents';
 import { ensureSoaSchema, soaPool, sql } from '@/lib/soa/db';
 import { requireSoaActor, requireSoaCountry } from '@/lib/soa/access';
+import { countryBalance } from '@/lib/soa/balance';
+import { spendShares } from '@/lib/soa/spend-share';
 import { loadDeliveryFailures, type DeliveryFailure } from '@/lib/soa/delivery';
 import { getEmployeeDirectoryDefaults } from '@/app/actions/employeeDirectory';
 import { attachmentFileName, buildSupplierWorkbook } from '@/lib/soa/attachment';
@@ -885,6 +887,14 @@ export async function getSoaExportRows(countryId: string): Promise<
     vendorNo: string;
     vendorName: string;
     amount: number;
+    /**
+     * This vendor's share of the country's WHOLE balance, as a percentage, or null when
+     * there is no denominator to divide by. Computed here rather than from the rows below,
+     * for the reason in `balance.ts`: the export is the scoped chase list, which is a
+     * fraction of the country, and dividing by its own sum would print a number several
+     * times too large and disagree with every screen.
+     */
+    sharePct: number | null;
     currency: string;
     status: string;
     requestedAt: string | null;
@@ -897,7 +907,9 @@ export async function getSoaExportRows(countryId: string): Promise<
     await requireSoaCountry(countryId, 'viewer');
     const rows = await sql<QueryResultRow[]>(
       `SELECT v.vendor_no, v.name, vce.open_po_amount, vce.currency, vce.status::text AS status,
-              vce.requested_at, vce.reminded_at, vce.responded_at, vce.invoice_count
+              vce.requested_at, vce.reminded_at, vce.responded_at, vce.invoice_count,
+              cy.id AS cycle_id,
+              ${entryNotExcluded('vce')} AS included
          FROM vendor_cycle_entries vce
          JOIN vendors v ON v.id = vce.vendor_id
          JOIN country_cycles cc ON cc.id = vce.country_cycle_id
@@ -906,11 +918,34 @@ export async function getSoaExportRows(countryId: string): Promise<
         ORDER BY vce.open_po_amount DESC`,
       [countryId],
     );
+    if (!rows.length) return [];
+
+    /*
+     * Shares on the same arithmetic the screens use, down to the rounding.
+     *
+     * An excluded entity contributes 0 rather than its balance: it has already been taken out
+     * of the denominator, so counting it on top would be the one-sided division that let a
+     * country's coverage climb past 100%. Six countries have one locked into their chase list
+     * and therefore in these rows, so this is not hypothetical.
+     */
+    const totalBalance = await countryBalance(Number(rows[0].cycle_id), countryId);
+    /* Keyed by position rather than by vendor number. A duplicate key would silently give
+       two rows the same share, and "one entry per vendor per cycle" is a thing this query
+       does not enforce and should not have to assume. */
+    const shares = spendShares(
+      rows.map((r, i) => ({
+        key: String(i),
+        value: r.included === true ? Number(r.open_po_amount) : 0,
+      })),
+      totalBalance,
+    );
+
     const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : v ? String(v) : null);
-    return rows.map((r) => ({
+    return rows.map((r, i) => ({
       vendorNo: String(r.vendor_no),
       vendorName: String(r.name),
       amount: Number(r.open_po_amount),
+      sharePct: shares.get(String(i))?.sharePct ?? null,
       currency: String(r.currency),
       status: String(r.status),
       requestedAt: iso(r.requested_at),

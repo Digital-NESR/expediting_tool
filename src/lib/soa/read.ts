@@ -5,6 +5,7 @@ import { ensureSoaSchema, sql } from './db';
 import { resolvedContactsForMany } from './recipients';
 import { effectiveCycleDeadline, effectiveSubmissionDeadline } from './deadlines';
 import { entryNotExcluded, notExcludedVendorNo } from './exclusions';
+import { countryBalance } from './balance';
 import { COVERED_STATUS_SQL, type VendorCycleStatus } from './status';
 
 /**
@@ -367,16 +368,10 @@ export async function loadSoa(
     available.find((c) => c.id === countryId)?.name ?? String(ccRows[0]?.name ?? countryId);
 
   /* The same denominator the Scoping screen computes, which is the whole point: it is where a
-     champion reads "target met", and it was the only place the exclusions were applied. */
-  const denomRows = await sql<QueryResultRow[]>(
-    `SELECT COALESCE(SUM(e.pos_value), 0) AS total
-       FROM supplier_po_extract e
-       JOIN countries c ON e.po_country = ANY (c.spend_names)
-      WHERE e.cycle_id = ? AND c.id = ?
-        AND ${notExcludedVendorNo('e.supplier_id')}`,
-    [cycle.id, countryId],
-  );
-  const totalBalance = Number(denomRows[0]?.total ?? 0);
+     champion reads "target met", and it was the only place the exclusions were applied. It
+     lives in `balance.ts` now, because the vendor-status CSV needs the identical figure and a
+     second copy of this query is how the last disagreement started. */
+  const totalBalance = await countryBalance(cycle.id, countryId);
 
   // Not scoped yet: there is a cycle and a country, but nobody has drawn the vendor list.
   if (!ccRows.length) {
