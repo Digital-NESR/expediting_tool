@@ -42,6 +42,22 @@ function wipWebhookUrl(): string | null {
   return raw || null;
 }
 
+/**
+ * The shared secret the workflow checks, mirroring the S&S integration's
+ * `x-sns-registry-secret`.
+ *
+ * An n8n webhook is a public URL, and this one creates tickets in the live
+ * service desk — so without it, anyone who guesses the path can file WIPs
+ * against real cost centres. Sent only when configured, so the integration
+ * still works against a webhook that has no header auth on it yet.
+ */
+function wipWebhookHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const secret = stripEnvQuotes(process.env.N8N_LAPTOP_WIP_WEBHOOK_SECRET ?? '').trim();
+  if (secret) headers['x-laptop-wip-secret'] = secret;
+  return headers;
+}
+
 /* ═══ Who the ticket belongs to ══════════════════════════════════ */
 
 /**
@@ -98,7 +114,7 @@ async function postToWipWorkflow(url: string, payload: WipPayload): Promise<WipO
   try {
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: wipWebhookHeaders(),
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
