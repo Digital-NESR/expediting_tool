@@ -58,23 +58,44 @@ export interface WipPayload {
 }
 
 /**
- * Unit price, USD.
+ * The model a requester picks when no catalogued device fits.
  *
- * A placeholder until the per-country cost sheet is filled in. It is a function
- * rather than a constant so the call site is already written against a lookup:
- * when the sheet arrives this reads a `(model, country) -> price` table and
- * nothing above it changes.
- *
- * Returning `number | null` now, even though the placeholder never returns
- * null, keeps the unpriced path built and tested. Two cases will produce it for
- * real: the model 'Other (Exceptional case only)', which the sheet has a row
- * for but will never price, and the country 'Other', which has no column in the
- * sheet at all.
+ * The cost sheet has a row for it but will never carry a price: by definition
+ * nobody knows what the device is until the request exists.
  */
+export const EXCEPTIONAL_MODEL = 'Other (Exceptional case only)';
+
+/**
+ * What an exceptional device is worth on the WIP: one dollar.
+ *
+ * Not zero, and not blank. The field is a mandatory decimal, so it has to carry
+ * a number; zero would read as "this device was free" and is indistinguishable
+ * from an unfilled field. A dollar is obviously a placeholder — nobody mistakes
+ * it for a real laptop price — so it satisfies the form while telling whoever
+ * handles the WIP that the figure still has to be established.
+ */
+export const EXCEPTIONAL_UNIT_PRICE_USD = 1;
+
+/** Stand-in for the per-country cost sheet, which is not filled in yet. */
 const PLACEHOLDER_UNIT_PRICE_USD = 100;
 
+/**
+ * Unit price, USD.
+ *
+ * A function rather than a constant so the call site is already written against
+ * a lookup: when the cost sheet arrives this reads a `(model, country) -> price`
+ * table and nothing above it changes.
+ *
+ * `number | null` because a lookup can miss. The exceptional model is handled
+ * before the table is consulted — it will never be in it — and country 'Other'
+ * has no column in the sheet at all, so it stays the one case that can still
+ * come back unpriced once the real prices land.
+ */
 export function unitPriceUsd(model: string, country: string): number | null {
-  if (!model.trim() || !country.trim()) return null;
+  const m = model.trim();
+  const c = country.trim();
+  if (!m || !c) return null;
+  if (m === EXCEPTIONAL_MODEL) return EXCEPTIONAL_UNIT_PRICE_USD;
   return PLACEHOLDER_UNIT_PRICE_USD;
 }
 

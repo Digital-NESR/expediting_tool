@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  EXCEPTIONAL_MODEL,
+  EXCEPTIONAL_UNIT_PRICE_USD,
   WIP_QUANTITY,
   WIP_SERVICE_ITEM_ID,
   buildWipPayload,
@@ -158,6 +160,38 @@ describe('the price placeholder', () => {
   it('returns null rather than guessing when either side is blank', () => {
     expect(unitPriceUsd('', 'Iraq')).toBeNull();
     expect(unitPriceUsd('Dell Pro 14 Plus', '   ')).toBeNull();
+  });
+});
+
+describe('an exceptional device', () => {
+  it('is worth a nominal dollar, in every country', () => {
+    // The cost sheet has a row for it but will never price it: nobody knows
+    // what the device is until the request exists.
+    for (const country of ['Iraq', 'Saudi Arabia', 'HQ Dubai', 'Malaysia']) {
+      expect(unitPriceUsd(EXCEPTIONAL_MODEL, country)).toBe(1);
+    }
+  });
+
+  it('is not zero, which would read as free', () => {
+    expect(EXCEPTIONAL_UNIT_PRICE_USD).toBe(1);
+    expect(EXCEPTIONAL_UNIT_PRICE_USD).not.toBe(0);
+  });
+
+  it('gets a WIP rather than being refused', () => {
+    // Before the dollar rule this was the case that could not raise a WIP at
+    // all, because the Freshservice field is a mandatory decimal.
+    const r = request({ requested_model: EXCEPTIONAL_MODEL });
+    const built = buildWipPayload(r, EMAIL, unitPriceUsd(EXCEPTIONAL_MODEL, r.country ?? ''));
+    expect(built.ok).toBe(true);
+    if (!built.ok) return;
+    expect(built.payload.custom_fields.total_value_usd).toBe(1);
+    expect(built.payload.custom_fields.model).toBe(EXCEPTIONAL_MODEL);
+  });
+
+  it('is matched exactly, not by looking for the word "other"', () => {
+    // A real catalogued model should never fall through to a dollar.
+    expect(unitPriceUsd('Other', 'Iraq')).toBe(100);
+    expect(unitPriceUsd('Dell Latitude 5000 series - Core i5', 'Iraq')).toBe(100);
   });
 });
 
