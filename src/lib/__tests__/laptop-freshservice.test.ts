@@ -160,3 +160,44 @@ describe('the price placeholder', () => {
     expect(unitPriceUsd('Dell Pro 14 Plus', '   ')).toBeNull();
   });
 });
+
+describe('keeping the country IT Manager in the loop', () => {
+  it('carries the CC addresses through', () => {
+    const r = buildWipPayload(request(), EMAIL, 100, ['itm.iraq@nesr.com', 'itm2.iraq@nesr.com']);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.payload.cc_emails).toEqual(['itm.iraq@nesr.com', 'itm2.iraq@nesr.com']);
+  });
+
+  it('omits the field rather than sending an empty list', () => {
+    // An empty recipient is what made the Outlook node reject a whole message
+    // on the S&S side; the safe shape is for the key not to be there at all.
+    const r = buildWipPayload(request(), EMAIL, 100, []);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect('cc_emails' in r.payload).toBe(false);
+  });
+
+  it('drops blanks and nulls from an unfilled matrix slot', () => {
+    // laptop_approver_matrix has three IT Manager slots per country and most
+    // countries fill one, so two nulls is the normal case, not the edge.
+    const r = buildWipPayload(request(), EMAIL, 100, ['itm.iraq@nesr.com', null, undefined, '  ']);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.payload.cc_emails).toEqual(['itm.iraq@nesr.com']);
+  });
+
+  it('never CCs the requester, who is already on the ticket', () => {
+    const r = buildWipPayload(request(), EMAIL, 100, ['SBagalkot@nesr.com', 'itm@nesr.com']);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.payload.cc_emails).toEqual(['itm@nesr.com']);
+  });
+
+  it('de-duplicates an IT Manager named in two slots', () => {
+    const r = buildWipPayload(request(), EMAIL, 100, ['itm@nesr.com', 'ITM@nesr.com']);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.payload.cc_emails).toEqual(['itm@nesr.com']);
+  });
+});

@@ -44,6 +44,16 @@ export interface WipCustomFields {
 export interface WipPayload {
   /** The Freshservice requester the WIP is raised under. */
   email: string;
+  /**
+   * Kept in the loop on the ticket thread — the IT Manager(s) for the
+   * request's country, from laptop_approver_matrix, which holds up to three
+   * named slots per country.
+   *
+   * Omitted entirely rather than sent empty: Freshservice's Outlook path has
+   * form before, where an empty recipient turned into a blank address and the
+   * whole message was rejected.
+   */
+  cc_emails?: string[];
   custom_fields: WipCustomFields;
 }
 
@@ -104,6 +114,7 @@ export function buildWipPayload(
   request: LaptopRequest,
   requesterEmail: string,
   priceUsd: number | null,
+  ccEmails: (string | null | undefined)[] = [],
 ): WipBuildResult {
   const country = request.country?.trim() ?? '';
   const companyCode = request.company_code?.trim() ?? '';
@@ -123,10 +134,23 @@ export function buildWipPayload(
   }
   if (missing.length) return { ok: false, missing };
 
+  /* De-duplicated case-insensitively, and the requester is dropped: they are
+     already on the ticket, and Freshservice would otherwise mail them twice. */
+  const seen = new Set<string>([email.toLowerCase()]);
+  const cc: string[] = [];
+  for (const raw of ccEmails) {
+    const addr = (raw ?? '').trim();
+    const key = addr.toLowerCase();
+    if (!addr || seen.has(key)) continue;
+    seen.add(key);
+    cc.push(addr);
+  }
+
   return {
     ok: true,
     payload: {
       email,
+      ...(cc.length ? { cc_emails: cc } : {}),
       custom_fields: {
         country,
         company_code: companyCode,
