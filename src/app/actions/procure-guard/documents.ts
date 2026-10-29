@@ -25,6 +25,8 @@ import {
   MAX_PROCURE_GUARD_FILE_BYTES,
   PROCURE_GUARD_DOCUMENT_TYPES,
   PROCUREGUARD_DATA_TAG,
+  SAP_VERIFICATION_DOCUMENT_LABEL,
+  SAP_VERIFICATION_DOCUMENT_TYPE,
 } from '@/lib/procure-guard/constants';
 import { ensureProcureGuardSchema, exec, serialise, sql } from '@/lib/procure-guard/internals';
 import {
@@ -44,11 +46,36 @@ import type {
 
 const log = logger('procure-guard');
 
+/**
+ * Where an upload spends its time, logged on every one that takes longer than a moment.
+ *
+ * The SAP team reported waits over a minute on files averaging half a megabyte. The database
+ * is not it -- measured against the live server, a warm round trip is 46ms, moving a 647 kB
+ * blob is 171ms, and the detail page's own reads are 195ms together -- so the time is going
+ * somewhere this code could not see. Rather than keep guessing from the outside, each step is
+ * timed and the breakdown is logged with the reference number.
+ *
+ * Only above the threshold, so a normal upload logs nothing. The numbers it prints are
+ * server-side only: the file crossing the network to get here is already spent by the time the
+ * first line runs, and `receivedToStart` is the closest thing to a measure of it.
+ */
+const SLOW_UPLOAD_MS = 2_000;
+
 export async function uploadProcureGuardDocument(
   formData: FormData,
 ): Promise<{ success: boolean; document?: ProcureGuardDocument; error?: string }> {
+  const startedAt = Date.now();
+  const marks: Record<string, number> = {};
+  let last = startedAt;
+  const mark = (step: string) => {
+    const now = Date.now();
+    marks[step] = now - last;
+    last = now;
+  };
+
   try {
     const actor = await getActor();
+    mark('resolveActor');
     requireProcureGuardOperationalAccess(actor);
     const requestType = formData.get('request_type') as ProcureGuardRequestType | null;
     const requestId = Number(formData.get('request_id'));
@@ -72,6 +99,27 @@ export async function uploadProcureGuardDocument(
       return { success: false, error: 'Unsupported attachment type.' };
     }
 
+    /* The SAP type is the one the verification step looks for, so only somebody who could
+       perform that step may file under it. Without this the requirement is satisfiable by the
+       requester: upload anything, tick the type, and the transition sees evidence that nobody
+       with the authority to check ever produced. The rule is enforced HERE rather than at the
+       transition because permissions change -- checking the uploader's authority weeks later
+       would let a verified request become unverifiable when somebody leaves the team. */
+    if (documentType === SAP_VERIFICATION_DOCUMENT_TYPE) {
+      if (requestType !== 'adhoc') {
+        return {
+          success: false,
+          error: `${SAP_VERIFICATION_DOCUMENT_LABEL} belongs to the adhoc SAP Team verification step, which advance requests do not have.`,
+        };
+      }
+      if (!actor.permissions.canReviewAdhocSapTeam) {
+        return {
+          success: false,
+          error: `Only the SAP Team can file ${SAP_VERIFICATION_DOCUMENT_LABEL.toLowerCase()}. Attach it as a normal attachment instead.`,
+        };
+      }
+    }
+
     if (file.size > MAX_PROCURE_GUARD_FILE_BYTES) {
       return { success: false, error: 'File is too large. Maximum size is 10 MB.' };
     }
@@ -82,6 +130,7 @@ export async function uploadProcureGuardDocument(
       `SELECT id, reference_number, requested_by_email, requester_notification_emails, country, segment FROM ${table} WHERE id = ? LIMIT 1`,
       [requestId],
     );
+    mark('loadRequest');
     if (!requestRows[0]) return { success: false, error: 'Request not found.' };
     const request = normalisePaymentCountry(
       serialise<
@@ -103,6 +152,7 @@ export async function uploadProcureGuardDocument(
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
+    mark('readFileIntoMemory');
     const insert = await exec(
       `INSERT INTO procure_guard_documents
          (request_type, request_id, document_name, original_name, document_type, file_type, file_size, file_content, uploaded_by_name, uploaded_by_email)
@@ -121,6 +171,8 @@ export async function uploadProcureGuardDocument(
       ],
     );
 
+    mark('insertDocument');
+
     const docs = await sql<QueryResultRow[]>(
       `SELECT id, request_type, request_id, document_name, original_name, document_type, file_type, file_size,
               uploaded_by_name, uploaded_by_email, uploaded_at
@@ -128,21 +180,41 @@ export async function uploadProcureGuardDocument(
        WHERE id = ? LIMIT 1`,
       [insert.insertId],
     );
+    mark('readBackRow');
 
     await writeActivity({
       requestType,
       requestId,
       referenceNumber: requestRows[0].reference_number,
-      action: 'Attachment uploaded',
+      action:
+        documentType === SAP_VERIFICATION_DOCUMENT_TYPE
+          ? `${SAP_VERIFICATION_DOCUMENT_LABEL} uploaded`
+          : 'Attachment uploaded',
       actor,
       notes: file.name,
     });
+    mark('writeActivity');
 
+    /* These are the ones to watch. `revalidatePath` on a dynamic route makes the server action's
+       response carry a fresh render of the current page, so the cost of re-rendering the detail
+       screen lands inside this call rather than after it. */
     revalidatePath('/procure-guard');
     revalidateTag(PROCUREGUARD_DATA_TAG, 'max');
     revalidatePath(
       `/procure-guard/${requestType === 'adhoc' ? 'adhoc-payments' : 'advance-payments'}/${requestId}`,
     );
+    mark('revalidate');
+
+    const totalMs = Date.now() - startedAt;
+    if (totalMs > SLOW_UPLOAD_MS) {
+      log.warn('upload.slow', {
+        reference: requestRows[0].reference_number,
+        documentType,
+        fileBytes: file.size,
+        totalMs,
+        ...marks,
+      });
+    }
     return { success: true, document: serialise<ProcureGuardDocument>(docs[0]) };
   } catch (err) {
     log.error('uploadProcureGuardDocument.failed', err);

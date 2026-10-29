@@ -2,6 +2,12 @@ import { shortDateTime, shortDateUTC } from '@/lib/format';
 import { complianceCriteria } from '@/lib/soa/compliance';
 import { formatPct, spendShares } from '@/lib/soa/spend-share';
 import { countsTowardCoverage, isAwaitingVerification, isResolved } from '@/lib/soa/status';
+import {
+  filedByChampion,
+  filedByNobody,
+  filedBySupplier,
+  matchesUploadSource,
+} from '@/lib/soa/upload-source';
 import type {
   AppState,
   Country,
@@ -27,7 +33,9 @@ import type {
   StatusBarSegVM,
   TableControlsVM,
   Vendor,
+  SourceTabVM,
   SpendShareVM,
+  UploadSource,
   VendorEnrichedVM,
   VendorRowVM,
   VendorStatus,
@@ -365,6 +373,9 @@ export function deriveViewModel(
   const {
     screen,
     filterStatus,
+    filterSource,
+    uploadError,
+    consolidationSource,
     modal,
     toasts,
     expandedVendor,
@@ -438,8 +449,12 @@ export function deriveViewModel(
      is nil are the same answer to "is this account reconciled"; a supplier with nothing
      outstanding never had a statement to send, and withholding the credit would measure our
      paperwork rather than the account. Silence still counts for nothing. */
+  /* `!v.excluded` on the numerator because the denominator drops them too (see
+     lib/soa/exclusions.ts). Six countries have an intercompany entity locked into their chase
+     list from before the exclusion list existed; counting its statement here while its balance
+     is out of `totalBalance` would push coverage past 100%. */
   const receivedBalance = vendors
-    .filter((v) => countsTowardCoverage(v.status))
+    .filter((v) => !v.excluded && countsTowardCoverage(v.status))
     .reduce((s, v) => s + v.openPO, 0);
   /* Two decimals, like the columns that are measured against it. Rounded to whole percent it
      disagreed with them on sight: Saudi Arabia's 20.52% showed as 21% beside a column whose last
@@ -649,6 +664,49 @@ export function deriveViewModel(
     onClick: () => handlers.setFilterStatus(t.status),
   }));
 
+  /* A second filter rather than three more status pills, because it asks a different question
+     about the same rows: who filed it, not where the vendor stands. Both narrow the table, so
+     they compose, and a champion can ask for their own uploads among the received.
+
+     Built once for both screens that offer it. The counts are always of the rows that screen
+     lists, so the pills on Consolidation count the suppliers in the file and the pills on
+     Response Tracking count everyone in scope; a pill whose number did not match the table under
+     it would be read as the filter being broken. */
+  const sourceTabsFor = (
+    subset: Vendor[],
+    selected: UploadSource,
+    onPick: (source: UploadSource) => void,
+  ): SourceTabVM[] =>
+    (
+      [
+        { label: 'Anyone', source: 'all', count: subset.length },
+        {
+          label: 'Uploaded by a champion',
+          source: 'champion',
+          count: subset.filter((v) => filedByChampion(v.submissions)).length,
+        },
+        {
+          label: 'Filed by the supplier',
+          source: 'supplier_portal',
+          count: subset.filter((v) => filedBySupplier(v.submissions)).length,
+        },
+        /* The fourth answer, without which the first three do not add up to the total above
+           them and choosing one silently drops every row that has no statement. */
+        {
+          label: 'Nothing on file',
+          source: 'none',
+          count: subset.filter((v) => filedByNobody(v.submissions)).length,
+        },
+      ] as { label: string; source: UploadSource; count: number }[]
+    ).map((t) => ({
+      ...t,
+      isSelected: t.source === selected,
+      onClick: () => onPick(t.source),
+    }));
+
+  const sourceTabs = sourceTabsFor(vendors, filterSource, handlers.setFilterSource);
+  const matchesSource = (v: Vendor) => matchesUploadSource(v.submissions, filterSource);
+
   /* Each supplier's weight in the country, computed once for every screen that shows it, against
      the same denominator the coverage figure divides by. Computed here rather than per screen
      because a supplier reading 12% on Response Tracking and 11% on Consolidation is a bug nobody
@@ -665,7 +723,10 @@ export function deriveViewModel(
      denominator was never the problem: both divide by the country's whole balance. */
   const sharesOver = (subset: Vendor[]) =>
     spendShares(
-      subset.map((v) => ({ key: v.id, value: v.openPO })),
+      /* An excluded supplier contributes nothing to a running total measured against a
+         denominator it is not in — the same rule, and the same null, as the Scoping screen's
+         cumulative column. */
+      subset.map((v) => ({ key: v.id, value: v.excluded ? 0 : v.openPO })),
       totalBalance,
     );
   const labelsFrom =
@@ -687,6 +748,7 @@ export function deriveViewModel(
   // Response Tracking, status filter, then text filter, then one page of rows.
   const trackingMatched = vendors
     .filter((v) => filterStatus === 'all' || v.status === filterStatus)
+    .filter(matchesSource)
     .filter((v) => matchesSearch(v, search));
   /* The refused sends, by vendor, so a failure shows on the row it belongs to rather than in a
      panel above the table listing the same vendors a second time. Retryable ones only: a refusal
@@ -726,7 +788,13 @@ export function deriveViewModel(
       ...enrichVendorRow(v),
       isExpanded: v.id === expandedVendor,
       isReceived: v.status === 'received',
-      canAccept: canAct && v.status !== 'received',
+      /* `canAct` already stops at the handoff, which is exactly the line the champion asked for:
+         their own upload stays editable until the country goes to Finance, and not after. It used
+         to also stop at `received`, so the button disappeared the moment there was something to
+         correct. */
+      canAccept: canAct,
+      acceptLabel: v.status === 'received' ? 'Replace SOA upload' : 'Accept SOA Upload',
+      uploadedByChampion: filedByChampion(v.submissions),
       canChase,
       chaseLabel: chaseKind === 'request' ? 'Send request' : 'Send reminder',
       canResolve: canAct && (v.status === 'reminded' || v.status === 'requested'),
@@ -777,8 +845,11 @@ export function deriveViewModel(
      They are NESR's own intercompany entities, so there is no third party to confirm a balance
      with and nothing to reconcile. Counting them put a ceiling on coverage that no amount of
      chasing could reach, and a champion who had ticked every supplier they were allowed to tick
-     still read 96%. `scopeCandidates` computes it; the payload total is only the fallback for
-     before the list has loaded, and it still includes them. */
+     still read 96%. `scopeCandidates` computes it; as of 20 Oct 2026 so does the payload total,
+     which is what stopped this screen and the Corporate Rollup from disagreeing. */
+  /* Both of these now exclude, so the fallback no longer changes the answer. It is kept
+     because `scope.totalBalance` is 0 until the candidate list has loaded, and dividing by 0
+     would blank the screen for a moment. */
   const scopeDenominator = scope.totalBalance || totalBalance;
   const scopeThresholdLabel = fmtUsd(scope.thresholdUsd || (cycle?.vendorThresholdUsd ?? 0));
   const totals = scopeTotals(scope.candidates, scopeSelected);
@@ -999,12 +1070,28 @@ export function deriveViewModel(
   const consolidatedCount = consolidatedVendors.length;
   const consolidatedBalance = consolidatedVendors.reduce((sum, v) => sum + v.openPO, 0);
 
-  const consolidatedRows = consolidatedVendors.map((v, i) => ({
-    ...v,
-    num: i + 1,
-    fmtOpenPO: fmtM(v.openPO),
-    ...consolidatedShareLabels(v),
-  }));
+  const consolidationSourceTabs = sourceTabsFor(
+    consolidatedVendors,
+    consolidationSource,
+    handlers.setConsolidationSource,
+  );
+
+  /* Numbered and accumulated over the whole file, then filtered.
+     This screen describes a file rather than a population: the row number is that supplier's line
+     in the workbook AP receives, and the cumulative column runs to the coverage figure printed
+     above it. Renumbering under a filter would make both say something the file does not, so the
+     filter hides rows and the gaps in the numbering are the honest signal that it is on. It is
+     the opposite choice from Response Tracking, which has no file behind it and whose filter does
+     define the population. */
+  const consolidatedRows = consolidatedVendors
+    .map((v, i) => ({
+      ...v,
+      num: i + 1,
+      fmtOpenPO: fmtM(v.openPO),
+      ...consolidatedShareLabels(v),
+    }))
+    .filter((v) => matchesUploadSource(v.submissions, consolidationSource));
+  const consolidationFiltered = consolidationSource !== 'all';
 
   const evidenceEnriched: EvidenceRowVM[] = evidence.map((e) => {
     const typeKey: EvidenceType = e.type in EVIDENCE_TYPE_LABEL ? (e.type as EvidenceType) : 'info';
@@ -1201,6 +1288,7 @@ export function deriveViewModel(
     onRetryFailed: handlers.retryFailed,
 
     filterTabs,
+    sourceTabs,
     vendorsEnriched,
     trackingTable,
     sendProgress,
@@ -1217,13 +1305,22 @@ export function deriveViewModel(
     complianceItems: items,
     consolidatedRows,
     consolidatedCount,
+    consolidationSourceTabs,
+    consolidationShownCount: consolidatedRows.length,
+    consolidationFiltered,
     fmtConsolidatedBalance: fmtM(consolidatedBalance),
     /* The same figure as the KPI tile and the rollup, written once. */
     fmtCoveragePct: formatPct(coveragePct),
     allPass,
     allPassLabel,
     handedOff: payload.handedOff,
-    canHandoff: canAct && coverageMet,
+    /* The target gates the handoff only while suppliers can still answer it. Past the date they
+       were given, a champion who chased everyone cannot collect their way to the threshold, and
+       holding the cycle open produces no statements: it only keeps AP waiting for a file that is
+       as complete as it is going to get. The action applies the same rule, from the same
+       module, so this button is never offered where the server would refuse it. */
+    canHandoff: canAct && (coverageMet || pastCollectionDeadline),
+    handoffShortOfTarget: !coverageMet && pastCollectionDeadline,
     onGenerateExport: handlers.generateExport,
     onOpenHandoffModal: handlers.openHandoffModal,
 
@@ -1247,6 +1344,16 @@ export function deriveViewModel(
     modalVendorNo: modalVendor?.no ?? '',
     modalVendorAmt: modalVendor ? fmtM(modalVendor.openPO) : '',
     modalVendorCurrency: modalVendor?.currency ?? '',
+    modalIsReplacement: modalVendor?.status === 'received',
+    modalError: uploadError,
+    /* The template as this supplier was sent it, rebuilt on demand. Offered in the box rather
+       than only named in the refusal, because a champion holding the wrong file needs the right
+       one, and hunting back through a three-week-old email for it is the reason the wrong one
+       gets uploaded in the first place. */
+    modalTemplateHref: modalVendor ? `/api/soa/vendor-template/${modalVendor.id}` : '',
+    modalCurrentFiles: (modalVendor?.submissions ?? [])
+      .filter((f) => !f.superseded)
+      .map((f) => ({ kind: f.kind, fileName: f.fileName })),
     onCloseModal: handlers.closeModal,
     onAcceptSOA: handlers.acceptSOA,
     onRemoveSubmission: handlers.removeSubmission,

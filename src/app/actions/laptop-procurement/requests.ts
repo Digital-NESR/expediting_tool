@@ -114,6 +114,13 @@ export async function updateLaptopRequest(
            employee_id = ?, priority = ?, request_type = ?, country = ?, computer_for = ?, computer_for_employee_id = ?,
            department = ?, company_code = ?, company_name = ?, cost_center = ?,
            type_of_device = ?, requested_model = ?, special_requirements = ?,
+           /* Re-stamped, not preserved. A declaration is made against what was submitted, and
+              an edited request is not that -- so the form clears the box and the requester
+              ticks it again, and this records the moment they did. Cleared outright when the
+              request is edited into a type that carries no declaration, rather than left
+              behind pointing at a claim the request no longer makes. */
+           first_computer_declared_at = CASE WHEN ? THEN CURRENT_TIMESTAMP END,
+           first_computer_declared_by = CASE WHEN ? THEN ? END,
            updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [
@@ -132,6 +139,9 @@ export async function updateLaptopRequest(
           v.typeOfDevice,
           v.requestedModel ?? row.requested_model,
           v.reason,
+          v.firstComputerDeclared,
+          v.firstComputerDeclared,
+          actor.email,
           id,
         ],
       );

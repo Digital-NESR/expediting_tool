@@ -40,8 +40,7 @@ export interface DeliveryFailure {
  */
 export function isRetryable(kind: OutreachKind, status: string): boolean {
   return (
-    (kind === 'request' && status === 'scoped') ||
-    (kind === 'reminder' && status === 'requested')
+    (kind === 'request' && status === 'scoped') || (kind === 'reminder' && status === 'requested')
   );
 }
 

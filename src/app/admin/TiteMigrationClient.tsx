@@ -507,7 +507,7 @@ export default function TiteMigrationClient() {
 
   /* ── Render ── */
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300">
+    <div className="space-y-8">
       {/* Page header */}
       <div className="flex items-start justify-between gap-4">
         <div>

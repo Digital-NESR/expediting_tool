@@ -8,7 +8,7 @@ export default function AccessDeniedPage() {
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center font-sans px-4">
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-10 max-w-sm w-full text-center animate-in fade-in duration-300">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-10 max-w-sm w-full text-center">
         {/* Lock icon */}
         <div className="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-5">
           <svg

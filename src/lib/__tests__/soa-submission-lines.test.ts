@@ -48,7 +48,8 @@ describe('parseAmount', () => {
 
   it('returns null rather than zero for something that is not a number', () => {
     // Storing 0 would read as "nothing owed", which is a different and much worse claim.
-    for (const v of ['', null, undefined, 'N/A', '-', 'see attached']) expect(parseAmount(v)).toBeNull();
+    for (const v of ['', null, undefined, 'N/A', '-', 'see attached'])
+      expect(parseAmount(v)).toBeNull();
   });
 });
 
@@ -73,8 +74,34 @@ describe('parseSupplierWorkbook', () => {
   it('reads a clean statement', async () => {
     const buf = await sheetOf([
       HEAD,
-      [1, '2555 - Gulf Energy Services LLC', 'INV-001', '05/09/2026', 'PO-9', 'Rental', 'USD', 50, 1050, 1050, 30, 'ok'],
-      [2, '2555 - Gulf Energy Services LLC', 'INV-002', '12/09/2026', 'PO-10', 'Parts', 'USD', 0, 200, 200, 22, ''],
+      [
+        1,
+        '2555 - Gulf Energy Services LLC',
+        'INV-001',
+        '05/09/2026',
+        'PO-9',
+        'Rental',
+        'USD',
+        50,
+        1050,
+        1050,
+        30,
+        'ok',
+      ],
+      [
+        2,
+        '2555 - Gulf Energy Services LLC',
+        'INV-002',
+        '12/09/2026',
+        'PO-10',
+        'Parts',
+        'USD',
+        0,
+        200,
+        200,
+        22,
+        '',
+      ],
     ]);
     const res = await parseSupplierWorkbook(buf);
     expect(res.lines).toHaveLength(2);
@@ -107,8 +134,42 @@ describe('parseSupplierWorkbook', () => {
 
   it('reads the consolidated format too, in case they return the wrong one', async () => {
     const buf = await sheetOf([
-      ['Ser#', 'Month/Year', 'Country', 'Legal Entity', 'Vendor Name', 'Vendor No.', 'Invoice Number', 'Invoice Date', 'Purchase Order Number', 'Type of service / Product Delivered', 'Currency', 'TAX / VAT (Amount)', 'Total Amount (Including TAX or VAT)', 'Total Amount Outstanding', 'Invoice Outstanding Days', 'Remarks'],
-      [1, 'Sep 2026', 'Kuwait', '2555', 'ARABCO', '0001103633', 'INV-5', '09/09/2026', 'PO-1', 'Svc', 'USD', 0, 100, 100, 5, ''],
+      [
+        'Ser#',
+        'Month/Year',
+        'Country',
+        'Legal Entity',
+        'Vendor Name',
+        'Vendor No.',
+        'Invoice Number',
+        'Invoice Date',
+        'Purchase Order Number',
+        'Type of service / Product Delivered',
+        'Currency',
+        'TAX / VAT (Amount)',
+        'Total Amount (Including TAX or VAT)',
+        'Total Amount Outstanding',
+        'Invoice Outstanding Days',
+        'Remarks',
+      ],
+      [
+        1,
+        'Sep 2026',
+        'Kuwait',
+        '2555',
+        'ARABCO',
+        '0001103633',
+        'INV-5',
+        '09/09/2026',
+        'PO-1',
+        'Svc',
+        'USD',
+        0,
+        100,
+        100,
+        5,
+        '',
+      ],
     ]);
     const res = await parseSupplierWorkbook(buf);
     expect(res.lines).toHaveLength(1);
@@ -126,10 +187,7 @@ describe('parseSupplierWorkbook', () => {
     // A dropped invoice is the one thing a reconciliation cannot survive.
     expect(res.lines).toHaveLength(1);
     expect(res.lines[0].issues).toEqual(
-      expect.arrayContaining([
-        'Invoice date "shortly" could not be read',
-        'No amount on this row',
-      ]),
+      expect.arrayContaining(['Invoice date "shortly" could not be read', 'No amount on this row']),
     );
     // A PO number is present, so the blank invoice number is the documented unbilled case.
     expect(res.lines[0].issues).not.toContain('No invoice or purchase order number');
@@ -176,7 +234,10 @@ describe('parseSupplierWorkbook', () => {
   });
 
   it('refuses a file that is not a statement, rather than returning nothing', async () => {
-    const buf = await sheetOf([['Name', 'Address'], ['Acme', 'Kuwait City']]);
+    const buf = await sheetOf([
+      ['Name', 'Address'],
+      ['Acme', 'Kuwait City'],
+    ]);
     await expect(parseSupplierWorkbook(buf)).rejects.toBeInstanceOf(UnreadableStatementError);
   });
 

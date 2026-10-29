@@ -91,12 +91,25 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
             </div>
           </div>
         ))}
-        {/* The handoff action refuses below the target server-side. Saying so here means the
-            button's absence is an explanation rather than a missing feature. */}
-        {!vm.handedOff && !vm.coverageMet && (
+        {/* Two different things to say, and which one it is turns on whether suppliers can still
+            answer. Before the deadline the button's absence is an explanation rather than a
+            missing feature; after it, the button is there and the champion needs to know that
+            pressing it closes the cycle short rather than complete. */}
+        {!vm.handedOff && !vm.coverageMet && !vm.handoffShortOfTarget && (
           <div className="mt-1 rounded-lg bg-[#FFF3E0] px-[15px] py-2.5 text-[11px] text-[#E65100] leading-[1.5]">
             Handoff stays closed until coverage reaches {vm.coverageTargetPct}%. It is currently{' '}
-            {vm.fmtCoveragePct}, and the action itself refuses a country that is short.
+            {vm.fmtCoveragePct}, and the action itself refuses a country that is short. Suppliers
+            have until {vm.deadlineLabel}; after that the cycle can be handed off with whatever
+            has been collected.
+          </div>
+        )}
+        {!vm.handedOff && vm.handoffShortOfTarget && (
+          <div className="mt-1 rounded-lg bg-[#FFF3E0] px-[15px] py-2.5 text-[11px] text-[#E65100] leading-[1.5]">
+            The collection window closed on {vm.deadlineLabel} at {vm.fmtCoveragePct}, below the{' '}
+            {vm.coverageTargetPct}% target. Handoff no longer waits on coverage: the suppliers
+            still missing were chased and did not answer, and holding the cycle open will not
+            produce their statements. AP is told the file closed short, and the shortfall is
+            written to the evidence repository.
           </div>
         )}
       </div>
@@ -107,6 +120,15 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
             <div className="text-[12px] font-bold text-sns-ink">
               Consolidated SOA, {vm.consolidatedCount} Vendors · {vm.exportFileName}
             </div>
+            {/* The filter is a lens on the file, never a change to it. Said plainly, because a
+                champion who filtered and then downloaded would otherwise have every reason to
+                expect the narrowed list in the workbook. */}
+            {vm.consolidationFiltered && (
+              <div className="mt-0.5 text-[11px] font-bold text-[#8A4B00]">
+                Showing {vm.consolidationShownCount} of {vm.consolidatedCount}. The download is
+                unaffected and still carries every vendor.
+              </div>
+            )}
             {/* The coverage figure, said here rather than left to be inferred from the last row of
                 the Cumulative column. It is the same number the Corporate Rollup reports for this
                 country, computed from the same vendors over the same denominator, and showing it
@@ -117,7 +139,27 @@ export default function ConsolidationScreen({ vm }: ScreenProps) {
               balance
             </div>
           </div>
-          <div className="text-[11px] text-sns-grey">Auto-compiled · No manual re-keying</div>
+          {/* Who filed each statement. On this screen it narrows what is listed and nothing
+              else: the workbook, the coverage figure and the row numbering are the file's. */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] font-bold uppercase tracking-[0.5px] text-sns-grey">
+              Filed by
+            </span>
+            {vm.consolidationSourceTabs.map((tab) => (
+              <button
+                type="button"
+                key={tab.source}
+                onClick={tab.onClick}
+                className={`px-2.5 py-1 rounded-[20px] cursor-pointer text-[11px] font-bold border-2 whitespace-nowrap ${
+                  tab.isSelected
+                    ? 'border-sns-green bg-sns-green/10 text-sns-green'
+                    : 'border-transparent bg-[#F0F0F0] text-sns-grey'
+                }`}
+              >
+                {tab.label} ({tab.count})
+              </button>
+            ))}
+          </div>
         </div>
         <div
           className={`grid ${COLUMNS} gap-2 px-3.5 py-[9px] bg-sns-green text-white text-[10px] font-bold uppercase tracking-[0.5px] items-center`}

@@ -1467,7 +1467,7 @@ export default function TeamAnalyticsPage() {
             {/* Analytics content */}
             {!loading && data && hasData && (
               <div
-                className={`space-y-8 animate-in fade-in slide-in-from-top-2 duration-300 transition-opacity ${isRefreshing ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}
+                className={`space-y-8 0 transition-opacity ${isRefreshing ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}
               >
                 {/* KPI cards */}
                 <div>

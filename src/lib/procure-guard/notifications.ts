@@ -77,6 +77,23 @@ export function withDelegateRecipients<
   });
 }
 
+/**
+ * One row per address, first spelling wins.
+ *
+ * The approver side has had this inside withDelegateRecipients since delegates were added; the
+ * requester side now needs it too, because the SAP Team can also be the requester or sit on the
+ * requester's notification list. Two rows for one address means two copies of the same email.
+ */
+export function dedupeByEmail<T extends { email: string }>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const key = row.email.trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function getNotificationPreviewStatuses(
   requestType: ProcureGuardRequestType,
   amount?: number | string | null,
@@ -390,7 +407,44 @@ export async function notifyProcureGuardNextApprover(input: {
         comment: input.comment,
       });
       const requesterName = request.requested_by_name || request.requested_by_email;
-      const requesterSideRecipients = [
+      /* On FINAL approval of an adhoc request the SAP Team is COPIED on this email rather
+         than sent one of their own. They verified the supplier and want to know the outcome;
+         they are not being asked to do anything, which is what CC says and TO does not.
+
+         It has to be bolted on here rather than left to the approver-side dispatch below,
+         because that one returns before it looks up a recipient: getRecipientApprovalStatus is
+         null for any status outside APPROVAL_ACTIVE_STATUSES, and 'Approved' is outside it. A
+         fully approved request notifies nobody but the requester otherwise.
+
+         Read from the recipient directory, not from a list in code, so the team is whoever the
+         Approval Access matrix currently says it is. Their rows are filed against the step they
+         own ('Approved by SCM'), and 'SAP Team' is a global owner label, so this finds them for
+         every country rather than only the ones with a SAP row of their own. */
+      const sapTeamOnFinalApproval =
+        input.requestType === 'adhoc' && request.status === 'Approved'
+          ? (
+              await getProcureGuardNotificationRecipients({
+                requestType: 'adhoc',
+                country: request.country,
+                approvalStatus: 'Approved by SCM',
+                ownerLabel: 'SAP Team',
+              })
+            )
+              /* That lookup also matches anyone filed against the same status in this country,
+                 which is the SAP team today and need not stay that way. Narrowed to the role so
+                 a future recipient on that step cannot quietly join this email. */
+              .filter((row) => (row.notification_role ?? '').trim().toLowerCase() === 'sap team')
+              .map((row) => ({
+                name: row.display_name || row.email,
+                email: row.email.trim().toLowerCase(),
+                role: 'SAP Team',
+                approval_status: null as ProcureGuardStatus | null,
+                country: row.country || request.country,
+                source_column: 'sap_team_final_approval',
+              }))
+          : [];
+
+      const requesterToRecipients = dedupeByEmail([
         {
           name: requesterName,
           email: request.requested_by_email.trim().toLowerCase(),
@@ -407,11 +461,27 @@ export async function notifyProcureGuardNextApprover(input: {
           country: request.country,
           source_column: 'requester_notification_emails',
         })),
-      ];
+      ]);
+
+      /* Dropped from CC if they are already on TO. Somebody who is both on the SAP team and
+         the requester should be addressed once, on the line that asks the most of them. */
+      const toAddresses = new Set(requesterToRecipients.map((row) => row.email));
+      const requesterCcRecipients = dedupeByEmail(sapTeamOnFinalApproval).filter(
+        (row) => !toAddresses.has(row.email),
+      );
+
+      /* Everyone the mail is meant to reach, either line, for `intended_recipients`. That field
+         is what a reader checks when asking "who was told", and it would answer wrongly if it
+         listed only the TO line. */
+      const requesterSideRecipients = [...requesterToRecipients, ...requesterCcRecipients];
       const requesterTestRole = 'Requester Updates';
       const routedRequesterRecipients = isEmailTestMode
         ? emailTestRecipientsOf(request, input.actor.email, requesterTestRole)
-        : requesterSideRecipients;
+        : requesterToRecipients;
+      /* Empty in test mode, deliberately. A test send puts everything on TO to the test
+         addresses; copying the real SAP team on it would be the one way a test reaches
+         somebody it was never meant to. */
+      const routedCcRecipients = isEmailTestMode ? [] : requesterCcRecipients;
       const requesterPayload = {
         event: 'request.requester_status_changed' as ProcureGuardWorkflowEvent,
         source: 'procureguard-local',
@@ -449,6 +519,15 @@ export async function notifyProcureGuardNextApprover(input: {
           body_html: requesterEmail.bodyHtml,
           to: routedRequesterRecipients.map((row) => row.email),
           to_recipients: routedRequesterRecipients.map((row) => ({
+            emailAddress: { address: row.email, name: row.name },
+          })),
+          /* NEW FIELDS. The n8n workflow has only ever read `to` / `to_recipients`, so until it
+             maps these the CC line is carried and ignored -- and the SAP team is not emailed at
+             all. Both shapes are sent for the same reason the TO line sends both: the flat list
+             for anything simple, the Graph shape for the Outlook node. Always present, empty
+             where there is nobody to copy, so the workflow never has to test for the key. */
+          cc: routedCcRecipients.map((row) => row.email),
+          cc_recipients: routedCcRecipients.map((row) => ({
             emailAddress: { address: row.email, name: row.name },
           })),
         },

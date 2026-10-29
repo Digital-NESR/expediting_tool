@@ -16,11 +16,14 @@
  */
 import { toUsd } from '@/lib/procureGuard-utils';
 import type {
+  AdhocSupplierSource,
   CreateAdhocPaymentInput,
   CreateAdvancePaymentInput,
   ProcureGuardStatus,
 } from '@/types/procureGuard';
+import { getAvlSupplier } from './avl-suppliers';
 import { exec } from './internals';
+import { requireRequisitionNumbers } from './requisition';
 import type { ExecResult } from './internals';
 import { insertProcureGuardPaymentRequest } from './schema';
 import {
@@ -53,6 +56,9 @@ interface NormalisedCommon {
 
 export interface NormalisedAdhocInput extends NormalisedCommon {
   vendorTaxId: string;
+  supplierSource: AdhocSupplierSource;
+  /** The SAP supplier ID for an `existing_avl` request; empty for a plain adhoc one. */
+  vendorCode: string;
 }
 
 export interface NormalisedAdvanceInput extends NormalisedCommon {
@@ -61,6 +67,44 @@ export interface NormalisedAdvanceInput extends NormalisedCommon {
   creditLimitUsd: number;
   contractValue: number | null;
   advancePercentage: number | null;
+}
+
+/**
+ * Re-read an existing supplier from the vendor master before anything is stored.
+ *
+ * The browser posts a supplier name and an ID, and neither can be trusted: these actions are
+ * public endpoints and the pair could be any two strings. So the ID is the only thing taken from
+ * the request, and the name an approver will read comes back from `supplier_avl`. A requester
+ * cannot put one supplier's ID next to another supplier's name, by accident or otherwise.
+ *
+ * Separate from `normaliseAdhocInput` because that one is synchronous and this needs a query.
+ * Every adhoc write path calls it first.
+ */
+export async function resolveAdhocSupplier<T extends CreateAdhocPaymentInput>(
+  input: T,
+): Promise<T> {
+  if (input.supplier_source !== 'existing_avl') {
+    return { ...input, supplier_source: 'adhoc' };
+  }
+  const code = String(input.vendor_code ?? '').trim();
+  if (!code) {
+    throw new Error('Choose the existing supplier from the list.');
+  }
+  const supplier = await getAvlSupplier(code);
+  if (!supplier) {
+    throw new Error(
+      `No supplier in the vendor master has the ID ${code}. Pick one from the list rather than typing an ID.`,
+    );
+  }
+  return {
+    ...input,
+    supplier_source: 'existing_avl',
+    vendor_name: supplier.name,
+    vendor_code: supplier.code,
+    /* There is no tax number for a supplier already in SAP, and leaving whatever the browser
+       sent in this column would put a stray identifier on the request. */
+    vendor_tax_id: '',
+  };
 }
 
 /**
@@ -77,11 +121,27 @@ export function normaliseAdhocInput(
 ): NormalisedAdhocInput {
   const amount = validateMoney(input.amount);
   const currency = validateCurrency(input.currency);
-  const requisitionNumber = requireText(input.requisition_number, 'Requisition number');
+  /* Adhoc only, deliberately. Advance payments puts 4.. and 5.. PO-range documents in the same
+     column and a ten-digit PR rule would reject most of them; what that field is for there is a
+     separate question. See `requisition.ts`. */
+  /* Country first: the requisition rule depends on it, because HQ Dubai accepts free text. */
   const country = requireCountryOption(input.country);
+  const requisitionNumber = requireRequisitionNumbers(input.requisition_number, country);
   const segment = requireText(input.segment, 'Segment');
-  const vendorName = requireText(input.vendor_name, 'ADHOC vendor name');
-  const vendorTaxId = requireText(input.vendor_tax_id, 'Vendor tax ID');
+
+  /* Two shapes, and which identifier is required depends on which. An `existing_avl` request
+     has no tax number to give - that is the point of it - so demanding one would make the flow
+     impossible to complete. Its values have already been re-read from the vendor master by
+     `resolveAdhocSupplier`, so what is checked here is that the resolution happened. */
+  const supplierSource: AdhocSupplierSource =
+    input.supplier_source === 'existing_avl' ? 'existing_avl' : 'adhoc';
+  const existing = supplierSource === 'existing_avl';
+  const vendorName = requireText(
+    input.vendor_name,
+    existing ? 'Supplier name' : 'ADHOC vendor name',
+  );
+  const vendorCode = existing ? requireText(input.vendor_code, 'SAP supplier ID') : '';
+  const vendorTaxId = existing ? '' : requireText(input.vendor_tax_id, 'Vendor tax ID');
   const spendCategory = requireText(input.spend_category, 'Spend category');
   const reason = requireText(
     input.payment_reason || input.justification,
@@ -108,6 +168,8 @@ export function normaliseAdhocInput(
     segment,
     vendorName,
     vendorTaxId,
+    supplierSource,
+    vendorCode,
     spendCategory,
     reason,
     requesterNotificationEmails,
@@ -189,12 +251,12 @@ export function normaliseAdvanceInput(
 // the requester path writes the literal 'Submitted', the admin path binds a parameter. Both produce
 // exactly the statement that path sent before, so no query text changed.
 const adhocInsertSql = (statusSql: string) => `INSERT INTO procure_guard_adhoc_payments
-        (reference_number, requisition_number, status, priority, vendor_name, vendor_code, vendor_tax_id, supplier_email,
+        (reference_number, requisition_number, status, priority, supplier_source, vendor_name, vendor_code, vendor_tax_id, supplier_email,
          amount, currency, country, segment, department, business_unit, cost_center, project_code,
          po_number, invoice_number, due_date, expense_category, spend_category, spend_value_usd, payment_method,
          payment_reason, justification, notes, attachment_link, cc_email, requester_notification_emails, email_test_mode, email_test_recipients, email_test_recipient_overrides, acknowledged_at,
          requested_by_name, requested_by_email)
-       VALUES (?, ?, ${statusSql}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, CURRENT_TIMESTAMP, ?, ?) RETURNING id`;
+       VALUES (?, ?, ${statusSql}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, CURRENT_TIMESTAMP, ?, ?) RETURNING id`;
 
 const advanceInsertSql = (statusSql: string) => `INSERT INTO procure_guard_advance_payments
         (reference_number, requisition_number, status, priority, vendor_name, vendor_code, sap_vendor_id, supplier_email,
@@ -237,8 +299,13 @@ export async function insertAdhocRequest(params: {
       n.requisitionNumber,
       ...(params.status === null ? [] : [params.status]),
       input.priority || 'Normal',
+      n.supplierSource,
       n.vendorName,
-      blankToNull(input.vendor_code || n.vendorTaxId),
+      /* For an existing supplier this is their SAP ID. For a plain adhoc one it keeps the old
+         fallback to the tax number, which is what every row written before this carried. */
+      blankToNull(
+        n.supplierSource === 'existing_avl' ? n.vendorCode : input.vendor_code || n.vendorTaxId,
+      ),
       n.vendorTaxId,
       blankToNull(input.supplier_email),
       n.amount,
@@ -337,6 +404,7 @@ export async function updateAdhocRequest(
   await exec(
     `UPDATE procure_guard_adhoc_payments
        SET requisition_number = ?,
+           supplier_source = ?,
            vendor_name = ?,
            vendor_code = ?,
            vendor_tax_id = ?,
@@ -361,8 +429,11 @@ export async function updateAdhocRequest(
        WHERE id = ?`,
     [
       n.requisitionNumber,
+      n.supplierSource,
       n.vendorName,
-      blankToNull(input.vendor_code || n.vendorTaxId),
+      blankToNull(
+        n.supplierSource === 'existing_avl' ? n.vendorCode : input.vendor_code || n.vendorTaxId,
+      ),
       n.vendorTaxId,
       n.amount,
       n.currency,

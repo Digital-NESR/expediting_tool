@@ -13,6 +13,9 @@ import { Search, Star } from 'lucide-react';
 import { TOOLS, type ModalTool, type ToolDef, type ToolStatus } from './tools';
 import { ToolCard, type ProcureGuardAccessType } from './ToolCard';
 import { toggleFavourite } from '@/app/actions/home-favourites';
+import { OFF_CHAIN_TOOL_IDS } from '@/lib/home/process-chain';
+import { HomeViewToggle } from './HomeViewToggle';
+import { useHomeView } from './useHomeView';
 
 /* The modals are only ever needed after a click, so they are code-split
    out of the initial page bundle. */
@@ -22,6 +25,17 @@ const AccessRequestModal = dynamic(
 );
 const PendingModal = dynamic(() => import('./access-modals').then((m) => m.PendingModal), {
   ssr: false,
+});
+
+/* The chain is admin-only and most people will never switch to it, so it is code-split the same
+   way the modals above are: nobody downloads the diagram, its camera or its geometry until they
+   ask for it. `ssr: false` because it measures its own element to turn a pointer position into a
+   canvas coordinate, which needs a DOM. */
+const ProcessChain = dynamic(() => import('./chain/ProcessChain'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[520px] w-full animate-pulse rounded-2xl border border-slate-200 bg-slate-50" />
+  ),
 });
 
 /* The pending panel carries no per-tool copy, so only the request modal needs
@@ -154,6 +168,7 @@ export default function ToolLauncher({
   const displayName = session?.user?.name || userEmail;
 
   const isAdmin = session?.user?.isAdmin ?? false;
+  const [homeView, setHomeView] = useHomeView();
   const procureGuardAccessType: ProcureGuardAccessType =
     session?.user?.toolAccess?.procure_guard?.accessType ?? 'requester';
 
@@ -241,131 +256,196 @@ export default function ToolLauncher({
 
   return (
     <>
-      <div className="mb-10">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Welcome, {firstName}</h1>
-        <p className="text-slate-500 mt-1 text-base">Select a tool to get started.</p>
-        <p className="text-xs text-slate-400 mt-1.5">
-          {new Date().toLocaleDateString('en-GB', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          })}
-        </p>
+      <div className={homeView === 'chain' ? 'mb-4' : 'mb-10'}>
+        {/*
+          Greeting, search and view switch on one row.
+          The chain wants the screen. Search used to sit on a row of its own under the
+          greeting, which cost about sixty vertical pixels before the diagram even started
+          -- and on a 900-pixel laptop that is the difference between landing on something
+          you can use and landing on something you have to scroll to.
+        */}
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+          <div>
+            <h1
+              className={`font-bold tracking-tight text-slate-900 ${
+                homeView === 'chain' ? 'text-2xl' : 'text-3xl'
+              }`}
+            >
+              Welcome, {firstName}
+            </h1>
+            <p className="text-slate-500 mt-1 text-base">
+              {homeView === 'chain'
+                ? 'Every tool, on the process it serves.'
+                : 'Select a tool to get started.'}
+            </p>
+            {/* The date is a nicety, and the chain needs the row more than the reader
+                needs to be told what day it is. */}
+            {homeView !== 'chain' && (
+              <p className="text-xs text-slate-400 mt-1.5">
+                {new Date().toLocaleDateString('en-GB', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </p>
+            )}
+          </div>
 
-        {/* Search bar. The placeholder is not a label: it disappears the moment somebody types,
-            and a screen reader announces an unlabelled text box. */}
-        <div className="relative mt-5 max-w-md">
-          <label htmlFor="app-search" className="sr-only">
-            Search applications
-          </label>
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-          <input
-            id="app-search"
-            ref={searchRef}
-            type="text"
-            placeholder="Search applications..."
-            value={appSearch}
-            onChange={(e) => setAppSearch(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key !== 'Escape') return;
-              // First Escape clears a search, a second gives the page back.
-              if (appSearch) setAppSearch('');
-              else e.currentTarget.blur();
-            }}
-            className="w-full pl-10 pr-16 py-2.5 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors placeholder-slate-400 shadow-sm"
-          />
-          {/* The hint stands down once there is something to clear, so the two never collide. */}
-          {!appSearch && (
-            <kbd
-              aria-hidden
-              className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-sans text-[11px] font-medium text-slate-400 sm:block"
-            >
-              /
-            </kbd>
-          )}
-          {appSearch && (
-            <button
-              onClick={() => setAppSearch('')}
-              aria-label="Clear the search"
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-300 transition-colors"
-            >
-              <svg
-                className="w-3 h-3"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2.5}
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {/* Search bar. The placeholder is not a label: it disappears the moment somebody
+                types, and a screen reader announces an unlabelled text box. */}
+            <div className="relative w-[min(22rem,60vw)]">
+              <label htmlFor="app-search" className="sr-only">
+                Search applications
+              </label>
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input
+                id="app-search"
+                ref={searchRef}
+                type="text"
+                placeholder="Search applications..."
+                value={appSearch}
+                onChange={(e) => setAppSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key !== 'Escape') return;
+                  // First Escape clears a search, a second gives the page back.
+                  if (appSearch) setAppSearch('');
+                  else e.currentTarget.blur();
+                }}
+                className="w-full pl-10 pr-16 py-2.5 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#307c4c]/20 focus:border-[#307c4c] transition-colors placeholder-slate-400 shadow-sm"
+              />
+              {/* The hint stands down once there is something to clear, so the two never collide. */}
+              {!appSearch && (
+                <kbd
+                  aria-hidden
+                  className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 font-sans text-[11px] font-medium text-slate-400 sm:block"
+                >
+                  /
+                </kbd>
+              )}
+              {appSearch && (
+                <button
+                  onClick={() => setAppSearch('')}
+                  aria-label="Clear the search"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-300 transition-colors"
+                >
+                  <svg
+                    className="w-3 h-3"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2.5}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+            <HomeViewToggle view={homeView} onChange={setHomeView} />
+          </div>
         </div>
       </div>
 
-      {/* Cards beside the SCAI panel on a wide screen, stacked under it below xl.
+      {homeView === 'chain' ? (
+        <>
+          <ProcessChain
+            /* The same box that filters the grid. It sat above both views and only ever fed
+             one of them, so in the chain you could type and watch nothing happen. */
+            query={appSearch}
+            /* The same lookup the cards use, so a chip cannot claim a tool is openable when
+             the launcher would answer with an access modal. `sessionLoading` is passed for
+             the same reason the grid covers its cards: until the session lands every status
+             reads 'new', and the chain would draw tools this person already has as locked. */
+            statusOf={statusOf}
+            isAdmin={isAdmin}
+            /* The same pins the grid shows, and the same optimistic list, so starring a tool
+             on the chain and starring it on a card are one action with one piece of state. */
+            favouriteIds={shownFavourites}
+            onToggleFavourite={onToggleFavourite}
+            sessionLoading={sessionStatus === 'loading'}
+            /* The launcher keeps ownership of access: the chain calls back into the same
+             handleOpen that the cards use, so a tool with a pending request still produces the
+             pending modal rather than opening. */
+            onOpenTool={handleOpen}
+            renderToolCard={(tool) => renderToolCard(tool, false)}
+            offChainToolIds={OFF_CHAIN_TOOL_IDS}
+          />
+          {/* No SCAI panel here. It sat under the drawing looking like an afterthought,
+              and both of the things in it -- the assistant and the spend taxonomy -- are
+              on the chain itself now, in the "across the chain" lane where the rest of the
+              estate is. The grid still carries the full panel. */}
+        </>
+      ) : (
+        <>
+          {/* Cards beside the SCAI panel on a wide screen, stacked under it below xl.
           The grid was a fixed three columns next to a fixed 320px panel with no breakpoints at
           all, so the cards kept dividing whatever was left: measured, a card's text area went
           from 272px at 1600 to 125px at 1024 and 40px at 768, where the layout is unusable. */}
-      <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch">
-        {/* ── Tool cards ── */}
-        <div className="relative flex-1 flex flex-col gap-6">
-          {/* While the session (and per-tool access) is still loading, cover the cards so nobody
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch">
+            {/* ── Tool cards ── */}
+            <div className="relative flex-1 flex flex-col gap-6">
+              {/* While the session (and per-tool access) is still loading, cover the cards so nobody
               mis-clicks "Request Access" before their real access has resolved. */}
-          {sessionStatus === 'loading' && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-white/70 backdrop-blur-sm">
-              <div className="flex items-center gap-2.5 text-sm font-medium text-slate-500">
-                <svg
-                  className="h-5 w-5 animate-spin text-[#307c4c]"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                </svg>
-                Checking your access...
-              </div>
-            </div>
-          )}
+              {sessionStatus === 'loading' && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-white/70 backdrop-blur-sm">
+                  <div className="flex items-center gap-2.5 text-sm font-medium text-slate-500">
+                    <svg
+                      className="h-5 w-5 animate-spin text-[#307c4c]"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                    </svg>
+                    Checking your access...
+                  </div>
+                </div>
+              )}
 
-          {/* Favourites keep their cards in the lists below as well, so the grids stay complete
+              {/* Favourites keep their cards in the lists below as well, so the grids stay complete
               and nobody wonders where a tool went when they pinned it. */}
-          <ToolSection
-            title="Favourites"
-            icon={<Star className="h-4 w-4 text-amber-500" fill="currentColor" />}
-            tools={favouriteCards}
-            render={renderFavourite}
-            divider
-          />
+              <ToolSection
+                title="Favourites"
+                icon={<Star className="h-4 w-4 text-amber-500" fill="currentColor" />}
+                tools={favouriteCards}
+                render={renderFavourite}
+                divider
+              />
 
-          <ToolSection title="Available" tools={byName(visible, 'online')} render={renderCard} />
+              <ToolSection
+                title="Available"
+                tools={byName(visible, 'online')}
+                render={renderCard}
+              />
 
-          <ToolSection
-            title="Coming Soon"
-            tools={byName(visible, 'development')}
-            render={renderCard}
-          />
+              <ToolSection
+                title="Coming Soon"
+                tools={byName(visible, 'development')}
+                render={renderCard}
+              />
 
-          {q && visible.length === 0 && (
-            <div className="py-12 text-center">
-              <p className="text-sm text-slate-400">
-                No applications match &ldquo;{appSearch}&rdquo;
-              </p>
+              {q && visible.length === 0 && (
+                <div className="py-12 text-center">
+                  <p className="text-sm text-slate-400">
+                    No applications match &ldquo;{appSearch}&rdquo;
+                  </p>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* ── SCAI Panel (server-rendered) ── */}
-        {scaiPanel}
-      </div>
+            {/* ── SCAI Panel (server-rendered) ── */}
+            {scaiPanel}
+          </div>
+        </>
+      )}
 
       {/* ── Modals ── */}
       {modal?.kind === 'request' && (

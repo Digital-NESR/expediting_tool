@@ -67,7 +67,7 @@ export default async function HomePage() {
 
       {/* ── Main ── */}
       <main className="flex-1 px-4 py-8 relative z-10 sm:px-6 sm:py-12 lg:px-8">
-        <div className="max-w-[1400px] mx-auto">
+        <div className="mx-auto max-w-[1600px]">
           <ToolLauncher scaiPanel={<HomeSidebar />} initialFavourites={favourites} />
         </div>
       </main>

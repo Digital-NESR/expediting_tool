@@ -19,7 +19,9 @@
  * another blank one, and hundreds of shipments could legitimately carry none.
  */
 export function normaliseCustomsReference(value: unknown): string | null {
-  const s = String(value ?? '').trim().toUpperCase();
+  const s = String(value ?? '')
+    .trim()
+    .toUpperCase();
   return s.length ? s : null;
 }
 

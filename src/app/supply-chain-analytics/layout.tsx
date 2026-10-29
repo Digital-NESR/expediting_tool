@@ -1,14 +1,19 @@
 import { redirect } from 'next/navigation';
 import { currentActor } from '@/lib/require-access';
+import { travelScopeFor } from '@/lib/travel-analytics/grants';
 
 export const metadata = { title: 'NESR | Supply Chain Analytics' };
 
 // Auth-gated, so never statically prerendered.
 export const dynamic = 'force-dynamic';
 
-/* This is an admin-only demo/preview surface. It had no server-side gate at
-   all, so any signed-in employee could open it. Same rule and same deny card
-   as /admin (ADMIN_EMAILS, via the shared helper). */
+/* This was an admin-only preview surface: it had no server-side gate at all, so any signed-in
+   employee could open it, and the fix was the same ADMIN_EMAILS rule as /admin.
+   TWO DOORS NOW, because the page carries two boards with different audiences. A platform
+   admin gets in as before, for the Power BI report. Anyone holding a Travel Portal grant also
+   gets in, for the travel board only — the page itself decides which tabs they see. Keeping
+   the old rule alone would have made the approved access model unreachable: a country finance
+   reader would have been granted travel analytics and then refused at the door. */
 export default async function SupplyChainAnalyticsLayout({
   children,
 }: {
@@ -20,7 +25,7 @@ export default async function SupplyChainAnalyticsLayout({
     redirect('/login');
   }
 
-  if (!actor.isPlatformAdmin) {
+  if (!actor.isPlatformAdmin && !(await travelScopeFor(actor.email))) {
     return (
       <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center font-sans">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-12 max-w-sm w-full text-center">

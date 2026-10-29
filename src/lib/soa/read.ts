@@ -3,6 +3,9 @@ import { shortDayMonth } from '@/lib/format';
 import { countriesFor, type SoaActor } from './access';
 import { ensureSoaSchema, sql } from './db';
 import { resolvedContactsForMany } from './recipients';
+import { effectiveCycleDeadline, effectiveSubmissionDeadline } from './deadlines';
+import { entryNotExcluded, notExcludedVendorNo } from './exclusions';
+import { countryBalance } from './balance';
 import { COVERED_STATUS_SQL, type VendorCycleStatus } from './status';
 
 /**
@@ -49,6 +52,15 @@ export interface VendorRow {
   no: string;
   openPO: number;
   status: VendorCycleStatus;
+  /**
+   * An intercompany entity. Still listed, and still carrying whatever correspondence it has,
+   * but out of every percentage on both sides of the division.
+   *
+   * Six countries have one locked into their chase list: scoped before the exclusion existed
+   * and written to since, so it cannot be removed without deleting the evidence trail. The
+   * flag is how a screen keeps showing it while the arithmetic leaves it out.
+   */
+  excluded: boolean;
   /** Why this vendor was closed without a statement. Empty unless a champion closed it. */
   resolutionNote: string;
   reqDate: string;
@@ -72,6 +84,13 @@ export interface VendorRow {
     superseded: boolean;
     /** `email` is filed correspondence: an answer on record that parses into no invoice rows. */
     kind: 'workbook' | 'email';
+    /**
+     * Who filed it: the supplier through their own upload link, or a champion on their behalf.
+     *
+     * The distinction is the one a champion filters by - their own uploads are the ones they may
+     * still need to correct, and a supplier's is not theirs to second-guess.
+     */
+    source: 'supplier_portal' | 'champion';
   }[];
 }
 
@@ -176,9 +195,28 @@ export async function resolveCountry(
   return { countryId: chosen?.id ?? null, available };
 }
 
-/** The cycle the tool opens on. Null when an admin has not opened one. */
-async function activeCycle(): Promise<ActiveCycle | null> {
-  const rows = await sql<QueryResultRow[]>(`SELECT * FROM cycles WHERE is_active LIMIT 1`);
+/**
+ * The cycle the tool opens on, carrying THIS country's dates. Null when no cycle is open.
+ *
+ * The two deadlines are resolved per country rather than read off the cycle, because a country
+ * may have been given its own. Everything downstream reads them from here — the dashboard
+ * labels, the days-remaining counters, and `isCollectionWindowClosed`, which decides whether a
+ * champion below the coverage target may hand off — so resolving once here is what keeps a
+ * country's screens agreeing with the letter its suppliers were sent.
+ *
+ * `countryId` is null only before a country has been resolved, which is the empty-payload path;
+ * there is no country to be specific about, so the cycle's own dates are the honest answer.
+ */
+async function activeCycle(countryId: string | null): Promise<ActiveCycle | null> {
+  const rows = await sql<QueryResultRow[]>(
+    countryId
+      ? `SELECT c.*,
+                ${effectiveSubmissionDeadline('c', '?')} AS submission_deadline,
+                ${effectiveCycleDeadline('c', '?')} AS cycle_deadline
+           FROM cycles c WHERE c.is_active LIMIT 1`
+      : `SELECT * FROM cycles WHERE is_active LIMIT 1`,
+    countryId ? [countryId, countryId] : [],
+  );
   if (!rows.length) return null;
   const r = rows[0];
   const deadline = new Date(asIso(r.submission_deadline));
@@ -207,14 +245,23 @@ async function activeCycle(): Promise<ActiveCycle | null> {
  * chased. Chasing only the large vendors does not make the small ones stop being money owed.
  * A country nobody has scoped yet is absent rather than present at 0%: it has not failed, it has
  * not started, and eighteen rows of 0% would read as a wall of failure on day one.
+ *
+ * Intercompany entities are out of BOTH sides — see `exclusions.ts`. They used to be out of the
+ * Scoping screen's denominator and in this one, which is how Egypt came to read "target met" on
+ * one screen and 23.70% here.
  */
-async function rollup(cycleId: number, deadline: Date): Promise<CountryRow[]> {
+async function rollup(cycleId: number): Promise<CountryRow[]> {
+  /* Written once and used in four FILTERs below. An excluded entity that was locked into a
+     chase list before it was excluded still has an entry, and counting its balance on the
+     numerator while the denominator has dropped it would let coverage exceed 100%. */
+  const INCLUDED = entryNotExcluded('vce');
   const rows = await sql<QueryResultRow[]>(
     `WITH denom AS (
        SELECT c.id AS country_id, COALESCE(SUM(e.pos_value), 0) AS total_balance
          FROM countries c
          LEFT JOIN supplier_po_extract e
                 ON e.cycle_id = ? AND e.po_country = ANY (c.spend_names)
+               AND ${notExcludedVendorNo('e.supplier_id')}
         GROUP BY c.id
      ),
      progress AS (
@@ -222,17 +269,19 @@ async function rollup(cycleId: number, deadline: Date): Promise<CountryRow[]> {
               COUNT(vce.id)                                          AS total,
               COUNT(vce.id)
                 FILTER (WHERE vce.status::text IN (${COVERED_STATUS_SQL}))  AS responded,
-              COALESCE(SUM(vce.open_po_amount), 0)                          AS scoped_balance,
+              COALESCE(SUM(vce.open_po_amount) FILTER (WHERE ${INCLUDED}), 0) AS scoped_balance,
               /* Read off the timestamps, not the current status. A vendor that has answered was
                  still requested and probably reminded, and counting by status would make the
                  requested bar shrink as replies arrive, which is the one direction progress
                  cannot go. */
               COALESCE(SUM(vce.open_po_amount)
-                       FILTER (WHERE vce.requested_at IS NOT NULL), 0)       AS requested_balance,
+                       FILTER (WHERE vce.requested_at IS NOT NULL AND ${INCLUDED}), 0)
+                                                                            AS requested_balance,
               COALESCE(SUM(vce.open_po_amount)
-                       FILTER (WHERE vce.reminded_at IS NOT NULL), 0)        AS reminded_balance,
+                       FILTER (WHERE vce.reminded_at IS NOT NULL AND ${INCLUDED}), 0)
+                                                                            AS reminded_balance,
               COALESCE(SUM(vce.open_po_amount)
-                       FILTER (WHERE vce.status::text IN (${COVERED_STATUS_SQL})), 0)
+                       FILTER (WHERE vce.status::text IN (${COVERED_STATUS_SQL}) AND ${INCLUDED}), 0)
                                                                             AS received_balance
          FROM country_cycles cc
          LEFT JOIN vendor_cycle_entries vce ON vce.country_cycle_id = cc.id
@@ -242,20 +291,25 @@ async function rollup(cycleId: number, deadline: Date): Promise<CountryRow[]> {
      SELECT p.country_id, c.name, p.status, p.total, p.responded,
             p.scoped_balance, p.requested_balance, p.reminded_balance,
             p.received_balance, d.total_balance,
+            /* Per country, not one figure for the table: a country given another fortnight has
+               another fortnight, and a rollup counting it down to the cycle's date would put it
+               on the at-risk list for a deadline it is not working to. */
+            ${effectiveSubmissionDeadline('cy', 'p.country_id')} AS submission_deadline,
             COALESCE(string_agg(DISTINCT cu.name, ', '), '') AS champions
        FROM progress p
        JOIN countries c ON c.id = p.country_id
        JOIN denom d ON d.country_id = p.country_id
+       JOIN cycles cy ON cy.id = ?
        LEFT JOIN country_users cu
               ON cu.role = 'champion' AND cu.country_id = p.country_id
       GROUP BY p.country_id, c.name, c.sort_order, p.status, p.total, p.responded,
                p.scoped_balance, p.requested_balance, p.reminded_balance,
-               p.received_balance, d.total_balance
+               p.received_balance, d.total_balance, cy.id, cy.submission_deadline
       ORDER BY c.sort_order`,
-    [cycleId, cycleId],
+    [cycleId, cycleId, cycleId],
   );
 
-  const daysLeft = Math.max(0, daysBetween(new Date(), deadline));
+  const now = new Date();
   return rows.map((r) => {
     const total = Number(r.total_balance);
     const received = Number(r.received_balance);
@@ -281,7 +335,7 @@ async function rollup(cycleId: number, deadline: Date): Promise<CountryRow[]> {
       status: String(r.status),
       responded: Number(r.responded),
       total: Number(r.total),
-      daysLeft,
+      daysLeft: Math.max(0, daysBetween(now, new Date(asIso(r.submission_deadline)))),
     };
   });
 }
@@ -299,8 +353,9 @@ export async function loadSoa(
 ): Promise<SoaPayload> {
   await ensureSoaSchema();
 
-  const cycle = await activeCycle();
+  /* The country first, because the cycle's dates depend on which country is being looked at. */
   const { countryId, available } = await resolveCountry(actor, requestedCountry);
+  const cycle = await activeCycle(countryId);
   if (!cycle || !countryId) return { ...EMPTY, cycle, available, countryId };
 
   const ccRows = await sql<QueryResultRow[]>(
@@ -312,14 +367,11 @@ export async function loadSoa(
   const countryName =
     available.find((c) => c.id === countryId)?.name ?? String(ccRows[0]?.name ?? countryId);
 
-  const denomRows = await sql<QueryResultRow[]>(
-    `SELECT COALESCE(SUM(e.pos_value), 0) AS total
-       FROM supplier_po_extract e
-       JOIN countries c ON e.po_country = ANY (c.spend_names)
-      WHERE e.cycle_id = ? AND c.id = ?`,
-    [cycle.id, countryId],
-  );
-  const totalBalance = Number(denomRows[0]?.total ?? 0);
+  /* The same denominator the Scoping screen computes, which is the whole point: it is where a
+     champion reads "target met", and it was the only place the exclusions were applied. It
+     lives in `balance.ts` now, because the vendor-status CSV needs the identical figure and a
+     second copy of this query is how the last disagreement started. */
+  const totalBalance = await countryBalance(cycle.id, countryId);
 
   // Not scoped yet: there is a cycle and a country, but nobody has drawn the vendor list.
   if (!ccRows.length) {
@@ -330,7 +382,7 @@ export async function loadSoa(
       countryName,
       available,
       totalBalance,
-      countries: await rollup(cycle.id, new Date(cycle.submissionDeadline)),
+      countries: await rollup(cycle.id),
     };
   }
 
@@ -341,9 +393,11 @@ export async function loadSoa(
       `SELECT vce.id, vce.open_po_amount, vce.currency, vce.status::text AS status,
               vce.requested_at, vce.reminded_at, vce.responded_at, vce.invoice_count,
               vce.resolution_note,
-              v.id AS vendor_id, v.name, v.vendor_no
+              v.id AS vendor_id, v.name, v.vendor_no,
+              (x.vendor_no IS NOT NULL) AS excluded
          FROM vendor_cycle_entries vce
          JOIN vendors v ON v.id = vce.vendor_id
+         LEFT JOIN excluded_vendors x ON x.vendor_no = v.vendor_no
         WHERE vce.country_cycle_id = ?
         ORDER BY vce.open_po_amount DESC`,
       [countryCycleId],
@@ -352,7 +406,8 @@ export async function loadSoa(
        hundred vendors, and a per-row lookup would be a few hundred round trips for a list that is
        usually almost empty. */
     sql<QueryResultRow[]>(
-      `SELECT s.id, s.vendor_cycle_entry_id, s.file_name, s.uploaded_at, s.superseded_at, s.kind
+      `SELECT s.id, s.vendor_cycle_entry_id, s.file_name, s.uploaded_at, s.superseded_at, s.kind,
+              s.source
          FROM soa_submissions s
          JOIN vendor_cycle_entries vce ON vce.id = s.vendor_cycle_entry_id
         WHERE vce.country_cycle_id = ?
@@ -367,7 +422,7 @@ export async function loadSoa(
         LIMIT 200`,
       [countryCycleId],
     ),
-    rollup(cycle.id, new Date(cycle.submissionDeadline)),
+    rollup(cycle.id),
   ]);
 
   /* One resolution for the country rather than the stored column, so what the tracking screen
@@ -388,6 +443,7 @@ export async function loadSoa(
       // to know which one the coverage number came from.
       superseded: r.superseded_at !== null,
       kind: String(r.kind) === 'email' ? 'email' : 'workbook',
+      source: String(r.source) === 'champion' ? 'champion' : 'supplier_portal',
     });
     submissionsByEntry.set(key, list);
   }
@@ -407,6 +463,7 @@ export async function loadSoa(
       no: String(r.vendor_no),
       openPO: Number(r.open_po_amount),
       status: String(r.status) as VendorCycleStatus,
+      excluded: r.excluded === true,
       // The screens show a request date as a bare string; an unsent request has none.
       reqDate: asShortDate(r.requested_at) ?? ', ',
       remDate: asShortDate(r.reminded_at),

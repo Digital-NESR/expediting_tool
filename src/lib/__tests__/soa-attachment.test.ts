@@ -52,7 +52,26 @@ describe('workbookCountryName', () => {
   });
 
   it('resolves every country the tool has', () => {
-    const all = ['SA','EOS','OM','DZ','KW','AUH','EG','IQ','HQ','LY','QA','ID','DMCC','JO','TD','IN','CG','YE'];
+    const all = [
+      'SA',
+      'EOS',
+      'OM',
+      'DZ',
+      'KW',
+      'AUH',
+      'EG',
+      'IQ',
+      'HQ',
+      'LY',
+      'QA',
+      'ID',
+      'DMCC',
+      'JO',
+      'TD',
+      'IN',
+      'CG',
+      'YE',
+    ];
     for (const id of all) expect(workbookCountryName(id), id).not.toBeNull();
   });
 });
@@ -94,7 +113,9 @@ describe('buildSupplierWorkbook', () => {
   });
 
   it('makes Excel enforce a real date rather than leaving the parser to guess', async () => {
-    const sheet = (await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS))).getWorksheet('SOA')!;
+    const sheet = (
+      await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS))
+    ).getWorksheet('SOA')!;
     const v = sheet.getRow(2).getCell(SUPPLIER_COLUMNS.indexOf('Invoice Date') + 1).dataValidation;
     // A date Excel accepts arrives as a real date, so nothing downstream has to decide whether
     // 05/09 means May or September.
@@ -104,7 +125,9 @@ describe('buildSupplierWorkbook', () => {
   });
 
   it('tells the supplier what each awkward column wants, before they type', async () => {
-    const sheet = (await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS))).getWorksheet('SOA')!;
+    const sheet = (
+      await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS))
+    ).getWorksheet('SOA')!;
     const promptFor = (name: (typeof SUPPLIER_COLUMNS)[number]) =>
       sheet.getRow(2).getCell(SUPPLIER_COLUMNS.indexOf(name) + 1).dataValidation?.prompt ?? '';
     // Every one of these is a column the parser previously had to interpret after the fact.
@@ -115,7 +138,9 @@ describe('buildSupplierWorkbook', () => {
   });
 
   it('warns rather than blocks, so a supplier is never stuck', async () => {
-    const sheet = (await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS))).getWorksheet('SOA')!;
+    const sheet = (
+      await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS))
+    ).getWorksheet('SOA')!;
     for (const name of ['Invoice Date', 'Total Amount Outstanding', 'Currency'] as const) {
       const v = sheet.getRow(2).getCell(SUPPLIER_COLUMNS.indexOf(name) + 1).dataValidation;
       // A hard stop on a statement somebody is trying to return is worse than a flagged row we
@@ -128,8 +153,8 @@ describe('buildSupplierWorkbook', () => {
   it('leaves a dropdown on the two columns that have one, and nowhere else', async () => {
     const wb = await open(await buildSupplierWorkbook('KW', 'Kuwait', AP, CHAMPS));
     const sheet = wb.getWorksheet('SOA')!;
-    const withList = ['Legal Entity', 'Currency'].map((n) =>
-      SUPPLIER_COLUMNS.indexOf(n as (typeof SUPPLIER_COLUMNS)[number]) + 1,
+    const withList = ['Legal Entity', 'Currency'].map(
+      (n) => SUPPLIER_COLUMNS.indexOf(n as (typeof SUPPLIER_COLUMNS)[number]) + 1,
     );
     for (let c = 1; c <= SUPPLIER_COLUMNS.length; c++) {
       const v = sheet.getRow(2).getCell(c).dataValidation;
@@ -167,7 +192,9 @@ describe('buildSupplierWorkbook', () => {
   it('gives Saudi Arabia the workbook’s spelling, not the tool’s', async () => {
     const wb = await open(await buildSupplierWorkbook('SA', 'Saudi Arabia', AP));
     const col = SUPPLIER_COLUMNS.indexOf('Legal Entity') + 1;
-    expect(wb.getWorksheet('SOA')!.getRow(2).getCell(col).dataValidation?.formulae).toEqual(['=KSA']);
+    expect(wb.getWorksheet('SOA')!.getRow(2).getCell(col).dataValidation?.formulae).toEqual([
+      '=KSA',
+    ]);
   });
 
   it('keeps the defined names the dropdown resolves through, but hides the lookup sheet', async () => {

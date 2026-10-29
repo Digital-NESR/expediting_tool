@@ -23,6 +23,7 @@ export default function EmployeeAutocomplete({
   inputClassName,
   value,
   onChange,
+  id,
 }: {
   onSelect: (employee: EmployeeDirectoryEntry) => void;
   placeholder?: string;
@@ -30,6 +31,8 @@ export default function EmployeeAutocomplete({
   inputClassName?: string;
   value?: string;
   onChange?: (value: string) => void;
+  /** So a caller's own `<label htmlFor>` keeps pointing at the real input. */
+  id?: string;
 }) {
   const controlled = value !== undefined;
   const [internalQuery, setInternalQuery] = useState('');
@@ -112,6 +115,7 @@ export default function EmployeeAutocomplete({
   return (
     <div ref={boxRef} className={`relative ${className ?? ''}`}>
       <input
+        id={id}
         type="text"
         className={inputClassName ?? BOX}
         value={query}

@@ -7,8 +7,11 @@ import { useRouter } from 'next/navigation';
 import {
   DEVICE_AGE_OPTIONS,
   DEVICE_TYPE_OPTIONS,
+  FIRST_COMPUTER_DECLARATION,
   WORKFLOW_STEPS,
   fmtDateTime,
+  laptopRequestHasExistingDevice,
+  laptopRequestNeedsFirstComputerDeclaration,
   getStatusBadge,
   getWorkflowStepIndex,
   isActiveApprovalStatus,
@@ -665,7 +668,11 @@ export default function LaptopRequestDetailClient({
   // Existing Device (the device being replaced) only applies to Upgrade/Replacement
   // and Unit requests — a New Employee has no prior device, so it never applies to
   // them, whether shown as a read-only summary or as fields inside a decision popup.
-  const appliesToExistingDevice = request.request_type !== 'New Employee';
+  /* Asked through the shared predicate, not by naming a type. There are now two device-less
+     types -- a new hire and an existing employee getting their first machine -- and the old
+     `!== 'New Employee'` would have shown an Existing Device section, with required brand,
+     model, serial number, age and SAP number, for a machine that does not exist. */
+  const appliesToExistingDevice = laptopRequestHasExistingDevice(request.request_type);
   // Only ever filled in by the IT Manager — hide it from everyone else, including
   // the requester.
   /* Every approver in the chain, not just the IT Manager who filled it in. The
@@ -1337,6 +1344,32 @@ export default function LaptopRequestDetailClient({
                 <Field label="Requester Email" value={request.requested_by_email} />
                 <Field label="Requestor ID" value={request.employee_id} />
                 <Field label="Computer For" value={request.computer_for} />
+                {/* The declaration, where an approver reads the rest of the request rather
+                    than tucked at the bottom. It is the reason they are being asked to give
+                    somebody a first machine, so it belongs with the facts of the case. */}
+                {laptopRequestNeedsFirstComputerDeclaration(request.request_type) && (
+                  <div className="sm:col-span-2">
+                    <p className="text-[0.6875rem] font-bold uppercase tracking-wide text-slate-400">
+                      Declaration
+                    </p>
+                    <p className="mt-1 text-sm italic leading-relaxed text-slate-800">
+                      &ldquo;{FIRST_COMPUTER_DECLARATION}&rdquo;
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {request.first_computer_declared_at ? (
+                        <>
+                          Declared by {request.first_computer_declared_by || requester} on{' '}
+                          {fmtDateTime(request.first_computer_declared_at)}.
+                        </>
+                      ) : (
+                        <span className="font-semibold text-[#B71C1C]">
+                          Not recorded on this request. It predates the declaration, or was edited
+                          into this type without one.
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                )}
                 {request.request_type === 'New Employee' && (
                   <Field
                     label="Computer For Employee ID"

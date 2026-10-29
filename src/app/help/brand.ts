@@ -17,3 +17,9 @@ export const TITE_BRAND = '#006B0C';
  * own: it is an outside product, but it is reached from here and badged like everything else here.
  */
 export const TRAVEL_BRAND = '#307c4c';
+
+/**
+ * SOA Consolidation's accent, which is the NESR green: the tool is built in it throughout, where
+ * it is spelled `sns-green` in Tailwind rather than carried as a constant.
+ */
+export const SOA_BRAND = '#307c4c';

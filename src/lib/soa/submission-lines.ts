@@ -71,7 +71,11 @@ const HEADERS: Record<keyof Omit<ParsedLine, 'lineNo' | 'issues' | 'invoiceDateR
   remarks: ['remarks', 'remark', 'comments', 'notes'],
 };
 
-const norm = (v: unknown): string => String(v ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+const norm = (v: unknown): string =>
+  String(v ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 
 /** Flatten whatever ExcelJS hands back for a cell into plain text. */
 function cellText(value: ExcelJS.CellValue): string {
@@ -154,8 +158,31 @@ function pickSheet(wb: ExcelJS.Workbook): ExcelJS.Worksheet {
   if (named) return named;
   const visible = wb.worksheets.filter((w) => w.state !== 'hidden' && w.state !== 'veryHidden');
   const sheet = visible[0] ?? wb.worksheets[0];
-  if (!sheet) throw new UnreadableStatementError('That workbook has no sheets.');
+  if (!sheet)
+    throw new UnreadableStatementError(
+      'That workbook has no sheets in it at all, so there is nothing to read. Nothing has been filed.',
+    );
   return sheet;
+}
+
+/**
+ * The row that looks most like a header, for the error message when none is a header.
+ *
+ * The widest row in the first 40 is the table's own heading in every layout we have seen, letter-
+ * head and covering note included, because those are a cell or two wide and a table is not.
+ */
+function widestRow(sheet: ExcelJS.Worksheet): string[] {
+  let best: string[] = [];
+  const limit = Math.min(sheet.rowCount, 40);
+  for (let r = 1; r <= limit; r++) {
+    const texts: string[] = [];
+    sheet.getRow(r).eachCell({ includeEmpty: false }, (cell) => {
+      const text = cellText(cell.value).replace(/\s+/g, ' ').trim();
+      if (text) texts.push(text);
+    });
+    if (texts.length > best.length) best = texts;
+  }
+  return best;
 }
 
 /**
@@ -164,8 +191,20 @@ function pickSheet(wb: ExcelJS.Workbook): ExcelJS.Worksheet {
  * Anchored on the invoice-number column because it is the one field a statement cannot omit, and
  * looked for over the first 40 rows so a supplier's letterhead, logo or covering note above the
  * table does not defeat it.
+ *
+ * When it is not there the message has to do real work. This is the error a champion actually
+ * hits - HQ Dubai lost a day to it - and it used to read "Could not find an Invoice Number column
+ * in the first 40 rows. Is this the statement template?", which asks the reader a question it is
+ * in a far better position to answer itself. It knows which sheet it opened, which sheets it
+ * passed over, and what the columns in front of it actually say. Saying all three turns "it did
+ * not work" into "you sent the PO report, not the statement".
+ *
+ * It stops at the diagnosis and says nothing about where to get the right file, because this
+ * parser serves two readers who fetch it from different places: a champion has the vendor's
+ * template a click away in the upload dialog, and a supplier has it attached to the email we
+ * sent them. `storeStatement` knows which of the two is uploading and adds that sentence.
  */
-function findHeaderRow(sheet: ExcelJS.Worksheet): number {
+function findHeaderRow(sheet: ExcelJS.Worksheet, sheetNames: string[]): number {
   const limit = Math.min(sheet.rowCount, 40);
   for (let r = 1; r <= limit; r++) {
     let hit = false;
@@ -174,8 +213,34 @@ function findHeaderRow(sheet: ExcelJS.Worksheet): number {
     });
     if (hit) return r;
   }
+
+  const found = widestRow(sheet);
+  const shown = found
+    .slice(0, 6)
+    .map((t) => `"${t}"`)
+    .join(', ');
+  const more = found.length > 6 ? `, and ${found.length - 6} more` : '';
+
+  /* Named only when there is a choice to be wrong about. On a one-sheet workbook saying which
+     sheet was read is noise; on a multi-sheet one it is half the answer, because the statement
+     is often sitting on the tab next to the one that opened, and naming that tab is the whole
+     fix. The others are listed, not all of them, so the sentence says something new. */
+  const others = sheetNames.filter((n) => n !== sheet.name);
+  const whichSheet = others.length
+    ? ` It read the "${sheet.name}" sheet; the workbook also has ${others.map((n) => `"${n}"`).join(', ')}.`
+    : '';
+
+  const columns = !found.length
+    ? ' The sheet it read is empty.'
+    : found.length === 1
+      ? ` The only column in it is ${shown}.`
+      : ` The columns in it are ${shown}${more}.`;
+
   throw new UnreadableStatementError(
-    'Could not find an "Invoice Number" column in the first 40 rows. Is this the statement template?',
+    'This is not the statement template, so no invoice rows could be read from it. ' +
+      'The template has a column headed "Invoice Number" and this file has none.' +
+      whichSheet +
+      columns,
   );
 }
 
@@ -188,12 +253,19 @@ export async function parseSupplierWorkbook(bytes: Buffer): Promise<ParseResult>
     await wb.xlsx.load(bytes as unknown as Parameters<typeof wb.xlsx.load>[0]);
   } catch {
     throw new UnreadableStatementError(
-      'That file could not be opened as a workbook. If it was saved as .xls or .csv, re-save it as .xlsx.',
+      'That file could not be opened as a workbook at all. A file renamed to .xlsx is still ' +
+        'whatever it was before, and an older .xls or a .csv has to be re-saved as .xlsx from ' +
+        'Excel before it can be read. Nothing has been filed.',
     );
   }
 
   const sheet = pickSheet(wb);
-  const headerRow = findHeaderRow(sheet);
+  const headerRow = findHeaderRow(
+    sheet,
+    wb.worksheets
+      .filter((w) => w.state !== 'hidden' && w.state !== 'veryHidden')
+      .map((w) => w.name),
+  );
 
   const columns = new Map<keyof typeof HEADERS, number>();
   const seen: { text: string; col: number }[] = [];
@@ -201,7 +273,10 @@ export async function parseSupplierWorkbook(bytes: Buffer): Promise<ParseResult>
     const text = norm(cellText(cell.value));
     if (!text) return;
     seen.push({ text, col });
-    for (const [field, spellings] of Object.entries(HEADERS) as [keyof typeof HEADERS, string[]][]) {
+    for (const [field, spellings] of Object.entries(HEADERS) as [
+      keyof typeof HEADERS,
+      string[],
+    ][]) {
       if (!columns.has(field) && spellings.includes(text)) columns.set(field, col);
     }
   });
@@ -255,8 +330,7 @@ export async function parseSupplierWorkbook(bytes: Buffer): Promise<ParseResult>
     const outstandingAmount = parseAmount(outstandingCell);
     if (cellText(outstandingCell).trim() && outstandingAmount === null)
       issues.push(`Outstanding amount "${cellText(outstandingCell).trim()}" could not be read`);
-    if (outstandingAmount === null && totalAmount === null)
-      issues.push('No amount on this row');
+    if (outstandingAmount === null && totalAmount === null) issues.push('No amount on this row');
 
     lineNo += 1;
     lines.push({

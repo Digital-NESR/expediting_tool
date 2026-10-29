@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1262 540" role="img" aria-label="Translytix">
+  <!--
+    The TX monogram, redrawn in NESR green.
+
+    A redraw rather than a recolour of the supplied PNG: that file is a 2000px raster on a white
+    ground, which cannot sit on a tinted card without a white box around it and goes soft at the
+    24px the home card renders it at. Paths stay crisp at any size and carry no background.
+
+    Geometry traced from the supplied artwork, including the three details that make it
+    recognisable rather than a generic TX: the crossbar running straight into the top of the X,
+    the stem and the X's lower-left leg standing as two separate feet, and the diagonal wedge
+    cut out of the lower-right leg.
+
+    The green ramp mirrors the original's tonal structure rather than flattening everything to
+    one colour. Three tiles carried the bright accent there and three carry it here.
+  -->
+  <g fill="#1f5733">
+    <!-- T crossbar, running straight into the top of the X. -->
+    <path d="M0 7h572v140H0z" />
+    <!-- T stem. -->
+    <path d="M158 147h192v388H158z" />
+    <!-- The X's upper-left to lower-right stroke, cut off on the diagonal of the wedge. -->
+    <path d="M432 7h192l188 288-192 65z" />
+    <!-- Its lower-right leg, below the wedge. -->
+    <path d="M664 404l188-64 103 195H767z" />
+    <!-- The upper-right to lower-left stroke, drawn last so it reads over the crossing. -->
+    <path d="M742 7h195L600 535H388z" />
+  </g>
+
+  <!-- The 3x3 tile block, row by row. -->
+  <g>
+    <rect x="982" y="7" width="76" height="76" rx="10" fill="#2e6b47" />
+    <rect x="1084" y="7" width="76" height="76" rx="10" fill="#4fc08d" />
+    <rect x="1186" y="7" width="76" height="76" rx="10" fill="#4fc08d" />
+
+    <rect x="982" y="109" width="76" height="76" rx="10" fill="#245035" />
+    <rect x="1084" y="109" width="76" height="76" rx="10" fill="#4fc08d" />
+    <rect x="1186" y="109" width="76" height="76" rx="10" fill="#307c4c" />
+
+    <rect x="982" y="211" width="76" height="76" rx="10" fill="#16351f" />
+    <rect x="1084" y="211" width="76" height="76" rx="10" fill="#2e6b47" />
+    <rect x="1186" y="211" width="76" height="76" rx="10" fill="#307c4c" />
+  </g>
+</svg>

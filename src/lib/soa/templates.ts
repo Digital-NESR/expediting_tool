@@ -1,4 +1,5 @@
 import type { QueryResultRow } from 'pg';
+import { effectiveSubmissionDeadline } from './deadlines';
 import { ensureSoaSchema, sql } from './db';
 import { DEFAULT_BODY_HTML, DEFAULT_SUBJECT, sanitizeTemplateHtml } from './email-template';
 
@@ -149,7 +150,10 @@ export async function letterContext(countryId: string): Promise<LetterContext> {
   await ensureSoaSchema();
   const rows = await sql<QueryResultRow[]>(
     `SELECT co.name AS country_name, cy.label AS cycle_label,
-            cy.period_end, cy.submission_deadline,
+            cy.period_end,
+            /* The country's own date if it has one. This is the date printed in the letter, so
+               it has to be the same one the upload page and the handoff gate use. */
+            ${effectiveSubmissionDeadline('cy', 'co.id')} AS submission_deadline,
             (SELECT ARRAY_AGG(cu.email ORDER BY cu.name)
                FROM country_users cu
               WHERE cu.country_id = co.id AND cu.role = 'ap') AS ap_emails,

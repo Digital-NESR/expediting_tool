@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { searchTaxonomy } from '@/lib/sourceguide/taxonomy-search';
 import type { SgTaxonomyRow } from '@/lib/sourceguide/types';
 
-const r = (
-  spend: string,
-  cat: string,
-  sub: string,
-  fam: string,
-  name: string,
-): SgTaxonomyRow => [spend, cat, sub, fam, name];
+const r = (spend: string, cat: string, sub: string, fam: string, name: string): SgTaxonomyRow => [
+  spend,
+  cat,
+  sub,
+  fam,
+  name,
+];
 
 const ROWS: SgTaxonomyRow[] = [
   r('Direct', 'Field Technical', 'Completion Tools', 'Perforating Equipment', 'Shaped Charges'),

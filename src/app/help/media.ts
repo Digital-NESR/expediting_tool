@@ -34,6 +34,25 @@ export const TITE_TRAINING_VIDEO_EMBED_URL =
 export const TITE_TRAINING_DOC_URL =
   process.env.NEXT_PUBLIC_HELP_TITE_TRAINING_DOC_URL ?? '/help/documentation.pdf';
 
+/**
+ * RFx Officer introduction, the first thing on the help page.
+ *
+ * On the shared digitalstudio site library rather than a personal OneDrive, which is the
+ * shape the note at the top of this file asks the rest to end up in.
+ */
+export const RFX_INTRO_VIDEO_EMBED_URL =
+  process.env.NEXT_PUBLIC_HELP_RFX_INTRO_VIDEO_EMBED_URL ??
+  'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=292ea1ca-35c1-43ea-8352-a12ad13762a0&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create';
+
+/**
+ * RFx Officer overview, the step between the introduction and the full walkthrough.
+ *
+ * Same shared digitalstudio site library as the intro and the supplier guide.
+ */
+export const RFX_OVERVIEW_VIDEO_EMBED_URL =
+  process.env.NEXT_PUBLIC_HELP_RFX_OVERVIEW_VIDEO_EMBED_URL ??
+  'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=50408d9e-acfa-49d1-8063-98256d734093&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create';
+
 /** RFx Officer full walkthrough, played inline. */
 export const RFX_FULL_GUIDE_VIDEO_EMBED_URL =
   process.env.NEXT_PUBLIC_HELP_RFX_FULL_GUIDE_VIDEO_EMBED_URL ??
@@ -62,6 +81,11 @@ export const TRAVEL_TRAINING_VIDEO_EMBED_URL =
  * The two Travel Portal manuals, previewed inline and offered as a download. Served from /public
  * like the TI-TE and ProcureGuard guides; an absolute URL works just as well.
  */
+/** SOA Consolidation walkthrough, played inline on /help/soa-consolidation. */
+export const SOA_TRAINING_VIDEO_EMBED_URL =
+  process.env.NEXT_PUBLIC_HELP_SOA_TRAINING_VIDEO_EMBED_URL ??
+  'https://nesrcorp.sharepoint.com/sites/digitalstudio/_layouts/15/embed.aspx?UniqueId=230966b5-d370-42db-8fdf-e2d7e993f7f9&embed=%7B%22ust%22%3Afalse%2C%22hv%22%3A%22CopyEmbedCode%22%7D&referrer=StreamWebApp&referrerScenario=EmbedDialog.Create';
+
 export const TRAVEL_USER_GUIDE_DOC_URL =
   process.env.NEXT_PUBLIC_HELP_TRAVEL_USER_GUIDE_DOC_URL ?? '/help/travel-portal-user-guide.pdf';
 

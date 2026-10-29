@@ -140,10 +140,22 @@ export const ADMIN_APPS: AdminApp[] = [
       { id: 'analytics', label: 'Analytics' },
     ],
   },
+  {
+    id: 'supply-chain-analytics',
+    label: 'Supply Chain Analytics',
+    color: '#307c4c',
+    activeBg: '#eaf4ef',
+    activeColor: '#1d4f31',
+    /* No countKey: Travel Portal access is granted here directly rather than requested, so
+       there is no queue of pending requests to badge. */
+    sections: [{ id: 'travel-access', label: 'Travel Access' }],
+  },
 ];
 
-/** Tools that are visible in the sidebar but not yet built. */
-export const COMING_SOON = ['GRN & Invoice Reconciliation', 'Supply Chain Analytics'];
+/* Tools that are visible in the sidebar but not yet built. Supply Chain Analytics left this
+   list when its Travel Portal board gained a grants editor; the Power BI tab beside it is
+   still a preview, but the admin area now has something real to administer. */
+export const COMING_SOON = ['GRN & Invoice Reconciliation'];
 
 export const DEFAULT_APP = 'po-expediting';
 

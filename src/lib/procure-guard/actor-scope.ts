@@ -76,6 +76,7 @@ function mergeApprovalAuthority(
     canViewAll: base.canViewAll || granted.canViewAll,
     canReject: base.canReject || granted.canReject,
     canReviewAdhocScm: base.canReviewAdhocScm || granted.canReviewAdhocScm,
+    canReviewAdhocSapTeam: base.canReviewAdhocSapTeam || granted.canReviewAdhocSapTeam,
     canReviewAdhocDirector: base.canReviewAdhocDirector || granted.canReviewAdhocDirector,
     canReviewAdvanceCountryController:
       base.canReviewAdvanceCountryController || granted.canReviewAdvanceCountryController,

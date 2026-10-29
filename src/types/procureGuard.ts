@@ -2,6 +2,9 @@
   | 'Submitted'
   | 'Under Review'
   | 'Approved by SCM'
+  /* Adhoc only. Sits between the SCM step and the Supply Chain Director, so the Director signs
+     off on a supplier SAP has already confirmed is set up correctly. */
+  | 'Verified by SAP Team'
   | 'Approved by Country Controller'
   | 'Approved by Supply Chain Director'
   | 'Approved by Treasury Director'
@@ -18,6 +21,7 @@ export type ProcureGuardPermissionRole =
   | 'Read Only'
   | 'Viewer'
   | 'SCM Manager'
+  | 'SAP Team'
   | 'Country Controller'
   | 'Supply Chain Director'
   | 'Treasury Director'
@@ -38,6 +42,8 @@ export interface ProcureGuardPermissionProfile {
   canDeleteRecords: boolean;
   canReject: boolean;
   canReviewAdhocScm: boolean;
+  /** Adhoc only: the supplier set-up check between SCM and the Supply Chain Director. */
+  canReviewAdhocSapTeam: boolean;
   canReviewAdhocDirector: boolean;
   canReviewAdvanceCountryController: boolean;
   canReviewAdvanceSupplyChainDirector: boolean;
@@ -134,6 +140,8 @@ export interface AdhocPaymentRequest {
   vendor_name: string;
   vendor_code: string | null;
   vendor_tax_id: string | null;
+  /** Which shape this request is; see `AdhocSupplierSource`. Older rows read `adhoc`. */
+  supplier_source?: AdhocSupplierSource | null;
   supplier_email: string | null;
   amount: number;
   currency: string;
@@ -222,10 +230,20 @@ export interface AdvancePaymentRequest {
   updated_at: string;
 }
 
+/**
+ * `adhoc` is a supplier with no SAP record, identified by a tax registration number.
+ * `existing_avl` is a supplier already in the vendor master, usually centrally blocked, where
+ * the buyer needs one urgent purchase without unblocking them: there the identifier is their
+ * SAP supplier ID and there is no TRN to collect.
+ */
+export type AdhocSupplierSource = 'adhoc' | 'existing_avl';
+
 export interface CreateAdhocPaymentInput {
   priority: ProcureGuardPriority;
   requisition_number: string;
+  supplier_source?: AdhocSupplierSource;
   vendor_name: string;
+  /** The SAP supplier ID when `supplier_source` is `existing_avl`. */
   vendor_code?: string;
   vendor_tax_id: string;
   supplier_email?: string;

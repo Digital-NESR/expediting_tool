@@ -20,5 +20,9 @@ import { requireSchema } from '@/lib/db/schema-version';
 
 /** Assert that the laptop-procurement database has had its migrations applied. */
 export function ensureLaptopSchema(): Promise<void> {
-  return requireSchema(laptopProcurementPool, 'laptop-procurement', '001_baseline');
+  return requireSchema(
+    laptopProcurementPool,
+    'laptop-procurement',
+    '002_first_computer_declaration',
+  );
 }

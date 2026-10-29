@@ -18,6 +18,7 @@ function vendor(status: Vendor['status']): Vendor {
     no: '0001',
     openPO: 1_000_000,
     status,
+    excluded: false,
     reqDate: ', ',
     remDate: null,
     respDate: null,
@@ -26,7 +27,7 @@ function vendor(status: Vendor['status']): Vendor {
     respondedAt: null,
     currency: 'USD',
     invCount: 0,
-  resolutionNote: '',
+    resolutionNote: '',
     contactEmails: [],
     submissions: [],
   };

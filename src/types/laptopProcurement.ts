@@ -176,6 +176,10 @@ export interface LaptopRequest {
   status: LaptopRequestStatus;
   priority: LaptopRequestPriority;
   request_type: string | null;
+  /** When the requester declared they have never been assigned a company computer. */
+  first_computer_declared_at?: string | null;
+  /** Who made that declaration. See the 002 migration for why this is a column. */
+  first_computer_declared_by?: string | null;
   indirect_request: boolean;
   requested_date: string | null;
   pending_with: string | null;
@@ -268,6 +272,14 @@ export interface CreateLaptopRequestInput {
   // specific model upfront.
   requested_model?: string;
   special_requirements: string;
+  /**
+   * Ticked by the requester on a `New Computer (Self)` request, and required there.
+   *
+   * Sent only on that type. The server refuses the type without it and ignores it on every
+   * other, so a stale `true` left over from switching the dropdown cannot record a declaration
+   * nobody made.
+   */
+  first_computer_declared?: boolean;
 }
 
 // Filled in by the IT Team once Country Manager flags a request as needing a brand

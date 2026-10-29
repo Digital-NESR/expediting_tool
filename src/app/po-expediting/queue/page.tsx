@@ -719,7 +719,7 @@ export default function ExpediteReviewPage() {
           </div>
         </header>
 
-        <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-12 max-w-md w-full text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-500 mt-16">
+        <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-100 p-12 max-w-md w-full text-center flex flex-col items-center mt-16">
           <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-6">
             <svg
               className="w-10 h-10 text-slate-400"
@@ -779,7 +779,7 @@ export default function ExpediteReviewPage() {
         </div>
       </header>
 
-      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
         {/* Page Header */}
         <header className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
@@ -895,7 +895,7 @@ export default function ExpediteReviewPage() {
       </div>
 
       {/* ── Floating Confirm Bar ── */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-[0_-4px_32px_rgba(0,0,0,0.05)] p-4 sm:p-6 animate-in slide-in-from-bottom-2 duration-300">
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-[0_-4px_32px_rgba(0,0,0,0.05)] p-4 sm:p-6">
         <div className="max-w-screen-xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="text-center sm:text-left">
             <p className="text-sm font-semibold text-slate-800">Ready to generate tokens?</p>

@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1360 820" role="img" aria-label="Translytix">
+  <!--
+    The full Translytix lockup in NESR green: the TX monogram over the wordmark.
+    The monogram's geometry is the same as translytix-mark.svg; see that file for why this is a
+    redraw rather than a recoloured raster.
+
+    The wordmark is set in live text rather than outlined, so it stays selectable and weighs
+    almost nothing. That means it depends on the reader having one of the faces below — which
+    is why the 24px card icon uses the monogram alone, where no text is involved. Here it is
+    only ever seen large, and a near-match at a glance is better than a 40KB blob of traced
+    curves nobody can correct later.
+  -->
+  <g transform="translate(49 7)">
+    <g fill="#1f5733">
+      <path d="M0 7h572v140H0z" />
+      <path d="M158 147h192v388H158z" />
+      <path d="M432 7h192l188 288-192 65z" />
+      <path d="M664 404l188-64 103 195H767z" />
+      <path d="M742 7h195L600 535H388z" />
+    </g>
+    <g>
+      <rect x="982" y="7" width="76" height="76" rx="10" fill="#2e6b47" />
+      <rect x="1084" y="7" width="76" height="76" rx="10" fill="#4fc08d" />
+      <rect x="1186" y="7" width="76" height="76" rx="10" fill="#4fc08d" />
+
+      <rect x="982" y="109" width="76" height="76" rx="10" fill="#245035" />
+      <rect x="1084" y="109" width="76" height="76" rx="10" fill="#4fc08d" />
+      <rect x="1186" y="109" width="76" height="76" rx="10" fill="#307c4c" />
+
+      <rect x="982" y="211" width="76" height="76" rx="10" fill="#16351f" />
+      <rect x="1084" y="211" width="76" height="76" rx="10" fill="#2e6b47" />
+      <rect x="1186" y="211" width="76" height="76" rx="10" fill="#307c4c" />
+    </g>
+  </g>
+
+  <!--
+    T and X are bold and the letters between them are light, exactly as the supplied artwork
+    sets it. Three <text> runs rather than one, because that weight change is the wordmark's
+    only real character and a single run cannot carry it.
+  -->
+  <g
+    fill="#1f5733"
+    font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
+    font-size="170"
+    letter-spacing="6"
+    text-anchor="middle"
+  >
+    <text x="680" y="760">
+      <tspan font-weight="700">T</tspan><tspan font-weight="300">RANSLYTI</tspan><tspan
+        font-weight="700"
+      >X</tspan>
+    </text>
+  </g>
+</svg>

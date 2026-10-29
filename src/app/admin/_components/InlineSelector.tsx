@@ -44,7 +44,7 @@ export default function InlineSelector({
   }
 
   return (
-    <div className="mt-3 p-4 bg-slate-50 border border-slate-200 rounded-xl animate-in fade-in duration-150">
+    <div className="mt-3 p-4 bg-slate-50 border border-slate-200 rounded-xl">
       <p className="text-xs font-semibold text-slate-600 mb-2">{label}</p>
 
       <div className="relative mb-2">

@@ -56,11 +56,22 @@ describe('writeConsolidated', () => {
     const head: string[] = [];
     sheet.getRow(1).eachCell({ includeEmpty: true }, (c, n) => (head[n] = text(c.value).trim()));
     expect(head.slice(1, 17)).toEqual([
-      'Ser#', 'Month/Year', 'Country', 'Legal Entity', 'Vendor Name', 'Vendor No.',
-      'Invoice Number', 'Invoice Date', 'Purchase Order Number',
-      'Type of service / Product Delivered', 'Currency', 'TAX / VAT (Amount)',
-      'Total Amount (Including TAX or VAT)', 'Total Amount Outstanding',
-      'Invoice Outstanding Days', 'Remarks',
+      'Ser#',
+      'Month/Year',
+      'Country',
+      'Legal Entity',
+      'Vendor Name',
+      'Vendor No.',
+      'Invoice Number',
+      'Invoice Date',
+      'Purchase Order Number',
+      'Type of service / Product Delivered',
+      'Currency',
+      'TAX / VAT (Amount)',
+      'Total Amount (Including TAX or VAT)',
+      'Total Amount Outstanding',
+      'Invoice Outstanding Days',
+      'Remarks',
     ]);
   });
 
@@ -91,7 +102,11 @@ describe('writeConsolidated', () => {
 
   it('says on the row when the parser could not read something', async () => {
     const { file, summary } = await writeConsolidated([
-      row({ remarks: 'partial shipment', outstanding_amount: null, issues: ['No amount on this row'] }),
+      row({
+        remarks: 'partial shipment',
+        outstanding_amount: null,
+        issues: ['No amount on this row'],
+      }),
     ]);
     const sheet = await open(file);
     const remark = text(sheet.getRow(2).getCell(16).value);
@@ -151,7 +166,8 @@ describe('placeholder rows', () => {
         invoice_number: null,
         outstanding_amount: null,
         currency: null,
-        marker: 'Supplier replied by email. Refer to the email attachment filed against this vendor.',
+        marker:
+          'Supplier replied by email. Refer to the email attachment filed against this vendor.',
       }),
     ]);
     const sheet = await open(file);
@@ -174,7 +190,12 @@ describe('placeholder rows', () => {
   it('leaves a placeholder out of the currency totals', async () => {
     const { summary } = await writeConsolidated([
       row({ vendor_no: '1', currency: 'SAR', outstanding_amount: 100 }),
-      row({ vendor_no: '2', currency: 'SAR', outstanding_amount: 999, marker: 'No pending invoices.' }),
+      row({
+        vendor_no: '2',
+        currency: 'SAR',
+        outstanding_amount: 999,
+        marker: 'No pending invoices.',
+      }),
     ]);
     expect(summary.totalsByCurrency).toEqual([{ currency: 'SAR', outstanding: 100 }]);
   });

@@ -14,6 +14,7 @@ import { AccessError } from '@/lib/require-access';
 import { logger } from '@/lib/logger';
 import { ensureSoaSchema, exec, sql } from '@/lib/soa/db';
 import { requireSoaActor } from '@/lib/soa/access';
+import { isCountryStatus } from '@/lib/soa/deadlines';
 import { runExtract, windowFor, type ExtractSummary } from '@/lib/soa/extract';
 
 const log = logger('soa-cycles');
@@ -300,7 +301,8 @@ export async function extendSoaCycleDeadlines(input: {
     if (!row.is_active) {
       return {
         success: false,
-        error: 'Only the active cycle can have its deadlines moved. Closed quarters stay as they were judged.',
+        error:
+          'Only the active cycle can have its deadlines moved. Closed quarters stay as they were judged.',
       };
     }
 
@@ -482,6 +484,420 @@ export async function runSoaExtract(cycleId: number): Promise<SoaResult<ExtractS
     return {
       success: false,
       error: err instanceof AccessError ? err.message : 'The extract failed.',
+    };
+  }
+}
+
+/* ═══ Per-country schedule and status ════════════════════════════════════════
+
+   A cycle has one pair of dates and every country inherits them, which is right until one
+   country needs another fortnight and the other twelve do not. Moving the cycle to suit one
+   country tells the other twelve they have longer than they have, so a country can now be
+   given its own dates. The cycle-wide control above is unchanged and remains the way to move
+   everybody at once.
+
+   Status is the other thing only an administrator can do. It normally advances with the work
+   and never goes back; handoff is the step that cannot be undone from inside the tool, and it
+   is the one that needs undoing when a country closes and then finds more suppliers worth
+   chasing. Both are recorded with a reason, and both write into the country's evidence trail.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/** One row of the per-country schedule matrix. */
+export interface CountryScheduleRow {
+  countryId: string;
+  countryName: string;
+  /** False when nobody has joined this country to the cycle yet. It can still be given dates. */
+  enrolled: boolean;
+  /** `country_cycles.status`, or null for a country that has not enrolled. */
+  status: string | null;
+  handedOffAt: string | null;
+  /** What this country is actually working to: its override, or the cycle's. */
+  submissionDeadline: string;
+  cycleDeadline: string;
+  /** Null where the country inherits. A set value is what makes the input show an override. */
+  submissionOverride: string | null;
+  cycleOverride: string | null;
+  /**
+   * Requests already sent to this country's suppliers.
+   *
+   * Carried so the screen can say why a date cannot be pulled earlier before the admin tries
+   * it, rather than letting them type a date and read a refusal.
+   */
+  sentRequests: number;
+  vendorsInChase: number;
+}
+
+export interface CountrySchedule {
+  cycleSubmissionDeadline: string;
+  cycleCycleDeadline: string;
+  rows: CountryScheduleRow[];
+}
+
+/** The matrix: every active country, what it is working to, and where it stands. */
+export async function getSoaCountrySchedule(cycleId: number): Promise<CountrySchedule> {
+  const empty = { cycleSubmissionDeadline: '', cycleCycleDeadline: '', rows: [] };
+  try {
+    await requireSoaActor('admin');
+    await ensureSoaSchema();
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT c.id, c.name, cy.submission_deadline AS cycle_submission,
+              cy.cycle_deadline AS cycle_close,
+              ccd.submission_deadline AS override_submission,
+              ccd.cycle_deadline     AS override_close,
+              cc.id IS NOT NULL      AS enrolled,
+              cc.status::text        AS status,
+              cc.handed_off_at,
+              (SELECT COUNT(*)::int FROM vendor_cycle_entries vce
+                WHERE vce.country_cycle_id = cc.id)                     AS vendors,
+              (SELECT COUNT(*)::int
+                 FROM outreach_dispatches d
+                 JOIN vendor_cycle_entries vce ON vce.id = d.vendor_cycle_entry_id
+                WHERE vce.country_cycle_id = cc.id AND d.succeeded = TRUE) AS sent
+         FROM countries c
+         JOIN cycles cy ON cy.id = ?
+         LEFT JOIN country_cycles cc
+                ON cc.cycle_id = cy.id AND cc.country_id = c.id
+         LEFT JOIN country_cycle_deadlines ccd
+                ON ccd.cycle_id = cy.id AND ccd.country_id = c.id
+        WHERE c.active
+        ORDER BY c.sort_order, c.name`,
+      [cycleId],
+    );
+    if (!rows.length) return empty;
+    return {
+      cycleSubmissionDeadline: asDate(rows[0].cycle_submission),
+      cycleCycleDeadline: asDate(rows[0].cycle_close),
+      rows: rows.map((r) => ({
+        countryId: String(r.id),
+        countryName: String(r.name),
+        enrolled: r.enrolled === true,
+        status: r.status ? String(r.status) : null,
+        handedOffAt: r.handed_off_at instanceof Date ? r.handed_off_at.toISOString() : null,
+        submissionDeadline: asDate(r.override_submission ?? r.cycle_submission),
+        cycleDeadline: asDate(r.override_close ?? r.cycle_close),
+        submissionOverride: r.override_submission ? asDate(r.override_submission) : null,
+        cycleOverride: r.override_close ? asDate(r.override_close) : null,
+        sentRequests: Number(r.sent ?? 0),
+        vendorsInChase: Number(r.vendors ?? 0),
+      })),
+    };
+  } catch (err) {
+    log.error('getSoaCountrySchedule.failed', err);
+    return empty;
+  }
+}
+
+/**
+ * Give one country its own deadlines, or put it back on the cycle's.
+ *
+ * Passing null for a date clears that override, which is a real operation and not the same as
+ * leaving it alone: a country that was given an extension and then caught up should go back to
+ * inheriting, so that the next cycle-wide move reaches it.
+ *
+ * The same two rules the cycle is held to, applied to whatever this country ends up working to
+ * -- which may be one override and one inherited date, so both are resolved before checking:
+ *
+ *   closing on or after collection, because a country cannot be reconciled before the
+ *   statements are due; and
+ *
+ *   no pulling the collection date earlier once letters have gone to THIS country's suppliers.
+ *   They were told a date in writing. Another country's letters are irrelevant here, which is
+ *   the one place this is laxer than the cycle-wide action and correctly so.
+ */
+export async function setSoaCountryDeadlines(input: {
+  cycleId: number;
+  countryId: string;
+  /** ISO day, or null to inherit the cycle's. */
+  submissionDeadline: string | null;
+  cycleDeadline: string | null;
+  reason: string;
+}): Promise<SoaResult> {
+  try {
+    const actor = await requireSoaActor('admin');
+    await ensureSoaSchema();
+
+    const reason = input.reason.trim().slice(0, 2000);
+    if (reason.length < 3) {
+      return { success: false, error: 'Say why this country is moving. It goes on the record.' };
+    }
+
+    const current = await sql<QueryResultRow[]>(
+      `SELECT cy.is_active, cy.submission_deadline AS cycle_submission,
+              cy.cycle_deadline AS cycle_close,
+              ccd.submission_deadline AS old_submission, ccd.cycle_deadline AS old_close,
+              c.name AS country_name,
+              (SELECT cc.id FROM country_cycles cc
+                WHERE cc.cycle_id = cy.id AND cc.country_id = c.id) AS country_cycle_id
+         FROM cycles cy
+         JOIN countries c ON c.id = ?
+         LEFT JOIN country_cycle_deadlines ccd
+                ON ccd.cycle_id = cy.id AND ccd.country_id = c.id
+        WHERE cy.id = ?`,
+      [input.countryId, input.cycleId],
+    );
+    if (!current.length) return { success: false, error: 'No such cycle or country.' };
+    const row = current[0];
+    if (!row.is_active) {
+      return {
+        success: false,
+        error:
+          'Only the active cycle can have its deadlines moved. Closed quarters stay as they were judged.',
+      };
+    }
+
+    const inheritedSubmission = asDate(row.cycle_submission);
+    const inheritedClose = asDate(row.cycle_close);
+    const previousSubmission = row.old_submission
+      ? asDate(row.old_submission)
+      : inheritedSubmission;
+    const previousClose = row.old_close ? asDate(row.old_close) : inheritedClose;
+
+    const nextSubmission = input.submissionDeadline || inheritedSubmission;
+    const nextClose = input.cycleDeadline || inheritedClose;
+    if (
+      Number.isNaN(new Date(nextSubmission).getTime()) ||
+      Number.isNaN(new Date(nextClose).getTime())
+    ) {
+      return { success: false, error: 'Both dates have to be real dates.' };
+    }
+    if (new Date(nextClose) < new Date(nextSubmission)) {
+      return {
+        success: false,
+        error: `${String(row.country_name)} would be closing on ${nextClose}, before its statements are due on ${nextSubmission}.`,
+      };
+    }
+
+    if (new Date(nextSubmission) < new Date(previousSubmission)) {
+      const sent = await sql<{ n: number }[]>(
+        `SELECT COUNT(*)::int AS n
+           FROM outreach_dispatches d
+           JOIN vendor_cycle_entries vce ON vce.id = d.vendor_cycle_entry_id
+           JOIN country_cycles cc        ON cc.id = vce.country_cycle_id
+          WHERE cc.cycle_id = ? AND cc.country_id = ? AND d.succeeded = TRUE`,
+        [input.cycleId, input.countryId],
+      );
+      if ((sent[0]?.n ?? 0) > 0) {
+        return {
+          success: false,
+          error: `${String(row.country_name)} has suppliers who were already written to with ${previousSubmission}. That date can be moved later, not earlier.`,
+        };
+      }
+    }
+
+    /* A row with two NULLs is deleted rather than kept. An empty override and no override are
+       the same thing to every reader, and leaving the row behind would make the matrix show a
+       country as overridden when it inherits. */
+    if (!input.submissionDeadline && !input.cycleDeadline) {
+      await exec(`DELETE FROM country_cycle_deadlines WHERE cycle_id = ? AND country_id = ?`, [
+        input.cycleId,
+        input.countryId,
+      ]);
+    } else {
+      await exec(
+        `INSERT INTO country_cycle_deadlines
+           (cycle_id, country_id, submission_deadline, cycle_deadline, updated_by)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT (cycle_id, country_id) DO UPDATE SET
+           submission_deadline = EXCLUDED.submission_deadline,
+           cycle_deadline = EXCLUDED.cycle_deadline,
+           updated_at = NOW(),
+           updated_by = EXCLUDED.updated_by`,
+        [
+          input.cycleId,
+          input.countryId,
+          input.submissionDeadline,
+          input.cycleDeadline,
+          actor.email,
+        ],
+      );
+    }
+
+    await exec(
+      `INSERT INTO cycle_deadline_changes
+         (cycle_id, country_id, changed_by, reason, old_submission_deadline,
+          new_submission_deadline, old_cycle_deadline, new_cycle_deadline)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        input.cycleId,
+        input.countryId,
+        actor.email,
+        reason,
+        previousSubmission,
+        nextSubmission,
+        previousClose,
+        nextClose,
+      ],
+    );
+
+    /* Into the country's own trail too, so the extension reaches its evidence pack beside the
+       chase it changed the shape of. Only once it has enrolled; before that there is no trail. */
+    if (row.country_cycle_id) {
+      const backToCycle = !input.submissionDeadline && !input.cycleDeadline;
+      await exec(
+        `INSERT INTO evidence_log (country_cycle_id, vendor_cycle_entry_id, type, action, actor, detail)
+         VALUES (?, NULL, 'info', 'Country deadlines changed', ?, ?)`,
+        [
+          Number(row.country_cycle_id),
+          actor.email,
+          `Collection ${previousSubmission} to ${nextSubmission}, closing ${previousClose} to ${nextClose}` +
+            `${backToCycle ? ' (back to the cycle dates)' : ''}. Reason: ${reason}`,
+        ],
+      );
+    }
+
+    log.info('cycles.countryDeadlinesChanged', {
+      cycleId: input.cycleId,
+      countryId: input.countryId,
+      by: actor.email,
+    });
+    revalidatePath('/admin/soa');
+    revalidatePath('/soa-consolidation');
+    return { success: true };
+  } catch (err) {
+    log.error('setSoaCountryDeadlines.failed', err);
+    return {
+      success: false,
+      error: err instanceof AccessError ? err.message : 'Could not move this country.',
+    };
+  }
+}
+
+/** One recorded status override, newest first. */
+export interface CountryStatusChange {
+  countryId: string;
+  changedAt: string;
+  changedBy: string;
+  reason: string;
+  oldStatus: string;
+  newStatus: string;
+}
+
+/** What has been done by hand to this cycle's country statuses. */
+export async function getSoaCountryStatusChanges(cycleId: number): Promise<CountryStatusChange[]> {
+  try {
+    await requireSoaActor('admin');
+    await ensureSoaSchema();
+    const rows = await sql<QueryResultRow[]>(
+      `SELECT country_id, changed_at, changed_by, reason, old_status, new_status
+         FROM country_cycle_status_changes
+        WHERE cycle_id = ?
+        ORDER BY changed_at DESC`,
+      [cycleId],
+    );
+    return rows.map((r) => ({
+      countryId: String(r.country_id),
+      changedAt: r.changed_at instanceof Date ? r.changed_at.toISOString() : String(r.changed_at),
+      changedBy: String(r.changed_by),
+      reason: String(r.reason),
+      oldStatus: String(r.old_status),
+      newStatus: String(r.new_status),
+    }));
+  } catch (err) {
+    log.error('getSoaCountryStatusChanges.failed', err);
+    return [];
+  }
+}
+
+/**
+ * Move one country's status by hand, which in practice means reopening it after handoff.
+ *
+ * Handoff is a one-way door from inside the tool: the screens stop offering actions, the
+ * workflow endpoints refuse, and the supplier upload pages stop accepting files. That is right
+ * while it holds, and wrong when a country closes and then finds more suppliers worth chasing
+ * -- there is no way back, and the quarter's figures are the ones it closed with.
+ *
+ * Reopening clears `handed_off_at` as well as the status. Leaving the timestamp would show a
+ * country as reopened and handed off at once, and the evidence pack reads that column.
+ *
+ * Nothing else is undone. Statements already collected stay collected, the evidence trail keeps
+ * every row it had, and the earlier handoff stays in it with its own timestamp -- a country
+ * that was handed off, reopened and handed off again should read as exactly that.
+ */
+export async function setSoaCountryStatus(input: {
+  cycleId: number;
+  countryId: string;
+  status: string;
+  reason: string;
+}): Promise<SoaResult> {
+  try {
+    const actor = await requireSoaActor('admin');
+    await ensureSoaSchema();
+
+    if (!isCountryStatus(input.status)) {
+      return { success: false, error: 'That is not a status a country can be set to.' };
+    }
+    const reason = input.reason.trim().slice(0, 2000);
+    if (reason.length < 3) {
+      return { success: false, error: 'Say why the status is changing. It goes on the record.' };
+    }
+
+    const current = await sql<QueryResultRow[]>(
+      `SELECT cc.id, cc.status::text AS status, c.name AS country_name, cy.is_active
+         FROM country_cycles cc
+         JOIN countries c ON c.id = cc.country_id
+         JOIN cycles cy   ON cy.id = cc.cycle_id
+        WHERE cc.cycle_id = ? AND cc.country_id = ?`,
+      [input.cycleId, input.countryId],
+    );
+    if (!current.length) {
+      return {
+        success: false,
+        error: 'This country has not joined the cycle, so it has no status to change.',
+      };
+    }
+    const row = current[0];
+    if (!row.is_active) {
+      return { success: false, error: 'Only the active cycle can be changed.' };
+    }
+    const oldStatus = String(row.status);
+    if (oldStatus === input.status) {
+      return { success: false, error: `${String(row.country_name)} is already there.` };
+    }
+
+    await exec(
+      `UPDATE country_cycles
+          SET status = ?::country_cycle_status,
+              handed_off_at = CASE WHEN ? = 'handed_off' THEN COALESCE(handed_off_at, NOW()) END,
+              updated_at = NOW()
+        WHERE cycle_id = ? AND country_id = ?`,
+      [input.status, input.status, input.cycleId, input.countryId],
+    );
+
+    await exec(
+      `INSERT INTO country_cycle_status_changes
+         (cycle_id, country_id, changed_by, reason, old_status, new_status)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [input.cycleId, input.countryId, actor.email, reason, oldStatus, input.status],
+    );
+
+    const reopened = oldStatus === 'handed_off';
+    await exec(
+      `INSERT INTO evidence_log (country_cycle_id, vendor_cycle_entry_id, type, action, actor, detail)
+       VALUES (?, NULL, ?::evidence_type, ?, ?, ?)`,
+      [
+        Number(row.id),
+        reopened ? 'handoff' : 'info',
+        reopened ? 'Country reopened after handoff' : 'Country status changed',
+        actor.email,
+        `${oldStatus} to ${input.status}. Reason: ${reason}`,
+      ],
+    );
+
+    log.info('cycles.countryStatusChanged', {
+      cycleId: input.cycleId,
+      countryId: input.countryId,
+      from: oldStatus,
+      to: input.status,
+      by: actor.email,
+    });
+    revalidatePath('/admin/soa');
+    revalidatePath('/soa-consolidation');
+    return { success: true };
+  } catch (err) {
+    log.error('setSoaCountryStatus.failed', err);
+    return {
+      success: false,
+      error: err instanceof AccessError ? err.message : 'Could not change the status.',
     };
   }
 }

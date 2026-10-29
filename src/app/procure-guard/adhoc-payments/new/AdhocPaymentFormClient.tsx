@@ -8,6 +8,8 @@ import ProcureGuardLogo from '../../components/ProcureGuardLogo';
 import ProcureGuardHomeButton from '../../components/ProcureGuardHomeButton';
 import ProcureGuardHero from '../../components/ProcureGuardHero';
 import EmployeeAutocomplete from '../../components/EmployeeAutocomplete';
+import RequisitionPicker from '../../components/RequisitionPicker';
+import ExistingSupplierPicker from '../../components/ExistingSupplierPicker';
 import {
   createAdhocPayment,
   getProcureGuardNotificationPreview,
@@ -21,6 +23,7 @@ import {
   SPEND_CATEGORY_OPTIONS,
   usdEquivalentFmt,
 } from '@/lib/procureGuard-utils';
+import { requisitionError } from '@/lib/procure-guard/requisition';
 import type {
   AdhocPaymentRequest,
   CreateAdhocPaymentInput,
@@ -206,6 +209,16 @@ export default function AdhocPaymentFormClient(_props: {
   const [country, setCountry] = useState(editRequest?.country ?? '');
   const [segment, setSegment] = useState(editRequest?.segment ?? '');
   const [vendorName, setVendorName] = useState(editRequest?.vendor_name ?? '');
+  /* Which shape of request this is. An existing-supplier request names a supplier already in
+     SAP, usually centrally blocked, and carries their SAP ID where a plain adhoc request would
+     carry a tax number. Restored from the stored row when editing, so reopening a request does
+     not quietly turn it back into the other kind. */
+  const [existingSupplier, setExistingSupplier] = useState(
+    editRequest?.supplier_source === 'existing_avl',
+  );
+  const [supplierCode, setSupplierCode] = useState(
+    editRequest?.supplier_source === 'existing_avl' ? (editRequest?.vendor_code ?? '') : '',
+  );
   const [vendorTaxId, setVendorTaxId] = useState(
     editRequest?.vendor_tax_id ?? editRequest?.vendor_code ?? '',
   );
@@ -280,11 +293,18 @@ export default function AdhocPaymentFormClient(_props: {
 
   function validate() {
     const e: Record<string, string> = {};
-    if (!requisitionNumber.trim()) e.requisitionNumber = 'Requisition number is required.';
+    /* The same rule the server applies, from the same module: a browser check that disagreed
+       with the action would show a green form and a red toast. */
+    const requisitionProblem = requisitionError(requisitionNumber, country);
+    if (requisitionProblem) e.requisitionNumber = requisitionProblem;
     if (!country) e.country = 'Country is required.';
     if (!segment) e.segment = 'Segment is required.';
-    if (!vendorName.trim()) e.vendorName = 'ADHOC vendor name is required.';
-    if (!vendorTaxId.trim()) e.vendorTaxId = 'Vendor tax ID is required.';
+    if (existingSupplier) {
+      if (!supplierCode.trim()) e.supplierCode = 'Choose the existing supplier from the list.';
+    } else {
+      if (!vendorName.trim()) e.vendorName = 'ADHOC vendor name is required.';
+      if (!vendorTaxId.trim()) e.vendorTaxId = 'Vendor tax ID is required.';
+    }
     if (!spendCategory) e.spendCategory = 'Spend category is required.';
     if (!amountValue || Number(amountValue) <= 0)
       e.amountValue = 'Amount must be greater than zero.';
@@ -377,8 +397,12 @@ export default function AdhocPaymentFormClient(_props: {
       priority: 'Normal',
       requisition_number: requisitionNumber,
       vendor_name: vendorName,
-      vendor_code: vendorTaxId,
-      vendor_tax_id: vendorTaxId,
+      supplier_source: existingSupplier ? ('existing_avl' as const) : ('adhoc' as const),
+      /* For an existing supplier the server re-reads the name and the ID from the vendor master
+         and ignores what is posted here, so these are what the buyer last saw rather than the
+         authority on anything. */
+      vendor_code: existingSupplier ? supplierCode : vendorTaxId,
+      vendor_tax_id: existingSupplier ? '' : vendorTaxId,
       amount,
       currency,
       country,
@@ -480,10 +504,11 @@ export default function AdhocPaymentFormClient(_props: {
           <section className="grid grid-cols-1 gap-x-10 gap-y-7 lg:grid-cols-4">
             <div className="lg:col-span-2">
               <Field label="Requisition Number" required error={errors.requisitionNumber}>
-                <input
-                  className={errors.requisitionNumber ? ERR : INP}
+                <RequisitionPicker
                   value={requisitionNumber}
-                  onChange={(e) => setRequisitionNumber(e.target.value)}
+                  onChange={setRequisitionNumber}
+                  country={country}
+                  invalid={Boolean(errors.requisitionNumber)}
                 />
               </Field>
             </div>
@@ -515,20 +540,92 @@ export default function AdhocPaymentFormClient(_props: {
                 ))}
               </datalist>
             </Field>
-            <Field label="ADHOC Vendor Name" required error={errors.vendorName}>
-              <input
-                className={errors.vendorName ? ERR : INP}
-                value={vendorName}
-                onChange={(e) => setVendorName(e.target.value)}
-              />
-            </Field>
-            <Field label="Vendor Tax ID" required error={errors.vendorTaxId}>
-              <input
-                className={errors.vendorTaxId ? ERR : INP}
-                value={vendorTaxId}
-                onChange={(e) => setVendorTaxId(e.target.value)}
-              />
-            </Field>
+            {/* The toggle spans both vendor fields because it decides what they are. */}
+            <div className="lg:col-span-2">
+              <div className="mb-2 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={existingSupplier}
+                  onClick={() => {
+                    const next = !existingSupplier;
+                    setExistingSupplier(next);
+                    /* Clearing the other shape's fields on the way across. Leaving a stale tax
+                       number behind would post an identifier the request is not for. */
+                    setSupplierCode('');
+                    setVendorName('');
+                    setVendorTaxId('');
+                    setErrors((prev) => ({
+                      ...prev,
+                      vendorName: '',
+                      vendorTaxId: '',
+                      supplierCode: '',
+                    }));
+                  }}
+                  /* Laid out by the box model rather than absolute positioning with a
+                     hand-worked offset: the track is 44px with 2px of padding, the knob is
+                     20px, so it travels exactly 20px and lands flush with 2px either side.
+                     The previous version positioned the knob absolutely and translated it by a
+                     measured 22px, which left it jammed against the right edge with its shadow
+                     bleeding over the track. Nothing here can overflow, because the padding
+                     and the travel are the same two numbers. */
+                  className={`flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors ${
+                    existingSupplier ? 'bg-[#307c4c]' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                      existingSupplier ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-800">
+                    This is for a supplier already in SAP
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    For a one-off or urgent purchase from an existing supplier, usually one that
+                    is centrally blocked, without unblocking them.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {existingSupplier ? (
+              <>
+                <Field label="Supplier" required error={errors.supplierCode}>
+                  <ExistingSupplierPicker
+                    code={supplierCode}
+                    name={vendorName}
+                    invalid={Boolean(errors.supplierCode)}
+                    onPick={(s) => {
+                      setSupplierCode(s?.code ?? '');
+                      setVendorName(s?.name ?? '');
+                    }}
+                  />
+                </Field>
+                <Field label="SAP Supplier ID">
+                  <input className={`${INP} bg-slate-100`} value={supplierCode} readOnly />
+                </Field>
+              </>
+            ) : (
+              <>
+                <Field label="ADHOC Vendor Name" required error={errors.vendorName}>
+                  <input
+                    className={errors.vendorName ? ERR : INP}
+                    value={vendorName}
+                    onChange={(e) => setVendorName(e.target.value)}
+                  />
+                </Field>
+                <Field label="Vendor Tax ID" required error={errors.vendorTaxId}>
+                  <input
+                    className={errors.vendorTaxId ? ERR : INP}
+                    value={vendorTaxId}
+                    onChange={(e) => setVendorTaxId(e.target.value)}
+                  />
+                </Field>
+              </>
+            )}
             <Field label="Spend Category" required error={errors.spendCategory}>
               <input
                 className={errors.spendCategory ? ERR : INP}

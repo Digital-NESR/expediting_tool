@@ -171,7 +171,9 @@ export default function UploadModal({ vm }: ScreenProps) {
   return (
     <>
       <div className="bg-sns-green px-5 py-4 flex items-center justify-between">
-        <div className="text-white font-bold text-[14px]">Accept SOA, {vm.modalVendorName}</div>
+        <div className="text-white font-bold text-[14px]">
+          {vm.modalIsReplacement ? 'Replace SOA' : 'Accept SOA'}, {vm.modalVendorName}
+        </div>
         <button
           type="button"
           onClick={vm.onCloseModal}
@@ -189,6 +191,26 @@ export default function UploadModal({ vm }: ScreenProps) {
             {vm.modalVendorCurrency}
           </div>
         </div>
+
+        {/* Reopening the box on an answered vendor is a correction, so it has to say what the
+            correction costs: the file already on record is kept and marked replaced, not deleted,
+            and only a file of the same kind retires one. A champion who drops an email beside a
+            spreadsheet keeps both. */}
+        {vm.modalIsReplacement && (
+          <div className="mb-3.5 rounded-[7px] border border-[#E8D9B8] bg-[#FDF8EC] px-3.5 py-2.5 text-[12px] text-sns-ink">
+            <div className="font-bold mb-0.5">This supplier has already answered.</div>
+            <div className="text-sns-grey">
+              {vm.modalCurrentFiles.length > 0 && (
+                <>
+                  On file:{' '}
+                  {vm.modalCurrentFiles.map((f) => f.fileName).join(', ')}. A new file of the same
+                  kind marks the old one replaced rather than deleting it,{' '}
+                </>
+              )}
+              and the coverage figure is recomputed from whatever is current.
+            </div>
+          </div>
+        )}
 
         <DropZone
           label="Statement spreadsheet"
@@ -210,9 +232,33 @@ export default function UploadModal({ vm }: ScreenProps) {
           onError={onError}
         />
 
+        {/* The box's own complaints: wrong extension, too large. One line each. */}
         {error && (
           <div className="mb-3 rounded-md bg-[#FFEBEE] px-3 py-2 text-[11px] font-bold text-[#B71C1C]">
             {error}
+          </div>
+        )}
+
+        {/* The server's refusal, which is the one that explains itself. Kept in the dialog rather
+            than thrown to a toast: it runs to several lines, it is about the file still sitting in
+            the box above it, and it has to stay readable while the champion goes and finds the
+            right workbook. The template is offered right under it, because that is what they
+            need next and digging it out of a three-week-old email is how the wrong file gets
+            uploaded in the first place. */}
+        {vm.modalError && (
+          <div className="mb-3 rounded-md border border-[#E57373] bg-[#FFEBEE] px-3.5 py-3">
+            <div className="text-[11px] font-bold uppercase tracking-wide text-[#B71C1C]">
+              Not accepted
+            </div>
+            <p className="mt-1 text-[12px] leading-[1.55] text-[#7F1D1D]">{vm.modalError}</p>
+            {vm.modalTemplateHref && (
+              <a
+                href={vm.modalTemplateHref}
+                className="mt-2 inline-block rounded-md border border-[#B71C1C] px-2.5 py-1 text-[11px] font-bold text-[#B71C1C] hover:bg-[#B71C1C] hover:text-white"
+              >
+                Download {vm.modalVendorName}&rsquo;s blank template
+              </a>
+            )}
           </div>
         )}
 

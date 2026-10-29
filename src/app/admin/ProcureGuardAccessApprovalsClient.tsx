@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState, type ComponentProps } from 'react';
 import { Pencil } from 'lucide-react';
 import {
+  addProcureGuardTeamApprover,
   getProcureGuardApproverMatrix,
+  removeProcureGuardTeamApprover,
   setProcureGuardApprover,
   setProcureGuardApproverForColumn,
   getProcureGuardViewerGrants,
@@ -35,6 +37,76 @@ function PickerPortal(props: ComponentProps<typeof PickerPortalBase>) {
       noMatchesLabel="No matches."
       {...props}
     />
+  );
+}
+
+/**
+ * A cell for a step a TEAM owns rather than one person.
+ *
+ * Every other cell in this matrix replaces its occupant: there is one country SCM and
+ * assigning a new one means the old one stops approving. SAP Team verification is done by
+ * whoever on the team picks it up, so this cell adds and removes instead, and shows everyone
+ * currently on the step.
+ *
+ * Each chip carries its own remove, because the alternative on a shared step is a reader
+ * guessing which of four names the one X belongs to.
+ */
+function TeamApproverCell({
+  people,
+  saving,
+  onAdd,
+  onRemove,
+}: {
+  people: ApproverCell[];
+  saving: boolean;
+  onAdd: (emp: EmployeeDirectoryEntry) => void;
+  onRemove: (email: string) => void;
+}) {
+  const { btnRef, open, pos, toggle, close } = usePickerAnchor();
+  return (
+    <>
+      <div className="flex flex-col gap-1">
+        {people.map((person) => (
+          <span
+            key={person.email}
+            className="group inline-flex items-center gap-1.5 rounded-md bg-[#307c4c]/5 py-0.5 pl-1 pr-0.5"
+            title={person.email}
+          >
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#307c4c]/10 text-[9px] font-bold text-[#307c4c]">
+              {personInitials(person.name)}
+            </span>
+            <span className="truncate text-[12px] font-medium text-slate-700">{person.name}</span>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => onRemove(person.email)}
+              aria-label={`Remove ${person.name}`}
+              className="ml-auto rounded px-1 text-[13px] leading-none text-slate-300 transition-colors hover:text-[#B71C1C] disabled:opacity-50"
+            >
+              &times;
+            </button>
+          </span>
+        ))}
+        <button
+          ref={btnRef}
+          type="button"
+          disabled={saving}
+          onClick={toggle}
+          className="rounded-md px-1.5 py-0.5 text-left text-xs text-slate-400 transition-colors hover:bg-[#307c4c]/5 hover:text-[#307c4c] disabled:opacity-50"
+        >
+          {saving ? 'Saving...' : people.length ? '+ Add another' : '+ Add...'}
+        </button>
+      </div>
+      <PickerPortal
+        open={open}
+        pos={pos}
+        onPick={(emp) => {
+          close();
+          onAdd(emp);
+        }}
+        onClose={close}
+      />
+    </>
   );
 }
 
@@ -181,6 +253,50 @@ function EditableApproverMatrix({
     );
   }
 
+  /* Both of these reload the matrix rather than patching it in place, the way `assign` does.
+     A team cell can change in ways a local edit cannot predict: the server refuses a duplicate
+     address silently, and a removal has to be reflected in every country when the whole column
+     was targeted. Re-reading is one round trip and always right. */
+  async function addToTeam(
+    country: string,
+    col: ApproverMatrixColumn,
+    emp: EmployeeDirectoryEntry,
+  ) {
+    const key = `${country}|${col.key}`;
+    setSaving(key);
+    setError('');
+    const res = await addProcureGuardTeamApprover({
+      country,
+      notificationRole: col.notificationRole,
+      requestType: col.requestType,
+      email: emp.email,
+      displayName: emp.name,
+    });
+    setSaving(null);
+    if (!res.success) return setError(res.error ?? 'Failed to add approver.');
+    await reloadMatrix();
+  }
+
+  async function removeFromTeam(country: string, col: ApproverMatrixColumn, email: string) {
+    const key = `${country}|${col.key}`;
+    setSaving(key);
+    setError('');
+    const res = await removeProcureGuardTeamApprover({
+      country,
+      notificationRole: col.notificationRole,
+      requestType: col.requestType,
+      email,
+    });
+    setSaving(null);
+    if (!res.success) return setError(res.error ?? 'Failed to remove approver.');
+    await reloadMatrix();
+  }
+
+  async function reloadMatrix() {
+    const fresh = await getProcureGuardApproverMatrix();
+    setData((prev) => (prev ? { ...prev, ...fresh } : prev));
+  }
+
   async function assignColumn(col: ApproverMatrixColumn, emp: EmployeeDirectoryEntry) {
     setSavingCol(col.key);
     setError('');
@@ -264,11 +380,20 @@ function EditableApproverMatrix({
                   </td>
                   {data.columns.map((col) => (
                     <td key={col.key} className="min-w-[150px] px-2 py-1 align-top">
-                      <EditableApproverCell
-                        cell={data.cells[country]?.[col.key] ?? null}
-                        saving={saving === `${country}|${col.key}`}
-                        onAssign={(emp) => assign(country, col, emp)}
-                      />
+                      {col.multi ? (
+                        <TeamApproverCell
+                          people={data.teamCells[country]?.[col.key] ?? []}
+                          saving={saving === `${country}|${col.key}`}
+                          onAdd={(emp) => addToTeam(country, col, emp)}
+                          onRemove={(email) => removeFromTeam(country, col, email)}
+                        />
+                      ) : (
+                        <EditableApproverCell
+                          cell={data.cells[country]?.[col.key] ?? null}
+                          saving={saving === `${country}|${col.key}`}
+                          onAssign={(emp) => assign(country, col, emp)}
+                        />
+                      )}
                     </td>
                   ))}
                 </tr>

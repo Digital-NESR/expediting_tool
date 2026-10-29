@@ -162,6 +162,18 @@ let total = 0;
 let failed = false;
 for (const entry of targets) {
   const withMigrations = migrationsFor(entry.key).length > 0;
+  if (entry.readOnly) {
+    /* Another application's database. Loud rather than skipped silently, because the only way to
+       reach this line is for somebody to have written migrations for it. */
+    if (withMigrations) {
+      console.error(
+        `${entry.key} is another application's database and is read-only here, but ` +
+          `database/migrations/${entry.key} contains migrations. Refusing to run them.`,
+      );
+      failed = true;
+    }
+    continue;
+  }
   if (!withMigrations) continue;
   console.log(`${entry.key} (${entry.database()})`);
   try {

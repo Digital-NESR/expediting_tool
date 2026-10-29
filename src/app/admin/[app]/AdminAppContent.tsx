@@ -138,6 +138,9 @@ const LaptopCostCentersClient = dynamic(() => import('../LaptopCostCentersClient
 
 /* ── SOA Consolidation ── */
 const SoaCyclesClient = dynamic(() => import('../SoaCyclesClient'), { loading });
+const SoaCountryScheduleClient = dynamic(() => import('../SoaCountryScheduleClient'), {
+  loading,
+});
 const SoaExcludedVendorsClient = dynamic(() => import('../SoaExcludedVendorsClient'), { loading });
 const SoaAccessApprovalsClient = dynamic(() => import('../SoaAccessApprovalsClient'), { loading });
 const SoaCountryTeamClient = dynamic(() => import('../SoaCountryTeamClient'), { loading });
@@ -147,6 +150,11 @@ const LearningHubAdminClient = dynamic(() => import('../../learning-hub/admin/Ad
   loading,
 });
 const LearningHubAnalyticsClient = dynamic(() => import('../LearningHubAnalyticsClient'), {
+  loading,
+});
+
+/* ── Supply Chain Analytics ── */
+const TravelAnalyticsGrantsClient = dynamic(() => import('../TravelAnalyticsGrantsClient'), {
   loading,
 });
 
@@ -246,7 +254,14 @@ export default function AdminAppContent(props: AdminAppContentProps) {
 
     /* ── SOA Consolidation ── */
     case 'soa/cycles':
-      return <SoaCyclesClient />;
+      return (
+        <div className="space-y-8">
+          <SoaCyclesClient />
+          {/* The cycle's dates move everybody; the matrix below moves one country. Same screen
+              because they are the same decision looked at from two distances. */}
+          <SoaCountryScheduleClient />
+        </div>
+      );
     case 'soa/excluded-vendors':
       return <SoaExcludedVendorsClient />;
     case 'soa/access-approvals':
@@ -265,6 +280,10 @@ export default function AdminAppContent(props: AdminAppContentProps) {
           roles={props.learningHubRoles ?? []}
         />
       );
+
+    /* ── Supply Chain Analytics ── */
+    case 'supply-chain-analytics/travel-access':
+      return <TravelAnalyticsGrantsClient />;
 
     default:
       return <div className="text-sm text-slate-500">Unknown section.</div>;

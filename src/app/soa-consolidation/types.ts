@@ -1,5 +1,6 @@
 import type { ApplyScopeSummary } from '@/app/actions/soa/scoping';
 import type { DeliveryFailure } from '@/lib/soa/delivery';
+import type { UploadSource } from '@/lib/soa/upload-source';
 import type { VendorCycleStatus } from '@/lib/soa/status';
 import type { ScopeCandidate, ScopeCandidates } from '@/lib/soa/candidates';
 import type { CountryOption, SoaPayload } from '@/lib/soa/read';
@@ -135,6 +136,17 @@ export type OutreachFailure = DeliveryFailure;
 export interface AppState {
   screen: ScreenId;
   filterStatus: 'all' | VendorStatus;
+  /**
+   * Who filed the statement on a row, which is a second question about the same table and so a
+   * second filter rather than another status pill: a champion looking for the uploads they made
+   * by hand wants them whatever status the supplier is sitting at.
+   */
+  filterSource: UploadSource;
+  /** The last upload refusal, held so the upload dialog can show it rather than a toast. */
+  uploadError: string;
+  /* Consolidation keeps its own, like Vendor Scoping does, so narrowing one screen's table does
+     not silently narrow another's. */
+  consolidationSource: UploadSource;
   modal: ModalState;
   toasts: Toast[];
   expandedVendor: string | null;
@@ -207,6 +219,16 @@ export interface FilterTabVM {
   onClick: () => void;
 }
 
+export type { UploadSource };
+
+export interface SourceTabVM {
+  label: string;
+  source: UploadSource;
+  count: number;
+  isSelected: boolean;
+  onClick: () => void;
+}
+
 export interface VendorRowVM extends Vendor {
   statusLabel: string;
   fmtOpenPO: string;
@@ -227,7 +249,18 @@ export interface SpendShareVM {
 export interface VendorEnrichedVM extends VendorRowVM, SpendShareVM {
   isExpanded: boolean;
   isReceived: boolean;
+  /**
+   * Whether the upload box opens for this vendor.
+   *
+   * True until the country is handed off, including after a statement has been accepted: a
+   * champion who uploaded the wrong file, or a better one arrived by email, has to be able to
+   * put it right, and before this the button simply vanished at the moment it was needed.
+   */
   canAccept: boolean;
+  /** "Accept" the first time, "Replace" once something is already on file. */
+  acceptLabel: string;
+  /** A statement on file that a champion uploaded by hand rather than the supplier filing it. */
+  uploadedByChampion: boolean;
   /** This vendor can be chased on its own, now, from its row. */
   canChase: boolean;
   /** What that press would send: the first letter for a vendor never written to, else a reminder. */
@@ -516,6 +549,7 @@ export interface ViewModel {
   onRetryFailed: () => void;
 
   filterTabs: FilterTabVM[];
+  sourceTabs: SourceTabVM[];
   vendorsEnriched: VendorEnrichedVM[];
   trackingTable: TableControlsVM;
   /** The collection deadline has passed, so silence is now a finding rather than a wait. */
@@ -531,7 +565,12 @@ export interface ViewModel {
   complianceItems: ComplianceItemVM[];
   consolidatedRows: ConsolidatedRowVM[];
   /** The rows this page lists: everything that counts towards coverage, not only the spreadsheets. */
+  /** Every vendor in the file. The filter below narrows what is listed, never what is exported. */
   consolidatedCount: number;
+  consolidationSourceTabs: SourceTabVM[];
+  /** How many of those rows the filter is showing. Equal to `consolidatedCount` when it is off. */
+  consolidationShownCount: number;
+  consolidationFiltered: boolean;
   /** Their balance, already written, so the page can state what the coverage figure is made of. */
   fmtConsolidatedBalance: string;
   /** Coverage, at the same precision as the Cumulative column. */
@@ -540,6 +579,14 @@ export interface ViewModel {
   allPassLabel: string;
   handedOff: boolean;
   canHandoff: boolean;
+  /**
+   * The handoff is allowed although coverage is short, because the collection window has closed.
+   *
+   * Drives the warning the champion reads before confirming: closing short is a legitimate end to
+   * a cycle nobody answered, but it is not the same act as closing a complete one and the dialog
+   * has to say which one is about to happen.
+   */
+  handoffShortOfTarget: boolean;
   onGenerateExport: () => void;
   onOpenHandoffModal: () => void;
 
@@ -563,6 +610,22 @@ export interface ViewModel {
   modalVendorNo: string;
   modalVendorAmt: string;
   modalVendorCurrency: string;
+  /** This vendor already has a statement on file, so the box is being reopened to correct it. */
+  modalIsReplacement: boolean;
+  /**
+   * Why the last upload was refused, shown inside the box it was refused from.
+   *
+   * A refusal used to arrive only as a toast. The one that matters most - this is not the
+   * statement template - now explains which sheet was read and what columns were in it, and that
+   * is several lines of text beside a dialog still holding the rejected file. A toast is the
+   * wrong place for it: it is read once, at the top of the screen, away from the two boxes the
+   * reader has to act on, and it is gone before they have finished reading.
+   */
+  modalError: string;
+  /** This vendor's own blank template, for when the wrong workbook was sent. */
+  modalTemplateHref: string;
+  /** The live files, named, so the modal can say what dropping a new one would retire. */
+  modalCurrentFiles: { kind: 'workbook' | 'email'; fileName: string }[];
   onCloseModal: () => void;
   onAcceptSOA: (files: AcceptSoaFiles) => void;
   onRemoveSubmission: (entryId: string, kind: 'workbook' | 'email', fileName: string) => void;
@@ -597,6 +660,8 @@ export interface ScreenProps {
 export interface Handlers {
   setScreen: (screen: ScreenId) => void;
   setFilterStatus: (status: 'all' | VendorStatus) => void;
+  setFilterSource: (source: UploadSource) => void;
+  setConsolidationSource: (source: UploadSource) => void;
   setSearch: (value: string) => void;
   setPage: (page: number) => void;
   setScopeSearch: (value: string) => void;

@@ -97,6 +97,23 @@ describe('migration database manifest', () => {
     ).toEqual([]);
   });
 
+  /* A read-only entry is another application's database: this repo opens a pool on it and reads,
+     and owns nothing in it. The failure worth preventing is somebody later adding
+     database/migrations/<that key>/001_*.sql, which would point this repo's DDL at a schema
+     another team maintains. The runner refuses it too; this says so where it is cheap to find. */
+  it('keeps migrations away from a database another application owns', () => {
+    if (!existsSync(MIGRATIONS)) return;
+    const owned = (DATABASES as Array<{ key: string; readOnly?: boolean }>)
+      .filter((d) => d.readOnly)
+      .filter((d) => existsSync(join(MIGRATIONS, d.key)))
+      .map((d) => d.key);
+    expect(
+      owned,
+      'A database marked read-only in the manifest has a migrations folder. It belongs to ' +
+        'another application and this repo must not alter its schema.',
+    ).toEqual([]);
+  });
+
   it('numbers migrations uniquely within each database', () => {
     if (!existsSync(MIGRATIONS)) return;
     const clashes: string[] = [];

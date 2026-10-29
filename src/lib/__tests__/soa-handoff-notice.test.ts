@@ -7,6 +7,7 @@ const BASE = {
   vendors: 297,
   statementsReceived: 214,
   coveragePct: 78,
+  shortOfTarget: null,
   closedBy: 'Raghad Yousef',
   portalUrl: 'https://scagents.nesr.com/soa-consolidation',
   attachmentName: 'NESR-SOA-Consolidated-AUH-Q3-2026.xlsx',
@@ -52,6 +53,46 @@ describe('handoffNoticeEmail', () => {
     const html = handoffNoticeEmail({ ...BASE, closedBy: 'A & B <script>' });
     expect(html).toContain('A &amp; B &lt;script&gt;');
     expect(html).not.toContain('<script>');
+  });
+
+  /*
+   * A cycle may now close below its coverage target, once the window suppliers were given has
+   * run out and the ones still missing simply did not answer. AP cannot tell that from the
+   * percentage, and it decides what they do next: there is no fuller file coming, so waiting for
+   * one is waiting for nothing. The notice has to say it rather than let the figure imply it.
+   */
+  describe('closed below target', () => {
+    const SHORT = {
+      ...BASE,
+      coveragePct: 41,
+      shortOfTarget: { targetPct: 70, windowClosedOn: '15 Sep 2026' },
+    };
+
+    it('says it closed short, and against which target', () => {
+      const html = handoffNoticeEmail(SHORT);
+      expect(html).toContain('Closed below the 70% coverage target');
+      expect(html).toContain('15 Sep 2026');
+    });
+
+    it('says no fuller file is coming, which is the part AP acts on', () => {
+      expect(handoffNoticeEmail(SHORT)).toContain('no fuller version coming');
+    });
+
+    it('holds together when the cycle carries no deadline date', () => {
+      const html = handoffNoticeEmail({
+        ...SHORT,
+        shortOfTarget: { targetPct: 70, windowClosedOn: null },
+      });
+      expect(html).toContain('The collection window has closed');
+      expect(html).not.toContain('closed on null');
+      expect(html).not.toContain('undefined');
+    });
+
+    /* A complete cycle must not carry the warning. It is the whole signal, and a notice that
+       cried short on every handoff would be ignored on the one that was. */
+    it('is absent from a cycle that met its target', () => {
+      expect(handoffNoticeEmail(BASE)).not.toContain('Closed below the');
+    });
   });
 
   it('is wrapped in the same shell as every other message', () => {

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, X } from 'lucide-react';
 import {
@@ -35,6 +35,11 @@ import ProcureGuardLogo from './ProcureGuardLogo';
 import ProcureGuardHomeButton from './ProcureGuardHomeButton';
 import ProcureGuardViewersManager from './ProcureGuardViewersManager';
 import { updateAdhocPaymentStatus, updateAdvancePaymentStatus } from '@/app/actions/procureGuard';
+import { uploadProcureGuardDocument } from '@/app/actions/procure-guard/documents';
+import {
+  SAP_VERIFICATION_DOCUMENT_LABEL,
+  SAP_VERIFICATION_DOCUMENT_TYPE,
+} from '@/lib/procure-guard/constants';
 
 type DetailValue = string | number | null | undefined;
 type PdfSectionKey = 'summary' | 'vendor' | 'details' | 'review' | 'attachments' | 'activity';
@@ -192,7 +197,12 @@ function WorkflowChain({
   const steps = getWorkflowSteps(requestType, amount, currency).filter(
     (step) => step.status !== 'Under Review' || status === 'Under Review',
   );
-  const outcomes = resolveChainProgress(steps, activity);
+  const { outcomes, round, lastRejection } = resolveChainProgress(steps, activity);
+  /* A request that was rejected, fixed and sent round again is on its second pass. Worth
+     saying out loud: the chain is identical either way, so without this the screen shows a
+     request waiting at step one with no hint that it has been all the way to the SAP team and
+     back, and the approver who already said yes is asked again with no explanation. */
+  const isReapproval = round > 1;
 
   const isSettled = status === 'Rejected' || status === 'Cancelled';
   const currentIndex = isSettled ? -1 : steps.findIndex((step) => step.status === status);
@@ -226,6 +236,26 @@ function WorkflowChain({
   return (
     <Section title="Approval Chain & Notifications">
       <div className="space-y-2.5">
+        {isReapproval && !isSettled && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-900">
+            <span className="font-bold">
+              Going round again{round > 2 ? ` (pass ${round})` : ''} after a rejection.
+            </span>{' '}
+            {lastRejection ? (
+              <>
+                {lastRejection.actor} rejected it on {fmtDateTime(lastRejection.at)}
+                {lastRejection.comment ? ` — "${lastRejection.comment}"` : ''}. The requester has
+                since changed it, so every approval below was given on the earlier version and the
+                chain starts from the beginning.
+              </>
+            ) : (
+              <>
+                The requester has changed it since, so the chain starts from the beginning and every
+                step is being looked at again.
+              </>
+            )}
+          </div>
+        )}
         {steps.map((step, index) => {
           const outcome = outcomes.get(index);
           const isCurrent = index === currentIndex;
@@ -252,6 +282,13 @@ function WorkflowChain({
                       className={`text-sm font-bold ${notReached ? 'text-slate-500' : 'text-slate-900'}`}
                     >
                       {step.label}
+                      {/* Only on the step actually being looked at again. Marking every step of
+                          a second pass would say "again" five times and mean nothing. */}
+                      {isReapproval && isCurrent && !isFinal && (
+                        <span className="ml-2 align-middle text-[0.625rem] font-bold uppercase tracking-wide text-amber-700">
+                          Re-approval
+                        </span>
+                      )}
                     </p>
                     <StepBadge outcome={outcome} isCurrent={isCurrent} />
                   </div>
@@ -510,6 +547,7 @@ export default function ProcureGuardRequestDetailClient({
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [highlightDecision, setHighlightDecision] = useState(false);
+  const [isUploadingEvidence, setIsUploadingEvidence] = useState(false);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isPdfDialogOpen, setIsPdfDialogOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
@@ -521,13 +559,35 @@ export default function ProcureGuardRequestDetailClient({
     request,
     request_type: requestType,
     activity,
-    documents,
+    documents: documentsFromServer,
     notification_contacts: notificationContacts,
     active_delegations: activeDelegations,
     actions,
     actor,
   } = data;
+  /* Held in state so an upload can show immediately instead of waiting for the page to be
+     re-rendered on the server. Seeded from the prop and re-seeded whenever the server sends a
+     different list, so a navigation or a refresh elsewhere still wins. */
+  const [documents, setDocuments] = useState(documentsFromServer);
+  useEffect(() => {
+    setDocuments(documentsFromServer);
+  }, [documentsFromServer]);
+
   const isAdvance = isAdvanceRequest(request);
+  /* Three shapes of identifier share one row: an advance's SAP vendor id, a plain adhoc
+     request's tax number, and an existing-supplier adhoc request's SAP supplier id. Derived
+     once so the screen and the exported PDF cannot label the same value two different ways. */
+  const fromExistingSupplier = !isAdvance && request.supplier_source === 'existing_avl';
+  const identifierLabel = isAdvance
+    ? 'SAP Vendor ID'
+    : fromExistingSupplier
+      ? 'SAP Supplier ID'
+      : 'Vendor Tax ID';
+  const identifierValue = isAdvance
+    ? request.sap_vendor_id || request.vendor_code
+    : fromExistingSupplier
+      ? request.vendor_code
+      : request.vendor_tax_id || request.vendor_code;
   const listHref = isAdvance ? '/procure-guard/advance-payments' : '/procure-guard/adhoc-payments';
   const requestLabel = isAdvance ? 'Advance Payment' : 'Adhoc PO';
   const workflowAmount = request.spend_value_usd ?? request.amount;
@@ -544,6 +604,18 @@ export default function ProcureGuardRequestDetailClient({
   const canCancel =
     ownsRequest && request.status === 'Submitted' && actor.permissions.canCreateRequests;
   const hasDecisionActions = actions.canApprove || actions.canReject || canCancel;
+  /* The SAP step is the one transition that needs a file as well as a comment. Keyed on the
+     status this approval would move the request TO, not on the actor's role: an Admin holds SAP
+     Team authority too, and the requirement belongs to the step rather than to the person. */
+  const isSapVerificationStep = actions.canApprove && actions.nextStatus === 'Verified by SAP Team';
+  const sapEvidence = documents.filter(
+    (doc) => doc.document_type === SAP_VERIFICATION_DOCUMENT_TYPE,
+  );
+  /* Mirrors the server's rule exactly. The server is the one that enforces it -- this is a
+     public POST endpoint and the form can be bypassed -- so this only exists to stop somebody
+     pressing Verify and being refused a second later. */
+  const canSubmitApproval =
+    !isSapVerificationStep || (reviewComment.trim().length > 0 && sapEvidence.length > 0);
   const editHref = `/procure-guard/${isAdvance ? 'advance-payments' : 'adhoc-payments'}/${request.id}/edit`;
   const selectedPdfSectionCount = PDF_SECTION_OPTIONS.filter(
     (option) => pdfSections[option.key],
@@ -578,21 +650,78 @@ export default function ProcureGuardRequestDetailClient({
             >
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Action Comment{' '}
-                <span className="font-normal text-slate-400">(required for rejection only)</span>
+                <span className="font-normal text-slate-400">
+                  {/* The old label said "required for rejection only", which stopped being true
+                      at this step. Said per step rather than as one sentence covering both,
+                      because a reader checks the label for THEIR button. */}
+                  {isSapVerificationStep
+                    ? '(required \u2014 say what you checked in SAP)'
+                    : '(required for rejection only)'}
+                </span>
               </label>
               <textarea
                 className="mt-2 min-h-28 w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20"
                 value={reviewComment}
                 onChange={(e) => setReviewComment(e.target.value)}
               />
+              {/* Only at the SAP step, and only for the person who can act on it. Everyone
+                  else keeps the attachment list further down the page; putting a required
+                  upload beside the button is what stops a verification being submitted and
+                  bounced by the server a second later. */}
+              {isSapVerificationStep && (
+                <div className="mt-3 rounded-md border border-[#307c4c]/30 bg-[#307c4c]/5 p-3">
+                  <p className="text-xs font-bold text-[#1f5733]">
+                    {SAP_VERIFICATION_DOCUMENT_LABEL}{' '}
+                    <span className="font-semibold text-[#307c4c]">(required)</span>
+                  </p>
+                  <p className="mt-0.5 text-[11px] leading-snug text-slate-600">
+                    Attach what the check produced \u2014 a screenshot, an extract, an email.
+                    {sapEvidence.length > 0
+                      ? ' One is already on this request; adding another replaces nothing.'
+                      : ' This request has none yet, so Verify is disabled until one is attached.'}
+                  </p>
+
+                  {sapEvidence.length > 0 && (
+                    <ul className="mt-2 space-y-1">
+                      {sapEvidence.map((doc) => (
+                        <li key={doc.id} className="text-[11px] text-slate-600">
+                          <span className="font-semibold text-slate-800">{doc.document_name}</span>
+                          {' \u00b7 '}
+                          {doc.uploaded_by_name || doc.uploaded_by_email}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  <input
+                    type="file"
+                    disabled={isPending || isUploadingEvidence}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (file) void uploadSapEvidence(file);
+                    }}
+                    className="mt-2 block w-full text-[11px] file:mr-2 file:rounded-md file:border-0 file:bg-[#307c4c] file:px-3 file:py-1.5 file:text-[11px] file:font-bold file:text-white disabled:opacity-60"
+                  />
+                  {isUploadingEvidence && (
+                    <p className="mt-1 text-[11px] font-semibold text-[#307c4c]">Uploading\u2026</p>
+                  )}
+                </div>
+              )}
+
               <div className="mt-3 flex flex-wrap gap-2">
                 {actions.canApprove && actions.nextStatus && (
                   <button
-                    disabled={isPending}
+                    disabled={isPending || isUploadingEvidence || !canSubmitApproval}
+                    title={
+                      canSubmitApproval
+                        ? undefined
+                        : `Add a comment and attach the ${SAP_VERIFICATION_DOCUMENT_LABEL.toLowerCase()} first.`
+                    }
                     onClick={() => submitStatus(actions.nextStatus!)}
                     className="rounded-md bg-[#307c4c] px-3 py-2 text-xs font-bold text-white hover:bg-[#307c4c]/80 disabled:opacity-60"
                   >
-                    Approve
+                    {isSapVerificationStep ? 'Verify' : 'Approve'}
                   </button>
                 )}
                 {actions.canReject && (
@@ -655,6 +784,35 @@ export default function ProcureGuardRequestDetailClient({
     window.setTimeout(() => setHighlightDecision(false), 1800);
   }
 
+  async function uploadSapEvidence(file: File) {
+    setNotice('');
+    setError('');
+    setIsUploadingEvidence(true);
+    const fd = new FormData();
+    fd.append('request_type', requestType);
+    fd.append('request_id', String(request.id));
+    fd.append('document_type', SAP_VERIFICATION_DOCUMENT_TYPE);
+    fd.append('file', file);
+    const result = await uploadProcureGuardDocument(fd);
+    setIsUploadingEvidence(false);
+    if (!result.success) {
+      setError(result.error ?? 'Upload failed. Please try again.');
+      return;
+    }
+    setNotice(`${SAP_VERIFICATION_DOCUMENT_LABEL} attached.`);
+    /* Appended, not refreshed.
+
+       This used to call router.refresh(), which is a SECOND full round trip after the file has
+       already landed: the detail page is force-dynamic, so it re-resolves the actor, re-runs
+       its four reads and re-hydrates the whole client component before the spinner stops. The
+       database side of an upload measures ~200ms; that reload was most of the wait the SAP team
+       were complaining about, and it bought nothing -- the action returns the row it inserted.
+
+       One list, one source: both the decision box and the attachment list below read this
+       state, so they cannot disagree about what is attached. */
+    if (result.document) setDocuments((prev) => [...prev, result.document!]);
+  }
+
   function submitStatus(nextStatus: AdhocPaymentRequest['status']) {
     setNotice('');
     setError('');
@@ -662,6 +820,16 @@ export default function ProcureGuardRequestDetailClient({
     if (nextStatus === 'Rejected' && !comment) {
       setError('Add a comment before rejecting this request.');
       return;
+    }
+    if (nextStatus === 'Verified by SAP Team') {
+      if (!comment) {
+        setError('Add a comment saying what you checked before verifying.');
+        return;
+      }
+      if (sapEvidence.length === 0) {
+        setError(`Attach the ${SAP_VERIFICATION_DOCUMENT_LABEL.toLowerCase()} before verifying.`);
+        return;
+      }
     }
 
     startTransition(async () => {
@@ -880,12 +1048,10 @@ export default function ProcureGuardRequestDetailClient({
         addTable('Vendor And Requester', [
           ['Requisition Number', request.requisition_number],
           ['Vendor', request.vendor_name],
-          [
-            isAdvance ? 'SAP Vendor ID' : 'Vendor Tax ID',
-            isAdvance
-              ? request.sap_vendor_id || request.vendor_code
-              : request.vendor_tax_id || request.vendor_code,
-          ],
+          [identifierLabel, identifierValue],
+          ...(fromExistingSupplier
+            ? [['Supplier', 'Already in SAP, raised through the adhoc route'] as [string, string]]
+            : []),
           ['Requester', requester],
           ['Requester Email', request.requested_by_email],
           ['Country', request.country],
@@ -1255,14 +1421,16 @@ export default function ProcureGuardRequestDetailClient({
               <FieldGrid>
                 <Field label="Requisition Number" value={request.requisition_number} />
                 <Field label="Vendor" value={request.vendor_name} />
-                <Field
-                  label={isAdvance ? 'SAP Vendor ID' : 'Vendor Tax ID'}
-                  value={
-                    isAdvance
-                      ? request.sap_vendor_id || request.vendor_code
-                      : request.vendor_tax_id || request.vendor_code
-                  }
-                />
+                <Field label={identifierLabel} value={identifierValue} />
+                {/* Says which route the request took, because an approver reading a supplier
+                    name they recognise should know it came from the vendor master rather than
+                    being typed in. */}
+                {fromExistingSupplier && (
+                  <Field
+                    label="Supplier Record"
+                    value="Already in SAP, raised through the adhoc route"
+                  />
+                )}
                 <Field label="Requester" value={requester} />
                 <Field label="Requester Email" value={request.requested_by_email} />
                 <Field label="Country" value={request.country} />
@@ -1363,6 +1531,15 @@ export default function ProcureGuardRequestDetailClient({
                           <span className="min-w-0">
                             <span className="block truncate font-semibold text-slate-900">
                               {doc.original_name || doc.document_name}
+                              {/* Marked in the list as well as in the decision box. An auditor
+                                  reading the attachments later needs to see which file was the
+                                  evidence for the SAP step and which was the requester's
+                                  paperwork; by filename alone they are indistinguishable. */}
+                              {doc.document_type === SAP_VERIFICATION_DOCUMENT_TYPE && (
+                                <span className="ml-2 inline-flex rounded-full bg-[#307c4c]/10 px-2 py-0.5 align-middle text-[10px] font-bold text-[#1f5733]">
+                                  {SAP_VERIFICATION_DOCUMENT_LABEL}
+                                </span>
+                              )}
                             </span>
                             <span className="text-xs text-slate-500">
                               {fmtBytes(doc.file_size)} | Uploaded by{' '}

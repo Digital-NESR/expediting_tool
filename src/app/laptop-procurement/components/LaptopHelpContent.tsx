@@ -27,11 +27,12 @@ const AUDIENCES: AudienceMaterial[] = [
       {
         heading: 'Submitting a request',
         paragraphs: [
-          'Start a request from "New Request" in the sidebar. There are three types, and the fields you see change based on which one you pick:',
+          'Start a request from "New Request" in the sidebar. There are four types, and the fields you see change based on which one you pick:',
         ],
         bullets: [
           'New Employee — for HR to request a device for someone joining the company. You pick the company, department, and cost center the new hire belongs to.',
-          'Upgrade/Replacement — for yourself, when your current device needs replacing.',
+          'New Computer Request (for Self) — you already work here and have never been given a company computer. Your own details are filled in for you, and you tick a short declaration saying you have not had one before. There is no old device to describe.',
+          'Upgrade/Replacement — for yourself, when your current device needs replacing. You will be asked for the make, model, serial number and age of the one being replaced.',
           'Unit — for a shared or company-owned asset rather than a specific person.',
         ],
       },

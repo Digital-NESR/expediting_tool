@@ -6,8 +6,12 @@ import { CRITERION_FILL } from '../tones';
  *
  * It used to list four ticks written into the markup, under a heading that said the criteria were
  * met. Beside a coverage figure that might have been 3%. It now shows what the criteria actually
- * say, including the one that cannot be measured, and the action behind the button refuses a
- * country below the cycle's coverage target regardless of what this dialog shows.
+ * say, including the one that cannot be measured.
+ *
+ * Below target it has two quite different things to say, and the difference is whether suppliers
+ * can still answer. While the window is open the action refuses outright. Once it has closed,
+ * closing short is a legitimate end to a cycle nobody answered, and this is the last place to say
+ * so before it is written to the evidence repository and announced to AP.
  */
 export default function HandoffModal({ vm }: ScreenProps) {
   return (
@@ -49,11 +53,24 @@ export default function HandoffModal({ vm }: ScreenProps) {
             ))}
           </div>
         </div>
+        {vm.handoffShortOfTarget && (
+          <div className="mb-3.5 rounded-lg border border-[#E65100] bg-[#FFF3E0] px-3.5 py-3 text-[12px] leading-[1.55]">
+            <div className="font-bold text-[#E65100] mb-1">
+              This closes the cycle below its {vm.coverageTargetPct}% target.
+            </div>
+            <div className="text-[#5B4A33]">
+              Coverage is {vm.fmtCoveragePct} and the window suppliers were given closed on{' '}
+              {vm.deadlineLabel}. The handoff notice tells AP the file closed short, and the
+              shortfall is recorded against this cycle in the evidence repository.
+            </div>
+          </div>
+        )}
         <div className="text-[12px] text-sns-grey mb-4 leading-[1.5]">
           <strong>{vm.exportFileName}</strong> will be marked as delivered to the AP/Finance Country
           Group inbox for {vm.countryLabel}, and the handoff is written to the evidence repository.
-          The action refuses below {vm.coverageTargetPct}% coverage; this country is at{' '}
-          {vm.fmtCoveragePct}.
+          {vm.handoffShortOfTarget
+            ? ' Below target the action is allowed only because the collection window has closed.'
+            : ` The action refuses below ${vm.coverageTargetPct}% coverage; this country is at ${vm.fmtCoveragePct}.`}
         </div>
         <div className="flex gap-2">
           <button
@@ -69,7 +86,11 @@ export default function HandoffModal({ vm }: ScreenProps) {
             disabled={vm.busy}
             className="flex-[2] bg-sns-green text-white border-none p-2.5 rounded-[7px] text-[12px] font-bold disabled:opacity-50"
           >
-            {vm.busy ? 'Handing off…' : 'Confirm Handoff to AP/Finance →'}
+            {vm.busy
+              ? 'Handing off…'
+              : vm.handoffShortOfTarget
+                ? 'Close short and hand off to AP/Finance →'
+                : 'Confirm Handoff to AP/Finance →'}
           </button>
         </div>
       </div>

@@ -22,6 +22,8 @@ import { logger } from '@/lib/logger';
 import { validateUploadSignature, uploadMimeTypeFor } from '@/lib/documents';
 import { ensureSoaSchema, soaPool, sql } from '@/lib/soa/db';
 import { requireSoaActor, requireSoaCountry } from '@/lib/soa/access';
+import { countryBalance } from '@/lib/soa/balance';
+import { spendShares } from '@/lib/soa/spend-share';
 import { loadDeliveryFailures, type DeliveryFailure } from '@/lib/soa/delivery';
 import { getEmployeeDirectoryDefaults } from '@/app/actions/employeeDirectory';
 import { attachmentFileName, buildSupplierWorkbook } from '@/lib/soa/attachment';
@@ -34,7 +36,10 @@ import {
 import { AppUrlNotConfiguredError, soaPortalUrl, uploadLinkFor } from '@/lib/soa/links';
 import { notifySoaHandoff } from '@/lib/soa/notify';
 import { resolvedContactsFor, setVendorContactList } from '@/lib/soa/recipients';
-import { COVERED_STATUS_SQL } from '@/lib/soa/status';
+import { shortDateUTC } from '@/lib/format';
+import { effectiveSubmissionDeadline } from '@/lib/soa/deadlines';
+import { entryNotExcluded, notExcludedVendorNo } from '@/lib/soa/exclusions';
+import { COVERED_STATUS_SQL, isCollectionWindowClosed } from '@/lib/soa/status';
 import { letterContext, loadTemplate } from '@/lib/soa/templates';
 import { MailNotConfiguredError, sendMail, type MailMessage } from '@/lib/soa/mail';
 import { MAX_SOA_BYTES, StatementRejected, storeStatement } from '@/lib/soa/submission-store';
@@ -62,7 +67,31 @@ interface EntryContext {
   status: string;
   cycleLabel: string;
   submissionDeadline: string;
+  /** True once the country cycle has been handed off to Finance. */
+  handedOff: boolean;
 }
+
+/**
+ * A cycle's collection deadline as a date.
+ *
+ * `pg` hands a DATE column back as a Date or as a string depending on the driver's type parsing,
+ * and the screens read the same column as a `yyyy-mm-dd` string parsed at UTC midnight. Parsed
+ * the same way here so the server's reading of "the window has closed" is the browser's, and a
+ * champion is never shown a button the action then refuses.
+ */
+function deadlineDate(raw: unknown): Date | null {
+  if (raw instanceof Date) return raw;
+  if (typeof raw !== 'string' || !raw) return null;
+  const date = new Date(`${raw.slice(0, 10)}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/* Said the same way by both actions, because a champion who hits it has done nothing wrong -
+   they are looking at a tab opened before the handoff - and the message has to explain the state
+   rather than just refuse. */
+const HANDED_OFF_MESSAGE =
+  'This country has been handed off to Finance, so its statements can no longer be changed. ' +
+  'Ask an administrator to reopen the cycle if something needs correcting.';
 
 /**
  * Resolve an entry id to its country, and refuse a caller who does not hold that country.
@@ -76,7 +105,9 @@ async function loadEntry(entryId: number, min: 'champion' | 'viewer' = 'champion
     `SELECT vce.id, vce.country_cycle_id, vce.open_po_amount, vce.currency, vce.status::text AS status,
             v.id AS vendor_id, v.name AS vendor_name, v.vendor_no,
             vce.upload_token,
-            cc.country_id, c.name AS country_name, cy.label, cy.submission_deadline
+            cc.country_id, cc.status::text AS country_cycle_status,
+            c.name AS country_name, cy.label,
+            ${effectiveSubmissionDeadline('cy', 'cc.country_id')} AS submission_deadline
        FROM vendor_cycle_entries vce
        JOIN vendors v        ON v.id = vce.vendor_id
        JOIN country_cycles cc ON cc.id = vce.country_cycle_id
@@ -104,6 +135,10 @@ async function loadEntry(entryId: number, min: 'champion' | 'viewer' = 'champion
     vendorId: Number(r.vendor_id),
     uploadToken: String(r.upload_token),
     status: String(r.status),
+    /* The cycle is finished and with Finance. Every write against a vendor in it has to refuse
+       from here on, and the screens already hide the buttons, but the screens are not the guard:
+       these are public POST endpoints and a stale tab is enough to reach them. */
+    handedOff: String(r.country_cycle_status) === 'handed_off',
     cycleLabel: String(r.label),
     submissionDeadline:
       r.submission_deadline instanceof Date
@@ -500,6 +535,7 @@ export async function acceptSoaSubmission(
 ): Promise<SoaResult<{ lines: number; needingReview: number }>> {
   try {
     const { actor, context } = await loadEntry(entryId);
+    if (context.handedOff) return { success: false, error: HANDED_OFF_MESSAGE };
 
     /* Two named parts rather than one anonymous `file`. A champion usually holds the supplier's
        reply and the spreadsheet attached to it, and the single field could only carry one of
@@ -641,6 +677,7 @@ export async function removeSoaSubmission(
 ): Promise<SoaResult<{ remaining: number; status: string }>> {
   try {
     const { actor, context } = await loadEntry(entryId);
+    if (context.handedOff) return { success: false, error: HANDED_OFF_MESSAGE };
     if (kind !== 'workbook' && kind !== 'email') {
       return { success: false, error: 'Unknown kind of statement.' };
     }
@@ -740,15 +777,20 @@ export async function handOffSoaCountry(
     const actor = await requireSoaCountry(countryId, 'champion');
     const rows = await sql<QueryResultRow[]>(
       `SELECT cc.id, cy.coverage_target_pct, cy.label,
+              ${effectiveSubmissionDeadline('cy', 'cc.country_id')} AS submission_deadline,
               COUNT(vce.id)::int AS vendor_count,
               COUNT(vce.id)
                 FILTER (WHERE vce.status::text IN (${COVERED_STATUS_SQL}))::int AS received_count,
+              /* Intercompany entities are out of both sides of the coverage figure, so they are
+                 out of the gate that figure opens. See lib/soa/exclusions.ts. */
               COALESCE(SUM(vce.open_po_amount)
-                       FILTER (WHERE vce.status::text IN (${COVERED_STATUS_SQL})), 0) AS received,
+                       FILTER (WHERE vce.status::text IN (${COVERED_STATUS_SQL})
+                                 AND ${entryNotExcluded('vce')}), 0) AS received,
               (SELECT COALESCE(SUM(e.pos_value), 0)
                  FROM supplier_po_extract e
                  JOIN countries c ON e.po_country = ANY (c.spend_names)
-                WHERE e.cycle_id = cy.id AND c.id = cc.country_id) AS total
+                WHERE e.cycle_id = cy.id AND c.id = cc.country_id
+                  AND ${notExcludedVendorNo('e.supplier_id')}) AS total
          FROM country_cycles cc
          JOIN cycles cy ON cy.id = cc.cycle_id AND cy.is_active
          LEFT JOIN vendor_cycle_entries vce ON vce.country_cycle_id = cc.id
@@ -762,10 +804,24 @@ export async function handOffSoaCountry(
     const received = Number(rows[0].received);
     const pct = total > 0 ? Math.round((received / total) * 100) : 0;
     const target = Number(rows[0].coverage_target_pct);
-    if (pct < target) {
+
+    /* The coverage target gates the handoff only while suppliers can still answer it.
+       A champion who has chased everyone and been ignored cannot collect their way past the
+       threshold, and holding the cycle open after the date the suppliers were given does not
+       produce the missing statements: it only keeps AP waiting for a file that is as complete as
+       it is ever going to be. Once the collection window has closed, the target becomes a finding
+       about the cycle rather than a condition on closing it. */
+    const deadline = deadlineDate(rows[0].submission_deadline);
+    const windowClosed = isCollectionWindowClosed(deadline, new Date());
+    /* Non-null exactly when the window has closed, which is the only branch that names the date. */
+    const closedOn = windowClosed && deadline ? shortDateUTC(deadline) : null;
+    const shortOfTarget = pct < target;
+    if (shortOfTarget && !windowClosed) {
       return {
         success: false,
-        error: `Coverage is ${pct}%, below the ${target}% threshold for ${rows[0].label}. Collect more statements before handing off.`,
+        error: deadline
+          ? `Coverage is ${pct}%, below the ${target}% threshold for ${rows[0].label}. Collect more statements, or hand off once the collection window closes on ${shortDateUTC(deadline)}.`
+          : `Coverage is ${pct}%, below the ${target}% threshold for ${rows[0].label}. Collect more statements before handing off.`,
       };
     }
 
@@ -783,7 +839,9 @@ export async function handOffSoaCountry(
         'handoff',
         'Handed off to Finance',
         actor.email,
-        `Consolidated statement file delivered for ${rows[0].label}. Coverage ${pct}% against a ${target}% threshold.`,
+        shortOfTarget
+          ? `Consolidated statement file delivered for ${rows[0].label}. Coverage ${pct}% against a ${target}% threshold, closed short because the collection window ended on ${closedOn} and the outstanding suppliers did not answer.`
+          : `Consolidated statement file delivered for ${rows[0].label}. Coverage ${pct}% against a ${target}% threshold.`,
       );
     });
 
@@ -802,6 +860,10 @@ export async function handOffSoaCountry(
       vendors: Number(rows[0].vendor_count),
       statementsReceived: Number(rows[0].received_count),
       coveragePct: pct,
+      /* Said to AP rather than only written to the evidence log: the figure alone does not tell
+         them whether it is the whole answer or the answer that arrived in time, and that changes
+         what they do with the suppliers who are missing from the file. */
+      shortOfTarget: shortOfTarget ? { targetPct: target, windowClosedOn: closedOn } : null,
       portalUrl: soaPortalUrl(),
     });
 
@@ -825,6 +887,14 @@ export async function getSoaExportRows(countryId: string): Promise<
     vendorNo: string;
     vendorName: string;
     amount: number;
+    /**
+     * This vendor's share of the country's WHOLE balance, as a percentage, or null when
+     * there is no denominator to divide by. Computed here rather than from the rows below,
+     * for the reason in `balance.ts`: the export is the scoped chase list, which is a
+     * fraction of the country, and dividing by its own sum would print a number several
+     * times too large and disagree with every screen.
+     */
+    sharePct: number | null;
     currency: string;
     status: string;
     requestedAt: string | null;
@@ -837,7 +907,9 @@ export async function getSoaExportRows(countryId: string): Promise<
     await requireSoaCountry(countryId, 'viewer');
     const rows = await sql<QueryResultRow[]>(
       `SELECT v.vendor_no, v.name, vce.open_po_amount, vce.currency, vce.status::text AS status,
-              vce.requested_at, vce.reminded_at, vce.responded_at, vce.invoice_count
+              vce.requested_at, vce.reminded_at, vce.responded_at, vce.invoice_count,
+              cy.id AS cycle_id,
+              ${entryNotExcluded('vce')} AS included
          FROM vendor_cycle_entries vce
          JOIN vendors v ON v.id = vce.vendor_id
          JOIN country_cycles cc ON cc.id = vce.country_cycle_id
@@ -846,11 +918,34 @@ export async function getSoaExportRows(countryId: string): Promise<
         ORDER BY vce.open_po_amount DESC`,
       [countryId],
     );
+    if (!rows.length) return [];
+
+    /*
+     * Shares on the same arithmetic the screens use, down to the rounding.
+     *
+     * An excluded entity contributes 0 rather than its balance: it has already been taken out
+     * of the denominator, so counting it on top would be the one-sided division that let a
+     * country's coverage climb past 100%. Six countries have one locked into their chase list
+     * and therefore in these rows, so this is not hypothetical.
+     */
+    const totalBalance = await countryBalance(Number(rows[0].cycle_id), countryId);
+    /* Keyed by position rather than by vendor number. A duplicate key would silently give
+       two rows the same share, and "one entry per vendor per cycle" is a thing this query
+       does not enforce and should not have to assume. */
+    const shares = spendShares(
+      rows.map((r, i) => ({
+        key: String(i),
+        value: r.included === true ? Number(r.open_po_amount) : 0,
+      })),
+      totalBalance,
+    );
+
     const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : v ? String(v) : null);
-    return rows.map((r) => ({
+    return rows.map((r, i) => ({
       vendorNo: String(r.vendor_no),
       vendorName: String(r.name),
       amount: Number(r.open_po_amount),
+      sharePct: shares.get(String(i))?.sharePct ?? null,
       currency: String(r.currency),
       status: String(r.status),
       requestedAt: iso(r.requested_at),

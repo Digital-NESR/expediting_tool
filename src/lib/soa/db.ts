@@ -15,5 +15,5 @@ export { soaPool };
 
 /** Assert that soa_consolidation has had its migrations applied. */
 export function ensureSoaSchema(): Promise<void> {
-  return requireSchema(soaPool, 'soa', '021_submission_source');
+  return requireSchema(soaPool, 'soa', '022_country_schedule_and_status_reverts');
 }

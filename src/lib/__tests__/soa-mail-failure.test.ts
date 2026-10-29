@@ -28,7 +28,9 @@ describe('describeFetchFailure', () => {
   });
 
   it('says when the host simply never answers', () => {
-    expect(describeFetchFailure(failure('ETIMEDOUT'), URL_)).toContain('not reachable from the internet');
+    expect(describeFetchFailure(failure('ETIMEDOUT'), URL_)).toContain(
+      'not reachable from the internet',
+    );
   });
 
   it('distinguishes the certificate failures from each other', () => {

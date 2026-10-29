@@ -12,6 +12,7 @@ import {
   ProcureGuardMark,
   RfxOfficerMark,
   ShipWavesMark,
+  TranslytixMark,
   SirionMark,
   TiteMark,
   TravelPortalMark,
@@ -20,7 +21,9 @@ import {
   Laptop,
   Building2,
   GraduationCap,
+  ClipboardCheck,
   ListTree,
+  Sparkles,
   Receipt,
   ShieldCheck,
   BarChart3,
@@ -58,6 +61,12 @@ export type ToolBadge =
   /** Grey pill reading "Admin Preview" / "Coming Soon". */
   | { kind: 'preview' };
 
+/**
+ * Live, in trial, or not here yet. The one thing the chain view wants to say about a tool
+ * that the card grid says only obliquely, through greying and a "Coming Soon" pill.
+ */
+export type Maturity = 'live' | 'beta' | 'coming-soon';
+
 export interface ToolDef {
   id: string;
   /** Which of the two grids the card belongs to. */
@@ -86,6 +95,15 @@ export interface ToolDef {
   accent: string;
   /** 'live' = full-colour card, 'preview' = greyed-out card. */
   tone: 'live' | 'preview';
+  /**
+   * How finished this tool is, as a thing to say out loud.
+   *
+   * Optional because it is almost always already implied: `tone`, `group` and `access.kind`
+   * between them say whether something has shipped, and `maturityOf` below reads that rather
+   * than making sixteen entries repeat themselves. Set it only to say something those three
+   * cannot -- which today means marking a shipped tool as `beta`.
+   */
+  maturity?: Maturity;
   route: string;
   /** Route is on another domain: the card action is a real external link. */
   external?: boolean;
@@ -104,6 +122,22 @@ export interface ToolDef {
   openLabel?: string;
 }
 
+/**
+ * A tool's maturity, taken from what the registry already says.
+ *
+ * `tone: 'preview'`, `group: 'development'` and `access.kind: 'adminPreview'` are three
+ * spellings of "not shipped yet" that today always agree -- Catalog Repo and Supply Chain
+ * Analytics carry all three. Reading them instead of adding a fourth field to every entry
+ * keeps the registry honest: a tool cannot be greyed out on the card and announced as live
+ * on the chain, because there is only one fact.
+ */
+export function maturityOf(tool: ToolDef): Maturity {
+  if (tool.maturity) return tool.maturity;
+  const unshipped =
+    tool.tone === 'preview' || tool.group === 'development' || tool.access.kind === 'adminPreview';
+  return unshipped ? 'coming-soon' : 'live';
+}
+
 const HOVER_GREEN = 'hover:border-[#307c4c] hover:shadow-md hover:shadow-[#307c4c]/10';
 const HOVER_TITE = 'hover:border-[#006B0C] hover:shadow-md hover:shadow-[#006B0C]/10';
 const HOVER_SOURCE = 'hover:border-[#2A7E4F] hover:shadow-md hover:shadow-[#2A7E4F]/10';
@@ -115,6 +149,35 @@ const SOURCE_GREEN = '#2A7E4F';
 const PREVIEW_GREY = '#6b7280';
 
 export const TOOLS: ToolDef[] = [
+  {
+    id: 'scai',
+    group: 'online',
+    keywords:
+      'scai supply chain ai assistant agent materials policy sourceguide track my order chatbot llm',
+    name: 'SCAI',
+    subtitle: 'Supply Chain AI',
+    description:
+      'Four assistants in one place: material duplicate checks and stock lookups, instant answers from NESR supply chain policy, approved-supplier lookups, and where an order actually is.',
+    icon: <Sparkles className="h-6 w-6 text-[#307c4c]" />,
+    logoClass: 'bg-[#f0f9f4]',
+    hoverClass: HOVER_GREEN,
+    accent: NESR_GREEN,
+    tone: 'live',
+    maturity: 'beta',
+    route: 'https://scai.nesr.com',
+    external: true,
+    /*
+     * Findable, but not a card.
+     *
+     * The grid already gives SCAI a panel of its own with all four agents spelled out, so
+     * a card beside it would be the same thing twice. `searchOnly` is the mechanism Spend
+     * Taxonomy already uses for exactly this -- present in the registry, placeable on the
+     * chain, reachable by search, absent from the grid.
+     */
+    searchOnly: true,
+    access: { kind: 'always' },
+    badge: { kind: 'lock', label: 'Portal Access' },
+  },
   /* ── Available (launched) — alphabetical ── */
 
   {
@@ -196,6 +259,29 @@ export const TOOLS: ToolDef[] = [
   },
 
   {
+    id: 'translytix',
+    group: 'online',
+    keywords:
+      'translytix tx inventory planning forecast demand stock level replenishment safety stock reorder min max supply planning ai assistant',
+    name: 'Translytix AI',
+    subtitle: 'Unified Inventory Planning',
+    description:
+      'Forecast demand, set optimal stock levels and analyse replenishment in one place, with an AI-powered TX Assistant. Don’t just track inventory. Transform it.',
+    /* The mark carries its own greens, so it wants a light ground rather than a solid tinted
+       square the way the drawn glyphs do. Same treatment as RFx Officer's artwork. */
+    icon: <TranslytixMark className="h-6 w-6" />,
+    logoClass: 'bg-[#f0f9f4]',
+    hoverClass: HOVER_GREEN,
+    accent: NESR_GREEN,
+    tone: 'live',
+    // Translytix runs on its own domain, so the card action is a real link.
+    route: 'https://nesr.translytix.ai/',
+    external: true,
+    access: { kind: 'always' },
+    badge: { kind: 'lock', label: 'Portal Access' },
+  },
+
+  {
     id: 'shipwaves',
     group: 'online',
     keywords:
@@ -241,6 +327,29 @@ export const TOOLS: ToolDef[] = [
     badge: { kind: 'lock', label: 'Portal Access' },
   },
 
+  {
+    id: 'quality-governor',
+    group: 'online',
+    keywords:
+      'quality governor invrecon inventory reconciliation count cycle count stock take warehouse sap variance quarterly powerapps',
+    name: 'Quality Governor',
+    subtitle: 'InvRecon — inventory reconciliation',
+    description:
+      'The quarterly inventory count, and the reconciliation behind it: what SAP says is in a warehouse against what is actually on the shelves.',
+    icon: <ClipboardCheck className="h-6 w-6 text-[#307c4c]" />,
+    logoClass: 'bg-[#f0f9f4]',
+    hoverClass: HOVER_GREEN,
+    accent: NESR_GREEN,
+    tone: 'live',
+    /* A PowerApps app rather than one of ours, and the oldest thing on the chain. Left as
+       `live` rather than marked legacy: people depend on it every quarter, and "legacy" on
+       the card would read as a warning about a tool that works. */
+    route:
+      'https://apps.powerapps.com/play/e/default-5f13d1c2-10ac-49b8-a85e-4bb3d91135b9/a/6c745dcd-eed0-43e1-b9e9-2ed143502425?tenantId=5f13d1c2-10ac-49b8-a85e-4bb3d91135b9&hint=040834ee-c812-4a75-a55a-0dd154fe5324&source=portal',
+    external: true,
+    access: { kind: 'always' },
+    badge: { kind: 'lock', label: 'Portal Access' },
+  },
   {
     id: 'spend-taxonomy',
     group: 'online',
@@ -410,6 +519,7 @@ export const TOOLS: ToolDef[] = [
     accent: NESR_GREEN,
     tone: 'live',
     route: '/soa-consolidation',
+    helpHref: '/help/soa-consolidation',
     /* `always` rather than `adminPreview`: the tool has a real access-request flow, and the
        gate in its own layout does the enforcing — anyone without a grant is shown the request
        page. An adminPreview card would be inert for everyone else, so an approved champion

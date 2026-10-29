@@ -244,6 +244,91 @@ async function provenanceFor(countryId: string): Promise<VendorProvenance[]> {
   }));
 }
 
+/**
+ * Every supplier in the cycle's scope, answered or not.
+ *
+ * Deliberately NOT `provenanceFor`, which carries `AND s.id IS NOT NULL` and so can only ever
+ * describe suppliers who sent something back. That is the right population for the Submissions tab
+ * and the wrong one for this question: the suppliers worth looking at hardest are the ones missing
+ * from it, and a tab that cannot represent a non-responder cannot report a response rate either.
+ *
+ * So this starts from `vendor_cycle_entries` - the scoping decision - and LEFT JOINs everything
+ * else. A supplier who was scoped and never written to, one written to three times who never
+ * replied, and one who answered within the hour all appear, and the difference between them is
+ * readable.
+ */
+export interface ResponseTrackingRow {
+  vendorNo: string;
+  vendorName: string;
+  openPoAmount: number | null;
+  currency: string | null;
+  status: string;
+  /** Successful outreach attempts. Zero means scoped but never written to. */
+  dispatches: number;
+  firstSentAt: Date | null;
+  lastSentAt: Date | null;
+  respondedAt: Date | null;
+  workbook: { id: number; fileName: string; source: string } | null;
+  email: { id: number; fileName: string; source: string } | null;
+  invoiceLines: number;
+}
+
+async function responseTrackingFor(countryId: string): Promise<ResponseTrackingRow[]> {
+  await ensureSoaSchema();
+  const rows = await sql<QueryResultRow[]>(
+    `SELECT v.vendor_no, v.name AS vendor_name,
+            vce.open_po_amount, vce.currency, vce.status, vce.responded_at,
+            (SELECT COUNT(*) FROM outreach_dispatches od
+              WHERE od.vendor_cycle_entry_id = vce.id AND od.succeeded)      AS dispatches,
+            (SELECT MIN(od.sent_at) FROM outreach_dispatches od
+              WHERE od.vendor_cycle_entry_id = vce.id AND od.succeeded)      AS first_sent_at,
+            (SELECT MAX(od.sent_at) FROM outreach_dispatches od
+              WHERE od.vendor_cycle_entry_id = vce.id AND od.succeeded)      AS last_sent_at,
+            MAX(s.id)        FILTER (WHERE s.kind = 'workbook') AS workbook_id,
+            MAX(s.file_name) FILTER (WHERE s.kind = 'workbook') AS workbook_name,
+            MAX(s.source)    FILTER (WHERE s.kind = 'workbook') AS workbook_source,
+            MAX(s.id)        FILTER (WHERE s.kind = 'email')    AS email_id,
+            MAX(s.file_name) FILTER (WHERE s.kind = 'email')    AS email_name,
+            MAX(s.source)    FILTER (WHERE s.kind = 'email')    AS email_source,
+            COALESCE(SUM(s.parsed_line_count), 0)               AS invoice_lines
+       FROM vendor_cycle_entries vce
+       JOIN vendors v         ON v.id = vce.vendor_id
+       JOIN country_cycles cc ON cc.id = vce.country_cycle_id
+       JOIN cycles cy         ON cy.id = cc.cycle_id AND cy.is_active
+       LEFT JOIN soa_submissions s
+              ON s.vendor_cycle_entry_id = vce.id AND s.superseded_at IS NULL
+      WHERE cc.country_id = ?
+      GROUP BY vce.id, v.vendor_no, v.name, vce.open_po_amount, vce.currency,
+               vce.status, vce.responded_at
+      ORDER BY vce.open_po_amount DESC NULLS LAST, v.name`,
+    [countryId],
+  );
+
+  const file = (id: unknown, name: unknown, source: unknown) =>
+    id
+      ? {
+          id: Number(id),
+          fileName: String(name ?? ''),
+          source: String(source ?? 'champion'),
+        }
+      : null;
+
+  return rows.map((r) => ({
+    vendorNo: String(r.vendor_no),
+    vendorName: String(r.vendor_name),
+    openPoAmount: r.open_po_amount === null ? null : Number(r.open_po_amount),
+    currency: r.currency ? String(r.currency) : null,
+    status: String(r.status),
+    dispatches: Number(r.dispatches ?? 0),
+    firstSentAt: r.first_sent_at ? new Date(String(r.first_sent_at)) : null,
+    lastSentAt: r.last_sent_at ? new Date(String(r.last_sent_at)) : null,
+    respondedAt: r.responded_at ? new Date(String(r.responded_at)) : null,
+    workbook: file(r.workbook_id, r.workbook_name, r.workbook_source),
+    email: file(r.email_id, r.email_name, r.email_source),
+    invoiceLines: Number(r.invoice_lines ?? 0),
+  }));
+}
+
 /** Who provided it, in the words a reader uses. */
 export function routeLabel(p: VendorProvenance | undefined): string {
   if (!p) return 'Not received';
@@ -301,10 +386,11 @@ export async function buildVendorConsolidatedWorkbook(
   countryId: string,
   vendorNo: string,
 ): Promise<{ file: Buffer; summary: ConsolidatedSummary; vendorName: string }> {
-  const [lines, markers, provenance] = await Promise.all([
+  const [lines, markers, provenance, tracking] = await Promise.all([
     linesFor(countryId),
     markersFor(countryId),
     provenanceFor(countryId),
+    responseTrackingFor(countryId),
   ]);
   const all = [
     ...(lines as unknown as ConsolidatedRow[]).map((r) => ({ ...r, marker: null })),
@@ -319,6 +405,7 @@ export async function buildVendorConsolidatedWorkbook(
   const built = await writeConsolidated(
     rows,
     provenance.filter((p) => p.vendorNo === vendorNo),
+    tracking.filter((t) => t.vendorNo === vendorNo),
   );
   return { ...built, vendorName: rows[0].vendor_name };
 }
@@ -327,10 +414,11 @@ export async function buildVendorConsolidatedWorkbook(
 export async function buildConsolidatedWorkbook(
   countryId: string,
 ): Promise<{ file: Buffer; summary: ConsolidatedSummary }> {
-  const [lines, markers, provenance] = await Promise.all([
+  const [lines, markers, provenance, tracking] = await Promise.all([
     linesFor(countryId),
     markersFor(countryId),
     provenanceFor(countryId),
+    responseTrackingFor(countryId),
   ]);
   const rows = [
     ...(lines as unknown as ConsolidatedRow[]).map((r) => ({ ...r, marker: null })),
@@ -341,7 +429,7 @@ export async function buildConsolidatedWorkbook(
       'No statements have been read for this country yet, so there is nothing to consolidate.',
     );
   }
-  return writeConsolidated(rows, provenance);
+  return writeConsolidated(rows, provenance, tracking);
 }
 
 /**
@@ -354,6 +442,7 @@ export async function buildConsolidatedWorkbook(
 export async function writeConsolidated(
   rows: ConsolidatedRow[],
   provenance: VendorProvenance[] = [],
+  tracking: ResponseTrackingRow[] = [],
 ): Promise<{ file: Buffer; summary: ConsolidatedSummary }> {
   const byVendor = new Map(provenance.map((p) => [p.vendorNo, p]));
   templateCache ??= await readFile(TEMPLATE);
@@ -474,6 +563,7 @@ export async function writeConsolidated(
   }
 
   writeSubmissionsSheet(wb, rows, provenance);
+  writeResponseTrackingSheet(wb, tracking, rows[0]?.country_name ?? '', rows[0]?.cycle_label ?? '');
 
   const out = Buffer.from(await wb.xlsx.writeBuffer());
   return {
@@ -609,6 +699,284 @@ function writeSubmissionsSheet(
     from: { row: 1, column: 1 },
     to: { row: 1 + order.length, column: HEADERS.length },
   };
+}
+
+/** How a supplier's answer arrived, for the tracking tab. Blank when nothing has. */
+function trackingRoute(t: ResponseTrackingRow): string {
+  const sources = new Set([t.workbook?.source, t.email?.source].filter(Boolean) as string[]);
+  if (!sources.size) return '';
+  if (sources.size > 1) return 'Supplier portal + Champion';
+  return sources.has('supplier_portal') ? 'Supplier portal' : 'Champion';
+}
+
+/** What was actually filed. The three routes a champion is asked to distinguish. */
+function trackingProvided(t: ResponseTrackingRow): string {
+  if (t.workbook && t.email) return 'Spreadsheet + Email';
+  if (t.workbook) return 'Spreadsheet';
+  if (t.email) return 'Email';
+  return '';
+}
+
+/**
+ * Who was asked, who answered, and how.
+ *
+ * The consolidated sheet can only describe suppliers who sent something, because a supplier with
+ * no lines has no lines to print. That makes the one number a champion is actually judged on -
+ * the response rate - unreadable from the file they hand over. This tab is the other half:
+ * everyone in scope, including the ones who ignored three emails.
+ *
+ * The cards are at the top because the first question is always "where are we", and the detail
+ * below answers the second, "who do I chase". Ordered by open PO value, so the suppliers worth
+ * chasing first are the ones at the top.
+ */
+function writeResponseTrackingSheet(
+  wb: ExcelJS.Workbook,
+  tracking: ResponseTrackingRow[],
+  countryName: string,
+  cycleLabel: string,
+): void {
+  const NAME = 'Response Tracking';
+  /* Replaced rather than appended to, for the same reason as Submissions: rebuilding for a second
+     country must not leave the first one's suppliers behind. */
+  if (wb.getWorksheet(NAME)) wb.removeWorksheet(wb.getWorksheet(NAME)!.id);
+  const ws = wb.addWorksheet(NAME);
+
+  const GREEN = 'FF4EA72E';
+  const DARK = 'FF2A7E4F';
+  const PALE = 'FFEAF4EA';
+  const AMBER = 'FFFFF4E5';
+  const GREY = 'FFF2F2F2';
+
+  const HEADERS = [
+    'Vendor Name',
+    'Vendor No.',
+    'Open PO Amount',
+    'Currency',
+    'Status',
+    'Floated On',
+    'Times Contacted',
+    'Responded',
+    'Responded On',
+    'Received Via',
+    'Provided',
+    'Invoice Lines',
+  ];
+  const WIDTHS = [42, 16, 18, 10, 16, 14, 16, 12, 18, 26, 20, 13];
+  WIDTHS.forEach((w, i) => {
+    ws.getColumn(i + 1).width = w;
+  });
+
+  /* ── the counts the cards report ──
+     "Floated to" is a successful dispatch, not a scoping decision: a supplier nobody wrote to has
+     not failed to respond, and counting them as a non-responder would understate the rate and
+     blame the supplier for the champion's backlog. They are reported separately. */
+  const floated = tracking.filter((t) => t.dispatches > 0);
+  const responded = tracking.filter((t) => t.workbook || t.email);
+  const spreadsheet = tracking.filter((t) => t.workbook && !t.email);
+  const email = tracking.filter((t) => t.email && !t.workbook);
+  const both = tracking.filter((t) => t.workbook && t.email);
+  const noResponse = floated.filter((t) => !t.workbook && !t.email);
+  const notSent = tracking.filter((t) => t.dispatches === 0);
+  /* The rate has to be one population against itself. Some suppliers have a statement on file
+     without an outreach record - a champion filed it for them - and counting those in the
+     numerator while the denominator is "contacted" flatters the rate. The numerator is therefore
+     the contacted suppliers who answered, not every supplier who answered. */
+  const respondedOfFloated = floated.length - noResponse.length;
+  const unsolicited = responded.length - respondedOfFloated;
+  const pct = (n: number, d: number) => (d > 0 ? `${Math.round((n / d) * 100)}%` : '--');
+
+  // ── title ──
+  ws.mergeCells(1, 1, 1, HEADERS.length);
+  const title = ws.getCell(1, 1);
+  title.value = 'RESPONSE TRACKING';
+  title.font = { name: 'Calibri', size: 16, bold: true, color: { argb: 'FFFFFFFF' } };
+  title.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: DARK } };
+  title.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+  ws.getRow(1).height = 28;
+
+  ws.mergeCells(2, 1, 2, HEADERS.length);
+  const sub = ws.getCell(2, 1);
+  sub.value = [countryName, cycleLabel, 'Every supplier in scope, answered or not']
+    .filter(Boolean)
+    .join('  ·  ');
+  sub.font = { name: 'Calibri', size: 10, color: { argb: 'FF666666' }, italic: true };
+  sub.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+
+  /* Said out loud rather than buried, because otherwise the Responded card and the percentage
+     beneath it look as though one of them is wrong. */
+  if (unsolicited > 0) {
+    ws.mergeCells(3, 1, 3, HEADERS.length);
+    const note = ws.getCell(3, 1);
+    note.value =
+      `${unsolicited} of the ${responded.length} responses are from suppliers with no outreach on ` +
+      `record, so they are counted as responses but not in the rate.`;
+    note.font = { name: 'Calibri', size: 9, color: { argb: 'FF9A6A00' }, italic: true };
+    note.alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+  }
+
+  /* ── the cards ──
+     Each is two columns wide and three rows tall: a label, the number, and a note. Excel has no
+     card, so one is a merged block with a thick coloured top border, which is as close as the
+     format gets and reads the same way. */
+  /* Six cards, because the table is twelve columns wide and each card spans two. An earlier
+     seventh was silently dropped off the end by the overflow guard below, which is the kind of
+     thing that ships. "In scope" folds into the first card's note rather than taking a card. */
+  const CARDS: { label: string; value: string | number; note: string; accent: string }[] = [
+    {
+      label: 'FLOATED TO',
+      value: floated.length,
+      note: `of ${tracking.length} in scope${notSent.length ? `, ${notSent.length} not yet written to` : ''}`,
+      accent: DARK,
+    },
+    {
+      label: 'RESPONDED',
+      value: responded.length,
+      note: `${pct(respondedOfFloated, floated.length)} of those contacted`,
+      accent: GREEN,
+    },
+    {
+      label: 'SPREADSHEET ONLY',
+      value: spreadsheet.length,
+      note: 'workbook, no email',
+      accent: GREEN,
+    },
+    { label: 'EMAIL ONLY', value: email.length, note: 'email, no workbook', accent: GREEN },
+    { label: 'BOTH', value: both.length, note: 'spreadsheet and email', accent: GREEN },
+    {
+      label: 'NO RESPONSE',
+      value: noResponse.length,
+      note: `${pct(noResponse.length, floated.length)} of those contacted`,
+      accent: 'FFC00000',
+    },
+  ];
+
+  /* Derived rather than fixed, so adding a card re-spaces them instead of pushing one off the
+     edge. A card needs at least one column; fewer means the header list has shrunk below the
+     number of cards and the layout has to be reconsidered rather than silently truncated. */
+  const CARD_W = Math.floor(HEADERS.length / CARDS.length);
+  if (CARD_W < 1) {
+    throw new Error(
+      `${CARDS.length} KPI cards will not fit across ${HEADERS.length} columns. ` +
+        'Drop a card or widen the table.',
+    );
+  }
+  const CARD_TOP = 4;
+  ws.getRow(CARD_TOP).height = 16;
+  ws.getRow(CARD_TOP + 1).height = 30;
+  ws.getRow(CARD_TOP + 2).height = 15;
+
+  CARDS.forEach((card, i) => {
+    const c1 = 1 + i * CARD_W;
+    /* The last card takes any remainder, so the row of cards ends flush with the table. */
+    const c2 = i === CARDS.length - 1 ? HEADERS.length : c1 + CARD_W - 1;
+
+    ws.mergeCells(CARD_TOP, c1, CARD_TOP, c2);
+    ws.mergeCells(CARD_TOP + 1, c1, CARD_TOP + 1, c2);
+    ws.mergeCells(CARD_TOP + 2, c1, CARD_TOP + 2, c2);
+
+    const label = ws.getCell(CARD_TOP, c1);
+    label.value = card.label;
+    label.font = { name: 'Calibri', size: 8, bold: true, color: { argb: 'FF666666' } };
+    label.alignment = { horizontal: 'center', vertical: 'middle' };
+
+    const value = ws.getCell(CARD_TOP + 1, c1);
+    value.value = card.value;
+    value.font = { name: 'Calibri', size: 22, bold: true, color: { argb: card.accent } };
+    value.alignment = { horizontal: 'center', vertical: 'middle' };
+
+    const note = ws.getCell(CARD_TOP + 2, c1);
+    note.value = card.note;
+    note.font = { name: 'Calibri', size: 8, color: { argb: 'FF888888' } };
+    note.alignment = { horizontal: 'center', vertical: 'top' };
+
+    for (let r = CARD_TOP; r <= CARD_TOP + 2; r++) {
+      for (let c = c1; c <= c2; c++) {
+        const cell = ws.getCell(r, c);
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREY } };
+        cell.border = {
+          ...(r === CARD_TOP ? { top: { style: 'medium', color: { argb: card.accent } } } : {}),
+          ...(r === CARD_TOP + 2 ? { bottom: { style: 'thin', color: { argb: 'FFD9D9D9' } } } : {}),
+          ...(c === c1 ? { left: { style: 'thin', color: { argb: 'FFD9D9D9' } } } : {}),
+          ...(c === c2 ? { right: { style: 'thin', color: { argb: 'FFD9D9D9' } } } : {}),
+        };
+      }
+    }
+  });
+
+  // ── the table ──
+  const HEAD_ROW = CARD_TOP + 4;
+  const header = ws.getRow(HEAD_ROW);
+  HEADERS.forEach((label, i) => {
+    const cell = header.getCell(i + 1);
+    cell.value = label;
+    cell.font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: GREEN } };
+    cell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'thin' },
+      right: { style: 'thin' },
+    };
+    cell.alignment = { vertical: 'middle', wrapText: true };
+  });
+  header.commit();
+
+  tracking.forEach((t, i) => {
+    const row = ws.getRow(HEAD_ROW + 1 + i);
+    const answered = Boolean(t.workbook || t.email);
+
+    row.getCell(1).value = t.vendorName;
+    row.getCell(2).value = t.vendorNo;
+    row.getCell(3).value = t.openPoAmount ?? '';
+    if (t.openPoAmount !== null) row.getCell(3).numFmt = '#,##0.00';
+    row.getCell(4).value = t.currency ?? '';
+    row.getCell(5).value = t.status.replace(/_/g, ' ');
+    row.getCell(6).value = t.firstSentAt ?? '';
+    if (t.firstSentAt) row.getCell(6).numFmt = 'yyyy-mm-dd';
+    row.getCell(7).value = t.dispatches;
+    row.getCell(8).value = answered ? 'Yes' : t.dispatches > 0 ? 'No' : '--';
+    row.getCell(9).value = t.respondedAt ?? '';
+    if (t.respondedAt) row.getCell(9).numFmt = 'yyyy-mm-dd hh:mm';
+    row.getCell(10).value = trackingRoute(t);
+    row.getCell(11).value = trackingProvided(t);
+    row.getCell(12).value = t.invoiceLines;
+
+    /* Three readings, in the order they matter to a champion: a supplier who was chased and has
+       still not answered is the row to act on, so it is the one that is coloured against. A
+       supplier nobody has written to yet is greyed, because that is the champion's own backlog and
+       not a chase. Everything answered is left calm, with the happy path tinted as on Submissions. */
+    const tint = !answered && t.dispatches > 0 ? AMBER : t.dispatches === 0 ? GREY : null;
+    if (tint) {
+      for (let c = 1; c <= HEADERS.length; c++) {
+        row.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: tint } };
+      }
+    } else if (trackingRoute(t) === 'Supplier portal') {
+      for (let c = 1; c <= HEADERS.length; c++) {
+        row.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: PALE } };
+      }
+    }
+    if (!answered && t.dispatches > 0) {
+      row.getCell(8).font = { name: 'Calibri', size: 11, bold: true, color: { argb: 'FFC00000' } };
+    }
+    row.commit();
+  });
+
+  if (!tracking.length) {
+    const row = ws.getRow(HEAD_ROW + 1);
+    row.getCell(1).value = 'No suppliers are in scope for this cycle yet.';
+    row.getCell(1).font = { name: 'Calibri', size: 11, italic: true, color: { argb: 'FF9A9A9A' } };
+    row.commit();
+  }
+
+  /* Frozen below the cards AND the header, so scrolling the supplier list keeps both the totals
+     and the column names in view - the cards are useless if they scroll away from the detail. */
+  ws.views = [{ state: 'frozen', ySplit: HEAD_ROW }];
+  if (tracking.length) {
+    ws.autoFilter = {
+      from: { row: HEAD_ROW, column: 1 },
+      to: { row: HEAD_ROW + tracking.length, column: HEADERS.length },
+    };
+  }
 }
 
 /** What the file is called when it lands in AP's inbox. */

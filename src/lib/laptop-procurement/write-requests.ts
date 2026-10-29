@@ -17,12 +17,26 @@ import {
 import {
   COUNTRY_OPTIONS,
   DEVICE_TYPE_OPTIONS,
+  FIRST_COMPUTER_DECLARATION,
+  laptopRequestNeedsFirstComputerDeclaration,
   REQUEST_TYPE_OPTIONS,
 } from '@/lib/laptopProcurement-utils';
 
 export function validateCreateInput(input: CreateLaptopRequestInput) {
+  const requestType = requireOneOf(input.request_type, REQUEST_TYPE_OPTIONS, 'Type of request');
+
+  /* Checked here and not only in the form, because createLaptopRequest is a public POST
+     endpoint and the checkbox is a convenience. A request of this type with no declaration
+     behind it is the one thing this type exists to prevent. */
+  if (
+    laptopRequestNeedsFirstComputerDeclaration(requestType) &&
+    input.first_computer_declared !== true
+  ) {
+    throw new Error(`Tick the declaration before submitting: "${FIRST_COMPUTER_DECLARATION}"`);
+  }
+
   return {
-    requestType: requireOneOf(input.request_type, REQUEST_TYPE_OPTIONS, 'Type of request'),
+    requestType,
     country: requireOneOf(input.country, COUNTRY_OPTIONS, 'Country'),
     companyCode: requireText(input.company_code, 'Company Code'),
     // Optional: the static company-code reference table doesn't cover every real company
@@ -35,6 +49,11 @@ export function validateCreateInput(input: CreateLaptopRequestInput) {
     // the request is actually flagged for new-device procurement (see submitProcureNewDetails).
     requestedModel: blankToNull(input.requested_model),
     reason: requireText(input.special_requirements, 'Special requirements / justification'),
+    /* Only ever true on the one type. Narrowed here rather than trusted from the payload so
+       the column cannot be stamped on an Upgrade/Replacement by a crafted request. */
+    firstComputerDeclared:
+      laptopRequestNeedsFirstComputerDeclaration(requestType) &&
+      input.first_computer_declared === true,
   };
 }
 
@@ -61,8 +80,10 @@ export async function insertRequest(
       (reference_number, employee_id, status, priority, request_type, indirect_request, pending_with, country,
        requested_by_name, requested_by_email, computer_for, computer_for_employee_id, department,
        company_code, company_name, cost_center, type_of_device, requested_model, special_requirements,
-       unit_id, current_brand, current_model, serial_no, age_years, sap_number)
-     VALUES (?, ?, ?, ?, ?, FALSE, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+       unit_id, current_brand, current_model, serial_no, age_years, sap_number,
+       first_computer_declared_at, first_computer_declared_by)
+     VALUES (?, ?, ?, ?, ?, FALSE, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+             CASE WHEN ? THEN CURRENT_TIMESTAMP END, CASE WHEN ? THEN ? END) RETURNING id`,
     [
       opts.reference,
       blankToNull(input.employee_id),
@@ -88,6 +109,13 @@ export async function insertRequest(
       blankToNull(input.serial_no),
       blankToNull(input.age_years),
       blankToNull(input.sap_number),
+      /* Three parameters for the two declaration columns: the flag is read twice because each
+         CASE needs its own, and the email is only reached when the flag is true. The requester
+         is who declares it -- an admin backfilling somebody's request is recorded as the
+         declarer because they are the one making the claim. */
+      v.firstComputerDeclared,
+      v.firstComputerDeclared,
+      opts.requestedByEmail,
     ],
   );
   return result.insertId;
