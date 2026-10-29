@@ -32,6 +32,7 @@ import {
   resolveLaptopActing,
 } from '@/lib/laptop-procurement/access';
 import { getActor, stageHasCountry } from '@/lib/laptop-procurement/actor';
+import { raiseFreshserviceWip } from '@/lib/laptop-procurement/wip';
 import { QueryParam, QueryParams, exec, execTx, sql, sqlTx } from '@/lib/laptop-procurement/db';
 import {
   STAGE_APPROVED_DATE_COLUMN,
@@ -420,6 +421,15 @@ export async function updateLaptopRequestStatus(
     deferLaptopNotifications('status-update', async () => {
       await notifyLaptopNextApprover(updatedRequest);
       await notifyLaptopFinalApproval(updatedRequest);
+      /* The approval chain is finished, so the SAP WIP can be raised. Here and
+         not earlier for the same reason as the webhooks above: a WIP cannot be
+         un-raised if the transaction rolls back, and `updatedRequest` is the
+         committed row, which matters more here than anywhere else — the IT
+         Manager's procure-new rewrites requested_model in that same statement,
+         and the model drives both the Freshservice field and the price. */
+      if (updatedRequest.status === 'Procure New') {
+        await raiseFreshserviceWip(updatedRequest);
+      }
       // The requester already knows about their own cancellation — everyone else's
       // decision (approve/assign/procure-new/repair) gets reported back to them.
       if (!userCancellingOwnRequest) {
@@ -516,7 +526,8 @@ export async function overrideLaptopRequestStatus(
     const stageParams: QueryParam[] = [];
     for (const stage of passed) {
       const dateColumn = STAGE_APPROVED_DATE_COLUMN[stage];
-      if (dateColumn) stageAssignments.push(`, ${dateColumn} = COALESCE(${dateColumn}, CURRENT_TIMESTAMP)`);
+      if (dateColumn)
+        stageAssignments.push(`, ${dateColumn} = COALESCE(${dateColumn}, CURRENT_TIMESTAMP)`);
       const nameColumn = STAGE_APPROVER_NAME_COLUMN[stage];
       if (nameColumn) {
         stageAssignments.push(`, ${nameColumn} = COALESCE(NULLIF(${nameColumn}, ''), ?)`);

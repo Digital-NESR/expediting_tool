@@ -248,6 +248,15 @@ export interface LaptopRequest {
   rejection_reason: string | null;
   review_comments: string | null;
 
+  /**
+   * The Freshservice service request raised for this device, shown as SR-<id>.
+   * NULL with `freshservice_attempted_at` set means it was tried and failed;
+   * NULL with both unset means it has not been tried.
+   */
+  freshservice_request_id: number | null;
+  freshservice_error: string | null;
+  freshservice_attempted_at: string | null;
+
   legacy_status: string | null;
   legacy_id: string | null;
 

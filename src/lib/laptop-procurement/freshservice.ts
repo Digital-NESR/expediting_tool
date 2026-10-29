@@ -1,4 +1,7 @@
+import { stripEnvQuotes } from '@/lib/laptop-procurement/notifications';
 import type { LaptopRequest } from '@/types/laptopProcurement';
+
+export { stripEnvQuotes };
 
 /**
  * The WIP Creation Request raised in Freshservice once a laptop request is
