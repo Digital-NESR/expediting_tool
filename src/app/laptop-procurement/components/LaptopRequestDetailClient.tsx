@@ -25,6 +25,7 @@ import type {
 import type { LaptopWorkflowStep } from '@/lib/laptopProcurement-utils';
 import LaptopShell, { CTA_QUIET, GLASS } from './LaptopShell';
 import { exportRequestPdf } from '../lib/exportRequestPdf';
+import { wipState } from '../lib/wipState';
 import {
   rejectLaptopRequest,
   submitProcureNewDetails,
@@ -347,6 +348,60 @@ function fileBadgeLabel(mime: string | null) {
   if (mime.includes('image')) return 'IMG';
   if (mime.includes('zip') || mime.includes('rar')) return 'ZIP';
   return 'FILE';
+}
+
+/**
+ * The SAP WIP raised in Freshservice once the approval chain finishes.
+ *
+ * Here because a WIP that never landed is otherwise invisible on this screen:
+ * the integration records the outcome on the request and emails the country IT
+ * Manager, but a fully approved request whose WIP failed looks exactly like one
+ * whose WIP succeeded. The three states are kept visually distinct for that
+ * reason — "not raised" is a job for someone, "raised" is not.
+ */
+function WipSection({ request }: { request: LaptopRequestDetailData['request'] }) {
+  const state = wipState(request);
+  if (!state) return null;
+
+  const boxClass =
+    state.kind === 'raised'
+      ? 'border-emerald-500/40 bg-emerald-500/10'
+      : state.kind === 'failed'
+        ? 'border-red-500/40 bg-red-500/10'
+        : 'border-amber-500/40 bg-amber-500/10';
+  const textClass =
+    state.kind === 'raised'
+      ? 'text-emerald-900'
+      : state.kind === 'failed'
+        ? 'text-red-900'
+        : 'text-amber-900';
+
+  return (
+    <Section title="SAP WIP">
+      <div className={`rounded-xl border px-3 py-2 ${boxClass}`}>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+          {state.kind === 'raised' ? 'Service Request' : 'Status'}
+        </p>
+        <p className={`mt-1 break-words text-sm font-semibold ${textClass}`}>
+          {state.kind === 'raised'
+            ? `SR-${state.serviceRequestId}`
+            : state.kind === 'failed'
+              ? 'Not raised'
+              : 'Not raised yet'}
+        </p>
+        {state.kind === 'failed' && (
+          <p className="mt-2 break-words text-sm text-red-900">{state.reason}</p>
+        )}
+      </div>
+      <p className="mt-3 text-xs text-slate-500">
+        {state.kind === 'raised'
+          ? `Raised in Freshservice on ${fmtDateTime(request.freshservice_attempted_at)}.`
+          : state.kind === 'failed'
+            ? `Last tried ${fmtDateTime(request.freshservice_attempted_at)}. The approval stands — only the WIP is missing, and the country IT Manager has been emailed.`
+            : 'The approval is complete, but no WIP has been raised against this request.'}
+      </p>
+    </Section>
+  );
 }
 
 /**
@@ -697,6 +752,15 @@ export default function LaptopRequestDetailClient({
     (actor.permissions.canViewAll ||
       holdsAnyApprovalStage(actor.permissions) ||
       (actor.delegatedFrom ?? []).some((d) => holdsAnyApprovalStage(d.permissions)));
+
+  /* The WIP is finance plumbing: the requester cannot act on it and a red box
+     about SAP would only alarm them, so it follows the same rule as the
+     existing device — approvers and admins only. The country IT Manager, who
+     owns a failed WIP, holds an approval stage and so is covered. */
+  const canSeeWip =
+    actor.permissions.canViewAll ||
+    holdsAnyApprovalStage(actor.permissions) ||
+    (actor.delegatedFrom ?? []).some((d) => holdsAnyApprovalStage(d.permissions));
   /* The device is specified on the IT Manager's own stage now. It used to be a
      waypoint of its own, which put the same person at step 1 and again at step 3. */
   const isProcureDetailsStage = isItManagerStage && Boolean(request.procure_new_requested);
@@ -1399,6 +1463,8 @@ export default function LaptopRequestDetailClient({
                 </p>
               </div>
             </Section>
+
+            {canSeeWip && <WipSection request={request} />}
 
             {isProcureDetailsStage && (
               <ProcureNewDetailsSection
