@@ -596,6 +596,19 @@ export async function overrideLaptopRequestStatus(
         // Each of these self-guards on the status, so the new status alone decides which fire.
         await notifyLaptopNextApprover(updatedRequest);
         await notifyLaptopFinalApproval(updatedRequest);
+        /* An override that announces full approval has to file the WIP too. It sits
+           inside `options.notify` deliberately, which is what makes the tickbox mean
+           "behave as though the chain had run": with it on, the SAP team is told the
+           request is approved and finds the WIP waiting; with it off the override is
+           a silent correction and files nothing, so fixing a status by hand cannot
+           put a real ticket into Freshservice by surprise.
+
+           The same no-second-WIP guard as the ordinary path applies, since it lives
+           in raiseFreshserviceWip and keys off freshservice_request_id — an override
+           onto a request that already raised one is a no-op rather than a duplicate. */
+        if (status === 'Procure New') {
+          await raiseFreshserviceWip(updatedRequest);
+        }
         const nextStage = getLaptopApprovalStage(status);
         await notifyLaptopRequesterUpdate(updatedRequest, {
           kind: isRejection ? 'rejected' : nextStage ? 'forwarded' : 'final_approved',

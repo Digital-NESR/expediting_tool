@@ -1003,9 +1003,17 @@ export default function LaptopAdminClient({
       }
       closeOverride();
       const fresh = await refreshAdminData();
+      /* "Requested", not "raised": the WIP is filed after the response, so the
+         outcome is not known here. The request screen reports what came back. */
+      const wipNote =
+        overrideStatus === 'Procure New'
+          ? overrideNotify
+            ? ' SAP WIP requested — the request shows the result.'
+            : ' No SAP WIP raised.'
+          : '';
       setBanner(
         fresh
-          ? `Status changed to ${overrideStatus}.${overrideNotify ? ' Notifications sent.' : ' No notifications sent.'}`
+          ? `Status changed to ${overrideStatus}.${overrideNotify ? ' Notifications sent.' : ' No notifications sent.'}${wipNote}`
           : 'Status changed, but the list failed to refresh.',
       );
     });
@@ -1460,7 +1468,9 @@ export default function LaptopAdminClient({
                                   onChange={(e) => setOverrideNotify(e.target.checked)}
                                   className="h-4 w-4 accent-[#307c4c]"
                                 />
-                                Send the notification for the new status
+                                {overrideStatus === 'Procure New'
+                                  ? 'Send the notification and raise the SAP WIP'
+                                  : 'Send the notification for the new status'}
                               </label>
 
                               <button
@@ -1484,6 +1494,10 @@ export default function LaptopAdminClient({
                               {overrideNotify
                                 ? ' The email that status normally sends will go out.'
                                 : ' No email will be sent.'}
+                              {overrideStatus === 'Procure New' &&
+                                (overrideNotify
+                                  ? ' The SAP WIP will be raised in Freshservice too, exactly as a real approval would raise it.'
+                                  : ' No SAP WIP will be raised, so this stays a silent correction.')}
                             </p>
                           </td>
                         </tr>
