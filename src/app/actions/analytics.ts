@@ -58,17 +58,56 @@ export interface MyAnalyticsFilters {
   dateTo?: string;
 }
 
+/** A timestamp or date column as an ISO string, or null. Shared: it was copied into three. */
+function toStr(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  if (v instanceof Date) return v.toISOString();
+  return String(v);
+}
+
+/* ─── Scope ───────────────────────────────────── */
+
+/**
+ * The buyer-and-date WHERE fragment every query on this screen shares.
+ *
+ * One parameter list for all of them: $1 is always the buyer, and the dates take $2 and $3 when
+ * they are set. Postgres is happy for a placeholder to appear several times in one statement,
+ * which is what lets the KPI block apply the same range in four subqueries without passing the
+ * value four times.
+ *
+ * `dispatched_at` is the date everywhere, including on the session table, so the range always
+ * means "work I sent out in this window" rather than something that shifts meaning per chart.
+ *
+ * It is a shared helper rather than a block inside each function because the export reads the
+ * same numbers the page shows. A second copy of this that fell a day out of step would put a
+ * workbook in someone's inbox that disagreed with the screen it was exported from, and the
+ * spreadsheet is the half that gets forwarded.
+ */
+function buyerScope(
+  userEmail: string,
+  filters: MyAnalyticsFilters,
+): { params: unknown[]; inRange: (alias: string) => string } {
+  const params: unknown[] = [userEmail];
+  const fromIdx = filters.dateFrom ? params.push(filters.dateFrom) : null;
+  const toIdx = filters.dateTo ? params.push(filters.dateTo) : null;
+
+  const inRange = (alias: string): string => {
+    const conditions: string[] = [];
+    if (fromIdx) conditions.push(`${alias}.dispatched_at >= $${fromIdx}`);
+    /* +1 day, so a range ending on the 30th includes everything dispatched ON the 30th rather
+       than stopping at its first second. */
+    if (toIdx) conditions.push(`${alias}.dispatched_at <= $${toIdx}::date + interval '1 day'`);
+    return conditions.length ? ` AND ${conditions.join(' AND ')}` : '';
+  };
+
+  return { params, inRange };
+}
+
 /* ─── getMyExpeditingAnalytics ───────────────────────────────── */
 
 export async function getMyExpeditingAnalytics(
   filters: MyAnalyticsFilters = {},
 ): Promise<MyAnalytics> {
-  const toStr = (v: unknown): string | null => {
-    if (v === null || v === undefined) return null;
-    if (v instanceof Date) return v.toISOString();
-    return String(v);
-  };
-
   const empty: MyAnalytics = {
     totalLinesExpedited: 0,
     totalSuppliersContacted: 0,
@@ -86,25 +125,7 @@ export async function getMyExpeditingAnalytics(
   if (!actor) return empty;
   const userEmail = actor.email;
 
-  /* One parameter list for all five queries: $1 is always the buyer, and the dates take $2 and
-     $3 when they are set. Postgres is happy for a placeholder to appear several times in one
-     statement, which is what lets the KPI block apply the same range in four subqueries without
-     passing the value four times.
-
-     `dispatched_at` is the date everywhere, including on the session table, so the range always
-     means "work I sent out in this window" rather than something that shifts meaning per chart. */
-  const params: unknown[] = [userEmail];
-  const fromIdx = filters.dateFrom ? params.push(filters.dateFrom) : null;
-  const toIdx = filters.dateTo ? params.push(filters.dateTo) : null;
-
-  const inRange = (alias: string): string => {
-    const conditions: string[] = [];
-    if (fromIdx) conditions.push(`${alias}.dispatched_at >= $${fromIdx}`);
-    /* +1 day, so a range ending on the 30th includes everything dispatched ON the 30th rather
-       than stopping at its first second. */
-    if (toIdx) conditions.push(`${alias}.dispatched_at <= $${toIdx}::date + interval '1 day'`);
-    return conditions.length ? ` AND ${conditions.join(' AND ')}` : '';
-  };
+  const { params, inRange } = buyerScope(userEmail, filters);
 
   try {
     await ensurePoExpeditingSchema();
@@ -300,11 +321,6 @@ export interface SupplierDetailLine {
 }
 
 export async function getSupplierDetail(supplierName: string): Promise<SupplierDetailLine[]> {
-  const toStr = (v: unknown): string | null => {
-    if (v === null || v === undefined) return null;
-    if (v instanceof Date) return v.toISOString();
-    return String(v);
-  };
   // Scope to the signed-in buyer; never to a caller-supplied email.
   const actor = await currentActor();
   if (!actor) return [];
@@ -387,11 +403,6 @@ export interface SessionDetailLine {
 }
 
 export async function getSessionDetail(sessionRef: string): Promise<SessionDetailLine[]> {
-  const toStr = (v: unknown): string | null => {
-    if (v === null || v === undefined) return null;
-    if (v instanceof Date) return v.toISOString();
-    return String(v);
-  };
   // Scope to the signed-in buyer; never to a caller-supplied email.
   const actor = await currentActor();
   if (!actor) return [];
@@ -447,5 +458,197 @@ export async function getSessionDetail(sessionRef: string): Promise<SessionDetai
   } catch (err) {
     console.error('[getSessionDetail]', err);
     return [];
+  }
+}
+
+/* ─── Workbook export ─────────────────────────── */
+
+/** One dispatched PO line, with the supplier's answer to it. */
+export interface MyExportLine {
+  session_ref: string;
+  dispatched_at: string;
+  responded_at: string | null;
+  po_number: string;
+  po_line: string;
+  supplier_name: string;
+  supplier_id: string | null;
+  country: string | null;
+  p_group: string | null;
+  sap_mat_id: string | null;
+  item_description: string | null;
+  open_qty: number | null;
+  open_po_value_usd: number | null;
+  original_delivery_date: string | null;
+  workflow_state: string;
+  current_status: string | null;
+  new_delivery_date: string | null;
+  supplier_comments: string | null;
+  buyer_comments: string | null;
+}
+
+/** Like {@link MyRecentSession}, plus the two columns the screen's list does not show. */
+export interface MyExportSession extends MyRecentSession {
+  lines_responded: number | null;
+  closed_at: string | null;
+}
+
+export interface MyAnalyticsExport {
+  buyer: { name: string; email: string };
+  generatedAt: string;
+  filters: { dateFrom: string | null; dateTo: string | null };
+  kpis: {
+    totalLinesExpedited: number;
+    totalSuppliersContacted: number;
+    totalEmailsSent: number;
+    overallResponseRate: number | null;
+  };
+  supplierBreakdown: MySupplierRow[];
+  supplierResponseTime: MySupplierResponseTimeRow[];
+  weeklyRateData: MyWeeklyRateRow[];
+  lines: MyExportLine[];
+  sessions: MyExportSession[];
+}
+
+/**
+ * Everything the My Analytics workbook puts on its sheets, for the signed-in buyer only.
+ *
+ * Two things are deliberate here.
+ *
+ * The aggregates come from `getMyExpeditingAnalytics` rather than from queries of their own, so
+ * the Summary and vendor sheets cannot disagree with the cards the person was looking at when
+ * they pressed Export. Only what the screen does not hold is queried afresh: the line-level
+ * rows, which live behind a per-supplier modal, and the sessions, which the page caps at 20
+ * because it is a list and not a report.
+ *
+ * And the buyer is the session's, never an argument. Every export in a `'use server'` file is a
+ * public POST endpoint, so a buyer-email parameter here would hand anyone who can sign in a full
+ * line-level dump of any colleague's expediting -- the same reasoning as
+ * `getMyExpeditingAnalytics`, and it matters more here because this one leaves as a file.
+ */
+export async function getMyAnalyticsExport(
+  filters: MyAnalyticsFilters = {},
+): Promise<MyAnalyticsExport | null> {
+  const actor = await currentActor();
+  if (!actor) return null;
+  const userEmail = actor.email;
+
+  try {
+    await ensurePoExpeditingSchema();
+    const { params, inRange } = buyerScope(userEmail, filters);
+
+    const [analytics, linesRes, sessionsRes] = await Promise.all([
+      getMyExpeditingAnalytics(filters),
+
+      /* -- Every line I dispatched --
+         The master is LEFT JOINed for the two fields the snapshot does not carry, exactly as the
+         drill-down modals do it. An INNER JOIN would drop every line whose PO has since closed,
+         which is most of the finished work and the part a performance review is about. */
+      pool.query(
+        `
+        SELECT
+          ae.session_ref,
+          ae.dispatched_at,
+          ae.responded_at,
+          ae.po_number,
+          ae.po_line,
+          COALESCE(NULLIF(ae.supplier_name, ''), s.supplier_name, 'Unknown Supplier') AS supplier_name,
+          ae.supplier_id,
+          ae.country,
+          ae.p_group,
+          s.sap_mat_id,
+          COALESCE(ae.item_description,  s.item_description)  AS item_description,
+          COALESCE(ae.open_qty,          s.open_qty)          AS open_qty,
+          COALESCE(ae.open_po_value_usd, s.open_po_value_usd) AS open_po_value_usd,
+          COALESCE(ae.delivery_date,     s.delivery_date)     AS original_delivery_date,
+          ae.workflow_state,
+          ae.current_status,
+          ae.new_delivery_date,
+          ae.supplier_comments,
+          ae.buyer_comments
+        FROM active_expediting ae
+        LEFT JOIN sap_open_po_master s
+          ON ae.po_number = s.po_number AND ae.po_line = s.po_line
+        WHERE LOWER(ae.dispatched_by) = $1${inRange('ae')}
+        ORDER BY ae.dispatched_at DESC, supplier_name, ae.po_number, ae.po_line
+      `,
+        params,
+      ),
+
+      /* -- Every session, uncapped --
+         The screen's list stops at 20 because it is a list. A workbook that silently did the
+         same would be read as the whole period. */
+      pool.query(
+        `
+        SELECT
+          es.session_ref,
+          es.dispatched_at,
+          es.total_suppliers,
+          es.total_po_lines,
+          es.total_emails_sent,
+          es.suppliers_responded,
+          es.lines_responded,
+          es.response_rate_pct,
+          es.fully_closed,
+          es.closed_at
+        FROM expediting_sessions es
+        WHERE LOWER(es.dispatched_by) = $1${inRange('es')}
+        ORDER BY es.dispatched_at DESC
+      `,
+        params,
+      ),
+    ]);
+
+    return {
+      buyer: { name: actor.name, email: actor.email },
+      generatedAt: new Date().toISOString(),
+      filters: { dateFrom: filters.dateFrom ?? null, dateTo: filters.dateTo ?? null },
+      kpis: {
+        totalLinesExpedited: analytics.totalLinesExpedited,
+        totalSuppliersContacted: analytics.totalSuppliersContacted,
+        totalEmailsSent: analytics.totalEmailsSent,
+        overallResponseRate: analytics.overallResponseRate,
+      },
+      supplierBreakdown: analytics.supplierBreakdown,
+      supplierResponseTime: analytics.supplierResponseTime,
+      weeklyRateData: analytics.weeklyRateData,
+
+      lines: linesRes.rows.map((r) => ({
+        session_ref: String(r.session_ref ?? ''),
+        dispatched_at: toStr(r.dispatched_at) ?? '',
+        responded_at: toStr(r.responded_at),
+        po_number: String(r.po_number ?? ''),
+        po_line: String(r.po_line ?? ''),
+        supplier_name: String(r.supplier_name ?? ''),
+        supplier_id: toStr(r.supplier_id),
+        country: toStr(r.country),
+        p_group: toStr(r.p_group),
+        sap_mat_id: toStr(r.sap_mat_id),
+        item_description: toStr(r.item_description),
+        open_qty: r.open_qty != null ? Number(r.open_qty) : null,
+        open_po_value_usd: r.open_po_value_usd != null ? Number(r.open_po_value_usd) : null,
+        original_delivery_date: toStr(r.original_delivery_date),
+        workflow_state: String(r.workflow_state ?? ''),
+        current_status: toStr(r.current_status),
+        new_delivery_date: toStr(r.new_delivery_date),
+        supplier_comments: toStr(r.supplier_comments),
+        buyer_comments: toStr(r.buyer_comments),
+      })),
+
+      sessions: sessionsRes.rows.map((r) => ({
+        session_ref: String(r.session_ref ?? ''),
+        dispatched_at: toStr(r.dispatched_at) ?? '',
+        total_suppliers: Number(r.total_suppliers ?? 0),
+        total_po_lines: Number(r.total_po_lines ?? 0),
+        total_emails_sent: Number(r.total_emails_sent ?? 0),
+        suppliers_responded: r.suppliers_responded != null ? Number(r.suppliers_responded) : null,
+        lines_responded: r.lines_responded != null ? Number(r.lines_responded) : null,
+        response_rate_pct: r.response_rate_pct != null ? Number(r.response_rate_pct) : null,
+        fully_closed: r.fully_closed != null ? Boolean(r.fully_closed) : null,
+        closed_at: toStr(r.closed_at),
+      })),
+    };
+  } catch (err) {
+    console.error('[getMyAnalyticsExport]', err);
+    return null;
   }
 }

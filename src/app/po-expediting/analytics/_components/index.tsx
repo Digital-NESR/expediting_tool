@@ -247,3 +247,51 @@ export function ChartCard({ title, children }: { title: string; children: React.
     </div>
   );
 }
+
+/**
+ * The Export to Excel button, in the analytics header beside Refresh.
+ *
+ * In the kit rather than inline in the page so it can be rendered at /dev-preview/my-analytics
+ * and actually looked at: the page behind it is SSO-gated, and the last two layout bugs on
+ * this surface shipped because nothing that runs locally can see that a control is squashed at
+ * phone width. The three states a reader cares about -- ready, working, nothing to export --
+ * are all props, so the preview can show them side by side.
+ */
+export function ExportToExcelButton({
+  onClick,
+  isExporting,
+  disabled,
+  title,
+}: {
+  onClick: () => void;
+  isExporting: boolean;
+  disabled: boolean;
+  title: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className="inline-flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-medium text-white bg-[#307c4c] border border-[#307c4c] rounded-md hover:bg-[#2a6b42] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      <svg
+        className={`w-3.5 h-3.5 shrink-0 ${isExporting ? 'animate-pulse' : ''}`}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2.5}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 3v13m0 0l-4-4m4 4l4-4"
+        />
+      </svg>
+      <span className="hidden sm:inline">
+        {isExporting ? 'Preparing\u2026' : 'Export to Excel'}
+      </span>
+      <span className="sm:hidden">{isExporting ? '\u2026' : 'Export'}</span>
+    </button>
+  );
+}

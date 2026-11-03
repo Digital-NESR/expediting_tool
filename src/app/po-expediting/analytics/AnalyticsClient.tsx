@@ -20,10 +20,12 @@ import {
 } from 'recharts';
 import type { MyAnalyticsFilters } from '@/app/actions/analytics';
 import {
+  getMyAnalyticsExport,
   getMyExpeditingAnalytics,
   getSupplierDetail,
   getSessionDetail,
 } from '@/app/actions/analytics';
+import { downloadMyAnalyticsWorkbook } from '@/lib/po-expediting/analytics-export';
 import { formatDate, formatSessionDate, formatWeek, formatCurrency } from '@/lib/format';
 import {
   DSTooltipBadge,
@@ -35,6 +37,7 @@ import {
   KpiCard,
   SectionTitle,
   ChartCard,
+  ExportToExcelButton,
 } from './_components';
 
 /* The badges, sort helpers and layout shells below used to be copy-pasted into all
@@ -1048,6 +1051,32 @@ export default function AnalyticsClient({ userName }: { userName: string }) {
     return () => clearTimeout(timer);
   }, [dateFrom, dateTo, fetchData]);
 
+  /* Export. Its own request rather than the page's state: the workbook carries the line-level
+     rows, which live behind the supplier modal and are never all on screen at once, and every
+     session rather than the twenty the list shows. The date range is the one on screen, so what
+     downloads is what was being looked at. */
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const handleExport = useCallback(async () => {
+    setIsExporting(true);
+    setExportError(null);
+    try {
+      const data = await getMyAnalyticsExport(filtersRef.current);
+      if (!data) {
+        setExportError('Could not build the export. Try again, or refresh the page.');
+        return;
+      }
+      await downloadMyAnalyticsWorkbook(data);
+    } catch {
+      /* Said out loud. A download that silently does not happen reads as a dead button, and
+         the person then clicks it four more times. */
+      setExportError('Could not build the export. Try again, or refresh the page.');
+    } finally {
+      setIsExporting(false);
+    }
+  }, []);
+
   const hasData = analytics !== null && analytics.recentSessions.length > 0;
   const isEmpty = analytics !== null && !isLoading && analytics.recentSessions.length === 0;
 
@@ -1093,26 +1122,36 @@ export default function AnalyticsClient({ userName }: { userName: string }) {
             <span className="hidden sm:inline text-sm font-medium text-gray-500">My Analytics</span>
           </div>
 
-          <button
-            onClick={fetchData}
-            disabled={isLoading}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-medium text-gray-600 bg-transparent border border-[#e5e7eb] rounded-md hover:bg-[#f9fafb] hover:border-[#d1d5db] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            <svg
-              className={`w-3.5 h-3.5 shrink-0 ${isLoading ? 'animate-spin' : ''}`}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2.5}
+          <div className="flex items-center gap-2">
+            <ExportToExcelButton
+              onClick={handleExport}
+              isExporting={isExporting}
+              disabled={isExporting || isLoading || !hasData}
+              title={
+                hasData ? 'Download your analytics as an Excel workbook' : 'Nothing to export yet'
+              }
+            />
+            <button
+              onClick={fetchData}
+              disabled={isLoading}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-medium text-gray-600 bg-transparent border border-[#e5e7eb] rounded-md hover:bg-[#f9fafb] hover:border-[#d1d5db] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-            {isLoading ? 'Loading…' : 'Refresh'}
-          </button>
+              <svg
+                className={`w-3.5 h-3.5 shrink-0 ${isLoading ? 'animate-spin' : ''}`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+              {isLoading ? 'Loading…' : 'Refresh'}
+            </button>
+          </div>
         </header>
 
         {/* ── Scrollable body ── */}
@@ -1188,6 +1227,9 @@ export default function AnalyticsClient({ userName }: { userName: string }) {
                   {dateFrom ? ` from ${dateFrom}` : ' up to'}
                   {dateTo ? ` to ${dateTo}` : dateFrom ? ' onwards' : ''}.
                 </p>
+              )}
+              {exportError && (
+                <p className="w-full py-1.5 text-[12px] font-medium text-red-600">{exportError}</p>
               )}
             </div>
           </div>

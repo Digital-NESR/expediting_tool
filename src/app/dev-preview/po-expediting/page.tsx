@@ -10,6 +10,7 @@
  * entry in src/proxy.ts is only added outside production, so the auth gate still covers it.
  */
 import { notFound } from 'next/navigation';
+import HeaderPreview from './HeaderPreview';
 import KpiPreview from './KpiPreview';
 
 export default function PoExpeditingPreviewPage() {
@@ -28,11 +29,18 @@ export default function PoExpeditingPreviewPage() {
           </p>
         </div>
 
-        <section>
+        <section className="mb-10">
           <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-700">
             Dashboard KPI cards
           </h2>
           <KpiPreview />
+        </section>
+
+        <section>
+          <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-700">
+            My Analytics export control
+          </h2>
+          <HeaderPreview />
         </section>
       </div>
     </main>
