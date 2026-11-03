@@ -295,3 +295,53 @@ export function ExportToExcelButton({
     </button>
   );
 }
+
+/**
+ * "Closed in SAP" — the PO has left `sap_open_po_master` since it was expedited.
+ *
+ * Without this, a goods-received PO renders as a row of dashes and reads as a bug. It usually
+ * is not: the master keeps only POs that are still open, so once a PO is received the live
+ * columns are simply gone. Work expedited from 14 Sep 2026 carries a dispatch-time snapshot and
+ * still reads correctly; lines dispatched before that have nothing left to show, which is what
+ * `detailLost` says out loud rather than leaving the reader to guess.
+ */
+export function ClosedPoBadge({ detailLost }: { detailLost: boolean }) {
+  return (
+    <span
+      title={
+        detailLost
+          ? 'This PO is no longer open in SAP, and it was expedited before the tool kept a copy of the line detail, so the original description, quantity and value cannot be recovered.'
+          : 'This PO is no longer open in SAP — goods received, cancelled or otherwise closed. The figures shown are the ones captured when it was expedited.'
+      }
+      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500"
+    >
+      Closed in SAP
+      {detailLost && <span className="font-normal text-slate-400">· detail not captured</span>}
+    </span>
+  );
+}
+
+/** The three fields {@link closedPoState} reads. Both drill-down line shapes carry them. */
+export interface ClosedPoLine {
+  in_sap: boolean;
+  item_description: string | null;
+  open_qty: number | null;
+}
+
+/**
+ * Whether a group of lines has left SAP, and whether anything is left to show for it.
+ *
+ * `closed` requires EVERY line to be gone: one still-open line means the PO is still live and a
+ * badge would be a lie. `detailLost` is the narrower case -- closed AND nothing captured -- which
+ * only happens for work dispatched before the snapshot landed on 14 Sep 2026. After that the
+ * description, quantity and value survive the PO closing, so the group is marked closed but not
+ * lost, and the figures on screen are the ones captured at dispatch.
+ */
+export function closedPoState(lines: ClosedPoLine[]): { closed: boolean; detailLost: boolean } {
+  if (lines.length === 0) return { closed: false, detailLost: false };
+  const closed = lines.every((l) => !l.in_sap);
+  return {
+    closed,
+    detailLost: closed && lines.every((l) => !l.item_description && l.open_qty == null),
+  };
+}

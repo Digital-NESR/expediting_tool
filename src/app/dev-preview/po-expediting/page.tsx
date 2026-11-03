@@ -12,6 +12,7 @@
 import { notFound } from 'next/navigation';
 import HeaderPreview from './HeaderPreview';
 import KpiPreview from './KpiPreview';
+import LineTablePreview from './LineTablePreview';
 
 export default function PoExpeditingPreviewPage() {
   if (process.env.NODE_ENV === 'production') notFound();
@@ -34,6 +35,13 @@ export default function PoExpeditingPreviewPage() {
             Dashboard KPI cards
           </h2>
           <KpiPreview />
+        </section>
+
+        <section className="mb-10">
+          <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-700">
+            Analytics drill-down lines
+          </h2>
+          <LineTablePreview />
         </section>
 
         <section>

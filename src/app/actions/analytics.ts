@@ -2,7 +2,10 @@
 
 import pool from '@/lib/db';
 import { currentActor } from '@/lib/require-access';
-import { ensurePoExpeditingSchema } from '@/lib/po-expediting-schema';
+import {
+  ensureExpeditingMatIdSnapshot,
+  ensurePoExpeditingSchema,
+} from '@/lib/po-expediting-schema';
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
@@ -318,6 +321,13 @@ export interface SupplierDetailLine {
   open_po_value_usd: number | null;
   original_delivery_date: string | null;
   sap_delivery_code: string | null;
+  /**
+   * False once the PO has left `sap_open_po_master` -- goods-received, cancelled or
+   * otherwise closed since we expedited it. Lines dispatched before the snapshot landed
+   * (14 Sep 2026) then have nothing left to show, and the screens say so rather than
+   * rendering a row of dashes that reads as a fault.
+   */
+  in_sap: boolean;
 }
 
 export async function getSupplierDetail(supplierName: string): Promise<SupplierDetailLine[]> {
@@ -327,10 +337,13 @@ export async function getSupplierDetail(supplierName: string): Promise<SupplierD
   const userEmail = actor.email;
   try {
     await ensurePoExpeditingSchema();
-    /* Matched and read off the snapshot; the master is LEFT JOINed only for the
-       two fields that are not snapshotted. The old INNER JOIN on s.supplier_name
-       hid every line whose PO had since closed, so this drill-down showed fewer
-       lines than the supplier row that opened it. */
+    await ensureExpeditingMatIdSnapshot();
+    /* Matched and read off the snapshot; the master is LEFT JOINed for the live
+       SAP delivery code and to tell whether the PO is still open at all.
+       sap_mat_id joined the snapshot in 005 -- before that it came from the
+       master alone and went blank as soon as a PO closed. The old INNER JOIN on
+       s.supplier_name hid every line whose PO had since closed, so this
+       drill-down showed fewer lines than the supplier row that opened it. */
     const res = await pool.query(
       `
       SELECT
@@ -344,11 +357,15 @@ export async function getSupplierDetail(supplierName: string): Promise<SupplierD
         ae.buyer_comments,
         ae.dispatched_at,
         COALESCE(ae.item_description,  s.item_description)  AS item_description,
-        s.sap_mat_id,
+        COALESCE(ae.sap_mat_id,        s.sap_mat_id)        AS sap_mat_id,
         COALESCE(ae.open_qty,          s.open_qty)          AS open_qty,
         COALESCE(ae.open_po_value_usd, s.open_po_value_usd) AS open_po_value_usd,
         COALESCE(ae.delivery_date,     s.delivery_date)     AS original_delivery_date,
-        s.delivery_code  AS sap_delivery_code
+        s.delivery_code  AS sap_delivery_code,
+        /* The master holds only POs that are still open, so this is "the PO was
+           goods-received, cancelled or otherwise closed since we expedited it".
+           The screens need it to tell a closed PO apart from a rendering fault. */
+        (s.po_number IS NOT NULL) AS in_sap
       FROM active_expediting ae
       LEFT JOIN sap_open_po_master s
         ON ae.po_number = s.po_number AND ae.po_line = s.po_line
@@ -375,6 +392,7 @@ export async function getSupplierDetail(supplierName: string): Promise<SupplierD
       open_po_value_usd: r.open_po_value_usd != null ? Number(r.open_po_value_usd) : null,
       original_delivery_date: toStr(r.original_delivery_date),
       sap_delivery_code: toStr(r.sap_delivery_code),
+      in_sap: r.in_sap === true,
     }));
   } catch (err) {
     console.error('[getSupplierDetail]', err);
@@ -400,6 +418,13 @@ export interface SessionDetailLine {
   open_po_value_usd: number | null;
   original_delivery_date: string | null;
   sap_delivery_code: string | null;
+  /**
+   * False once the PO has left `sap_open_po_master` -- goods-received, cancelled or
+   * otherwise closed since we expedited it. Lines dispatched before the snapshot landed
+   * (14 Sep 2026) then have nothing left to show, and the screens say so rather than
+   * rendering a row of dashes that reads as a fault.
+   */
+  in_sap: boolean;
 }
 
 export async function getSessionDetail(sessionRef: string): Promise<SessionDetailLine[]> {
@@ -409,6 +434,7 @@ export async function getSessionDetail(sessionRef: string): Promise<SessionDetai
   const userEmail = actor.email;
   try {
     await ensurePoExpeditingSchema();
+    await ensureExpeditingMatIdSnapshot();
     const res = await pool.query(
       `
       SELECT
@@ -422,11 +448,15 @@ export async function getSessionDetail(sessionRef: string): Promise<SessionDetai
         ae.expedite_token,
         COALESCE(NULLIF(ae.supplier_name, ''), s.supplier_name, 'Unknown Supplier') AS supplier_name,
         COALESCE(ae.item_description,  s.item_description)  AS item_description,
-        s.sap_mat_id,
+        COALESCE(ae.sap_mat_id,        s.sap_mat_id)        AS sap_mat_id,
         COALESCE(ae.open_qty,          s.open_qty)          AS open_qty,
         COALESCE(ae.open_po_value_usd, s.open_po_value_usd) AS open_po_value_usd,
         COALESCE(ae.delivery_date,     s.delivery_date)     AS original_delivery_date,
-        s.delivery_code  AS sap_delivery_code
+        s.delivery_code  AS sap_delivery_code,
+        /* The master holds only POs that are still open, so this is "the PO was
+           goods-received, cancelled or otherwise closed since we expedited it".
+           The screens need it to tell a closed PO apart from a rendering fault. */
+        (s.po_number IS NOT NULL) AS in_sap
       FROM active_expediting ae
       LEFT JOIN sap_open_po_master s
         ON ae.po_number = s.po_number AND ae.po_line = s.po_line
@@ -454,6 +484,7 @@ export async function getSessionDetail(sessionRef: string): Promise<SessionDetai
       open_po_value_usd: r.open_po_value_usd != null ? Number(r.open_po_value_usd) : null,
       original_delivery_date: toStr(r.original_delivery_date),
       sap_delivery_code: toStr(r.sap_delivery_code),
+      in_sap: r.in_sap === true,
     }));
   } catch (err) {
     console.error('[getSessionDetail]', err);
@@ -534,6 +565,7 @@ export async function getMyAnalyticsExport(
 
   try {
     await ensurePoExpeditingSchema();
+    await ensureExpeditingMatIdSnapshot();
     const { params, inRange } = buyerScope(userEmail, filters);
 
     const [analytics, linesRes, sessionsRes] = await Promise.all([
@@ -555,7 +587,7 @@ export async function getMyAnalyticsExport(
           ae.supplier_id,
           ae.country,
           ae.p_group,
-          s.sap_mat_id,
+          COALESCE(ae.sap_mat_id,        s.sap_mat_id)        AS sap_mat_id,
           COALESCE(ae.item_description,  s.item_description)  AS item_description,
           COALESCE(ae.open_qty,          s.open_qty)          AS open_qty,
           COALESCE(ae.open_po_value_usd, s.open_po_value_usd) AS open_po_value_usd,
