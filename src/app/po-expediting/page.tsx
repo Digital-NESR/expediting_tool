@@ -22,7 +22,14 @@ import { SquareCheckbox } from '@/components/SquareCheckbox';
 import type { PurchaseOrder } from '@/types/po';
 import { DS_DISPLAY_LABELS } from '@/lib/ds-codes';
 import type { PoGroup, PoSortKey, SortDir } from './_lib/types';
-import { compareValues, daysDiff, formatCurrency, formatDate, formatDateTime } from './_lib/format';
+import {
+  compareValues,
+  daysDiff,
+  formatCurrency,
+  formatCurrencyCompact,
+  formatDate,
+  formatDateTime,
+} from './_lib/format';
 import {
   PO_SORT_MAP,
   rowMatchesAccountType,
@@ -521,6 +528,7 @@ export default function Dashboard() {
               <KpiCard
                 label="Total Open Value"
                 value={formatCurrency(stats.totalValue)}
+                compactValue={formatCurrencyCompact(stats.totalValue)}
                 lines={stats.totalLines}
                 accent
               />

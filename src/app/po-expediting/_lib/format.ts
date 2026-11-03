@@ -35,6 +35,37 @@ export function formatCurrency(raw: number | string | null | undefined): string 
   }).format(n);
 }
 
+/**
+ * The same amount, short enough for a phone: "$118.4M".
+ *
+ * The KPI cards are two to a row under 640px, which leaves about 106px of usable width, and
+ * `formatCurrency` shows cents -- so a real total renders as "$118,409,052.18" and needs
+ * roughly 240px. It overflowed its card and clipped into the neighbour. No font size that
+ * still reads as a KPI closes a gap that wide, so the number itself has to get shorter.
+ *
+ * One decimal, which keeps the figure meaningful (118.4M, not 118M) while staying under eight
+ * characters. Below a thousand there is nothing to abbreviate and Intl leaves it alone, so a
+ * small country's total still reads exactly.
+ *
+ * This is a DISPLAY form for narrow screens only; the card shows the full value from 640px up,
+ * the table below it is unrounded, and the Excel export carries the exact figure. Nothing
+ * downstream reads this string.
+ */
+export function formatCurrencyCompact(raw: number | string | null | undefined): string {
+  const n = Number(raw);
+  if (raw === null || raw === undefined || raw === '' || isNaN(n)) return '\u2014';
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    notation: 'compact',
+    /* minimum 0 is doing real work: compact notation otherwise pads to the maximum, and a
+       country whose total is under a thousand rendered as "$950.0", which reads as a
+       truncation rather than as the exact figure it is. */
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  }).format(n);
+}
+
 export function daysDiff(raw: string | null | undefined): number {
   if (!raw) return 0;
   const d = new Date(raw);

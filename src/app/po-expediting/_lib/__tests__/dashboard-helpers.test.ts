@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import type { PurchaseOrder } from '@/types/po';
-import { compareValues, daysDiff, formatCurrency, formatDate } from '../format';
+import {
+  compareValues,
+  daysDiff,
+  formatCurrency,
+  formatCurrencyCompact,
+  formatDate,
+} from '../format';
 import { PO_SORT_MAP, rowMatchesAccountType, rowMatchesSearch, rowMatchesStatus } from '../filters';
 import { getPOMajorityDSCode, getPOStatusSummary } from '../po-status';
 
@@ -232,6 +238,47 @@ describe('formatting', () => {
 
   it('passes an unparseable date through rather than hiding it', () => {
     expect(formatDate('not a date')).toBe('not a date');
+  });
+});
+
+/*
+ * The short form the KPI card shows under 640px.
+ *
+ * It exists because "$118,409,052.18" needs about 240px and the card has 106px, so the full
+ * figure clipped into the next card. These assert the two things that would make the short
+ * form worse than the overflow it replaces: losing the magnitude, and padding a small exact
+ * number into something that looks rounded.
+ */
+describe('formatCurrencyCompact', () => {
+  it('keeps a tenth, so a total reads as 118.4M rather than 118M', () => {
+    expect(formatCurrencyCompact(118_409_052.18)).toBe('$118.4M');
+  });
+
+  it('abbreviates at every scale the estate reaches', () => {
+    expect(formatCurrencyCompact(1_500_000)).toBe('$1.5M');
+    expect(formatCurrencyCompact(1250)).toBe('$1.3K');
+    expect(formatCurrencyCompact(12_345_678_901)).toBe('$12.3B');
+  });
+
+  it('leaves a figure under a thousand exact, with no trailing tenth', () => {
+    /* Compact notation pads to the maximum unless told otherwise, and "$950.0" reads as a
+       truncated number rather than as the precise amount it is. */
+    expect(formatCurrencyCompact(950)).toBe('$950');
+    expect(formatCurrencyCompact(0)).toBe('$0');
+  });
+
+  it('stays short enough for the card at every magnitude', () => {
+    /* 8 characters is what fits at text-2xl in 106px. The guard is on the format, not on one
+       example, because the next person to widen maximumFractionDigits will not be measuring. */
+    for (const n of [0, 950, 1250, 118_409_052.18, 12_345_678_901, 999_999_999_999]) {
+      expect(formatCurrencyCompact(n).length).toBeLessThanOrEqual(8);
+    }
+  });
+
+  it('renders an em dash for nothing, like its full-length sibling', () => {
+    for (const raw of [null, undefined, '', 'abc']) {
+      expect(formatCurrencyCompact(raw)).toBe('\u2014');
+    }
   });
 });
 
