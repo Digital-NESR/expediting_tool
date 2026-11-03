@@ -5,6 +5,8 @@ import { currentActor } from '@/lib/require-access';
 import { travelScopeFor } from '@/lib/travel-analytics/grants';
 import { loadTravelAnalytics } from '@/lib/travel-analytics/queries';
 import type { TravelAnalyticsData } from '@/lib/travel-analytics/queries';
+import { loadPurchaseOrderAnalytics } from '@/lib/purchase-orders/queries';
+import type { PurchaseOrderAnalytics } from '@/lib/purchase-orders/queries';
 import { logger } from '@/lib/logger';
 import AnalyticsTabs from './AnalyticsTabs';
 
@@ -32,7 +34,11 @@ function embedUrl(): string {
 /* The travel board reads five tables across two databases, and the slowest part is the
    cost-centre mapping. Well inside the platform default today — this is here because the
    figure that will grow is the bookings table, and a page that starts timing out should do so
-   loudly in a review rather than quietly in production. */
+   loudly in a review rather than quietly in production.
+
+   The PO board is the bigger consumer now: ten aggregates over a 747k-row fact table, ~5s
+   warm. They run in parallel with the travel board, so the page costs the slower of the two
+   rather than their sum. */
 export const maxDuration = 30;
 
 export default async function SupplyChainAnalyticsPage() {
@@ -49,14 +55,25 @@ export default async function SupplyChainAnalyticsPage() {
   /* A failure here must not take the Power BI tab down with it: the two boards share a page and
      nothing else. A travel feed that is unreachable renders the same card as no access, which
      is the honest answer — there is nothing to show either way — and the reason is logged. */
-  let travel: TravelAnalyticsData | null = null;
-  if (scope) {
-    try {
-      travel = await loadTravelAnalytics(scope);
-    } catch (err) {
-      log.error('travel board unavailable', err);
-    }
-  }
+  /* Each board is loaded independently and a failure in one renders that board's own
+     unavailable card. The warehouse belongs to another pipeline, so it is the most likely of
+     the three to be missing, and it must not take the travel board or the Power BI tab with
+     it. They resolve in parallel, so the page costs the slower rather than their sum. */
+  const [travel, purchaseOrders]: [TravelAnalyticsData | null, PurchaseOrderAnalytics | null] =
+    await Promise.all([
+      scope
+        ? loadTravelAnalytics(scope).catch((err) => {
+            log.error('travel board unavailable', err);
+            return null;
+          })
+        : null,
+      actor.isPlatformAdmin
+        ? loadPurchaseOrderAnalytics().catch((err) => {
+            log.error('purchase order board unavailable', err);
+            return null;
+          })
+        : null,
+    ]);
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50 font-sans text-slate-900">
@@ -87,7 +104,9 @@ export default async function SupplyChainAnalyticsPage() {
       <AnalyticsTabs
         embedUrl={actor.isPlatformAdmin ? embedUrl() : ''}
         travel={travel}
+        purchaseOrders={purchaseOrders}
         showPowerBi={actor.isPlatformAdmin}
+        showPurchaseOrders={actor.isPlatformAdmin}
       />
     </div>
   );

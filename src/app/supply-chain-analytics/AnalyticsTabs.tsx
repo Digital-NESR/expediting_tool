@@ -12,53 +12,72 @@
    particular reader is entitled to and nothing else — a tab that shows an access-denied card
    is a worse answer than no tab.
 
-   The travel board is pulled in with next/dynamic so recharts stays out of the bundle a
-   Power-BI-only reader downloads. Prerendering is left on: it is an ordinary client component
+   Tab 3 is the PO book from the SAP extract warehouse. Admin-only, like the Power BI tab:
+   it is company-wide purchasing data with no country scoping of its own, and the travel grant
+   says nothing about who may see it.
+
+   Both native boards are pulled in with next/dynamic so recharts stays out of the bundle a
+   Power-BI-only reader downloads. Prerendering is left on: they are ordinary client components
    whose props the server already resolved.
    ───────────────────────────────────────────────────────────── */
 
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { TravelAnalyticsData } from '@/lib/travel-analytics/queries';
+import type { PurchaseOrderAnalytics } from '@/lib/purchase-orders/queries';
+
+const boardSkeleton = () => (
+  <div className="animate-pulse space-y-4">
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="h-24 rounded-2xl bg-slate-100" />
+      ))}
+    </div>
+    <div className="h-80 rounded-2xl bg-slate-100" />
+  </div>
+);
 
 const TravelAnalyticsClient = dynamic(() => import('./TravelAnalyticsClient'), {
-  loading: () => (
-    <div className="animate-pulse space-y-4">
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="h-24 rounded-2xl bg-slate-100" />
-        ))}
-      </div>
-      <div className="h-80 rounded-2xl bg-slate-100" />
-    </div>
-  ),
+  loading: boardSkeleton,
 });
 
-type TabId = 'power-bi' | 'travel';
+const PurchaseOrderAnalyticsClient = dynamic(() => import('./PurchaseOrderAnalyticsClient'), {
+  loading: boardSkeleton,
+});
+
+type TabId = 'power-bi' | 'travel' | 'purchase-orders';
 
 export default function AnalyticsTabs({
   embedUrl,
   travel,
+  purchaseOrders,
   showPowerBi,
+  showPurchaseOrders,
 }: {
   embedUrl: string;
   travel: TravelAnalyticsData | null;
+  purchaseOrders: PurchaseOrderAnalytics | null;
   showPowerBi: boolean;
+  showPurchaseOrders: boolean;
 }) {
-  const [tab, setTab] = useState<TabId>(showPowerBi ? 'power-bi' : 'travel');
-
   const tabs: { id: TabId; label: string; sub: string }[] = [
     ...(showPowerBi
+      ? [{ id: 'power-bi' as const, label: 'Supply Chain Health Board', sub: 'Power BI · 2026' }]
+      : []),
+    { id: 'travel' as const, label: 'Travel Portal', sub: 'Live from the travel feed' },
+    ...(showPurchaseOrders
       ? [
           {
-            id: 'power-bi' as const,
-            label: 'Supply Chain Health Board',
-            sub: 'Power BI · 2026',
+            id: 'purchase-orders' as const,
+            label: 'Purchase Orders',
+            sub: 'SAP extract · refreshed daily',
           },
         ]
       : []),
-    { id: 'travel', label: 'Travel Portal', sub: 'Live from the travel feed' },
   ];
+
+  /* Unchanged: a platform admin lands on the Power BI board, everyone else on the travel one. */
+  const [tab, setTab] = useState<TabId>(showPowerBi ? 'power-bi' : 'travel');
 
   return (
     <main className="flex flex-1 flex-col">
@@ -100,9 +119,13 @@ export default function AnalyticsTabs({
             />
           </div>
         </div>
-      ) : (
+      ) : tab === 'travel' ? (
         <div className="flex-1 p-6">
           <TravelAnalyticsClient data={travel} />
+        </div>
+      ) : (
+        <div className="flex-1 p-6">
+          <PurchaseOrderAnalyticsClient data={purchaseOrders} />
         </div>
       )}
     </main>

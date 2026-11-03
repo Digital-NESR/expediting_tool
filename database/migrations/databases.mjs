@@ -87,6 +87,16 @@ export const DATABASES = [
     readOnly: true,
   },
   {
+    /* The SAP extract warehouse. A separate daily pipeline loads `core.*` and publishes the
+       `track.*` view layer; Supply Chain Analytics reads the PO fact table for its Purchase
+       Orders board and writes nothing. Listed to satisfy the pool manifest, marked as not ours
+       to migrate. */
+    key: 'materials',
+    database: () => process.env.MATERIALS_DB_NAME || 'materials_db',
+    envStyle: 'sourceguide',
+    readOnly: true,
+  },
+  {
     /* RFx Officer's own database. ProcureGuard reads `released_prs` from it for the requisition
        picker and writes nothing, so it is listed to satisfy the pool manifest and marked as not
        ours to migrate. */
