@@ -2,15 +2,26 @@
 
 import React from 'react';
 
+/**
+ * A dashboard figure, with the same figure counted the other way beside it.
+ *
+ * Every card here counts DISTINCT POs, because that is the unit a buyer chases -- one call to
+ * the vendor covers the whole order. But the work is done line by line, and a card reading
+ * "41 past due" hides whether that is 60 lines or 600. `lines` puts both readings in one box,
+ * after a divider, so neither number can be mistaken for the other.
+ */
 export function KpiCard({
   label,
   value,
+  lines,
   accent = false,
   warning = false,
   danger = false,
 }: {
   label: string;
   value: string;
+  /** The same slice counted in PO lines. Omitted on a card where lines mean nothing. */
+  lines?: number;
   accent?: boolean;
   warning?: boolean;
   danger?: boolean;
@@ -25,7 +36,25 @@ export function KpiCard({
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col gap-1 transition-shadow duration-300 hover:shadow-md">
       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
-      <p className={`text-3xl font-bold tracking-tight ${valueColor}`}>{value}</p>
+      {/* Baseline-aligned so the small number sits on the big one's line rather than floating,
+          and wrapping rather than overflowing in the two-column phone layout. */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <p className={`text-3xl font-bold tracking-tight ${valueColor}`}>{value}</p>
+        {lines !== undefined && (
+          /* The divider and the count are ONE span, and nowrap. A long value — "$118,409,052",
+             or a seven-figure PO count — pushes this onto a second line, and when the two were
+             separate flex children the bar was left stranded at the end of one line or the
+             start of the next, reading as a typo rather than as a separator. */
+          <span className="inline-flex items-baseline gap-2 whitespace-nowrap">
+            <span aria-hidden className="text-xl font-light text-slate-300 select-none">
+              |
+            </span>
+            <span className="text-sm font-semibold text-slate-400">
+              {lines.toLocaleString()} {lines === 1 ? 'line' : 'lines'}
+            </span>
+          </span>
+        )}
+      </div>
     </div>
   );
 }

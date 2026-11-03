@@ -359,22 +359,31 @@ export default function Dashboard() {
     [sortedPOs, curPoPage],
   );
 
-  /* KPI stats — always derived from the fully-filtered dataset */
+  /* KPI stats — always derived from the fully-filtered dataset.
+
+     Each slice is counted twice: once in distinct POs, which is what a buyer chases, and once
+     in lines, which is what the work actually is. The two are taken from the SAME filtered
+     rows rather than from separate passes, so a card can never report more POs than it has
+     lines. */
   const stats = useMemo(() => {
-    const distinctPOs = new Set(filtered.map((r) => r['PO Number'])).size;
-    const pastDue = new Set(
-      filtered.filter((r) => daysDiff(r['Delivery Date']) < 0).map((r) => r['PO Number']),
-    ).size;
-    const dueSoon = new Set(
-      filtered
-        .filter((r) => {
-          const d = daysDiff(r['Delivery Date']);
-          return d >= 0 && d <= 7;
-        })
-        .map((r) => r['PO Number']),
-    ).size;
-    const totalValue = filtered.reduce((s, r) => s + Number(r['Open PO Value USD'] ?? 0), 0);
-    return { distinctPOs, pastDue, dueSoon, totalValue };
+    const isPastDue = (r: (typeof filtered)[number]) => daysDiff(r['Delivery Date']) < 0;
+    const isDueSoon = (r: (typeof filtered)[number]) => {
+      const d = daysDiff(r['Delivery Date']);
+      return d >= 0 && d <= 7;
+    };
+    const pastDueRows = filtered.filter(isPastDue);
+    const dueSoonRows = filtered.filter(isDueSoon);
+    const posIn = (rows: typeof filtered) => new Set(rows.map((r) => r['PO Number'])).size;
+
+    return {
+      distinctPOs: posIn(filtered),
+      pastDue: posIn(pastDueRows),
+      dueSoon: posIn(dueSoonRows),
+      totalValue: filtered.reduce((s, r) => s + Number(r['Open PO Value USD'] ?? 0), 0),
+      totalLines: filtered.length,
+      pastDueLines: pastDueRows.length,
+      dueSoonLines: dueSoonRows.length,
+    };
   }, [filtered]);
 
   /* Today label -------------------------------------------- */
@@ -494,19 +503,27 @@ export default function Dashboard() {
               <KpiCard
                 label="Distinct Open POs"
                 value={stats.distinctPOs.toLocaleString()}
+                lines={stats.totalLines}
                 accent
               />
               <KpiCard
                 label="Past Due"
                 value={stats.pastDue.toLocaleString()}
+                lines={stats.pastDueLines}
                 danger={stats.pastDue > 0}
               />
               <KpiCard
                 label="Due This Week"
                 value={stats.dueSoon.toLocaleString()}
+                lines={stats.dueSoonLines}
                 warning={stats.dueSoon > 0}
               />
-              <KpiCard label="Total Open Value" value={formatCurrency(stats.totalValue)} accent />
+              <KpiCard
+                label="Total Open Value"
+                value={formatCurrency(stats.totalValue)}
+                lines={stats.totalLines}
+                accent
+              />
             </div>
           )}
 
