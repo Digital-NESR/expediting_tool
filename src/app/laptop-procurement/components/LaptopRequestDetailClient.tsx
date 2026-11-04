@@ -397,7 +397,7 @@ function WipSection({ request }: { request: LaptopRequestDetailData['request'] }
         {state.kind === 'raised'
           ? `Raised in Freshservice on ${fmtDateTime(request.freshservice_attempted_at)}.`
           : state.kind === 'failed'
-            ? `Last tried ${fmtDateTime(request.freshservice_attempted_at)}. The approval stands — only the WIP is missing, and the country IT Manager has been emailed.`
+            ? `Last tried ${fmtDateTime(request.freshservice_attempted_at)}. The approval stands — only the WIP is missing, and it still needs raising.`
             : 'The approval is complete, but no WIP has been raised against this request.'}
       </p>
     </Section>

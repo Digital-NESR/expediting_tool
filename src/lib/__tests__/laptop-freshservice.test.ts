@@ -4,8 +4,11 @@ import {
   EXCEPTIONAL_UNIT_PRICE_USD,
   WIP_QUANTITY,
   WIP_SERVICE_ITEM_ID,
+  WIP_UNKNOWN,
   buildWipPayload,
+  buildWipProblemPayload,
   unitPriceUsd,
+  wipBuildError,
   wipName,
 } from '@/lib/laptop-procurement/freshservice';
 import type { LaptopRequest } from '@/types/laptopProcurement';
@@ -233,5 +236,80 @@ describe('keeping the country IT Manager in the loop', () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.payload.cc_emails).toEqual(['itm@nesr.com']);
+  });
+});
+
+describe('alerting when the WIP never reached Freshservice', () => {
+  /* The real case: a request fully approved without the IT Manager ever
+     specifying a model, which is how PLP01694 failed. The workflow's own
+     failure email cannot fire for this — Freshservice was never called — so
+     this payload is the only thing that reaches a person. */
+  const NO_MODEL = wipBuildError(['model', 'total value (USD)']);
+
+  it('carries the reason, which is what makes the email worth reading', () => {
+    const p = buildWipProblemPayload(request({ requested_model: null }), NO_MODEL, EMAIL);
+    expect(p.problem).toBe(NO_MODEL);
+    expect(p.problem).toContain('missing: model');
+  });
+
+  it('mirrors the real payload field names so one email template renders both', () => {
+    const p = buildWipProblemPayload(request(), NO_MODEL, EMAIL);
+    const real = buildWipPayload(request(), EMAIL, 100);
+    expect(real.ok).toBe(true);
+    if (!real.ok) return;
+    expect(Object.keys(p.custom_fields).sort()).toEqual(
+      Object.keys(real.payload.custom_fields).sort(),
+    );
+  });
+
+  it('marks what was missing rather than leaving it blank', () => {
+    // A blank cell reads as a rendering fault; a dash reads as "this was absent",
+    // which is the whole point of the message.
+    const p = buildWipProblemPayload(
+      request({ requested_model: null, cost_center: '  ' }),
+      NO_MODEL,
+      EMAIL,
+      [],
+      null,
+    );
+    expect(p.custom_fields.model).toBe(WIP_UNKNOWN);
+    expect(p.custom_fields.cost_center).toBe(WIP_UNKNOWN);
+    expect(p.custom_fields.total_value_usd).toBe(WIP_UNKNOWN);
+  });
+
+  it('shows a price it does know', () => {
+    const p = buildWipProblemPayload(request(), NO_MODEL, EMAIL, [], 100);
+    expect(p.custom_fields.total_value_usd).toBe(100);
+  });
+
+  it('still identifies the request when every field is missing', () => {
+    // Whatever else is absent, the reference number has to survive — it is the
+    // only way the reader finds the request this is about.
+    const p = buildWipProblemPayload(
+      request({ country: null, company_code: null, cost_center: null, requested_model: null }),
+      NO_MODEL,
+      EMAIL,
+    );
+    expect(String(p.custom_fields.name)).toContain('PLP01633');
+  });
+
+  it('sends an empty recipient when there is no IT Manager, for the workflow to fall back on', () => {
+    // The one failure with nobody to address: the workflow substitutes the
+    // standing mailbox, so it is not silently dropped.
+    const p = buildWipProblemPayload(request(), 'No active IT Manager is configured.', '');
+    expect(p.email).toBe('');
+  });
+
+  it('never CCs the owner twice', () => {
+    const p = buildWipProblemPayload(request(), NO_MODEL, EMAIL, [
+      'SBagalkot@nesr.com',
+      'itm@nesr.com',
+    ]);
+    expect(p.cc_emails).toEqual(['itm@nesr.com']);
+  });
+
+  it('omits the CC field rather than sending an empty list', () => {
+    const p = buildWipProblemPayload(request(), NO_MODEL, EMAIL, []);
+    expect('cc_emails' in p).toBe(false);
   });
 });

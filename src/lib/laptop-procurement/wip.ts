@@ -2,6 +2,7 @@ import { getActiveApproverMatrixForCountry } from '@/lib/laptop-procurement/acto
 import { exec } from '@/lib/laptop-procurement/db';
 import {
   buildWipPayload,
+  buildWipProblemPayload,
   stripEnvQuotes,
   unitPriceUsd,
   wipBuildError,
@@ -151,6 +152,43 @@ async function postToWipWorkflow(url: string, payload: WipPayload): Promise<WipO
   }
 }
 
+/**
+ * Tells somebody that the WIP never got as far as Freshservice.
+ *
+ * Deliberately swallows everything. This runs on a path that has already
+ * failed, and the outcome the caller returns is the real failure — an alert
+ * that could not be delivered must not replace "missing: model" with a fetch
+ * error and send whoever reads the request screen chasing the wrong problem.
+ * A shorter timeout than the WIP call itself, for the same reason: nothing
+ * downstream is waiting on it.
+ */
+async function alertWipProblem(
+  url: string,
+  request: LaptopRequest,
+  reason: string,
+  ownerEmail: string,
+  cc: string[],
+  priceUsd: number | null,
+): Promise<void> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: wipWebhookHeaders(),
+      body: JSON.stringify(buildWipProblemPayload(request, reason, ownerEmail, cc, priceUsd)),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    log.error('wip.alert.failed', err, {
+      reference: request.reference_number,
+      reason,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 /** Finds the ticket id wherever the workflow put it. */
 export function extractServiceRequestId(body: unknown): number | null {
   if (body == null || typeof body !== 'object') return null;
@@ -211,15 +249,26 @@ export async function raiseFreshserviceWip(request: LaptopRequest): Promise<WipO
 
 async function buildAndPost(request: LaptopRequest, url: string): Promise<WipOutcome> {
   const { owner, cc } = await resolveWipParticipants(request.country);
+  const price = unitPriceUsd(request.requested_model ?? '', request.country ?? '');
 
   const testMode = isWipTestMode();
   const testInbox = stripEnvQuotes(process.env.LAPTOP_FRESHSERVICE_WIP_TEST_EMAIL ?? '').trim();
+
+  /* Every exit below this one returns before Freshservice is ever called, so
+     the workflow's own failure email cannot fire for it — that node only runs
+     once Freshservice has rejected something. Each therefore alerts on its way
+     out. Without this they are silent: the request screen would be the only
+     place the failure exists, and only for whoever happens to open it. */
+  const fail = async (reason: string, to: string): Promise<WipOutcome> => {
+    await alertWipProblem(url, request, reason, to, testMode ? [] : cc, price);
+    return { state: 'failed', error: reason };
+  };
+
   if (testMode && !testInbox) {
-    return {
-      state: 'failed',
-      error:
-        'LAPTOP_FRESHSERVICE_WIP_TEST_MODE is on but LAPTOP_FRESHSERVICE_WIP_TEST_EMAIL is not set.',
-    };
+    return fail(
+      'LAPTOP_FRESHSERVICE_WIP_TEST_MODE is on but LAPTOP_FRESHSERVICE_WIP_TEST_EMAIL is not set.',
+      owner ?? '',
+    );
   }
 
   // In test mode the ticket is raised under the test inbox and nobody real is
@@ -228,15 +277,17 @@ async function buildAndPost(request: LaptopRequest, url: string): Promise<WipOut
   const ccList = testMode ? [] : cc;
 
   if (!requester) {
-    return {
-      state: 'failed',
-      error: `No active IT Manager is configured for ${request.country ?? 'this country'}, so the WIP has no owner.`,
-    };
+    /* No owner to address it to, which is the whole problem. Sent with an empty
+       recipient on purpose: the workflow falls back to the standing mailbox, so
+       the one failure with nobody to tell still tells somebody. */
+    return fail(
+      `No active IT Manager is configured for ${request.country ?? 'this country'}, so the WIP has no owner.`,
+      '',
+    );
   }
 
-  const price = unitPriceUsd(request.requested_model ?? '', request.country ?? '');
   const built = buildWipPayload(request, requester, price, ccList);
-  if (!built.ok) return { state: 'failed', error: wipBuildError(built.missing) };
+  if (!built.ok) return fail(wipBuildError(built.missing), requester);
 
   const payload = testMode
     ? {

@@ -158,17 +158,7 @@ export function buildWipPayload(
   }
   if (missing.length) return { ok: false, missing };
 
-  /* De-duplicated case-insensitively, and the requester is dropped: they are
-     already on the ticket, and Freshservice would otherwise mail them twice. */
-  const seen = new Set<string>([email.toLowerCase()]);
-  const cc: string[] = [];
-  for (const raw of ccEmails) {
-    const addr = (raw ?? '').trim();
-    const key = addr.toLowerCase();
-    if (!addr || seen.has(key)) continue;
-    seen.add(key);
-    cc.push(addr);
-  }
+  const cc = otherRecipients(email, ccEmails);
 
   return {
     ok: true,
@@ -191,4 +181,71 @@ export function buildWipPayload(
 /** Why a request could not be turned into a WIP, as one sentence. */
 export function wipBuildError(missing: string[]): string {
   return `This request cannot raise a SAP WIP yet — missing: ${missing.join(', ')}.`;
+}
+
+/**
+ * De-duplicated case-insensitively, with `primary` dropped: they are already
+ * the recipient, and would otherwise be mailed twice.
+ */
+function otherRecipients(primary: string, candidates: (string | null | undefined)[]): string[] {
+  const seen = new Set<string>([primary.trim().toLowerCase()]);
+  const out: string[] = [];
+  for (const raw of candidates) {
+    const addr = (raw ?? '').trim();
+    const key = addr.toLowerCase();
+    if (!addr || seen.has(key)) continue;
+    seen.add(key);
+    out.push(addr);
+  }
+  return out;
+}
+
+/** Stands in for a field the request never filled, so the email reads honestly. */
+export const WIP_UNKNOWN = '—';
+
+/**
+ * What the workflow is sent when the WIP could not even be built.
+ *
+ * Not a Freshservice payload — it is never forwarded to the service desk. It
+ * exists so the three failures that happen *before* the Freshservice call still
+ * reach a person: a missing model or price, no IT Manager configured for the
+ * country, or test mode left half-configured. n8n's own failure email only
+ * fires once Freshservice has rejected something, so without this those three
+ * are silent, and the request screen is the only place they exist — visible
+ * only to whoever happens to open that request.
+ *
+ * The field names mirror the real payload so the workflow's existing email can
+ * render either one, and the missing values carry a dash rather than an empty
+ * string so the table shows what was absent instead of looking merely blank.
+ */
+export interface WipProblemPayload {
+  problem: string;
+  email: string;
+  cc_emails?: string[];
+  custom_fields: Record<string, string | number>;
+}
+
+export function buildWipProblemPayload(
+  request: LaptopRequest,
+  reason: string,
+  ownerEmail: string,
+  ccEmails: (string | null | undefined)[] = [],
+  priceUsd: number | null = null,
+): WipProblemPayload {
+  const email = ownerEmail.trim();
+  const cc = otherRecipients(email, ccEmails);
+  return {
+    problem: reason,
+    email,
+    ...(cc.length ? { cc_emails: cc } : {}),
+    custom_fields: {
+      country: request.country?.trim() || WIP_UNKNOWN,
+      company_code: request.company_code?.trim() || WIP_UNKNOWN,
+      cost_center: request.cost_center?.trim() || WIP_UNKNOWN,
+      name: wipName(request),
+      model: request.requested_model?.trim() || WIP_UNKNOWN,
+      quantity: WIP_QUANTITY,
+      total_value_usd: priceUsd != null && priceUsd > 0 ? priceUsd : WIP_UNKNOWN,
+    },
+  };
 }
