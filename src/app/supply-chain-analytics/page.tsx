@@ -7,6 +7,10 @@ import { loadTravelAnalytics } from '@/lib/travel-analytics/queries';
 import type { TravelAnalyticsData } from '@/lib/travel-analytics/queries';
 import { loadPurchaseOrderAnalytics } from '@/lib/purchase-orders/queries';
 import type { PurchaseOrderAnalytics } from '@/lib/purchase-orders/queries';
+import { loadPastDueAnalysis } from '@/lib/purchase-orders/past-due';
+import type { PastDueAnalysis } from '@/lib/purchase-orders/past-due';
+import { loadPoFilterOptions } from '@/lib/purchase-orders/options';
+import { EMPTY_FILTERS, type PoFilterOptions } from '@/lib/purchase-orders/filters';
 import { logger } from '@/lib/logger';
 import AnalyticsTabs from './AnalyticsTabs';
 
@@ -59,21 +63,44 @@ export default async function SupplyChainAnalyticsPage() {
      unavailable card. The warehouse belongs to another pipeline, so it is the most likely of
      the three to be missing, and it must not take the travel board or the Power BI tab with
      it. They resolve in parallel, so the page costs the slower rather than their sum. */
-  const [travel, purchaseOrders]: [TravelAnalyticsData | null, PurchaseOrderAnalytics | null] =
-    await Promise.all([
-      scope
-        ? loadTravelAnalytics(scope).catch((err) => {
-            log.error('travel board unavailable', err);
-            return null;
-          })
-        : null,
-      actor.isPlatformAdmin
-        ? loadPurchaseOrderAnalytics().catch((err) => {
-            log.error('purchase order board unavailable', err);
-            return null;
-          })
-        : null,
-    ]);
+  /* Each board is loaded independently and a failure in one renders that board's own
+     unavailable card. The warehouse belongs to another pipeline, so it is the most likely of
+     the three to be missing, and it must not take the travel board or the Power BI tab with
+     it. They resolve in parallel, so the page costs the slower rather than their sum.
+
+     The PO tab needs three things — overview, past due, and the filter option lists — and a
+     failure in any one of them blanks only the piece it feeds. */
+  const [travel, purchaseOrders, pastDue, poOptions]: [
+    TravelAnalyticsData | null,
+    PurchaseOrderAnalytics | null,
+    PastDueAnalysis | null,
+    PoFilterOptions | null,
+  ] = await Promise.all([
+    scope
+      ? loadTravelAnalytics(scope).catch((err) => {
+          log.error('travel board unavailable', err);
+          return null;
+        })
+      : null,
+    actor.isPlatformAdmin
+      ? loadPurchaseOrderAnalytics(EMPTY_FILTERS).catch((err) => {
+          log.error('purchase order board unavailable', err);
+          return null;
+        })
+      : null,
+    actor.isPlatformAdmin
+      ? loadPastDueAnalysis(EMPTY_FILTERS).catch((err) => {
+          log.error('past due board unavailable', err);
+          return null;
+        })
+      : null,
+    actor.isPlatformAdmin
+      ? loadPoFilterOptions().catch((err) => {
+          log.error('purchase order filters unavailable', err);
+          return null;
+        })
+      : null,
+  ]);
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50 font-sans text-slate-900">
@@ -105,6 +132,8 @@ export default async function SupplyChainAnalyticsPage() {
         embedUrl={actor.isPlatformAdmin ? embedUrl() : ''}
         travel={travel}
         purchaseOrders={purchaseOrders}
+        pastDue={pastDue}
+        poOptions={poOptions}
         showPowerBi={actor.isPlatformAdmin}
         showPurchaseOrders={actor.isPlatformAdmin}
       />

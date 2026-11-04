@@ -25,6 +25,8 @@ import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { TravelAnalyticsData } from '@/lib/travel-analytics/queries';
 import type { PurchaseOrderAnalytics } from '@/lib/purchase-orders/queries';
+import type { PastDueAnalysis } from '@/lib/purchase-orders/past-due';
+import type { PoFilterOptions } from '@/lib/purchase-orders/filters';
 
 const boardSkeleton = () => (
   <div className="animate-pulse space-y-4">
@@ -51,12 +53,16 @@ export default function AnalyticsTabs({
   embedUrl,
   travel,
   purchaseOrders,
+  pastDue,
+  poOptions,
   showPowerBi,
   showPurchaseOrders,
 }: {
   embedUrl: string;
   travel: TravelAnalyticsData | null;
   purchaseOrders: PurchaseOrderAnalytics | null;
+  pastDue: PastDueAnalysis | null;
+  poOptions: PoFilterOptions | null;
   showPowerBi: boolean;
   showPurchaseOrders: boolean;
 }) {
@@ -125,7 +131,25 @@ export default function AnalyticsTabs({
         </div>
       ) : (
         <div className="flex-1 p-6">
-          <PurchaseOrderAnalyticsClient data={purchaseOrders} />
+          {/* Without the option lists there is no filter bar to render, and a board whose
+              filters are missing is more confusing than one that says so. */}
+          {poOptions ? (
+            <PurchaseOrderAnalyticsClient
+              data={purchaseOrders}
+              pastDue={pastDue}
+              options={poOptions}
+            />
+          ) : (
+            <div className="rounded-2xl border border-slate-200 bg-white py-20 text-center">
+              <p className="text-[15px] font-semibold text-slate-900">
+                Purchase order data unavailable
+              </p>
+              <p className="mx-auto mt-1 max-w-md text-[13px] leading-relaxed text-slate-500">
+                The SAP extract warehouse could not be reached. The other boards on this page are
+                unaffected.
+              </p>
+            </div>
+          )}
         </div>
       )}
     </main>

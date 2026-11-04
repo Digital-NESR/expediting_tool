@@ -1,20 +1,136 @@
 'use client';
 
 /**
- * The Purchase Orders board — NESR's PO book as it stands in the SAP extract warehouse.
+ * The Purchase Orders tab — NESR's PO book as it stands in the SAP extract warehouse.
  *
- * Deliberately a read-only overview with no filters: it is the first cut of this data in the
- * app, and the question it answers is "what is in here and is it worth wiring up properly".
- * Filters belong in the next pass, once there is a reader asking for a specific slice.
+ * Two boards behind one filter bar: an overview of the whole book, and a past-due analysis of
+ * the open lines. The filters are shared deliberately — narrowing to Kuwait on one and finding
+ * a different population on the other is the kind of inconsistency that makes a reader stop
+ * trusting both.
+ *
+ * ── WHY THE FILTERS RE-QUERY INSTEAD OF FILTERING IN THE BROWSER ────────────────────────────
+ * 747k PO lines. Shipping them to the client to filter would be a ~200MB payload to answer a
+ * question Postgres answers in a few seconds over indexed columns. Every filter change calls
+ * back through a server action, which re-checks the reader before it re-aggregates.
  *
  * The ranked dimension charts are Tailwind bar lists rather than recharts: they are ten or
  * twelve labelled rows with a value each, which HTML lays out better than an SVG chart —
  * long category names wrap instead of being clipped to an axis gutter — and it keeps the
- * recharts bundle to the one chart that genuinely needs a continuous axis.
+ * recharts bundle to the charts that genuinely need a continuous axis.
  */
 
+import { useCallback, useState, useTransition } from 'react';
+import { fetchPastDueAnalysis, fetchPurchaseOrderAnalytics } from '@/app/actions/purchase-orders';
+import {
+  EMPTY_FILTERS,
+  isUnfiltered,
+  type PoFilters,
+  type PoFilterOptions,
+} from '@/lib/purchase-orders/filters';
+import type { PastDueAnalysis } from '@/lib/purchase-orders/past-due';
 import type { PurchaseOrderAnalytics, DimensionSlice } from '@/lib/purchase-orders/queries';
+import PastDueBoard from './PastDueBoard';
+import PurchaseOrderFilterBar from './PurchaseOrderFilterBar';
 import { GREEN, STATUS_TONE, SpendTrend, usdCompact } from './PurchaseOrderCharts';
+
+type View = 'overview' | 'past-due';
+
+/** How many filter controls are doing something, for the "N filters applied" line. */
+function countActive(f: PoFilters): number {
+  const lists = [
+    f.accountClassification,
+    f.segment,
+    f.country,
+    f.purchasingOrg,
+    f.supplier,
+    f.buyer,
+  ].filter((l) => l.length > 0).length;
+  const dates =
+    (f.releasedFrom || f.releasedTo ? 1 : 0) + (f.firstReleasedFrom || f.firstReleasedTo ? 1 : 0);
+  return lists + dates;
+}
+
+export default function PurchaseOrderAnalyticsClient({
+  data,
+  pastDue,
+  options,
+}: {
+  data: PurchaseOrderAnalytics | null;
+  pastDue: PastDueAnalysis | null;
+  options: PoFilterOptions;
+}) {
+  const [view, setView] = useState<View>('overview');
+  const [filters, setFilters] = useState<PoFilters>(EMPTY_FILTERS);
+  const [overview, setOverview] = useState(data);
+  const [past, setPast] = useState(pastDue);
+  const [busy, startTransition] = useTransition();
+
+  /* Both boards are refetched together rather than lazily per tab: they share a filter bar, and
+     switching tabs to find yesterday's numbers still loading is worse than one slightly longer
+     wait. The server resolves them in parallel. */
+  const apply = useCallback((next: PoFilters) => {
+    setFilters(next);
+    startTransition(async () => {
+      const [o, p] = await Promise.all([
+        fetchPurchaseOrderAnalytics(next),
+        fetchPastDueAnalysis(next),
+      ]);
+      setOverview(o);
+      setPast(p);
+    });
+  }, []);
+
+  const reset = useCallback(() => {
+    if (isUnfiltered(filters)) return;
+    apply(EMPTY_FILTERS);
+  }, [apply, filters]);
+
+  const views: { id: View; label: string }[] = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'past-due', label: 'Open PO · Past Due' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <PurchaseOrderFilterBar
+        options={options}
+        value={filters}
+        onChange={apply}
+        onReset={reset}
+        busy={busy}
+        activeCount={countActive(filters)}
+      />
+
+      <div className="flex flex-wrap items-center gap-1 border-b border-slate-200">
+        {views.map((v) => {
+          const active = v.id === view;
+          return (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => setView(v.id)}
+              aria-current={active ? 'page' : undefined}
+              className={`-mb-px border-b-2 px-3 py-2 text-[13px] font-semibold transition-colors ${
+                active
+                  ? 'border-[#307c4c] text-slate-900'
+                  : 'border-transparent text-slate-400 hover:text-slate-700'
+              }`}
+            >
+              {v.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Dimmed rather than replaced while refetching: the previous numbers stay readable and
+          the layout does not jump, which matters when a reader is adjusting one filter at a
+          time and comparing. */}
+      <div className={busy ? 'pointer-events-none opacity-50 transition-opacity' : 'transition-opacity'}>
+        {view === 'overview' ? <OverviewBoard data={overview} /> : <PastDueBoard data={past} />}
+      </div>
+    </div>
+  );
+}
 
 const int = (n: number) => n.toLocaleString();
 
@@ -105,7 +221,9 @@ function BarList({ rows, emptyNote }: { rows: DimensionSlice[]; emptyNote: strin
   );
 }
 
-export default function PurchaseOrderAnalyticsClient({ data }: { data: PurchaseOrderAnalytics | null }) {
+/* ─── The whole-book overview ─────────────────────────────────────────────── */
+
+function OverviewBoard({ data }: { data: PurchaseOrderAnalytics | null }) {
   if (!data) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white py-20 text-center">

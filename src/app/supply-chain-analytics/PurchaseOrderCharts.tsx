@@ -9,15 +9,29 @@
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
 import type { TrendPoint } from '@/lib/purchase-orders/queries';
+import type { CountrySplit } from '@/lib/purchase-orders/past-due';
 
 export const GREEN = '#307c4c';
+
+/* Past due is a two-state scale, not an identity one: a line is either still within its
+   delivery date or it is not. Green and red are the platform's good/serious accents, they
+   carry the meaning everyone already reads on the Power BI page beside this, and every segment
+   is labelled so neither state rests on colour alone. */
+export const DUE_IN = GREEN;
+export const PAST_DUE = '#B34141';
 
 /* Delivery state is a status scale, not an identity one: delivered / part-delivered /
    undelivered run good → warning → serious. The three accents are the ones the rest of the
@@ -112,6 +126,157 @@ export function SpendTrend({ data }: { data: TrendPoint[] }) {
           activeDot={{ r: 5, strokeWidth: 2, stroke: '#ffffff' }}
         />
       </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
+/* ─── Due In vs Past Due, as a share of open lines ───────────────────────────
+   A donut rather than a bar because there are exactly two parts of one whole and the question
+   is the split, not the magnitudes. Both slices are labelled with count and share, so the
+   reading never depends on the colour. */
+export function PastDueDonut({ dueIn, pastDue }: { dueIn: number; pastDue: number }) {
+  const total = dueIn + pastDue;
+  if (!total) {
+    return (
+      <p className="py-20 text-center text-[13px] text-slate-400">No open PO lines in this selection.</p>
+    );
+  }
+  const data = [
+    { name: 'Due In', value: dueIn, tone: DUE_IN },
+    { name: 'Past Due', value: pastDue, tone: PAST_DUE },
+  ];
+  const pct = (n: number) => `${((n / total) * 100).toFixed(1)}%`;
+
+  return (
+    <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+      <ResponsiveContainer width="100%" height={240} className="max-w-[260px]">
+        <PieChart>
+          <Pie
+            data={data}
+            dataKey="value"
+            nameKey="name"
+            innerRadius={58}
+            outerRadius={92}
+            /* 2px of surface between the two arcs, so the fills never touch. */
+            paddingAngle={2}
+            strokeWidth={2}
+            stroke="#ffffff"
+          >
+            {data.map((d) => (
+              <Cell key={d.name} fill={d.tone} />
+            ))}
+          </Pie>
+          <Tooltip
+            contentStyle={{
+              borderRadius: 10,
+              border: '1px solid #e2e8f0',
+              fontSize: 12,
+              boxShadow: '0 4px 12px rgba(15,23,42,0.08)',
+            }}
+            formatter={(v: unknown, name: unknown) => [
+              `${Number(v).toLocaleString()} lines · ${pct(Number(v))}`,
+              String(name),
+            ]}
+          />
+        </PieChart>
+      </ResponsiveContainer>
+
+      {/* Direct labels, not a colour key: each row carries its own number and share. */}
+      <ul className="w-full max-w-[220px] space-y-2">
+        {data.map((d) => (
+          <li key={d.name} className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2 text-[12.5px] text-slate-700">
+              <span className="h-2.5 w-2.5 rounded-sm" style={{ background: d.tone }} />
+              {d.name}
+            </span>
+            <span className="text-[12.5px] tabular-nums text-slate-400">
+              <span className="font-semibold text-slate-900">{d.value.toLocaleString()}</span>{' '}
+              ({pct(d.value)})
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/* ─── Open lines by country, as a 100% stack ─────────────────────────────────
+   Normalised to 100% because the question is "where is the problem worst", and raw counts
+   answer "where is the volume" — Saudi Arabia would dominate every bar and the 75% past-due
+   rate in Chad would be a sliver. The count sits in the tooltip, and the countries are ordered
+   by past-due share so the worst are read first. */
+export function PastDueByCountry({ rows }: { rows: CountrySplit[] }) {
+  if (!rows.length) {
+    return <p className="py-20 text-center text-[13px] text-slate-400">Nothing to show.</p>;
+  }
+
+  const data = rows.map((r) => ({
+    country: r.country,
+    dueInPct: r.total ? (r.dueIn / r.total) * 100 : 0,
+    pastDuePct: r.total ? (r.pastDue / r.total) * 100 : 0,
+    dueIn: r.dueIn,
+    pastDue: r.pastDue,
+    total: r.total,
+  }));
+
+  return (
+    <ResponsiveContainer width="100%" height={Math.max(280, data.length * 34)}>
+      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 4 }} barCategoryGap="22%">
+        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+        <XAxis
+          type="number"
+          domain={[0, 100]}
+          tick={{ fontSize: 11, fill: '#64748b' }}
+          tickLine={false}
+          axisLine={{ stroke: '#e2e8f0' }}
+          tickFormatter={(v: number) => `${v}%`}
+        />
+        <YAxis
+          type="category"
+          dataKey="country"
+          tick={{ fontSize: 11, fill: '#475569' }}
+          tickLine={false}
+          axisLine={false}
+          width={104}
+        />
+        <Tooltip
+          cursor={{ fill: 'rgba(148,163,184,0.12)' }}
+          contentStyle={{
+            borderRadius: 10,
+            border: '1px solid #e2e8f0',
+            fontSize: 12,
+            boxShadow: '0 4px 12px rgba(15,23,42,0.08)',
+          }}
+          formatter={(value: unknown, name: unknown, item: unknown) => {
+            const row = (item as { payload?: (typeof data)[number] })?.payload;
+            const lines = name === 'Past Due' ? row?.pastDue : row?.dueIn;
+            return [`${Number(value).toFixed(1)}% · ${(lines ?? 0).toLocaleString()} lines`, String(name)];
+          }}
+          labelFormatter={(label: unknown, items: readonly unknown[]) => {
+            const row = (items?.[0] as { payload?: (typeof data)[number] })?.payload;
+            return `${label} — ${(row?.total ?? 0).toLocaleString()} open lines`;
+          }}
+        />
+        <Legend
+          verticalAlign="top"
+          align="left"
+          height={28}
+          iconType="square"
+          iconSize={9}
+          wrapperStyle={{ fontSize: 12, color: '#475569' }}
+        />
+        {/* 2px surface gap between the two segments of each bar. */}
+        <Bar dataKey="dueInPct" stackId="s" name="Due In" fill={DUE_IN} stroke="#ffffff" strokeWidth={2} />
+        <Bar
+          dataKey="pastDuePct"
+          stackId="s"
+          name="Past Due"
+          fill={PAST_DUE}
+          stroke="#ffffff"
+          strokeWidth={2}
+          radius={[0, 4, 4, 0]}
+        />
+      </BarChart>
     </ResponsiveContainer>
   );
 }
