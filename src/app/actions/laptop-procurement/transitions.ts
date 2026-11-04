@@ -588,27 +588,29 @@ export async function overrideLaptopRequestStatus(
     revalidateLaptopPaths();
     revalidatePath(`/laptop-procurement/requests/${id}`);
 
-    if (options.notify) {
+    if (options.notify || status === 'Procure New') {
       // The committed row, not the pre-update snapshot — same reasoning as the ordinary
       // transition: a webhook cannot be rolled back, and it must describe what is actually true.
       const updatedRequest = asSerialised<LaptopRequest>(updatedRow ?? { ...row, status });
       deferLaptopNotifications('status-override', async () => {
-        // Each of these self-guards on the status, so the new status alone decides which fire.
-        await notifyLaptopNextApprover(updatedRequest);
-        await notifyLaptopFinalApproval(updatedRequest);
-        /* An override that announces full approval has to file the WIP too. It sits
-           inside `options.notify` deliberately, which is what makes the tickbox mean
-           "behave as though the chain had run": with it on, the SAP team is told the
-           request is approved and finds the WIP waiting; with it off the override is
-           a silent correction and files nothing, so fixing a status by hand cannot
-           put a real ticket into Freshservice by surprise.
+        /* Reaching Procure New is what raises the WIP, whatever route got it there
+           and whether or not the tickbox is on. The tickbox governs this tool's own
+           emails to approvers and the requester; the WIP is a record in SAP, and the
+           mail it generates is Freshservice's, sent to the SAP team off the back of
+           the ticket. Suppressing one was never meant to suppress the other.
 
-           The same no-second-WIP guard as the ordinary path applies, since it lives
-           in raiseFreshserviceWip and keys off freshservice_request_id — an override
-           onto a request that already raised one is a no-op rather than a duplicate. */
+           First in the block so a slow mail server cannot delay it, and no duplicate
+           risk: the guard lives in raiseFreshserviceWip and keys off
+           freshservice_request_id, so an override onto a request that already raised
+           one is a no-op. */
         if (status === 'Procure New') {
           await raiseFreshserviceWip(updatedRequest);
         }
+        if (!options.notify) return;
+
+        // Each of these self-guards on the status, so the new status alone decides which fire.
+        await notifyLaptopNextApprover(updatedRequest);
+        await notifyLaptopFinalApproval(updatedRequest);
         const nextStage = getLaptopApprovalStage(status);
         await notifyLaptopRequesterUpdate(updatedRequest, {
           kind: isRejection ? 'rejected' : nextStage ? 'forwarded' : 'final_approved',

@@ -1004,12 +1004,11 @@ export default function LaptopAdminClient({
       closeOverride();
       const fresh = await refreshAdminData();
       /* "Requested", not "raised": the WIP is filed after the response, so the
-         outcome is not known here. The request screen reports what came back. */
+         outcome is not known here. The request screen reports what came back.
+         Independent of overrideNotify, which governs this tool's emails only. */
       const wipNote =
         overrideStatus === 'Procure New'
-          ? overrideNotify
-            ? ' SAP WIP requested — the request shows the result.'
-            : ' No SAP WIP raised.'
+          ? ' SAP WIP requested — the request shows the result.'
           : '';
       setBanner(
         fresh
@@ -1468,9 +1467,7 @@ export default function LaptopAdminClient({
                                   onChange={(e) => setOverrideNotify(e.target.checked)}
                                   className="h-4 w-4 accent-[#307c4c]"
                                 />
-                                {overrideStatus === 'Procure New'
-                                  ? 'Send the notification and raise the SAP WIP'
-                                  : 'Send the notification for the new status'}
+                                Send the notification for the new status
                               </label>
 
                               <button
@@ -1495,9 +1492,7 @@ export default function LaptopAdminClient({
                                 ? ' The email that status normally sends will go out.'
                                 : ' No email will be sent.'}
                               {overrideStatus === 'Procure New' &&
-                                (overrideNotify
-                                  ? ' The SAP WIP will be raised in Freshservice too, exactly as a real approval would raise it.'
-                                  : ' No SAP WIP will be raised, so this stays a silent correction.')}
+                                ' The SAP WIP will be raised in Freshservice either way — the tickbox covers this tool’s emails, not the WIP.'}
                             </p>
                           </td>
                         </tr>
