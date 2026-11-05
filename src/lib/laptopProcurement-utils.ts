@@ -298,6 +298,18 @@ export const DEVICE_TYPE_OPTIONS = ['Laptop', 'Desktop'];
 
 export const DEVICE_AGE_OPTIONS = ['< 1 year', '1-3 years', '4-5 years', '5+ years'];
 
+/**
+ * The model a requester picks when no catalogued device fits.
+ *
+ * Lives here rather than beside the Freshservice code so the admin screen can
+ * name it without pulling a server-only module into the client bundle. It is
+ * priced by rule at a nominal dollar, never from the cost sheet — by definition
+ * nobody knows what the device is until the request exists — so the price
+ * editor excludes it rather than inviting an admin to key a figure that would
+ * be ignored.
+ */
+export const EXCEPTIONAL_DEVICE_MODEL = 'Other (Exceptional case only)';
+
 export const COUNTRY_OPTIONS = [
   'Saudi Arabia',
   'Abu Dhabi',

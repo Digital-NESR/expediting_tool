@@ -1,3 +1,4 @@
+import { EXCEPTIONAL_DEVICE_MODEL } from '@/lib/laptopProcurement-utils';
 import { stripEnvQuotes } from '@/lib/laptop-procurement/notifications';
 import type { LaptopRequest } from '@/types/laptopProcurement';
 
@@ -63,10 +64,10 @@ export interface WipPayload {
 /**
  * The model a requester picks when no catalogued device fits.
  *
- * The cost sheet has a row for it but will never carry a price: by definition
- * nobody knows what the device is until the request exists.
+ * Defined in laptopProcurement-utils so the admin price editor can name it
+ * without importing this module, which reaches server-only code.
  */
-export const EXCEPTIONAL_MODEL = 'Other (Exceptional case only)';
+export const EXCEPTIONAL_MODEL = EXCEPTIONAL_DEVICE_MODEL;
 
 /**
  * What an exceptional device is worth on the WIP: one dollar.
@@ -79,27 +80,20 @@ export const EXCEPTIONAL_MODEL = 'Other (Exceptional case only)';
  */
 export const EXCEPTIONAL_UNIT_PRICE_USD = 1;
 
-/** Stand-in for the per-country cost sheet, which is not filled in yet. */
-const PLACEHOLDER_UNIT_PRICE_USD = 100;
-
 /**
- * Unit price, USD.
+ * The prices that are rules rather than data.
  *
- * A function rather than a constant so the call site is already written against
- * a lookup: when the cost sheet arrives this reads a `(model, country) -> price`
- * table and nothing above it changes.
+ * Consulted before the price table and never overridden by it. The exceptional
+ * model is a nominal dollar by policy, and no admin should have to key a row
+ * for a device nobody can describe yet — by definition it is not known until
+ * the request exists.
  *
- * `number | null` because a lookup can miss. The exceptional model is handled
- * before the table is consulted — it will never be in it — and country 'Other'
- * has no column in the sheet at all, so it stays the one case that can still
- * come back unpriced once the real prices land.
+ * `null` means "no rule applies, ask the table". Country is not a parameter
+ * because none of these rules vary by it: an exceptional device is a dollar
+ * everywhere.
  */
-export function unitPriceUsd(model: string, country: string): number | null {
-  const m = model.trim();
-  const c = country.trim();
-  if (!m || !c) return null;
-  if (m === EXCEPTIONAL_MODEL) return EXCEPTIONAL_UNIT_PRICE_USD;
-  return PLACEHOLDER_UNIT_PRICE_USD;
+export function fixedUnitPriceUsd(model: string): number | null {
+  return model.trim() === EXCEPTIONAL_MODEL ? EXCEPTIONAL_UNIT_PRICE_USD : null;
 }
 
 /**

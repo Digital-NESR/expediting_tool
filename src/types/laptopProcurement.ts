@@ -153,6 +153,22 @@ export interface LaptopDeviceCatalogRow {
   created_at: string;
 }
 
+/**
+ * One cell of the device cost sheet: what this model costs in this country.
+ *
+ * `unit_price_usd` is NUMERIC in the database, which the driver hands back as a
+ * string. Typed as a number because the actions coerce it on the way out —
+ * nothing downstream should have to remember that.
+ */
+export interface LaptopDevicePriceRow {
+  id: number;
+  model: string;
+  country: string;
+  unit_price_usd: number;
+  updated_at: string | null;
+  updated_by: string | null;
+}
+
 export interface LaptopDeviceOption {
   type_of_device: string;
   model: string;
@@ -355,6 +371,7 @@ export interface LaptopAdminData {
   permissions: LaptopPermissionRow[];
   delegations: LaptopDelegationRow[];
   deviceCatalog: LaptopDeviceCatalogRow[];
+  devicePrices: LaptopDevicePriceRow[];
   stats: LaptopDashboardStats;
   // Every specific (email, stage, country) role delegatable from the Delegations tab —
   // one entry per approver-matrix slot, not per person, so delegating is scoped to

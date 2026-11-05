@@ -7,10 +7,11 @@ import {
   WIP_UNKNOWN,
   buildWipPayload,
   buildWipProblemPayload,
-  unitPriceUsd,
+  fixedUnitPriceUsd,
   wipBuildError,
   wipName,
 } from '@/lib/laptop-procurement/freshservice';
+import { toUnitPrice } from '@/lib/laptop-procurement/prices';
 import type { LaptopRequest } from '@/types/laptopProcurement';
 
 /** PLP01633, the request the live test (SR-144437) was built from. */
@@ -155,24 +156,47 @@ describe('refusing to send a partial WIP', () => {
   });
 });
 
-describe('the price placeholder', () => {
-  it('prices anything with a model and a country, for now', () => {
-    expect(unitPriceUsd('Dell Pro 14 Plus', 'Iraq')).toBe(100);
+describe('prices that are rules rather than data', () => {
+  it('leaves an ordinary model to the price table', () => {
+    // null is not "free" and not "zero" - it means no rule applies, so ask
+    // laptop_device_prices. Getting this wrong would let a rule silently
+    // override a figure an admin keyed in.
+    expect(fixedUnitPriceUsd('Dell Pro 14 Plus')).toBeNull();
+    expect(fixedUnitPriceUsd('Dell Latitude 5000 series - Core i5')).toBeNull();
   });
 
-  it('returns null rather than guessing when either side is blank', () => {
-    expect(unitPriceUsd('', 'Iraq')).toBeNull();
-    expect(unitPriceUsd('Dell Pro 14 Plus', '   ')).toBeNull();
+  it('leaves a blank model to the table too', () => {
+    expect(fixedUnitPriceUsd('')).toBeNull();
+    expect(fixedUnitPriceUsd('   ')).toBeNull();
+  });
+});
+
+describe('reading a price back out of the database', () => {
+  it('turns the NUMERIC string the driver returns into a number', () => {
+    // The real shape: NUMERIC(12,2) with no pg type parser registered. Left as
+    // a string it would reach Freshservice quoted, as "450.00".
+    expect(toUnitPrice('450.00')).toBe(450);
+    expect(toUnitPrice('1200.50')).toBe(1200.5);
+  });
+
+  it('passes a real number through', () => {
+    expect(toUnitPrice(450)).toBe(450);
+  });
+
+  it('treats an absent, zero or negative price as unpriced', () => {
+    // Zero is rejected by the table's CHECK as well, but a WIP reading $0
+    // claims the device was free, so it is refused on the way out too.
+    for (const v of [null, undefined, '', '0', 0, -5, 'abc', NaN]) {
+      expect(toUnitPrice(v)).toBeNull();
+    }
   });
 });
 
 describe('an exceptional device', () => {
-  it('is worth a nominal dollar, in every country', () => {
-    // The cost sheet has a row for it but will never price it: nobody knows
-    // what the device is until the request exists.
-    for (const country of ['Iraq', 'Saudi Arabia', 'HQ Dubai', 'Malaysia']) {
-      expect(unitPriceUsd(EXCEPTIONAL_MODEL, country)).toBe(1);
-    }
+  it('is worth a nominal dollar, and no admin has to key it', () => {
+    // Priced by rule rather than by row: nobody knows what the device is until
+    // the request exists, so there is nothing to put on the cost sheet.
+    expect(fixedUnitPriceUsd(EXCEPTIONAL_MODEL)).toBe(1);
   });
 
   it('is not zero, which would read as free', () => {
@@ -184,7 +208,7 @@ describe('an exceptional device', () => {
     // Before the dollar rule this was the case that could not raise a WIP at
     // all, because the Freshservice field is a mandatory decimal.
     const r = request({ requested_model: EXCEPTIONAL_MODEL });
-    const built = buildWipPayload(r, EMAIL, unitPriceUsd(EXCEPTIONAL_MODEL, r.country ?? ''));
+    const built = buildWipPayload(r, EMAIL, fixedUnitPriceUsd(EXCEPTIONAL_MODEL));
     expect(built.ok).toBe(true);
     if (!built.ok) return;
     expect(built.payload.custom_fields.total_value_usd).toBe(1);
@@ -193,8 +217,8 @@ describe('an exceptional device', () => {
 
   it('is matched exactly, not by looking for the word "other"', () => {
     // A real catalogued model should never fall through to a dollar.
-    expect(unitPriceUsd('Other', 'Iraq')).toBe(100);
-    expect(unitPriceUsd('Dell Latitude 5000 series - Core i5', 'Iraq')).toBe(100);
+    expect(fixedUnitPriceUsd('Other')).toBeNull();
+    expect(fixedUnitPriceUsd('Dell Latitude 5000 series - Core i5')).toBeNull();
   });
 });
 

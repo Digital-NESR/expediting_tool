@@ -4,11 +4,11 @@ import {
   buildWipPayload,
   buildWipProblemPayload,
   stripEnvQuotes,
-  unitPriceUsd,
   wipBuildError,
   type WipPayload,
 } from '@/lib/laptop-procurement/freshservice';
 import { logger } from '@/lib/logger';
+import { resolveUnitPriceUsd } from '@/lib/laptop-procurement/prices';
 import type { LaptopRequest } from '@/types/laptopProcurement';
 
 const log = logger('laptop-wip');
@@ -249,7 +249,7 @@ export async function raiseFreshserviceWip(request: LaptopRequest): Promise<WipO
 
 async function buildAndPost(request: LaptopRequest, url: string): Promise<WipOutcome> {
   const { owner, cc } = await resolveWipParticipants(request.country);
-  const price = unitPriceUsd(request.requested_model ?? '', request.country ?? '');
+  const price = await resolveUnitPriceUsd(request.requested_model, request.country);
 
   const testMode = isWipTestMode();
   const testInbox = stripEnvQuotes(process.env.LAPTOP_FRESHSERVICE_WIP_TEST_EMAIL ?? '').trim();

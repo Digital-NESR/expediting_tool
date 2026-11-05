@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Fragment, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import LaptopShell, { CTA, GLASS } from '../components/LaptopShell';
 import EmployeeAutocomplete from '@/app/procure-guard/components/EmployeeAutocomplete';
 import {
@@ -15,6 +15,7 @@ import {
   removeApproverMatrixRole,
   revokeLaptopDelegation,
   saveApproverMatrixRole,
+  saveLaptopDevicePrices,
   updateLaptopDevice,
   updateLaptopPermission,
 } from '@/app/actions/laptopProcurement';
@@ -22,6 +23,7 @@ import {
   APPROVER_MATRIX_ROLES,
   COUNTRY_OPTIONS,
   DEVICE_TYPE_OPTIONS,
+  EXCEPTIONAL_DEVICE_MODEL,
   LAPTOP_STATUS_ORDER,
   PERMISSION_PROFILES,
   PERMISSION_ROLE_OPTIONS,
@@ -35,6 +37,7 @@ import type {
   LaptopDelegatableRole,
   LaptopDelegationRow,
   LaptopDeviceCatalogRow,
+  LaptopDevicePriceRow,
   LaptopPermissionListItem,
   LaptopPermissionRole,
   LaptopRequestStatus,
@@ -446,6 +449,186 @@ function DelegationsPanel({
   );
 }
 
+/** Case- and space-insensitive, matching the unique index the table is keyed on. */
+function sameCell(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+/**
+ * The device cost sheet: what each model costs per country, in USD.
+ *
+ * This is the figure the SAP WIP carries, and until it is filled a fully
+ * approved request cannot raise one — the WIP refuses with `missing: total
+ * value (USD)` rather than inventing a number. So the screen leads with how
+ * much of the sheet is still empty, because that count is the thing standing
+ * between a model and a WIP.
+ *
+ * Laid out a model at a time, across countries, because that is the shape of
+ * the sheet these figures come from and the shape someone keying them in is
+ * reading. A flat list of model-country-price rows is the same data and far
+ * slower to fill.
+ */
+function DevicePricesPanel({
+  devices,
+  prices,
+  onDone,
+  onMutated,
+}: {
+  devices: LaptopDeviceCatalogRow[];
+  prices: LaptopDevicePriceRow[];
+  onDone: (message: string) => void;
+  onMutated: () => Promise<unknown>;
+}) {
+  const [isPending, startTransition] = usePendingAction();
+  const [model, setModel] = useState('');
+  /* Only what has been typed. What a box shows is this overlaid on the stored
+     price, so a reload cannot be out of step with the boxes and there is no
+     effect copying one into the other. */
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const [error, setError] = useState('');
+
+  /* The exceptional model is priced by rule, so it is not offered here - a
+     figure keyed against it would be silently ignored. */
+  const models = useMemo(
+    () =>
+      [
+        ...new Set(
+          devices
+            .filter((d) => d.active && !sameCell(d.model, EXCEPTIONAL_DEVICE_MODEL))
+            .map((d) => d.model.trim()),
+        ),
+      ].sort((a, b) => a.localeCompare(b)),
+    [devices],
+  );
+
+  const storedFor = (country: string) => {
+    const row = prices.find((p) => sameCell(p.model, model) && sameCell(p.country, country));
+    return row ? String(row.unit_price_usd) : '';
+  };
+  const valueFor = (country: string) => edits[country] ?? storedFor(country);
+
+  const pricedCount = (m: string) => prices.filter((p) => sameCell(p.model, m)).length;
+  const unpricedModels = models.filter((m) => pricedCount(m) === 0);
+
+  function save() {
+    setError('');
+    if (!model) {
+      setError('Pick a model first.');
+      return;
+    }
+    const entries = COUNTRY_OPTIONS.map((country) => {
+      const raw = valueFor(country).trim();
+      return { country, price: raw === '' ? null : Number(raw) };
+    });
+    const bad = entries.find(
+      (e) => e.price !== null && (!Number.isFinite(e.price) || e.price <= 0),
+    );
+    if (bad) {
+      setError(`${bad.country}: enter a number greater than zero, or clear the box.`);
+      return;
+    }
+    startTransition(async () => {
+      const result = await saveLaptopDevicePrices(model, entries);
+      if (result.success) {
+        onDone(`Saved prices for ${model}.`);
+        setEdits({});
+        await onMutated();
+      } else {
+        setError(result.error ?? 'Failed to save prices.');
+      }
+    });
+  }
+
+  return (
+    <section className={`${GLASS} p-5`}>
+      <h3 className="text-[15px] font-bold">Device prices (USD)</h3>
+      <p className="mt-0.5 text-xs text-slate-500">
+        What each model costs per country — the Total Value the SAP WIP carries. A model with no
+        price for the request&apos;s country cannot raise a WIP at all, so the request stops at
+        &quot;Not raised&quot; until it is filled in.
+      </p>
+
+      {unpricedModels.length > 0 && (
+        <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span className="font-semibold">
+            {unpricedModels.length} of {models.length} models have no prices at all:
+          </span>{' '}
+          {unpricedModels.join(', ')}.
+        </div>
+      )}
+
+      {error && (
+        <div className="mt-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800">
+          {error}
+        </div>
+      )}
+
+      <div className="mt-4">
+        <label className="mb-1 block text-xs font-semibold text-slate-500">Model</label>
+        <select
+          className={INP}
+          value={model}
+          onChange={(e) => {
+            // Typed-but-unsaved figures belong to the model they were typed
+            // against; carrying them over would silently reprice another one.
+            setModel(e.target.value);
+            setEdits({});
+            setError('');
+          }}
+        >
+          <option value="">Select a model…</option>
+          {models.map((m) => (
+            <option key={m} value={m}>
+              {m} — {pricedCount(m)}/{COUNTRY_OPTIONS.length} priced
+            </option>
+          ))}
+        </select>
+        {models.length === 0 && (
+          <p className="mt-2 text-xs text-slate-500">
+            No active models in the catalogue yet. Add one above first.
+          </p>
+        )}
+      </div>
+
+      {model && (
+        <>
+          <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-4">
+            {COUNTRY_OPTIONS.map((country) => (
+              <div key={country}>
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  {country}
+                </label>
+                <input
+                  className={INP}
+                  inputMode="decimal"
+                  value={valueFor(country)}
+                  onChange={(e) => setEdits({ ...edits, [country]: e.target.value })}
+                  placeholder="—"
+                />
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
+            Leave a box empty to mark that country unpriced — that is not the same as zero, and
+            clearing a box deletes the price rather than storing nothing. Saving applies the whole
+            row at once, so a rejected save changes nothing.
+          </p>
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={save}
+              disabled={isPending}
+              className={`${CTA} disabled:opacity-60`}
+            >
+              {isPending ? 'Saving…' : `Save prices for ${model}`}
+            </button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
 function DevicesPanel({
   devices,
   onDone,
@@ -782,6 +965,7 @@ export default function LaptopAdminClient({
     permissionsList,
     delegations,
     deviceCatalog,
+    devicePrices,
     stats,
     delegatableRoles,
   } = data;
@@ -1599,7 +1783,15 @@ export default function LaptopAdminClient({
       )}
 
       {tab === 'devices' && (
-        <DevicesPanel devices={deviceCatalog} onDone={setBanner} onMutated={refreshAdminData} />
+        <div className="space-y-5">
+          <DevicesPanel devices={deviceCatalog} onDone={setBanner} onMutated={refreshAdminData} />
+          <DevicePricesPanel
+            devices={deviceCatalog}
+            prices={devicePrices}
+            onDone={setBanner}
+            onMutated={refreshAdminData}
+          />
+        </div>
       )}
     </div>
   );
