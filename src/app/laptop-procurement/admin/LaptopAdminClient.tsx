@@ -24,6 +24,8 @@ import {
   COUNTRY_OPTIONS,
   DEVICE_TYPE_OPTIONS,
   EXCEPTIONAL_DEVICE_MODEL,
+  EXCEPTIONAL_DEVICE_PRICE_USD,
+  PLACEHOLDER_PRICE_MARKER,
   LAPTOP_STATUS_ORDER,
   PERMISSION_PROFILES,
   PERMISSION_ROLE_OPTIONS,
@@ -509,6 +511,10 @@ function DevicePricesPanel({
 
   const pricedCount = (m: string) => prices.filter((p) => sameCell(p.model, m)).length;
   const unpricedModels = models.filter((m) => pricedCount(m) === 0);
+  /* Seeded at $100 and never looked at since. Counted because this is the
+     figure that reaches SAP, and a placeholder is indistinguishable from a real
+     price once it is on a ticket. */
+  const placeholderCount = prices.filter((p) => p.updated_by === PLACEHOLDER_PRICE_MARKER).length;
 
   function save() {
     setError('');
@@ -548,12 +554,24 @@ function DevicePricesPanel({
         &quot;Not raised&quot; until it is filled in.
       </p>
 
-      {unpricedModels.length > 0 && (
+      {placeholderCount > 0 && (
         <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span className="font-semibold">
+            {placeholderCount} {placeholderCount === 1 ? 'price is' : 'prices are'} still the $100
+            placeholder.
+          </span>{' '}
+          These were seeded so WIPs keep working, not researched — every one of them reaches SAP as
+          a real figure. Saving a model&apos;s prices marks them as reviewed, so this count falls as
+          you work through the sheet.
+        </div>
+      )}
+
+      {unpricedModels.length > 0 && (
+        <div className="mt-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900">
           <span className="font-semibold">
             {unpricedModels.length} of {models.length} models have no prices at all:
           </span>{' '}
-          {unpricedModels.join(', ')}.
+          {unpricedModels.join(', ')}. A request for one of these cannot raise a WIP.
         </div>
       )}
 
@@ -588,6 +606,25 @@ function DevicePricesPanel({
             No active models in the catalogue yet. Add one above first.
           </p>
         )}
+      </div>
+
+      {/* Listed rather than left out, so its absence from the dropdown is not a
+          mystery — and read-only, because a figure keyed against it would be
+          ignored by the price lookup. */}
+      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <span className="text-sm font-semibold text-slate-900">{EXCEPTIONAL_DEVICE_MODEL}</span>
+          <span className="text-sm font-bold text-slate-900">
+            ${EXCEPTIONAL_DEVICE_PRICE_USD.toFixed(2)}{' '}
+            <span className="font-semibold text-slate-500">in every country</span>
+          </span>
+        </div>
+        <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
+          Fixed in code, not editable here. Nobody knows what the device is until the request
+          exists, so there is nothing to price — the nominal dollar only satisfies the WIP
+          form&apos;s mandatory amount, and whoever handles the WIP sets the real figure. Zero would
+          read as &quot;this device was free&quot;, which is why it is not that.
+        </p>
       </div>
 
       {model && (

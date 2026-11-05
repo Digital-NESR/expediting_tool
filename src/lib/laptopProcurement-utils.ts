@@ -310,6 +310,29 @@ export const DEVICE_AGE_OPTIONS = ['< 1 year', '1-3 years', '4-5 years', '5+ yea
  */
 export const EXCEPTIONAL_DEVICE_MODEL = 'Other (Exceptional case only)';
 
+/**
+ * What an exceptional device is worth on the WIP: one dollar.
+ *
+ * Not zero, and not blank. The Freshservice field is a mandatory decimal, so it
+ * has to carry a number; zero would read as "this device was free" and is
+ * indistinguishable from an unfilled field. A dollar is obviously a
+ * placeholder, so it satisfies the form while telling whoever handles the WIP
+ * that the figure still has to be established.
+ */
+export const EXCEPTIONAL_DEVICE_PRICE_USD = 1;
+
+/**
+ * Stamped on prices seeded as placeholders rather than set by a person.
+ *
+ * The whole reason the $100 default moved out of the code: a figure nobody has
+ * reviewed now looks different from one an admin keyed, and the Devices tab can
+ * say how many are still guesses. Saving over a seeded row replaces this with
+ * the admin's address, so reviewing a price is what stops it counting as one.
+ *
+ * Repeated literally in 005_seed_placeholder_prices.sql — SQL cannot import it.
+ */
+export const PLACEHOLDER_PRICE_MARKER = 'seed:placeholder';
+
 export const COUNTRY_OPTIONS = [
   'Saudi Arabia',
   'Abu Dhabi',

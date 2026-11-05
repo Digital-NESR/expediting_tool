@@ -1,4 +1,7 @@
-import { EXCEPTIONAL_DEVICE_MODEL } from '@/lib/laptopProcurement-utils';
+import {
+  EXCEPTIONAL_DEVICE_MODEL,
+  EXCEPTIONAL_DEVICE_PRICE_USD,
+} from '@/lib/laptopProcurement-utils';
 import { stripEnvQuotes } from '@/lib/laptop-procurement/notifications';
 import type { LaptopRequest } from '@/types/laptopProcurement';
 
@@ -78,7 +81,7 @@ export const EXCEPTIONAL_MODEL = EXCEPTIONAL_DEVICE_MODEL;
  * it for a real laptop price — so it satisfies the form while telling whoever
  * handles the WIP that the figure still has to be established.
  */
-export const EXCEPTIONAL_UNIT_PRICE_USD = 1;
+export const EXCEPTIONAL_UNIT_PRICE_USD = EXCEPTIONAL_DEVICE_PRICE_USD;
 
 /**
  * The prices that are rules rather than data.
