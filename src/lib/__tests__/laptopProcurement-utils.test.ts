@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   APPROVAL_ACTIVE_STATUSES,
+  LAPTOP_OVERRIDE_STATUSES,
   LAPTOP_STATUS_ORDER,
+  STATUS_FILTER_OPTIONS,
+  VESTIGIAL_STATUSES,
   laptopStagesPassedByOverride,
   APPROVER_MATRIX_ROLES,
   COUNTRY_OPTIONS,
@@ -18,6 +21,7 @@ import {
   canUseLaptopReviewerQueue,
   getLaptopAccessView,
   getLaptopApprovalStage,
+  getStatusBadge,
   getLaptopAvailableActions,
   getNextApprovalStatus,
   getPermissionProfile,
@@ -523,6 +527,46 @@ describe('the admin status override', () => {
      state they can see. */
   it('is a superset of the learner-facing filter', () => {
     for (const status of STATUS_OPTIONS) expect(LAPTOP_STATUS_ORDER).toContain(status);
+  });
+
+  /* Two statuses nothing produces any more. 'Assign from Inventory & Closed' is
+     written by no code path at all, and sat next to 'Assign from Inventory'
+     looking like a meaningful second choice; 'Approved' comes only from a
+     fallback the IT Manager's three decisions make unreachable. Removed from
+     the pickers, kept everywhere a stored row is read. */
+  describe('statuses that are no longer offered', () => {
+    it('keeps them out of both pickers', () => {
+      for (const status of VESTIGIAL_STATUSES) {
+        expect(LAPTOP_OVERRIDE_STATUSES).not.toContain(status);
+        expect(STATUS_FILTER_OPTIONS).not.toContain(status);
+      }
+    });
+
+    it('removes nothing else from either picker', () => {
+      expect(LAPTOP_OVERRIDE_STATUSES).toHaveLength(LAPTOP_STATUS_ORDER.length - 2);
+      expect(STATUS_FILTER_OPTIONS).toHaveLength(STATUS_OPTIONS.length - 2);
+      for (const status of LAPTOP_OVERRIDE_STATUSES) {
+        expect(LAPTOP_STATUS_ORDER).toContain(status);
+      }
+    });
+
+    it('still renders a stored row carrying one', () => {
+      /* The whole reason they stay in the type and the badge map. Pinned
+         against their curated labels rather than just "truthy": the unknown
+         fallback echoes the raw status back, so a dropped map entry would still
+         look fine to a loose assertion while losing the colour that tells an
+         approver the request is finished. */
+      expect(getStatusBadge('Approved').label).toBe('Approved');
+      expect(getStatusBadge('Approved').className).toContain('emerald');
+      expect(getStatusBadge('Assign from Inventory & Closed').label).toBe('Assigned & Closed');
+      expect(getStatusBadge('Assign from Inventory & Closed').className).toContain('green');
+    });
+
+    it('still keeps the override a superset of the filter', () => {
+      for (const status of STATUS_FILTER_OPTIONS) {
+        expect(LAPTOP_OVERRIDE_STATUSES).toContain(status);
+      }
+    });
   });
 
   describe('which stages a jump has signed off', () => {

@@ -26,7 +26,7 @@ import {
   EXCEPTIONAL_DEVICE_MODEL,
   EXCEPTIONAL_DEVICE_PRICE_USD,
   PLACEHOLDER_PRICE_MARKER,
-  LAPTOP_STATUS_ORDER,
+  LAPTOP_OVERRIDE_STATUSES,
   PERMISSION_PROFILES,
   PERMISSION_ROLE_OPTIONS,
   SEGMENT_OPTIONS,
@@ -1659,7 +1659,7 @@ export default function LaptopAdminClient({
                                   }
                                   className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800"
                                 >
-                                  {LAPTOP_STATUS_ORDER.map((st) => (
+                                  {LAPTOP_OVERRIDE_STATUSES.map((st) => (
                                     <option key={st} value={st}>
                                       {st}
                                       {st === r.status ? ' (current)' : ''}

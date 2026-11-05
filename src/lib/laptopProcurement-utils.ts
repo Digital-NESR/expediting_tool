@@ -500,6 +500,42 @@ export const LAPTOP_STATUS_ORDER: readonly LaptopRequestStatus[] = [
 ];
 
 /**
+ * Statuses the tool no longer produces, and so no longer offers as a choice.
+ *
+ * 'Assign from Inventory & Closed' is written by nothing at all — every
+ * reference to it is a read. It looks like the remains of a design where
+ * assigning a device and handing it over were separate steps; the handover step
+ * went, the status stayed, and it has sat next to 'Assign from Inventory' ever
+ * since looking like a meaningful second choice.
+ *
+ * 'Approved' is produced only by the fallback in getNextApprovalStatus, for a
+ * request that finished with nothing procured and nothing assigned. The IT
+ * Manager's three decisions each set one or the other, so nothing reaches it —
+ * but the branch stays, because a defensive terminal status costs nothing and
+ * removing it would leave a request with nowhere to go.
+ *
+ * Both are kept in the type, the badges and the stat counts. The point is only
+ * to stop offering them: a legacy row must still render as itself rather than
+ * falling through as an unknown status.
+ */
+export const VESTIGIAL_STATUSES: readonly LaptopRequestStatus[] = [
+  'Approved',
+  'Assign from Inventory & Closed',
+];
+
+export function isOfferableLaptopStatus(status: LaptopRequestStatus): boolean {
+  return !VESTIGIAL_STATUSES.includes(status);
+}
+
+/** What the request list's status filter offers. */
+export const STATUS_FILTER_OPTIONS: readonly LaptopRequestStatus[] =
+  STATUS_OPTIONS.filter(isOfferableLaptopStatus);
+
+/** What the admin override offers — the only place a status is set by hand. */
+export const LAPTOP_OVERRIDE_STATUSES: readonly LaptopRequestStatus[] =
+  LAPTOP_STATUS_ORDER.filter(isOfferableLaptopStatus);
+
+/**
  * The stages a request passes through when an admin jumps it from one status to another.
  *
  * An override that moves a request forward has, in effect, signed off every stage between where it

@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import LaptopShell, { CTA, GLASS } from '../components/LaptopShell';
 import {
-  STATUS_OPTIONS,
+  STATUS_FILTER_OPTIONS,
   fmtDate,
   getLaptopAvailableActions,
   getRequiredPermissionForStage,
@@ -242,7 +242,7 @@ export default function LaptopRequestsClient({ data }: { data: LaptopRequestList
                   className={INPUT}
                 >
                   <option value="All">All</option>
-                  {STATUS_OPTIONS.map((s) => (
+                  {STATUS_FILTER_OPTIONS.map((s) => (
                     <option key={s} value={s}>
                       {s}
                     </option>
