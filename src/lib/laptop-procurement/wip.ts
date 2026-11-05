@@ -5,7 +5,8 @@ import {
   buildWipProblemPayload,
   stripEnvQuotes,
   wipBuildError,
-  type WipPayload,
+  wipNotifyList,
+  type WipWebhookBody,
 } from '@/lib/laptop-procurement/freshservice';
 import { logger } from '@/lib/logger';
 import { resolveUnitPriceUsd } from '@/lib/laptop-procurement/prices';
@@ -109,7 +110,7 @@ export interface WipOutcome {
  * deferLaptopNotifications, after the approver's response has already gone
  * back, so nobody is watching a spinner while it happens.
  */
-async function postToWipWorkflow(url: string, payload: WipPayload): Promise<WipOutcome> {
+async function postToWipWorkflow(url: string, payload: WipWebhookBody): Promise<WipOutcome> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20000);
   try {
@@ -302,7 +303,15 @@ async function buildAndPost(request: LaptopRequest, url: string): Promise<WipOut
       }
     : built.payload;
 
-  return postToWipWorkflow(url, payload);
+  /* Sent to the workflow, not to Freshservice, which names the two fields it
+     forwards. In test mode the list is the test inbox alone, so a trial run
+     still cannot reach a real IT Manager. */
+  const notify = wipNotifyList(requester, testMode ? [] : cc);
+
+  return postToWipWorkflow(url, {
+    ...payload,
+    ...(notify.length ? { notify_emails: notify } : {}),
+  });
 }
 
 async function recordOutcome(requestId: number, outcome: WipOutcome): Promise<void> {

@@ -10,6 +10,7 @@ import {
   fixedUnitPriceUsd,
   wipBuildError,
   wipName,
+  wipNotifyList,
 } from '@/lib/laptop-procurement/freshservice';
 import { toUnitPrice } from '@/lib/laptop-procurement/prices';
 import type { LaptopRequest } from '@/types/laptopProcurement';
@@ -237,6 +238,16 @@ describe('sending only fields place_request accepts', () => {
     expect(Object.keys(r.payload).sort()).toEqual(['custom_fields', 'email']);
   });
 
+  it('keeps the recipient list out of the Freshservice payload', () => {
+    // notify_emails rides alongside this object in the webhook body, never
+    // inside it. The workflow names the two fields it forwards, which is what
+    // makes sending it at all safe.
+    const r = buildWipPayload(request(), EMAIL, 100);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect('notify_emails' in r.payload).toBe(false);
+  });
+
   it('never sends cc_emails, whatever the matrix holds', () => {
     // The regression this whole block exists for. It stayed hidden because the
     // field was omitted when empty, and in test mode it is always empty - so
@@ -245,6 +256,40 @@ describe('sending only fields place_request accepts', () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect('cc_emails' in r.payload).toBe(false);
+  });
+});
+
+describe('who gets told the WIP was raised', () => {
+  /* Freshservice mails only the requester, and place_request has no CC field,
+     so without this the country's other IT Managers heard about a failed WIP
+     and never about a successful one. */
+  it('puts the requester first, then the other matrix slots', () => {
+    expect(wipNotifyList(EMAIL, ['itm2@nesr.com', 'itm3@nesr.com'])).toEqual([
+      EMAIL,
+      'itm2@nesr.com',
+      'itm3@nesr.com',
+    ]);
+  });
+
+  it('never names the requester twice', () => {
+    // IT Manager 1 is the requester, and is also the first matrix slot.
+    expect(wipNotifyList(EMAIL, ['SBagalkot@nesr.com', 'itm2@nesr.com'])).toEqual([
+      EMAIL,
+      'itm2@nesr.com',
+    ]);
+  });
+
+  it('de-duplicates one person filling two slots', () => {
+    expect(wipNotifyList(EMAIL, ['itm@nesr.com', 'ITM@nesr.com'])).toEqual([EMAIL, 'itm@nesr.com']);
+  });
+
+  it('drops the empty slots most countries have', () => {
+    expect(wipNotifyList(EMAIL, [null, undefined, '  '])).toEqual([EMAIL]);
+  });
+
+  it('still lists the others when there is no requester to lead with', () => {
+    // The no-IT-Manager case: somebody still has to be told.
+    expect(wipNotifyList('', ['itm2@nesr.com'])).toEqual(['itm2@nesr.com']);
   });
 });
 

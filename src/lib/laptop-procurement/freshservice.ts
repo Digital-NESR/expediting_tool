@@ -74,6 +74,41 @@ export interface WipPayload {
 }
 
 /**
+ * What the workflow is posted: the Freshservice payload, plus what only n8n
+ * needs and Freshservice must never see.
+ *
+ * The separation is the point. The workflow names `email` and `custom_fields`
+ * explicitly when it calls place_request, so anything added here stays with
+ * n8n — which is what makes it safe to send at all, and what the cc_emails
+ * failure cost us when the body was forwarded whole.
+ */
+export interface WipWebhookBody extends WipPayload {
+  /**
+   * Everyone to tell once the WIP exists.
+   *
+   * Freshservice mails only the requester, and place_request has no CC field
+   * to add anyone else — so the country's other IT Managers would otherwise
+   * hear about a failed WIP and never about a successful one.
+   */
+  notify_emails?: string[];
+}
+
+/**
+ * Everyone who should be told about this WIP, requester first.
+ *
+ * De-duplicated case-insensitively so an IT Manager filling two matrix slots,
+ * or the slot that is also the requester, is not mailed twice.
+ */
+export function wipNotifyList(
+  requesterEmail: string,
+  others: (string | null | undefined)[],
+): string[] {
+  const email = requesterEmail.trim();
+  const rest = otherRecipients(email, others);
+  return email ? [email, ...rest] : rest;
+}
+
+/**
  * The model a requester picks when no catalogued device fits.
  *
  * Defined in laptopProcurement-utils so the admin price editor can name it
