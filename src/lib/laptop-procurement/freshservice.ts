@@ -48,19 +48,28 @@ export interface WipCustomFields {
   total_value_usd: number;
 }
 
+/**
+ * Exactly what place_request accepts, and nothing else.
+ *
+ * `cc_emails` used to be here, to keep the country's other IT Managers on the
+ * thread. Freshservice rejects it outright:
+ *
+ *   400 {"field":"cc_emails","message":"Unexpected/invalid field in request",
+ *        "code":"invalid_field"}
+ *
+ * It is documented on Tickets, not on service catalog requests, and this
+ * endpoint refuses any field it does not know. That went unnoticed for a while
+ * because the field is omitted when the list is empty, and in test mode the
+ * list is always empty — so the first request with a real second IT Manager was
+ * also the first to send it, and the first to fail.
+ *
+ * Which is why this type is the contract rather than a convenience: the
+ * workflow forwards this object to Freshservice verbatim, so any key added here
+ * that Freshservice does not accept fails the whole WIP, not just that field.
+ */
 export interface WipPayload {
   /** The Freshservice requester the WIP is raised under. */
   email: string;
-  /**
-   * Kept in the loop on the ticket thread — the IT Manager(s) for the
-   * request's country, from laptop_approver_matrix, which holds up to three
-   * named slots per country.
-   *
-   * Omitted entirely rather than sent empty: Freshservice's Outlook path has
-   * form before, where an empty recipient turned into a blank address and the
-   * whole message was rejected.
-   */
-  cc_emails?: string[];
   custom_fields: WipCustomFields;
 }
 
@@ -135,7 +144,6 @@ export function buildWipPayload(
   request: LaptopRequest,
   requesterEmail: string,
   priceUsd: number | null,
-  ccEmails: (string | null | undefined)[] = [],
 ): WipBuildResult {
   const country = request.country?.trim() ?? '';
   const companyCode = request.company_code?.trim() ?? '';
@@ -155,13 +163,10 @@ export function buildWipPayload(
   }
   if (missing.length) return { ok: false, missing };
 
-  const cc = otherRecipients(email, ccEmails);
-
   return {
     ok: true,
     payload: {
       email,
-      ...(cc.length ? { cc_emails: cc } : {}),
       custom_fields: {
         country,
         company_code: companyCode,

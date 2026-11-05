@@ -222,44 +222,29 @@ describe('an exceptional device', () => {
   });
 });
 
-describe('keeping the country IT Manager in the loop', () => {
-  it('carries the CC addresses through', () => {
-    const r = buildWipPayload(request(), EMAIL, 100, ['itm.iraq@nesr.com', 'itm2.iraq@nesr.com']);
+describe('sending only fields place_request accepts', () => {
+  /* PLP01708 failed with
+       400 {"field":"cc_emails","message":"Unexpected/invalid field in request"}
+     because the payload carried cc_emails to keep the country's other IT
+     Managers on the thread. Freshservice documents that field on Tickets, not
+     on service catalog requests, and this endpoint refuses anything it does not
+     know. The workflow forwards this object verbatim, so one unknown key fails
+     the entire WIP rather than being ignored. */
+  it('carries the requester and the custom fields, and nothing else', () => {
+    const r = buildWipPayload(request(), EMAIL, 100);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.payload.cc_emails).toEqual(['itm.iraq@nesr.com', 'itm2.iraq@nesr.com']);
+    expect(Object.keys(r.payload).sort()).toEqual(['custom_fields', 'email']);
   });
 
-  it('omits the field rather than sending an empty list', () => {
-    // An empty recipient is what made the Outlook node reject a whole message
-    // on the S&S side; the safe shape is for the key not to be there at all.
-    const r = buildWipPayload(request(), EMAIL, 100, []);
+  it('never sends cc_emails, whatever the matrix holds', () => {
+    // The regression this whole block exists for. It stayed hidden because the
+    // field was omitted when empty, and in test mode it is always empty - so
+    // the first request with a real second IT Manager was the first to send it.
+    const r = buildWipPayload(request(), EMAIL, 100);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect('cc_emails' in r.payload).toBe(false);
-  });
-
-  it('drops blanks and nulls from an unfilled matrix slot', () => {
-    // laptop_approver_matrix has three IT Manager slots per country and most
-    // countries fill one, so two nulls is the normal case, not the edge.
-    const r = buildWipPayload(request(), EMAIL, 100, ['itm.iraq@nesr.com', null, undefined, '  ']);
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
-    expect(r.payload.cc_emails).toEqual(['itm.iraq@nesr.com']);
-  });
-
-  it('never CCs the requester, who is already on the ticket', () => {
-    const r = buildWipPayload(request(), EMAIL, 100, ['SBagalkot@nesr.com', 'itm@nesr.com']);
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
-    expect(r.payload.cc_emails).toEqual(['itm@nesr.com']);
-  });
-
-  it('de-duplicates an IT Manager named in two slots', () => {
-    const r = buildWipPayload(request(), EMAIL, 100, ['itm@nesr.com', 'ITM@nesr.com']);
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
-    expect(r.payload.cc_emails).toEqual(['itm@nesr.com']);
   });
 });
 

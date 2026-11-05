@@ -271,10 +271,9 @@ async function buildAndPost(request: LaptopRequest, url: string): Promise<WipOut
     );
   }
 
-  // In test mode the ticket is raised under the test inbox and nobody real is
-  // CC'd, so a trial run cannot land in an IT Manager's queue.
+  // In test mode the ticket is raised under the test inbox, and `fail` copies
+  // nobody real, so a trial run cannot land in an IT Manager's queue.
   const requester = testMode ? testInbox : (owner ?? '');
-  const ccList = testMode ? [] : cc;
 
   if (!requester) {
     /* No owner to address it to, which is the whole problem. Sent with an empty
@@ -286,7 +285,11 @@ async function buildAndPost(request: LaptopRequest, url: string): Promise<WipOut
     );
   }
 
-  const built = buildWipPayload(request, requester, price, ccList);
+  /* ccList is not passed on: place_request rejects cc_emails outright, and the
+     workflow forwards this payload to Freshservice verbatim. It is still read
+     above, because the alert email - which n8n sends itself, not Freshservice -
+     does copy the other IT Managers. */
+  const built = buildWipPayload(request, requester, price);
   if (!built.ok) return fail(wipBuildError(built.missing), requester);
 
   const payload = testMode
