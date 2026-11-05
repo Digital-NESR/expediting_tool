@@ -15,17 +15,39 @@ import type { LaptopRequest } from '@/types/laptopProcurement';
 export type WipState =
   | { kind: 'raised'; serviceRequestId: number }
   | { kind: 'failed'; reason: string }
+  | { kind: 'raising' }
   | { kind: 'pending' };
 
 /** The only status that raises a WIP, matching the guard in transitions.ts. */
 const WIP_DUE_STATUS = 'Procure New';
 
+/**
+ * How long after approval a WIP with no recorded attempt is assumed to be in
+ * flight rather than missing.
+ *
+ * The WIP is raised in `after()`, so it happens *after* the response that
+ * re-renders this screen: at the instant the approver's click returns, the
+ * request is at Procure New with nothing attempted, and saying "not raised"
+ * there is accurate but reads as a fault. It is not one — it resolves a second
+ * later.
+ *
+ * Two minutes is far longer than the work takes (the POST times out at 20s, and
+ * n8n at 15s before that) and deliberately so: the cost of waiting too long is
+ * a reassuring message for an extra minute, while the cost of being too eager
+ * is crying failure over something that was about to succeed.
+ */
+const RAISING_WINDOW_MS = 2 * 60 * 1000;
+
 type WipColumns = Pick<
   LaptopRequest,
-  'status' | 'freshservice_request_id' | 'freshservice_error' | 'freshservice_attempted_at'
+  | 'status'
+  | 'updated_at'
+  | 'freshservice_request_id'
+  | 'freshservice_error'
+  | 'freshservice_attempted_at'
 >;
 
-export function wipState(request: WipColumns): WipState | null {
+export function wipState(request: WipColumns, now: number = Date.now()): WipState | null {
   /* The id is read before the attempt timestamp, and the timestamp before the
      status, because each earlier fact outranks the later one: a WIP that exists
      is reported however the request has since been edited. */
@@ -36,7 +58,22 @@ export function wipState(request: WipColumns): WipState | null {
     return { kind: 'failed', reason: wipFailureReason(request.freshservice_error) };
   }
 
-  return request.status === WIP_DUE_STATUS ? { kind: 'pending' } : null;
+  if (request.status !== WIP_DUE_STATUS) return null;
+  return wasJustApproved(request.updated_at, now) ? { kind: 'raising' } : { kind: 'pending' };
+}
+
+/**
+ * An unparseable or absent timestamp counts as not recent, so the screen falls
+ * back to "not raised" — the state that prompts somebody to look, rather than a
+ * reassurance that would never resolve.
+ */
+function wasJustApproved(updatedAt: string | null | undefined, now: number): boolean {
+  if (!updatedAt) return false;
+  const t = Date.parse(updatedAt);
+  if (Number.isNaN(t)) return false;
+  // Tolerates a clock a little ahead of the browser's: a future timestamp is
+  // still "just now", not "a very long time ago".
+  return t <= now + RAISING_WINDOW_MS && now - t < RAISING_WINDOW_MS;
 }
 
 /**

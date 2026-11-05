@@ -106,3 +106,59 @@ describe('the failure reason', () => {
     }
   });
 });
+
+describe('the moment just after approval', () => {
+  /* The WIP is raised in after(), so the response that renders the screen goes
+     back before it exists. The approver therefore sees the gap, and "not
+     raised" there was accurate but read as a fault — it resolves a second
+     later. */
+  const NOW = Date.parse('2026-11-05T10:00:00Z');
+  const ago = (ms: number) => new Date(NOW - ms).toISOString();
+
+  it('says it is being raised when the approval just happened', () => {
+    const s = wipState(request({ updated_at: ago(3_000) }), NOW);
+    expect(s).toEqual({ kind: 'raising' });
+  });
+
+  it('gives up on "raising" once too long has passed to still be in flight', () => {
+    // Longer than the tool's own 20s timeout by a wide margin, so nothing is
+    // still running — this one genuinely needs somebody to look.
+    const s = wipState(request({ updated_at: ago(5 * 60 * 1000) }), NOW);
+    expect(s).toEqual({ kind: 'pending' });
+  });
+
+  it('treats a clock slightly ahead of the browser as just now, not long ago', () => {
+    // The timestamp is the database's and the comparison the browser's; a few
+    // seconds of skew must not read as an ancient request.
+    const s = wipState(request({ updated_at: new Date(NOW + 5_000).toISOString() }), NOW);
+    expect(s).toEqual({ kind: 'raising' });
+  });
+
+  it('falls back to "not raised" when the timestamp is missing or unreadable', () => {
+    // The state that prompts someone to look, rather than a reassurance that
+    // would never resolve.
+    for (const updated_at of [null, undefined, '', 'not a date'] as unknown as string[]) {
+      expect(wipState(request({ updated_at }), NOW)).toEqual({ kind: 'pending' });
+    }
+  });
+
+  it('never calls a raised WIP "raising", however recent', () => {
+    const s = wipState(request({ updated_at: ago(1_000), freshservice_request_id: 145476 }), NOW);
+    expect(s).toEqual({ kind: 'raised', serviceRequestId: 145476 });
+  });
+
+  it('never calls a failed WIP "raising", however recent', () => {
+    // The dangerous confusion: a failure a second old must not be dressed up as
+    // work still in progress, or nobody ever acts on it.
+    const s = wipState(request({ updated_at: ago(1_000), freshservice_attempted_at: WHEN }), NOW);
+    expect(s?.kind).toBe('failed');
+  });
+
+  it('stays silent before the request is fully approved, however recent', () => {
+    const s = wipState(
+      request({ status: 'IT Approval' as LaptopRequest['status'], updated_at: ago(1_000) }),
+      NOW,
+    );
+    expect(s).toBeNull();
+  });
+});
