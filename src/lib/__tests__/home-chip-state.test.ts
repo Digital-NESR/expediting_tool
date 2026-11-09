@@ -99,10 +99,13 @@ describe('the states themselves', () => {
 
 describe('maturity', () => {
   it('reads unshipped from the registry rather than needing to be told', () => {
-    /* Catalog Repo carries all three spellings of "not yet": tone, group and access kind. */
-    const catalog = byId('catalog-manager');
-    expect(catalog.maturity).toBeUndefined();
-    expect(maturityOf(catalog)).toBe('coming-soon');
+    /* Supply Chain Analytics carries all three spellings of "not yet": tone, group and access
+       kind. This was Catalog Repo until it went live on 9 Nov 2026, and the test failed the
+       moment it did -- which is the point: the example has to be a tool that is genuinely
+       unshipped, or it stops testing the derivation and starts asserting a stale fact. */
+    const unshipped = byId('supply-chain-analytics');
+    expect(unshipped.maturity).toBeUndefined();
+    expect(maturityOf(unshipped)).toBe('coming-soon');
   });
 
   it('calls a shipped tool live', () => {

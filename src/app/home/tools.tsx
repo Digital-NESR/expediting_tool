@@ -19,6 +19,7 @@ import {
 } from '@/components/ToolMarks';
 import {
   Laptop,
+  BookMarked,
   Building2,
   GraduationCap,
   ClipboardCheck,
@@ -436,31 +437,25 @@ export const TOOLS: ToolDef[] = [
 
   {
     id: 'catalog-manager',
-    group: 'development',
+    group: 'online',
     keywords: 'catalog manager supplier service indirect item rates price catalog spend',
     name: 'Catalog Repo',
     subtitle: <>Supplier Service &amp; Indirect Item Rates</>,
     description:
       'Maintain country-segmented supplier price catalogs, route rate approvals, and keep an audit-ready record of agreed prices.',
-    icon: (
-      <svg
-        className="h-6 w-6 text-gray-400"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={1.75}
-      >
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-      </svg>
-    ),
-    logoClass: 'bg-gray-100',
-    hoverClass: HOVER_SOURCE,
-    accent: PREVIEW_GREY,
-    tone: 'preview',
+    icon: <BookMarked className="h-6 w-6 text-[#307c4c]" />,
+    logoClass: 'bg-[#307c4c]/10',
+    hoverClass: HOVER_GREEN,
+    accent: NESR_GREEN,
+    tone: 'live',
     route: '/catalog-manager',
-    access: { kind: 'adminPreview' },
-    badge: { kind: 'preview' },
-    openLabel: 'Open preview →',
+    /* `always`, like SOA Consolidation and for the same reason: the tool resolves any signed-in
+       employee to Viewer and has its own request-access page for Contributor and Approver, so
+       the gate that matters is inside the tool rather than on this card. An adminPreview card
+       would be inert for everybody else -- which is exactly what it was. */
+    access: { kind: 'always' },
+    badge: { kind: 'success', label: 'Open Access' },
+    openLabel: 'Open →',
   },
 
   {
