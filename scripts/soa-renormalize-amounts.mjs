@@ -49,6 +49,7 @@ registerHooks({
 });
 
 const { parseSupplierWorkbook } = await import('../src/lib/soa/submission-lines.ts');
+const { statementCurrencyDecimals } = await import('../src/lib/soa/currency.ts');
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APPLY = process.argv.includes('--apply');
@@ -73,17 +74,21 @@ const AMOUNT_FIELDS = [
  * such rows "changed" when writing them back would round to exactly what is already there --
  * thousands of pointless updates, and a report that buried the real differences.
  */
-function same(stored, parsed, column) {
+function same(stored, parsed, column, currency) {
   if (stored === null || stored === undefined) return parsed === null || parsed === undefined;
   if (parsed === null || parsed === undefined) return false;
-  /* Half a cent, not an exact match after rounding. An Excel formula result of 23537.475 is held
-     in binary as 23537.47499…, so rounding it in JavaScript gives .47 while Postgres stored .48
-     -- a disagreement about a half-cent that reports 294 rows as changed when writing them back
-     produces exactly the bytes already in the column. Two values that land in the same cent ARE
-     the same stored value, and nothing this script is here to fix differs by less than a cent:
-     the decimal-comma bug is a factor of a hundred. */
-  const tolerance = column === 'outstanding_days' ? 0.5 : 0.005 + 1e-9;
-  return Math.abs(Number(stored) - Number(parsed)) <= tolerance;
+  /* Half of the smallest unit the currency HAS, not an exact match after rounding.
+     An Excel formula result of 23537.475 is held in binary as 23537.47499…, so rounding it in
+     JavaScript gives .47 while Postgres stored .48 -- a disagreement about a half-cent that
+     reported 294 rows as changed when writing them back produces exactly the bytes already in
+     the column. Two values that land in the same minor unit ARE the same stored value.
+
+     The unit depends on the currency. An Omani or Kuwaiti line is quoted in thousandths, so a
+     cent of slack there would hide the very truncation migration 023 exists to undo: 1,234.567
+     stored as 1,234.57 differs by 0.003 and must be reported, where the same gap on a Saudi line
+     is just float noise. */
+  const minorUnit = column === 'outstanding_days' ? 1 : 10 ** -statementCurrencyDecimals(currency);
+  return Math.abs(Number(stored) - Number(parsed)) <= minorUnit / 2 + 1e-9;
 }
 
 const sameIssues = (a, b) =>
@@ -169,7 +174,7 @@ async function main() {
     reparsed++;
 
     const { rows: stored } = await client.query(
-      `SELECT id, line_no, invoice_number, po_number, tax_amount, total_amount,
+      `SELECT id, line_no, invoice_number, po_number, currency, tax_amount, total_amount,
               outstanding_amount, outstanding_days, issues
          FROM soa_submission_lines WHERE submission_id = $1 ORDER BY line_no`,
       [sub.id],
@@ -206,7 +211,7 @@ async function main() {
       const line = byLineNo.get(row.line_no);
       const set = {};
       for (const [col, field] of AMOUNT_FIELDS) {
-        if (!same(row[col], line[field], col)) {
+        if (!same(row[col], line[field], col, row.currency ?? line.currency)) {
           set[col] = line[field];
           changedCells.push({
             sub: sub.id,

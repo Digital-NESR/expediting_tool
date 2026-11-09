@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import { getSoaSubmissions } from '@/app/actions/soa/submissions';
 import type { SubmissionLineView, SubmissionView } from '@/lib/soa/submission-read';
+import { statementCurrencyDecimals } from '@/lib/soa/currency';
 
 /**
  * What the supplier actually sent, row by row.
@@ -21,9 +22,15 @@ interface Props {
   vendorName: string;
 }
 
+/**
+ * At the currency's own precision, not always two places. An Omani or Kuwaiti line shown to the
+ * cent is a figure the supplier cannot reconcile against: those currencies divide into
+ * thousandths, and 1,234.567 OMR rendered as 1,234.57 is not what they invoiced.
+ */
 function money(value: number | null, currency: string | null): string {
   if (value === null) return ', ';
-  return `${currency ?? ''} ${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`.trim();
+  const dp = statementCurrencyDecimals(currency);
+  return `${currency ?? ''} ${value.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp })}`.trim();
 }
 
 export default function SubmissionLines({ entryId, vendorName }: Props) {
