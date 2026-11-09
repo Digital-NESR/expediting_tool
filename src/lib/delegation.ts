@@ -51,6 +51,28 @@ function isExpectedMissingDb(err: unknown): boolean {
  */
 let reportedUnavailable = false;
 
+/**
+ * Stop dialling a hub that is not there.
+ *
+ * Returning [] on a missing database made the failure harmless but not free. A connection to a
+ * database that does not exist is never pooled -- Postgres rejects it after the TCP and TLS
+ * handshake -- so unlike every other query in this app, which reuses a warm connection in about
+ * ten milliseconds, this one paid the full handshake again on every single call. Measured
+ * against the configured server: ~260ms per attempt, indefinitely, versus 9ms for a database
+ * that exists.
+ *
+ * `loadCatalogActor` awaits this on every Catalog Repo page load and every server action, and
+ * Catalog Repo is the only caller, which is exactly why it felt slower than the other tools.
+ * Since the PIR screen re-renders on the server for each filter change, a quarter of a second
+ * was being added to every interaction to ask a question whose answer was already known.
+ *
+ * So the first failure opens a breaker and later calls return [] without touching the pool. The
+ * window is short enough that creating `delegation_db` starts being honoured within minutes
+ * without a deploy, and long enough that a process never dials more than a handful of times.
+ */
+const UNAVAILABLE_RETRY_MS = 5 * 60 * 1000;
+let unavailableUntil = 0;
+
 /** The people whose authority `myEmail` currently holds for `app`. Never throws; worst case []. */
 export async function getDelegatorsForApp(
   myEmail: string,
@@ -58,6 +80,7 @@ export async function getDelegatorsForApp(
 ): Promise<{ email: string; name: string | null }[]> {
   const email = (myEmail ?? '').trim().toLowerCase();
   if (!email) return [];
+  if (Date.now() < unavailableUntil) return [];
   try {
     const result = await sql<QueryResultRow[]>(
       `SELECT DISTINCT delegator_email, delegator_name
@@ -72,12 +95,14 @@ export async function getDelegatorsForApp(
     return rows.map((r) => ({ email: r.delegator_email, name: r.delegator_name }));
   } catch (err) {
     if (isExpectedMissingDb(err)) {
+      unavailableUntil = Date.now() + UNAVAILABLE_RETRY_MS;
       if (!reportedUnavailable) {
         reportedUnavailable = true;
         log.warn('hub.unavailable', {
           app,
           reason: (err as { code?: string } | null)?.code ?? 'unknown',
           effect: 'delegated authority is not being honoured; every lookup returns none',
+          retryingInMs: UNAVAILABLE_RETRY_MS,
         });
       }
       return [];
