@@ -86,6 +86,7 @@ export const ADMIN_APPS: AdminApp[] = [
       { id: 'admin', label: 'Admin Panel' },
       { id: 'sync', label: 'Sync Health' },
       { id: 'access', label: 'Access Approvals', countKey: 'catalog' },
+      { id: 'approvers', label: 'Country Approvers' },
     ],
   },
   {
@@ -192,6 +193,7 @@ export const LEGACY_TOOL_MAP: Record<string, { app: string; section: string }> =
   'catalog-admin': { app: 'catalog', section: 'admin' },
   'catalog-sync': { app: 'catalog', section: 'sync' },
   'catalog-access': { app: 'catalog', section: 'access' },
+  'catalog-approvers': { app: 'catalog', section: 'approvers' },
   'sns-access': { app: 'sns', section: 'access' },
   'sns-approvers': { app: 'sns', section: 'approvers' },
   'sns-reference': { app: 'sns', section: 'reference' },

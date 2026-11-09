@@ -109,6 +109,9 @@ const CatalogAdminPanelClient = dynamic(
   () => import('../CatalogRepoAdmin').then((m) => m.CatalogAdminPanelClient),
   { loading },
 );
+const CatalogApproverMatrixClient = dynamic(() => import('../CatalogApproverMatrixClient'), {
+  loading,
+});
 const CatalogSyncHealthClient = dynamic(
   () => import('../CatalogRepoAdmin').then((m) => m.CatalogSyncHealthClient),
   { loading },
@@ -226,6 +229,8 @@ export default function AdminAppContent(props: AdminAppContentProps) {
       return <CatalogSyncHealthClient />;
     case 'catalog/access':
       return <CatalogAccessApprovalsClient />;
+    case 'catalog/approvers':
+      return <CatalogApproverMatrixClient />;
 
     /* ── S&S Registry ── */
     case 'sns/access':

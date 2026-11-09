@@ -5,7 +5,7 @@
  * before it ships. The rows below are made up; the component is the real one.
  */
 import { notFound } from 'next/navigation';
-import ApproverMatrix from '@/app/catalog-manager/admin/ApproverMatrix';
+import ApproverMatrix from '@/app/admin/CatalogApproverMatrixClient';
 
 const CELLS = [
   {
