@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import {
   approveCatalogAccessRequest,
+  updateCatalogAccessGrant,
   deleteCatalogAccessRequest,
   getCatalogAccessRequests,
   getCatalogAdminSummary,
@@ -16,7 +17,7 @@ import type {
   CatalogRole,
   PirSyncHealth,
 } from '@/types/catalog-manager';
-import { ALL_ROLES, SEED_COUNTRIES } from '@/lib/catalog-manager-utils';
+import { GRANTABLE_ROLES, SEED_COUNTRIES } from '@/lib/catalog-manager-utils';
 import { formatDate } from '@/lib/format';
 import { Kpi, Panel } from './_components/Panel';
 
@@ -45,66 +46,96 @@ function StatusBadge({ status }: { status: CatalogAccessRequestRow['status'] }) 
 function RoleSelector({
   row,
   loading,
+  mode,
   onCancel,
   onConfirm,
 }: {
   row: CatalogAccessRequestRow;
   loading: boolean;
+  /** 'approve' decides a pending request; 'edit' changes a grant that already exists. */
+  mode: 'approve' | 'edit';
   onCancel: () => void;
-  onConfirm: (role: CatalogRole, countryCode: string) => void;
+  onConfirm: (role: CatalogRole, countries: string[]) => void;
 }) {
-  const [role, setRole] = useState<CatalogRole>(row.approved_role ?? row.requested_role);
-  const [country, setCountry] = useState(row.country_code ?? '');
+  const [role, setRole] = useState<CatalogRole>(() => {
+    const r = row.approved_role ?? row.requested_role;
+    return GRANTABLE_ROLES.includes(r) ? r : 'Viewer';
+  });
+  /* Start from what they actually have, falling back to what they asked for. An admin editing a
+     grant should see the grant, not the request it came from. */
+  const [countries, setCountries] = useState<string[]>(() => {
+    const granted = row.approved_countries?.length ? row.approved_countries : null;
+    const asked = row.requested_countries?.length ? row.requested_countries : null;
+    const home = row.country_code ? [row.country_code] : [];
+    return (mode === 'edit' ? granted : null) ?? asked ?? granted ?? home;
+  });
+
+  const toggle = (code: string) =>
+    setCountries((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code],
+    );
+
+  const askedFor = new Set(row.requested_countries ?? []);
 
   return (
     <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-      <p className="mb-3 text-xs font-semibold text-slate-600">Approve role and home country</p>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <label>
-          <span className="mb-1 block text-[11px] font-semibold uppercase text-slate-400">
-            Role
-          </span>
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value as CatalogRole)}
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-[#307c4c]"
-          >
-            {ALL_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span className="mb-1 block text-[11px] font-semibold uppercase text-slate-400">
-            Home country
-          </span>
-          <select
-            value={country}
-            onChange={(e) => setCountry(e.target.value)}
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-[#307c4c]"
-          >
-            <option value="">Not set</option>
-            {SEED_COUNTRIES.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.flag} {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
+      <p className="mb-3 text-xs font-semibold text-slate-600">
+        {mode === 'edit' ? 'Change this grant' : 'Grant role and countries'}
+      </p>
+      <label className="block max-w-xs">
+        <span className="mb-1 block text-[11px] font-semibold uppercase text-slate-400">Role</span>
+        <select
+          value={role}
+          onChange={(e) => setRole(e.target.value as CatalogRole)}
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-[#307c4c]"
+        >
+          {GRANTABLE_ROLES.map((r) => (
+            <option key={r} value={r}>
+              {r === 'Viewer' ? 'View only' : r}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <p className="mt-4 text-[11px] font-semibold uppercase text-slate-400">
+        Countries <span className="normal-case text-slate-400">({countries.length} granted)</span>
+      </p>
+      {/* Dotted outline marks what they asked for, so narrowing or widening the request is
+          visible rather than something the admin has to remember. */}
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {SEED_COUNTRIES.map((c) => {
+          const on = countries.includes(c.code);
+          return (
+            <button
+              key={c.code}
+              type="button"
+              onClick={() => toggle(c.code)}
+              aria-pressed={on}
+              title={askedFor.has(c.code) ? 'They asked for this one' : undefined}
+              className={`rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors ${
+                on
+                  ? 'border-[#307c4c] bg-[#307c4c] text-white'
+                  : askedFor.has(c.code)
+                    ? 'border-dashed border-[#307c4c]/50 bg-white text-slate-600'
+                    : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+              }`}
+            >
+              {c.name}
+            </button>
+          );
+        })}
       </div>
-      {role === 'Approver' && (
-        <p className="mt-2 text-[11px] text-amber-700">
-          Approver alone doesn&apos;t scope them to a country — also assign them in Catalog Repo →
-          Admin → Country approvers.
+      {!countries.length && (
+        <p className="mt-2 text-[11px] font-medium text-amber-700">
+          Grant at least one country — access is scoped by country.
         </p>
       )}
+
       <div className="mt-3 flex items-center gap-2">
         <button
           type="button"
-          disabled={loading}
-          onClick={() => onConfirm(role, country)}
+          disabled={loading || !countries.length}
+          onClick={() => onConfirm(role, countries)}
           className="rounded-lg px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
           style={{ background: BRAND }}
         >
@@ -162,18 +193,29 @@ export function CatalogAccessApprovalsClient({
 
   const pending = useMemo(() => requests.filter((row) => row.status === 'Pending'), [requests]);
 
-  function handleApprove(row: CatalogAccessRequestRow, role: CatalogRole, countryCode: string) {
+  /* One handler for both, because approving and editing differ only in whether a decision has
+     been made before. The server keeps them apart -- an edit leaves the request's status alone
+     rather than re-stamping it Approved. */
+  function handleGrant(
+    row: CatalogAccessRequestRow,
+    role: CatalogRole,
+    countries: string[],
+    mode: 'approve' | 'edit',
+  ) {
     setActionError('');
     setProcessingEmail(row.user_email);
     startTransition(async () => {
       // The reviewer identity comes from the server session, never from this client.
-      const result = await approveCatalogAccessRequest({
-        userEmail: row.user_email,
-        approvedRole: role,
-        countryCode: countryCode || null,
-      });
+      const result =
+        mode === 'edit'
+          ? await updateCatalogAccessGrant({ userEmail: row.user_email, role, countries })
+          : await approveCatalogAccessRequest({
+              userEmail: row.user_email,
+              approvedRole: role,
+              countries,
+            });
       if (!result.success) {
-        setActionError(result.error ?? 'Failed to approve access.');
+        setActionError(result.error ?? 'Failed to save access.');
         setProcessingEmail(null);
         return;
       }
@@ -295,14 +337,27 @@ export function CatalogAccessApprovalsClient({
                           </>
                         )}
                         {row.status === 'Approved' && (
-                          <button
-                            type="button"
-                            disabled={busy}
-                            onClick={() => handleRevoke(row.user_email)}
-                            className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-60"
-                          >
-                            Revoke
-                          </button>
+                          <>
+                            {/* Editing a live grant, which used to mean revoking and waiting for
+                                the person to ask again -- costing them their access for what is
+                                usually "they cover Kuwait now too". */}
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => setExpandedEmail(expanded ? null : row.user_email)}
+                              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 disabled:opacity-60"
+                            >
+                              {expanded ? 'Close' : 'Edit access'}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => handleRevoke(row.user_email)}
+                              className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-60"
+                            >
+                              Revoke
+                            </button>
+                          </>
                         )}
                         {row.status !== 'Approved' && (
                           <button
@@ -319,8 +374,16 @@ export function CatalogAccessApprovalsClient({
                         <RoleSelector
                           row={row}
                           loading={busy}
+                          mode={row.status === 'Approved' ? 'edit' : 'approve'}
                           onCancel={() => setExpandedEmail(null)}
-                          onConfirm={(role, countryCode) => handleApprove(row, role, countryCode)}
+                          onConfirm={(role, countries) =>
+                            handleGrant(
+                              row,
+                              role,
+                              countries,
+                              row.status === 'Approved' ? 'edit' : 'approve',
+                            )
+                          }
                         />
                       )}
                     </td>

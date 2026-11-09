@@ -2781,15 +2781,46 @@ export async function getCatalogAccessPendingCount(): Promise<number> {
 }
 
 /** Approve a request: marks it Approved and grants the role on app_user (creating the row if needed). */
+/**
+ * The roles an admin may grant from this queue.
+ *
+ * Approver is absent on purpose: it comes from the country matrix, where being a country's
+ * approver IS the grant for that country, so granting it here as well would be two routes to
+ * one state that can disagree. Admin is absent because it is ADMIN_EMAILS and not a row.
+ */
+const GRANTABLE_ROLES: CatalogRole[] = ['Viewer', 'Contributor'];
+
+/** Validate and de-duplicate a set of country codes against the ones that actually exist. */
+async function resolveCountryCodes(codes: string[], db: CatalogDb = poolDb): Promise<string[]> {
+  const wanted = [...new Set((codes ?? []).map((c) => String(c).trim()).filter(Boolean))];
+  if (!wanted.length) return [];
+  const rows = await db.sql<{ code: string }[]>(
+    `SELECT code FROM country WHERE code IN (${wanted.map(() => '?').join(', ')})`,
+    wanted,
+  );
+  const real = new Set(rows.map((r) => r.code));
+  return wanted.filter((c) => real.has(c));
+}
+
 export async function approveCatalogAccessRequest(input: {
   userEmail: string;
   approvedRole: CatalogRole;
-  countryCode?: string | null;
+  countries: string[];
 }): Promise<{ success: boolean; error?: string }> {
   // The reviewer is the AUTHENTICATED actor — never a value the client sent.
   const actor = await optionalCatalogActor('Admin');
   if (!actor) return { success: false, error: 'Admin only.' };
   const email = normalizeEmail(input.userEmail);
+
+  /* The admin decides, not the requester: what they picked on the review row is what is granted,
+     which is the whole point of letting them re-select. Both values are still checked here
+     rather than trusted, because this is a public POST endpoint. */
+  if (!GRANTABLE_ROLES.includes(input.approvedRole))
+    return { success: false, error: 'Grant View or Contributor. Approver comes from the country matrix.' };
+
+  const countries = await resolveCountryCodes(input.countries);
+  if (!countries.length)
+    return { success: false, error: 'Grant at least one country.' };
 
   // Marking the request Approved and actually granting the role on app_user must land together —
   // a failure between them used to leave a request that reads "Approved" with no role granted.
@@ -2800,26 +2831,94 @@ export async function approveCatalogAccessRequest(input: {
       [email],
     );
     const displayName = existing[0]?.display_name ?? email;
-    const countryCode = input.countryCode || existing[0]?.country_code || null;
+    const homeCountry = countries[0];
 
     await db.exec(
       `UPDATE catalog_access_requests
-       SET status = 'Approved', approved_role = ?, country_code = COALESCE(?, country_code), reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?
+       SET status = 'Approved', approved_role = ?, approved_countries = ?, country_code = ?,
+           reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?
        WHERE LOWER(user_email) = ?`,
-      [input.approvedRole, countryCode, actor.email, email],
+      [input.approvedRole, countries, homeCountry, actor.email, email],
     );
+    /* The grant is REPLACED, not merged. An admin who removes a country on the review row means
+       to remove it; COALESCEing the old value back in -- which this did for country_code -- made
+       the narrowing silently fail. */
     await db.exec(
-      `INSERT INTO app_user (full_name, email, country_code, role)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT (email) DO UPDATE SET role = EXCLUDED.role, country_code = COALESCE(app_user.country_code, EXCLUDED.country_code)`,
-      [displayName, email, countryCode, input.approvedRole],
+      `INSERT INTO app_user (full_name, email, country_code, countries, role)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (email) DO UPDATE SET
+         role = EXCLUDED.role,
+         countries = EXCLUDED.countries,
+         country_code = EXCLUDED.country_code`,
+      [displayName, email, homeCountry, countries, input.approvedRole],
     );
     await writeAudit(
       'Master data',
       'Access requests',
       actor.name,
       actor.email,
-      `Approved ${email} → ${input.approvedRole}`,
+      `Approved ${email} → ${input.approvedRole} for ${countries.join(', ')}`,
+      db,
+    );
+  });
+  return { success: true };
+}
+
+/**
+ * Change a live grant without revoking it first.
+ *
+ * Revoke-and-ask-again was the only way to correct a grant, which costs the person their access
+ * and the admin a second round trip for what is usually "they also cover Kuwait now". This edits
+ * the same two rows the approval wrote, so the request record keeps matching the grant rather
+ * than drifting into a historical curiosity.
+ */
+export async function updateCatalogAccessGrant(input: {
+  userEmail: string;
+  role: CatalogRole;
+  countries: string[];
+}): Promise<{ success: boolean; error?: string }> {
+  const actor = await optionalCatalogActor('Admin');
+  if (!actor) return { success: false, error: 'Admin only.' };
+  const email = normalizeEmail(input.userEmail);
+
+  if (!GRANTABLE_ROLES.includes(input.role))
+    return { success: false, error: 'Set View or Contributor. Approver comes from the country matrix.' };
+  const countries = await resolveCountryCodes(input.countries);
+  if (!countries.length) return { success: false, error: 'Keep at least one country, or revoke instead.' };
+
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    const existing = await db.sql<QueryResultRow[]>(
+      `SELECT full_name FROM app_user WHERE LOWER(email) = ?`,
+      [email],
+    );
+    const displayName = existing[0]?.full_name ?? email;
+    const homeCountry = countries[0];
+
+    await db.exec(
+      `INSERT INTO app_user (full_name, email, country_code, countries, role)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (email) DO UPDATE SET
+         role = EXCLUDED.role,
+         countries = EXCLUDED.countries,
+         country_code = EXCLUDED.country_code`,
+      [displayName, email, homeCountry, countries, input.role],
+    );
+    /* Only if there is a request to keep in step. Someone granted access directly has no row
+       here and does not need one invented. */
+    await db.exec(
+      `UPDATE catalog_access_requests
+       SET approved_role = ?, approved_countries = ?, country_code = ?,
+           reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?
+       WHERE LOWER(user_email) = ? AND status = 'Approved'`,
+      [input.role, countries, homeCountry, actor.email, email],
+    );
+    await writeAudit(
+      'Master data',
+      'Access requests',
+      actor.name,
+      actor.email,
+      `Changed ${email} → ${input.role} for ${countries.join(', ')}`,
       db,
     );
   });

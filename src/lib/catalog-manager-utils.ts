@@ -229,6 +229,19 @@ export const ALL_STATUSES: CatalogStatus[] = [
 ];
 export const ALL_ROLES: CatalogRole[] = ['Viewer', 'Contributor', 'Approver', 'Admin'];
 
+/**
+ * The roles an admin can hand out from the access queue.
+ *
+ * Not the same list as ALL_ROLES, and the difference is the point. Approver is conferred by the
+ * country approver matrix -- being a country's approver IS the grant for that country -- so
+ * offering it here too would be two routes to one state that can disagree. Admin is membership
+ * of ADMIN_EMAILS and has not been a stored role since 003.
+ *
+ * The server checks this list again in `approveCatalogAccessRequest`; this copy is what the
+ * dropdown offers, not what enforces it.
+ */
+export const GRANTABLE_ROLES: CatalogRole[] = ['Viewer', 'Contributor'];
+
 /** Annualized USD-equivalent threshold above which an entry needs Approver sign-off. */
 export const APPROVAL_THRESHOLD_USD = 50000;
 
