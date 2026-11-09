@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { parseAmountText } from './parse-amount';
+import { parseAmountText, parseDayCount } from './parse-amount';
 
 /**
  * Reading a supplier's returned statement.
@@ -314,6 +314,14 @@ export async function parseSupplierWorkbook(bytes: Buffer): Promise<ParseResult>
     if (cellText(totalCell).trim() && totalAmount === null)
       issues.push(`Total amount "${cellText(totalCell).trim()}" could not be read`);
 
+    /* Tax is reported like the other two. It used to be parsed silently, so a tax cell holding
+       something unreadable produced a blank with no explanation anywhere -- which is also why
+       the backfill over stored statements could not say what had been in those cells. */
+    const taxCell = get(row, 'taxAmount');
+    const taxAmount = parseAmount(taxCell);
+    if (cellText(taxCell).trim() && taxAmount === null)
+      issues.push(`Tax amount "${cellText(taxCell).trim()}" could not be read`);
+
     const outstandingCell = get(row, 'outstandingAmount');
     const outstandingAmount = parseAmount(outstandingCell);
     if (cellText(outstandingCell).trim() && outstandingAmount === null)
@@ -330,12 +338,15 @@ export async function parseSupplierWorkbook(bytes: Buffer): Promise<ParseResult>
       poNumber,
       serviceType: str(get(row, 'serviceType')),
       currency: str(get(row, 'currency'))?.toUpperCase() ?? null,
-      taxAmount: parseAmount(get(row, 'taxAmount')),
+      taxAmount: taxAmount,
       totalAmount,
       outstandingAmount,
       outstandingDays: (() => {
-        const n = parseAmount(get(row, 'outstandingDays'));
-        return n === null ? null : Math.round(n);
+        // A number cell goes through as a number; only typed text needs the text reading.
+        const cell = get(row, 'outstandingDays');
+        return typeof cell === 'number'
+          ? parseDayCount(cell)
+          : parseDayCount(cellText(cell).trim());
       })(),
       remarks: str(get(row, 'remarks')),
       issues,

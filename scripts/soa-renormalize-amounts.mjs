@@ -65,11 +65,25 @@ const AMOUNT_FIELDS = [
   ['outstanding_days', 'outstandingDays'],
 ];
 
-/** Numeric columns come back from pg as strings; compare as numbers, with null === null. */
-function same(stored, parsed) {
+/**
+ * Compare a stored value with a freshly parsed one AT THE COLUMN'S OWN PRECISION.
+ *
+ * The amount columns are numeric(18,2), so a cell holding an Excel formula result of
+ * 271185.89061151573 was stored as 271185.89. Comparing at full float precision called 3,903
+ * such rows "changed" when writing them back would round to exactly what is already there --
+ * thousands of pointless updates, and a report that buried the real differences.
+ */
+function same(stored, parsed, column) {
   if (stored === null || stored === undefined) return parsed === null || parsed === undefined;
   if (parsed === null || parsed === undefined) return false;
-  return Math.abs(Number(stored) - Number(parsed)) < 1e-9;
+  /* Half a cent, not an exact match after rounding. An Excel formula result of 23537.475 is held
+     in binary as 23537.47499…, so rounding it in JavaScript gives .47 while Postgres stored .48
+     -- a disagreement about a half-cent that reports 294 rows as changed when writing them back
+     produces exactly the bytes already in the column. Two values that land in the same cent ARE
+     the same stored value, and nothing this script is here to fix differs by less than a cent:
+     the decimal-comma bug is a factor of a hundred. */
+  const tolerance = column === 'outstanding_days' ? 0.5 : 0.005 + 1e-9;
+  return Math.abs(Number(stored) - Number(parsed)) <= tolerance;
 }
 
 const sameIssues = (a, b) =>
@@ -83,17 +97,17 @@ function connect() {
     user: process.env.POSTGRES_USER ?? process.env.DB_USER,
     password: process.env.POSTGRES_PASSWORD ?? process.env.DB_PASSWORD,
     database: process.env.SOA_DB_NAME || 'soa_consolidation',
-    ssl: sslFlag === 'true' || sslFlag === 'require' || sslFlag === '1'
-      ? { rejectUnauthorized: false }
-      : false,
+    ssl:
+      sslFlag === 'true' || sslFlag === 'require' || sslFlag === '1'
+        ? { rejectUnauthorized: false }
+        : false,
   });
 }
 
 async function rollback(client) {
-  const { rows: present } = await client.query(
-    `SELECT to_regclass($1) AS t`,
-    [`public.${BACKUP_TABLE}`],
-  );
+  const { rows: present } = await client.query(`SELECT to_regclass($1) AS t`, [
+    `public.${BACKUP_TABLE}`,
+  ]);
   if (!present[0].t) {
     console.log(`No ${BACKUP_TABLE} table — there is nothing to roll back.`);
     return;
@@ -135,17 +149,16 @@ async function main() {
       ORDER BY s.id`,
   );
 
-  const updates = [];           // { lineId, set: {...}, before: {...} }
-  const changedCells = [];      // for the report
-  const skipped = [];           // submissions whose re-parse did not line up
+  const updates = []; // { lineId, set: {...}, before: {...} }
+  const changedCells = []; // for the report
+  const skipped = []; // submissions whose re-parse did not line up
   const unreadable = [];
   let reparsed = 0;
 
   for (const sub of subs) {
-    const { rows: blob } = await client.query(
-      'SELECT content FROM soa_submissions WHERE id = $1',
-      [sub.id],
-    );
+    const { rows: blob } = await client.query('SELECT content FROM soa_submissions WHERE id = $1', [
+      sub.id,
+    ]);
     let parsed;
     try {
       parsed = await parseSupplierWorkbook(blob[0].content);
@@ -193,7 +206,7 @@ async function main() {
       const line = byLineNo.get(row.line_no);
       const set = {};
       for (const [col, field] of AMOUNT_FIELDS) {
-        if (!same(row[col], line[field])) {
+        if (!same(row[col], line[field], col)) {
           set[col] = line[field];
           changedCells.push({
             sub: sub.id,
@@ -207,7 +220,19 @@ async function main() {
           });
         }
       }
-      if (!sameIssues(row.issues, line.issues)) set.issues = line.issues;
+      /* Issues are rewritten only on a line whose amount this script actually changed, where the
+         text explains the blank it just created. Not everywhere they differ: reading tax amounts
+         now reports an unreadable one, which is right for a new upload but would repaint 868
+         historical lines amber in the reviewer's table -- over a column that table does not even
+         show. The backfill's job is amounts. */
+      const amountChanged = Object.keys(set).length > 0;
+      if (amountChanged && !sameIssues(row.issues, line.issues)) set.issues = line.issues;
+      /* The issue text quotes the cell verbatim -- `Total amount "…" could not be read` -- which
+         is the only record of what was actually in a voided cell, and the thing to read before
+         agreeing to blank it. */
+      for (const cell of changedCells)
+        if (cell.sub === sub.id && cell.lineNo === row.line_no && cell.to === null)
+          cell.why = (line.issues ?? []).filter((i) => i.includes('could not be read'));
       if (Object.keys(set).length > 0) {
         updates.push({ lineId: row.id, set, before: row });
       }
@@ -224,8 +249,12 @@ async function main() {
   if (unreadable.length) console.log(`  unreadable                ${unreadable.length}`);
   if (skipped.length) console.log(`  skipped, rows did not line up ${skipped.length}`);
   console.log(`lines to update             ${updates.length}`);
-  console.log(`  amount corrected          ${corrected.length}  (was a number, now a different one)`);
-  console.log(`  amount voided             ${voided.length}  (was a number read out of prose or a date)`);
+  console.log(
+    `  amount corrected          ${corrected.length}  (was a number, now a different one)`,
+  );
+  console.log(
+    `  amount voided             ${voided.length}  (was a number read out of prose or a date)`,
+  );
   console.log(`  amount recovered          ${recovered.length}  (was unreadable, now a number)`);
 
   if (corrected.length) {
@@ -254,10 +283,26 @@ async function main() {
       byVendor[k].n++;
       byVendor[k].from += c.from;
     }
-    for (const [v, s] of Object.entries(byVendor).sort((a, b) => b[1].from - a[1].from).slice(0, 15))
+    for (const [v, s] of Object.entries(byVendor)
+      .sort((a, b) => b[1].from - a[1].from)
+      .slice(0, 15))
       console.log(
         `  ${String(s.n).padStart(4)}  ${v.padEnd(46)} removed ${s.from.toLocaleString('en-US', { maximumFractionDigits: 0 }).padStart(22)}`,
       );
+
+    console.log('\nwhat was actually in each voided cell:');
+    const seen = new Set();
+    for (const c of voided.slice().sort((a, b) => b.from - a.from)) {
+      for (const why of c.why ?? []) {
+        if (seen.has(why)) continue;
+        seen.add(why);
+        console.log(`  ${String(c.from).padStart(12)}  ${why}`);
+      }
+      if (!(c.why ?? []).length)
+        console.log(
+          `  ${String(c.from).padStart(12)}  ${c.col} on line ${c.lineNo} of submission ${c.sub}`,
+        );
+    }
   }
 
   if (skipped.length) {
@@ -275,7 +320,9 @@ async function main() {
   if (VERBOSE && corrected.length) {
     console.log('\nevery corrected cell:');
     for (const c of corrected)
-      console.log(`  sub ${c.sub} line ${c.lineNo} ${c.col}: ${c.from} -> ${c.to}  [${c.country} ${c.vendor}]`);
+      console.log(
+        `  sub ${c.sub} line ${c.lineNo} ${c.col}: ${c.from} -> ${c.to}  [${c.country} ${c.vendor}]`,
+      );
   }
 
   const dumpAt = process.argv.indexOf('--dump');
@@ -333,7 +380,9 @@ async function main() {
   }
   await client.query('COMMIT');
   console.log(`Done. ${updates.length} lines updated; originals kept in ${BACKUP_TABLE}.`);
-  console.log(`Undo with:  node --experimental-strip-types --env-file=.env ${path.relative(ROOT, fileURLToPath(import.meta.url)).replace(/\\/g, '/')} --rollback`);
+  console.log(
+    `Undo with:  node --experimental-strip-types --env-file=.env ${path.relative(ROOT, fileURLToPath(import.meta.url)).replace(/\\/g, '/')} --rollback`,
+  );
 
   await client.end();
 }

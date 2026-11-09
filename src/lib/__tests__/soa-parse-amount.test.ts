@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseAmountText } from '@/lib/soa/parse-amount';
+import { parseAmountText, parseDayCount } from '@/lib/soa/parse-amount';
 
 const value = (s: string) => parseAmountText(s).value;
 
@@ -31,13 +31,30 @@ describe('parseAmountText', () => {
     expect(parseAmountText('6 264 791,08').ambiguous).toBe(false);
   });
 
-  it('flags the one case that is genuinely both readings', () => {
-    // `1,234` is 1234 or 1.234 and nothing in the cell settles it. Grouping is the commoner
-    // intent and was the old behaviour, so that is what it returns -- but it says so.
-    const r = parseAmountText('1,234');
-    expect(r.value).toBe(1234);
-    expect(r.ambiguous).toBe(true);
+  it('falls back per separator when a cell is genuinely both readings', () => {
+    // Nothing in `1,234` or `332.235` settles which reading is meant, so each character falls
+    // back to the convention that uses it as the decimal point -- which is also what the old
+    // reader did, so nothing that was right becomes wrong.
+    const comma = parseAmountText('1,234');
+    expect(comma.value).toBe(1234);
+    expect(comma.ambiguous).toBe(true);
+
+    const dot = parseAmountText('332.235');
+    expect(dot.value).toBe(332.235);
+    expect(dot.ambiguous).toBe(true);
+
     expect(parseAmountText('1,234.56').ambiguous).toBe(false);
+  });
+
+  it('does not inflate a three-decimal currency by a thousand', () => {
+    // OMR, KWD and BHD all carry three decimals, so amounts like these are everywhere in Oman
+    // and Kuwait statements. Reading the dot as grouping overstated 116 stored cells by 1000x.
+    expect(value('332.235')).toBe(332.235);
+    expect(value('29.225')).toBe(29.225);
+    expect(value('2.125')).toBe(2.125);
+    expect(value('454.244')).toBe(454.244);
+    // And the grouped reading still wins where the number cannot be a small decimal.
+    expect(value('1.234.567,89')).toBe(1234567.89);
   });
 
   it('understands every way a statement writes a negative', () => {
@@ -52,6 +69,10 @@ describe('parseAmountText', () => {
     expect(value('1,234.56 USD')).toBe(1234.56);
     expect(value('75,000 EGP')).toBe(75000);
     expect(value('$1,234.56')).toBe(1234.56);
+    // Both of these are real statement rows carrying real amounts. A stricter earlier rule
+    // threw them away, which is worse than the bug it was written to prevent.
+    expect(value('Total    AED 3,022.11')).toBe(3022.11);
+    expect(value('1104(USD)')).toBe(1104);
   });
 
   it('refuses a cell holding prose rather than an amount', () => {
@@ -92,5 +113,54 @@ describe('parseAmountText', () => {
       'more than one number',
     );
     expect(parseAmountText('').reason).toBe('empty');
+  });
+});
+
+describe('parseDayCount', () => {
+  it('reads a plain count', () => {
+    expect(parseDayCount('74')).toBe(74);
+    expect(parseDayCount(45)).toBe(45);
+    expect(parseDayCount(45.4)).toBe(45);
+    expect(parseDayCount('0')).toBe(0);
+    // This column is often a formula subtracting two dates, so the result arrives fractional.
+    expect(parseDayCount('40.000000000349')).toBe(40);
+    expect(parseDayCount('462.75')).toBe(463);
+    expect(parseDayCount(40.5)).toBe(41);
+    expect(parseDayCount('-5')).toBe(-5);
+  });
+
+  it('reads a count with its unit spelled out', () => {
+    // Real cells. The money reader threw these away over the label, losing a good value.
+    expect(parseDayCount('74 DAYS OUTSTANDING')).toBe(74);
+    expect(parseDayCount('14 DAYS REMAINING')).toBe(14);
+    expect(parseDayCount('30 days')).toBe(30);
+    expect(parseDayCount('30days')).toBe(30);
+    // Suppliers phrase the label however they like; the column heading supplies the unit.
+    expect(parseDayCount('40 overdue')).toBe(40);
+    expect(parseDayCount('183 OVERDUE')).toBe(183);
+    expect(parseDayCount('More than 365')).toBe(365);
+    expect(parseDayCount('10-')).toBe(-10);
+    // A supplier formula that writes out a whole sentence. The number is still the count.
+    expect(parseDayCount('83 days have passed since the due date')).toBe(83);
+    expect(parseDayCount('14 days left for the payment')).toBe(14);
+  });
+
+  it('refuses an amount that leaked into the days column', () => {
+    // A supplier formula pointing at the wrong column yields these. Five digits is the cap: no
+    // real number of days reaches six, and these are money.
+    expect(parseDayCount('11377500')).toBeNull();
+    expect(parseDayCount('1320189.6')).toBeNull();
+    expect(parseDayCount('1102677')).toBeNull();
+  });
+
+  it('refuses a date put in the days column', () => {
+    // Deleting the slashes used to make this 20,092,026 days outstanding.
+    expect(parseDayCount('20/09/2026')).toBeNull();
+    expect(parseDayCount('20-09-2026')).toBeNull();
+  });
+
+  it('refuses anything else', () => {
+    for (const v of ['', 'n/a', 'overdue', '12/04', '1.2.3', null, undefined])
+      expect(parseDayCount(v)).toBeNull();
   });
 });

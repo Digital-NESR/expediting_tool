@@ -30,10 +30,13 @@
  *   group, so its dot is a decimal point. `31.07.2026` cannot group either and has no
  *   single-decimal reading, so it is refused rather than guessed at.
  *
- * WHAT STAYS AMBIGUOUS. A lone separator before exactly three digits -- `1,234` -- is genuinely
- * both readings, and no rule settles it. It is read as grouping, which is the commoner intent
- * and matches the old behaviour, and flagged so a caller can surface it. Across the 1,071 stored
- * workbooks this case arises four times and every one of them reads the same either way.
+ * WHAT STAYS AMBIGUOUS. A lone separator before exactly three digits -- `1,234` or `332.235` --
+ * is genuinely both readings, and no rule in the cell settles it. Each character then falls back
+ * to the convention that uses IT as the decimal point: a lone comma groups, a lone dot is a
+ * decimal. That is also what the old reader did with both, so this rule cannot make a cell that
+ * was right before wrong now. Reading a lone dot as grouping instead -- which an earlier version
+ * of this file did -- inflates 116 cells across the stored statements by a thousand, every one
+ * of them a three-decimal currency (OMR, KWD and BHD all carry three).
  */
 
 /** Spaces Excel groups digits with, including the narrow no-break space French locales emit. */
@@ -47,13 +50,59 @@ const GROUPING_SPACES = new RegExp(`[${GROUPING_SPACE_CLASS}]`, 'g');
 const NUMERIC_CORE = new RegExp(`\\d(?:[\\d.,${GROUPING_SPACE_CLASS}]*\\d)?`);
 
 /**
- * What may sit beside an amount: a currency symbol or a short code, and nothing else.
+ * What may sit beside an amount: a currency marker, optionally bracketed, optionally after a
+ * one-word label. Nothing else.
  *
  * Strict about punctuation on purpose. Allowing a stray hyphen read `INV-000787` as -787, and
  * allowing a dot read the purchase-order number `4170015974...` as an amount. Both are in the
- * live data and both are silently wrong today.
+ * live data and both were silently wrong before.
+ *
+ * The length is what separates a label from a sentence, and it is drawn from the live data
+ * rather than guessed: `Total    AED 3,022.11` and `1104(USD)` are real statement rows carrying
+ * real amounts, leaving `TotalAED` and `(USD)`, while the prose this must still refuse leaves
+ * `MonthlyRentalEquipmentsMonthofJuly` (34) and `TotalInvoicesCompleteddays` (26). Ten admits
+ * the first pair and nothing near the second.
  */
-const CURRENCY_MARKER = /^[A-Za-z$€£¥₹]{0,4}$/;
+const CURRENCY_MARKER = /^[()A-Za-z$€£¥₹]{0,10}$/;
+
+/**
+ * Read the "invoice outstanding days" column, which is a count and not an amount.
+ *
+ * It needs its own reader because the two columns fail in opposite directions. Suppliers write
+ * the unit out -- `74 DAYS OUTSTANDING`, `14 DAYS REMAINING` -- and 74 is the real answer, so
+ * the amount reader's short-label rule throws away a good value. Others put a due date in the
+ * column, and `20/09/2026` must not become 20,092,026 days, which is what deleting the slashes
+ * used to produce.
+ *
+ * A count, optionally followed by its unit, and nothing else.
+ */
+export function parseDayCount(raw: unknown): number | null {
+  if (typeof raw === 'number') return Number.isFinite(raw) ? Math.round(raw) : null;
+  if (typeof raw !== 'string') return null;
+  /* One number, with words allowed on either side of it and nothing else. All of these are real
+     cells: `74 DAYS OUTSTANDING`, `40 overdue`, `More than 365`, `10-`, and the output of a
+     supplier's own formula, `83 days have passed since the due date`.
+
+     The labels are any run of letters rather than a list of expected words, and generously
+     sized, because the column heading already supplies the unit and suppliers phrase it however
+     they like -- a sentence around the number is still a count.
+
+     Two things carry the weight of refusing what is not a count. Letters only keeps dates out:
+     `20/09/2026` has separators no part of the pattern admits, so it reads as null rather than
+     20,092,026 days. And five digits keeps amounts out: a formula pointing at the wrong column
+     yields 11,377,500, which is not a number of days under any reading.
+
+     The fractional part is not decoration either -- this column is often a formula subtracting
+     two dates, so its result arrives as 40.000000000349 or 462.75. */
+  const text = raw.trim();
+  const trailingMinus = /-\s*$/.test(text);
+  const body = trailingMinus ? text.replace(/-\s*$/, '').trim() : text;
+  const m = /^([A-Za-z\s]{0,48}?)(-?\d{1,5}(?:\.\d+)?)([A-Za-z\s]{0,48})$/.exec(body);
+  if (!m) return null;
+  const n = Number(m[2]);
+  if (!Number.isFinite(n)) return null;
+  return Math.round(trailingMinus && n > 0 ? -n : n);
+}
 
 export interface AmountReading {
   /** The amount, or null when the cell does not hold one. */
@@ -127,8 +176,17 @@ export function parseAmountText(raw: string): AmountReading {
       // `6 264 791,08` is unambiguous once the spaces are read.
       normalised = parts.join('.');
     } else {
+      /* Genuinely both readings, and nothing in the cell settles it -- so fall back to what the
+         separator means in the convention that uses it as a decimal point. A lone dot reads as
+         a decimal (`332.235` is an Omani tax amount, not 332 thousand) and a lone comma reads as
+         grouping (`1,234`). This is also exactly what the old reader did for both characters,
+         so no cell that was right before becomes wrong now.
+
+         Measured on the stored statements: reading a lone dot as grouping instead would inflate
+         116 cells by a thousand, all of them three-decimal currencies -- OMR, KWD and BHD all
+         carry three. */
       ambiguous = true;
-      normalised = parts.join('');
+      normalised = digits.includes(',') ? parts.join('') : parts.join('.');
     }
   } else {
     normalised = parts.join('.');
