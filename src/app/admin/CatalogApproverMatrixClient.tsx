@@ -5,7 +5,6 @@ import { Pencil } from 'lucide-react';
 import {
   clearCatalogCountryApprover,
   getCatalogApproverMatrix,
-  seedCatalogApproversFromProcureGuard,
   setCatalogCountryApprover,
   type CatalogApproverCell,
 } from '@/app/actions/catalog-manager';
@@ -38,8 +37,6 @@ export default function CatalogApproverMatrixClient({
   const [cells, setCells] = useState<CatalogApproverCell[]>(initialCells ?? []);
   const [loading, setLoading] = useState(!initialCells);
   const [savingCountry, setSavingCountry] = useState<string | null>(null);
-  const [seeding, setSeeding] = useState(false);
-  const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -55,7 +52,6 @@ export default function CatalogApproverMatrixClient({
   }, []);
 
   const unset = cells.filter((c) => !c.email).length;
-  const seeded = cells.filter((c) => c.seeded).length;
 
   async function run(countryCode: string, fn: () => Promise<{ success: boolean; error?: string }>) {
     setSavingCountry(countryCode);
@@ -64,21 +60,6 @@ export default function CatalogApproverMatrixClient({
     if (!res.success) setError(res.error ?? 'That did not work.');
     await load();
     setSavingCountry(null);
-  }
-
-  async function seed() {
-    setSeeding(true);
-    setError(null);
-    setNote(null);
-    const res = await seedCatalogApproversFromProcureGuard();
-    if (!res.success) setError(res.error ?? 'That did not work.');
-    else
-      setNote(
-        `Filled ${res.filled ?? 0} ${res.filled === 1 ? 'country' : 'countries'} from ProcureGuard` +
-          (res.skipped?.length ? `. No SCM found for: ${res.skipped.join(', ')}.` : '.'),
-      );
-    await load();
-    setSeeding(false);
   }
 
   return (
@@ -91,36 +72,14 @@ export default function CatalogApproverMatrixClient({
         </p>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          disabled={seeding || loading || unset === 0}
-          onClick={seed}
-          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
-        >
-          {seeding ? 'Filling…' : 'Fill empty rows from ProcureGuard'}
-        </button>
-        <span className="text-[12px] text-slate-400">
-          {loading
-            ? ' '
-            : unset === 0
-              ? 'Every country has an approver.'
-              : `${unset} ${unset === 1 ? 'country has' : 'countries have'} no approver yet.`}
-        </span>
-      </div>
+      <p className="mb-4 text-[12px] text-slate-400">
+        {loading
+          ? ' '
+          : unset === 0
+            ? 'Every country has an approver.'
+            : `${unset} ${unset === 1 ? 'country has' : 'countries have'} no approver yet.`}
+      </p>
 
-      {seeded > 0 && (
-        <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-800">
-          {seeded} {seeded === 1 ? 'country still carries' : 'countries still carry'} the
-          ProcureGuard default. Worth confirming — those people were chosen to approve adhoc
-          payments rather than catalogue rates.
-        </p>
-      )}
-      {note && (
-        <p className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] font-medium text-slate-600">
-          {note}
-        </p>
-      )}
       {error && (
         <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-medium text-red-700">
           {error}
@@ -133,20 +92,19 @@ export default function CatalogApproverMatrixClient({
             <tr className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
               <th className="px-4 py-2.5">Country</th>
               <th className="px-4 py-2.5">Approver</th>
-              <th className="w-24 px-4 py-2.5" />
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-sm text-slate-400">
+                <td colSpan={2} className="px-4 py-8 text-center text-sm text-slate-400">
                   Loading…
                 </td>
               </tr>
             )}
             {!loading && cells.length === 0 && (
               <tr>
-                <td colSpan={3} className="px-4 py-8 text-center text-sm text-slate-400">
+                <td colSpan={2} className="px-4 py-8 text-center text-sm text-slate-400">
                   No active countries.
                 </td>
               </tr>
@@ -174,16 +132,6 @@ export default function CatalogApproverMatrixClient({
                         run(cell.countryCode, () => clearCatalogCountryApprover(cell.countryCode))
                       }
                     />
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    {cell.seeded && (
-                      <span
-                        title="Inherited from the ProcureGuard Country SCM. Nobody has confirmed it for the catalogue."
-                        className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700"
-                      >
-                        Default
-                      </span>
-                    )}
                   </td>
                 </tr>
               ))}

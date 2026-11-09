@@ -35,7 +35,6 @@ export const SEED_COUNTRIES: SeedCountry[] = [
   { code: 'AE', name: 'United Arab Emirates (UAE)', ccy: 'AED', flag: '🇦🇪' },
   { code: 'CG', name: 'Congo', ccy: 'USD', flag: '🇨🇬' },
   { code: 'YE', name: 'Yemen', ccy: 'USD', flag: '🇾🇪' },
-  { code: 'OT', name: 'Other', ccy: 'USD', flag: '🏳️' },
 ];
 
 export interface SeedCurrency {

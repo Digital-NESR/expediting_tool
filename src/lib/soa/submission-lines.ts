@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { parseAmountText } from './parse-amount';
 
 /**
  * Reading a supplier's returned statement.
@@ -98,32 +99,19 @@ function cellText(value: ExcelJS.CellValue): string {
 /**
  * Read a number a supplier typed.
  *
- * Statements arrive with thousands separators, currency prefixes, trailing minus signs and
- * accounting parentheses for negatives. A value that is genuinely not a number returns null and
- * the caller records an issue rather than storing a zero, which would read as "nothing owed".
+ * A cell Excel already holds as a number needs no interpretation. Everything else is text the
+ * supplier typed, and goes to `parseAmountText`, which decides between the two decimal
+ * conventions from the digits rather than assuming the English one -- see the long note there.
+ * A value that is genuinely not a number returns null and the caller records an issue rather
+ * than storing a zero, which would read as "nothing owed".
  */
 export function parseAmount(raw: ExcelJS.CellValue): number | null {
   if (raw === null || raw === undefined || raw === '') return null;
   if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
 
-  let text = cellText(raw).trim();
+  const text = cellText(raw).trim();
   if (!text) return null;
-
-  const negative = /^\(.*\)$/.test(text) || /-\s*$/.test(text);
-  text = text
-    .replace(/^\(|\)$/g, '')
-    .replace(/[^\d.,-]/g, '')
-    .replace(/-\s*$/, '')
-    .trim();
-
-  // A comma is a thousands separator here; a decimal comma would need the locale, which a
-  // spreadsheet cell does not carry.
-  text = text.replace(/,/g, '');
-  if (!text || !/\d/.test(text)) return null;
-
-  const n = Number(text);
-  if (!Number.isFinite(n)) return null;
-  return negative && n > 0 ? -n : n;
+  return parseAmountText(text).value;
 }
 
 /** Read a date, accepting what Excel gives and the common typed forms. */

@@ -2667,15 +2667,13 @@ export interface CatalogApproverCell {
   /** Null when nobody approves for this country yet. */
   email: string | null;
   name: string | null;
-  /** True when the row came from the ProcureGuard seed and nobody has changed it since. */
-  seeded: boolean;
 }
 
 /** Every country with its approver, countries without one included. */
 export async function getCatalogApproverMatrix(): Promise<CatalogApproverCell[]> {
   if (!(await optionalCatalogActor('Admin'))) return [];
   const rows = await sql<QueryResultRow[]>(
-    `SELECT c.code, c.name, au.email, au.full_name, ca.seeded_from_procureguard
+    `SELECT c.code, c.name, au.email, au.full_name
        FROM country c
        LEFT JOIN country_approver ca
          ON ca.country_code = c.code AND ca.is_active AND ca.spend_category_id IS NULL
@@ -2688,7 +2686,6 @@ export async function getCatalogApproverMatrix(): Promise<CatalogApproverCell[]>
     countryName: String(r.name),
     email: r.email ? String(r.email).toLowerCase() : null,
     name: r.full_name ? String(r.full_name) : null,
-    seeded: r.seeded_from_procureguard === true,
   }));
 }
 
@@ -2746,15 +2743,15 @@ export async function setCatalogCountryApprover(input: {
        transaction the two statements are equivalent and need no new index. */
     const touched = await db.exec(
       `UPDATE country_approver
-          SET is_active = TRUE, seeded_from_procureguard = FALSE
+          SET is_active = TRUE
         WHERE user_id = ? AND country_code = ? AND spend_category_id IS NULL`,
       [userId, country],
     );
     if (!touched.rowCount) {
       await db.exec(
         `INSERT INTO country_approver
-           (user_id, country_code, spend_category_id, tier, is_active, seeded_from_procureguard)
-         VALUES (?, ?, NULL, 2, TRUE, FALSE)`,
+           (user_id, country_code, spend_category_id, tier, is_active)
+         VALUES (?, ?, NULL, 2, TRUE)`,
         [userId, country],
       );
     }
@@ -2768,107 +2765,6 @@ export async function setCatalogCountryApprover(input: {
     );
   });
   return { success: true };
-}
-
-/**
- * The handful of countries the two tools spell differently.
- *
- * Catalog Repo keys countries by ISO-ish code with a display name; ProcureGuard keys them by the
- * name alone. Most match once case and bracketed suffixes are ignored -- "Saudi Arabia (KSA)" and
- * "Saudi Arabia" are the same place -- and these are the ones that do not. Written out rather
- * than fuzzy-matched because a wrong match here hands a country's approvals to the wrong person,
- * which is worse than leaving the cell empty for an admin to fill.
- */
-const PROCUREGUARD_COUNTRY_ALIASES: Record<string, string> = {
-  AE: 'UAE',
-  EO: 'EOS',
-  HQ: 'HQ Dubai',
-};
-
-const normaliseCountryName = (name: string) =>
-  name
-    .replace(/\s*\([^)]*\)\s*/g, ' ')
-    .trim()
-    .toUpperCase();
-
-/**
- * Fill every EMPTY cell from ProcureGuard's adhoc Country SCM, and leave the rest alone.
- *
- * Only empty cells, deliberately. Someone who has set a country's approver by hand has made a
- * decision, and a seed that overwrote it would quietly undo their work the next time anyone
- * pressed the button. Re-running this is therefore safe and does nothing on a matrix that has
- * been filled in.
- *
- * The seeded rows are flagged, so the screen can say they were inherited from ProcureGuard
- * rather than chosen for the catalogue. They are a starting point: those people were picked to
- * approve adhoc payments, which is adjacent to approving rates but not the same job.
- */
-export async function seedCatalogApproversFromProcureGuard(): Promise<{
-  success: boolean;
-  filled?: number;
-  skipped?: string[];
-  error?: string;
-}> {
-  const actor = await optionalCatalogActor('Admin');
-  if (!actor) return { success: false, error: 'Admin only.' };
-
-  let scms: { country: string; display_name: string; email: string }[];
-  try {
-    const { default: procureGuardPool } = await import('@/lib/db-procureguard');
-    const res = await procureGuardPool.query<{
-      country: string;
-      display_name: string;
-      email: string;
-    }>(
-      `SELECT DISTINCT ON (country) country, display_name, email
-         FROM procure_guard_notification_recipients
-        WHERE notification_role = 'SCM Manager' AND request_type = 'adhoc' AND is_active
-          AND email IS NOT NULL AND TRIM(email) <> ''
-        ORDER BY country, id`,
-    );
-    scms = res.rows;
-  } catch (err) {
-    catalogLog.error('seedCatalogApprovers.procureguard_unreachable', err);
-    return { success: false, error: 'Could not read ProcureGuard. Nothing was changed.' };
-  }
-
-  const byName = new Map(scms.map((r) => [normaliseCountryName(r.country), r]));
-  const matrix = await getCatalogApproverMatrix();
-  const empty = matrix.filter((cell) => !cell.email);
-
-  let filled = 0;
-  const skipped: string[] = [];
-
-  for (const cell of empty) {
-    const alias = PROCUREGUARD_COUNTRY_ALIASES[cell.countryCode];
-    const scm =
-      (alias ? byName.get(normaliseCountryName(alias)) : undefined) ??
-      byName.get(normaliseCountryName(cell.countryName));
-    if (!scm) {
-      skipped.push(cell.countryName);
-      continue;
-    }
-    const res = await setCatalogCountryApprover({
-      countryCode: cell.countryCode,
-      email: scm.email,
-      name: scm.display_name,
-    });
-    if (!res.success) {
-      skipped.push(cell.countryName);
-      continue;
-    }
-    await exec(
-      `UPDATE country_approver ca
-          SET seeded_from_procureguard = TRUE
-         FROM app_user au
-        WHERE au.id = ca.user_id AND LOWER(au.email) = ?
-          AND ca.country_code = ? AND ca.spend_category_id IS NULL AND ca.is_active`,
-      [normalizeEmail(scm.email), cell.countryCode],
-    );
-    filled++;
-  }
-
-  return { success: true, filled, skipped };
 }
 
 /** Empty a country's cell. The person keeps their access; they just stop approving. */

@@ -13,30 +13,26 @@ const CELLS = [
     countryName: 'Algeria',
     email: 'someone@nesr.com',
     name: 'A Name',
-    seeded: true,
   },
-  { countryCode: 'CG', countryName: 'Congo', email: null, name: null, seeded: false },
+  { countryCode: 'CG', countryName: 'Congo', email: null, name: null },
   {
     countryCode: 'EG',
     countryName: 'Egypt',
     email: 'another@nesr.com',
     name: 'Another Name',
-    seeded: false,
   },
-  { countryCode: 'OM', countryName: 'Oman', email: null, name: null, seeded: false },
+  { countryCode: 'OM', countryName: 'Oman', email: null, name: null },
   {
     countryCode: 'SA',
     countryName: 'Saudi Arabia (KSA)',
     email: 'third@nesr.com',
     name: 'A Third Name',
-    seeded: true,
   },
   {
     countryCode: 'AE',
     countryName: 'United Arab Emirates',
     email: 'fourth@nesr.com',
     name: 'A Fourth Name',
-    seeded: false,
   },
 ];
 
