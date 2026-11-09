@@ -406,18 +406,41 @@ const loadCatalogActor = cache(async (): Promise<CatalogActor> => {
   let countryCode: string | null;
   const userId: number | null = userRow?.id ?? null;
 
-  if (userRow) {
-    role = userRow.role;
-    countryCode = userRow.country_code;
-  } else if (isPlatformAdminEmail(email)) {
-    // Admin-preview AND the bootstrap path: a platform admin configured in ADMIN_EMAILS acts as
-    // Admin with no app_user row, which is what lets the first real admin sign in to an empty
-    // database and grant everyone else a role. (Demo accounts used to be seeded for this.)
+  /* Admin is ADMIN_EMAILS membership, never a stored role. Every other tool in this app reads it
+     from there, and keeping it out of the table means an `app_user` row can grant access without
+     being able to grant administration of the tool -- which matters while seeded demo accounts
+     with role = 'Admin' are still sitting in it. */
+  const platformAdmin = isPlatformAdminEmail(email);
+  let hasAccess: boolean;
+  let countries: string[];
+
+  if (platformAdmin) {
     role = 'Admin';
-    countryCode = (process.env.CATALOG_HOME_COUNTRY ?? '').trim().toUpperCase() || null;
+    countryCode =
+      userRow?.country_code ??
+      ((process.env.CATALOG_HOME_COUNTRY ?? '').trim().toUpperCase() || null);
+    countries = []; // empty = every country, resolved where scoping is applied
+    hasAccess = true;
+  } else if (userRow) {
+    /* A stored 'Admin' is not one. It grants access at Approver level -- the most a row can
+       confer -- so the demo accounts keep working without administering anything. */
+    role = userRow.role === 'Admin' ? 'Approver' : userRow.role;
+    countryCode = userRow.country_code;
+    countries =
+      Array.isArray(userRow.countries) && userRow.countries.length
+        ? userRow.countries
+        : userRow.country_code
+          ? [userRow.country_code]
+          : [];
+    hasAccess = true;
   } else {
+    /* No grant. This used to fall through to Viewer, which made the tool open to anyone signed
+       in the moment the ADMIN_EMAILS redirect came off its layout. The layout now renders the
+       request page instead, and every guard below refuses. */
     role = 'Viewer';
     countryCode = null;
+    countries = [];
+    hasAccess = false;
   }
 
   const canCreate = role === 'Contributor' || role === 'Approver' || role === 'Admin';
@@ -444,6 +467,8 @@ const loadCatalogActor = cache(async (): Promise<CatalogActor> => {
     email,
     name,
     role,
+    hasAccess,
+    countries,
     country_code: countryCode,
     canCreate,
     canApprove: canApprove || delegatedFrom.length > 0,
@@ -483,6 +508,11 @@ function meetsCatalogRole(actor: CatalogActor, min: CatalogRole): boolean {
 async function requireCatalogActor(min: CatalogRole = 'Viewer'): Promise<CatalogActor> {
   const actor = await getCatalogActor();
   if (!actor.email) throw new AccessError('Sign in required.', 401);
+  /* The grant check, and it has to be here rather than only on the layout: every export of this
+     file is a public POST endpoint, so a page gate stops people browsing in and stops nothing
+     else. Before this, an employee with no grant resolved to Viewer and every read in the tool
+     answered them. */
+  if (!actor.hasAccess) throw new AccessError('You do not have access to Catalog Repo.');
   if (!meetsCatalogRole(actor, min)) throw new AccessError(`This action requires the ${min} role.`);
   return actor;
 }
@@ -2459,6 +2489,25 @@ export async function getCountries(): Promise<CountryRow[]> {
     `SELECT code, name, default_currency, flag, status FROM country ORDER BY name`,
   );
 }
+
+/**
+ * The country list for the request-access form, for people who have no access yet.
+ *
+ * `getCountries` is guarded, and after the grant check that now means it returns nothing to
+ * exactly the people who need to pick countries -- the form would have offered an empty list and
+ * no way to ask for anything. Signed in is the only requirement here: a list of NESR operating
+ * countries is not what Catalog Repo is protecting, and the request form is reachable precisely
+ * because someone has no grant yet.
+ */
+export async function getCountriesForAccessRequest(): Promise<CountryRow[]> {
+  const sessionUser = await getProcureGuardUser();
+  if (!sessionUser?.email) return [];
+  await requireSchema(catalogManagerPool, 'catalog-manager', '001_baseline');
+  return sql<CountryRow[]>(
+    `SELECT code, name, default_currency, flag, status FROM country
+      WHERE status = 'Active' ORDER BY name`,
+  );
+}
 export async function getCurrencies(): Promise<CurrencyRow[]> {
   if (!(await optionalCatalogActor())) return [];
   const rows = await sql<QueryResultRow[]>(
@@ -2605,10 +2654,14 @@ export async function setUserRole(userId: number, role: CatalogRole): Promise<vo
 }
 
 /* ============================================================================
-   ACCESS REQUESTS — self-service role-upgrade queue, reviewed from the
-   platform /admin console (mirrors the ProcureGuard/TI-TE/SourceGuide pattern).
-   New users always land as Viewer automatically (see getCatalogActor); this
-   queue is only for requesting an UPGRADE beyond that default.
+   ACCESS REQUESTS — the only way into Catalog Repo, reviewed from the platform
+   /admin console (mirrors the ProcureGuard/TI-TE/SourceGuide pattern).
+
+   This was a role-UPGRADE queue while every signed-in employee landed as Viewer
+   automatically. That default is gone (see getCatalogActor): no grant means no
+   access, so a request is now how someone gets in at all, and the role they ask
+   for is Viewer or Contributor. Approver comes from the country matrix and Admin
+   from ADMIN_EMAILS; neither is requestable.
 ============================================================================ */
 
 function mapAccessRequest(row: QueryResultRow): CatalogAccessRequestRow {
@@ -2617,6 +2670,8 @@ function mapAccessRequest(row: QueryResultRow): CatalogAccessRequestRow {
     display_name: row.display_name ?? null,
     job_title: row.job_title ?? null,
     country_code: row.country_code ?? null,
+    requested_countries: Array.isArray(row.requested_countries) ? row.requested_countries : [],
+    approved_countries: Array.isArray(row.approved_countries) ? row.approved_countries : [],
     status: row.status as CatalogAccessRequestStatus,
     requested_role: row.requested_role as CatalogRole,
     approved_role: (row.approved_role as CatalogRole) ?? null,
@@ -2646,23 +2701,46 @@ export async function getMyCatalogAccessRequest(): Promise<CatalogAccessRequestR
  * by a platform admin via "Users & roles", never through this queue.
  */
 export async function submitCatalogAccessRequest(input: {
-  requestedRole: 'Contributor' | 'Approver';
-  countryCode?: string | null;
+  requestedRole: 'Viewer' | 'Contributor';
+  countries: string[];
   reason?: string | null;
 }): Promise<{ success: boolean; error?: string }> {
-  await requireSchema(catalogManagerPool, 'catalog-manager', '001_baseline');
+  await requireSchema(catalogManagerPool, 'catalog-manager', '003_access_countries');
   const sessionUser = await getProcureGuardUser();
   const email = normalizeEmail(sessionUser?.email);
   if (!email) return { success: false, error: 'You must be signed in to request access.' };
 
+  /* Viewer or Contributor, and nothing else. Approver is conferred by the country matrix on the
+     admin page -- being a country's approver IS the grant -- and Admin is membership of
+     ADMIN_EMAILS. Neither can be asked for here, so neither is accepted here: this is a public
+     POST endpoint and the role lands in a column the gate reads. */
+  const role = input.requestedRole === 'Contributor' ? 'Contributor' : 'Viewer';
+
+  /* Countries are checked against the table rather than trusted. Anything else would let a
+     request name a country that does not exist, which an admin would then approve without
+     noticing, granting access scoped to nothing. */
+  const valid = await sql<{ code: string }[]>(`SELECT code FROM country WHERE status = 'Active'`);
+  const allowed = new Set(valid.map((c) => c.code));
+  const countries = [...new Set((input.countries ?? []).map((c) => String(c).trim()))].filter((c) =>
+    allowed.has(c),
+  );
+  if (!countries.length)
+    return { success: false, error: 'Choose at least one country you need access to.' };
+
   await exec(
     `INSERT INTO catalog_access_requests
-      (user_email, display_name, job_title, country_code, status, requested_role, approved_role, reason, requested_at, reviewed_at, reviewed_by)
-     VALUES (?, ?, ?, ?, 'Pending', ?, NULL, ?, CURRENT_TIMESTAMP, NULL, NULL)
+      (user_email, display_name, job_title, country_code, requested_countries, approved_countries,
+       status, requested_role, approved_role, reason, requested_at, reviewed_at, reviewed_by)
+     VALUES (?, ?, ?, ?, ?, '{}', 'Pending', ?, NULL, ?, CURRENT_TIMESTAMP, NULL, NULL)
      ON CONFLICT (user_email) DO UPDATE SET
        display_name = EXCLUDED.display_name,
        job_title = EXCLUDED.job_title,
        country_code = EXCLUDED.country_code,
+       requested_countries = EXCLUDED.requested_countries,
+       /* A re-request clears the previous decision: approved_countries is what the grant was,
+          and leaving it in place beside a Pending status would read as access this person does
+          not currently have. */
+       approved_countries = '{}',
        status = 'Pending',
        requested_role = EXCLUDED.requested_role,
        approved_role = NULL,
@@ -2674,8 +2752,9 @@ export async function submitCatalogAccessRequest(input: {
       email,
       sessionUser?.name ?? email,
       sessionUser?.jobTitle ?? null,
-      input.countryCode || null,
-      input.requestedRole,
+      countries[0], // home country: the first they picked, kept for attribution
+      countries,
+      role,
       input.reason || null,
     ],
   );

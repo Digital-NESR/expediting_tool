@@ -2,29 +2,36 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { getCatalogActor } from '@/app/actions/catalog-manager';
+import CatalogAccessGate from './CatalogAccessGate';
 
 export const metadata: Metadata = { title: 'NESR | Catalog Manager' };
 export const dynamic = 'force-dynamic';
 
 /**
- * Signed in is the gate. Catalog Repo is live for everyone from here on.
+ * The gate. Three outcomes: signed out, signed in without a grant, signed in with one.
  *
- * It used to be `if (!isAdmin) redirect('/home')` — an env-gated admin preview from before the
- * tool had roles of its own. It has had them for a while: `getCatalogActor` resolves any signed-in
- * employee to `Viewer` (catalog-manager.ts), `/catalog-manager/request-access` lets a Viewer ask
- * for Contributor or Approver, and "Catalog Repo" under /admin reviews that queue. The redirect
- * made all three unreachable — including the request page, which sits under this very layout, so
- * the only way to ask for access was a route nobody could open.
+ * This was `if (!isAdmin) redirect('/home')` while the tool was an admin preview, and then
+ * nothing at all when it went live (9e0300c) -- which opened the supplier price catalogue to
+ * every signed-in employee, because `getCatalogActor` resolved anyone without an `app_user` row
+ * to Viewer rather than to nobody. A colleague reached the catalogue without ever appearing in
+ * the approvals queue, for the simple reason that he had never needed to ask.
  *
- * It was never a security control either, and the action file says so in terms: every export of
- * `src/app/actions/catalog-manager.ts` is a public POST endpoint, so each one starts with
- * `requireCatalogActor` / `optionalCatalogActor`. Authorisation lives there, per role and per
- * country. What this layout decides is only whether to render a page, and a Viewer seeing the
- * catalogue read-only is the intended ground state.
+ * Someone with no grant now gets the request-access page in place of the tool, rather than a
+ * redirect to /home. A redirect would be worse than the old preview: it bounces people with no
+ * explanation and takes the request form -- which lives under this layout -- down with it.
+ *
+ * Not rendering `children` is what keeps this a gate rather than a card drawn over a tool that
+ * already loaded. It is not the only gate either: every export of
+ * `src/app/actions/catalog-manager.ts` is a public POST endpoint, so `requireCatalogActor` makes
+ * the same check again where it actually counts.
  */
 export default async function CatalogManagerLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) redirect('/login');
+
+  const actor = await getCatalogActor();
+  if (!actor.hasAccess) return <CatalogAccessGate />;
 
   return <>{children}</>;
 }
