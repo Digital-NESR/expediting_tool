@@ -51,7 +51,12 @@ export default async function PirCatalogPage({
       total={result.total}
       page={result.page}
       pageSize={result.pageSize}
-      stats={meta.stats}
+      /* What the filters currently match, straight off the same count that produced the rows. */
+      stats={result.stats}
+      /* The whole mirror. The cards use it only as a denominator, so a filtered figure can
+         never be mistaken for the total. Facets stay whole too, or narrowing a filter would
+         delete the options needed to widen it again. */
+      totals={meta.stats}
       facets={meta.facets}
       filters={query}
       roleLabel={getPermissionProfile(actor.role).description}

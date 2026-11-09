@@ -87,12 +87,25 @@ function money(v: number | null, ccy: string | null): string {
   return `${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${ccy ? ` ${ccy}` : ''}`;
 }
 
+/**
+ * The line under a stat card: its usual description, or "of N" once the figure is a subset.
+ *
+ * Keyed on whether the filtered figure differs from the whole mirror rather than on whether any
+ * filter is set, because a filter that happens to match everything has not narrowed anything and
+ * "5,267 of 5,267" is noise. A filter that narrows the records but still touches all 11 countries
+ * leaves the Countries card reading plainly, which is correct — nothing was excluded from it.
+ */
+export function subFor(shown: number, whole: number, description: string): string {
+  return shown === whole ? description : `of ${whole.toLocaleString()} · filtered`;
+}
+
 export default function PirCatalogClient({
   rows,
   total,
   page,
   pageSize,
   stats,
+  totals,
   facets,
   filters,
   roleLabel,
@@ -104,7 +117,10 @@ export default function PirCatalogClient({
   total: number;
   page: number;
   pageSize: number;
+  /** What the current filters match. */
   stats: { total: number; suppliers: number; plants: number; countries: number };
+  /** The whole mirror, for context under a filtered figure. */
+  totals: { total: number; suppliers: number; plants: number; countries: number };
   facets: { countries: string[]; porgs: string[]; plants: string[]; mgroups: string[] };
   filters: PirFilters;
   roleLabel: string;
@@ -216,31 +232,35 @@ export default function PirCatalogClient({
           </span>
         </div>
 
+        {/* The four figures describe whatever the filters currently match, not the whole
+            mirror. Each card says "of N" once a filter is on, because "94 suppliers" and
+            "94 of 94 suppliers" are the same number meaning different things, and a reader
+            who cannot tell which they are looking at will assume the wrong one. */}
         <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard
             label="Info records"
             value={stats.total.toLocaleString()}
-            sub="Purchasing info records"
+            sub={subFor(stats.total, totals.total, 'Purchasing info records')}
             icon="sheet"
           />
           <StatCard
             label="Suppliers"
             value={stats.suppliers.toLocaleString()}
-            sub="Distinct suppliers"
+            sub={subFor(stats.suppliers, totals.suppliers, 'Distinct suppliers')}
             icon="building"
             tone="cyan"
           />
           <StatCard
             label="Plants"
             value={stats.plants.toLocaleString()}
-            sub="Distinct plants"
+            sub={subFor(stats.plants, totals.plants, 'Distinct plants')}
             icon="globe"
             tone="ink"
           />
           <StatCard
             label="Countries"
             value={stats.countries.toLocaleString()}
-            sub="Operating countries"
+            sub={subFor(stats.countries, totals.countries, 'Operating countries')}
             icon="globe"
             tone="amber"
           />

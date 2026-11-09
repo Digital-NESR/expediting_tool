@@ -918,14 +918,30 @@ export interface PirQuery {
   page?: number;
   pageSize?: number;
 }
+/** The four figures on the PIR stat cards. One shape, whether filtered or whole-mirror. */
+export interface PirStats {
+  total: number;
+  suppliers: number;
+  plants: number;
+  countries: number;
+}
 export interface PirListResult {
   rows: PirEntry[];
   total: number;
   page: number;
   pageSize: number;
+  /**
+   * The same four figures the cards show, for THIS query's filters.
+   *
+   * Computed in the very statement that counts the rows, not a query of its own, so the cards
+   * and the table below them cannot drift apart: one WHERE clause, one pass, one answer. The
+   * cost is three extra aggregates on a count that was already being run.
+   */
+  stats: PirStats;
 }
 export interface PirMeta {
-  stats: { total: number; suppliers: number; plants: number; countries: number };
+  /** The whole mirror, unfiltered. The cards use it as the denominator, never as the value. */
+  stats: PirStats;
   facets: { countries: string[]; porgs: string[]; plants: string[]; mgroups: string[] };
 }
 
@@ -975,20 +991,49 @@ function pirWhere(query: PirQuery): { where: string; params: QueryParams } {
 export async function listPirEntries(query: PirQuery = {}): Promise<PirListResult> {
   const page = Math.max(1, Math.floor(query.page ?? 1));
   const pageSize = Math.min(200, Math.max(10, Math.floor(query.pageSize ?? 50)));
-  if (!(await optionalCatalogActor())) return { rows: [], total: 0, page, pageSize };
+  if (!(await optionalCatalogActor()))
+    return {
+      rows: [],
+      total: 0,
+      page,
+      pageSize,
+      stats: { total: 0, suppliers: 0, plants: 0, countries: 0 },
+    };
   await ensurePirNamesFresh();
   const sort = PIR_SORT_SQL[query.sort ?? 'supplier'] ?? PIR_SORT_SQL.supplier;
   const { where, params } = pirWhere(query);
 
   const [countRows, rows] = await Promise.all([
-    sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n ${PIR_FROM} ${where}`, params),
+    /* The stat-card figures ride along with the row count rather than being asked for
+       separately. They are the same question about the same filtered set, and asking twice is
+       how a card ends up contradicting the table underneath it. */
+    sql<{ n: number; suppliers: number; plants: number; countries: number }[]>(
+      `SELECT COUNT(*)::int                          AS n,
+              COUNT(DISTINCT p.supplier_name)::int   AS suppliers,
+              COUNT(DISTINCT p.plant)::int           AS plants,
+              COUNT(DISTINCT p.country)::int         AS countries
+       ${PIR_FROM} ${where}`,
+      params,
+    ),
     sql<QueryResultRow[]>(
       `SELECT p.*, nc.material_description AS cached_material_description
        ${PIR_FROM} ${where} ORDER BY ${sort} LIMIT ? OFFSET ?`,
       [...params, pageSize, (page - 1) * pageSize],
     ),
   ]);
-  return { rows: rows.map(mapPirRow), total: Number(countRows[0]?.n ?? 0), page, pageSize };
+  const c = countRows[0];
+  return {
+    rows: rows.map(mapPirRow),
+    total: Number(c?.n ?? 0),
+    page,
+    pageSize,
+    stats: {
+      total: Number(c?.n ?? 0),
+      suppliers: Number(c?.suppliers ?? 0),
+      plants: Number(c?.plants ?? 0),
+      countries: Number(c?.countries ?? 0),
+    },
+  };
 }
 
 /** All rows matching the filters (no paging) — for CSV export. Bounded to keep the payload sane. */
