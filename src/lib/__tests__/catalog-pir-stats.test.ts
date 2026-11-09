@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { subFor } from '@/app/catalog-manager/pir/PirCatalogClient';
+import { subFor, validTill } from '@/app/catalog-manager/pir/PirCatalogClient';
 
 /**
  * The line under each PIR stat card.
@@ -43,5 +43,45 @@ describe('the stat card sub-line', () => {
   it('says nothing odd when the mirror itself is empty', () => {
     /* Before the first sync everything is zero, which is not "filtered". */
     expect(subFor(0, 0, 'Purchasing info records')).toBe('Purchasing info records');
+  });
+});
+
+/**
+ * The Valid till column, and the expression the two validity filters read.
+ *
+ * `valid_till_expiry_date` is TEXT in a nightly Power BI mirror, so the only guarantee is what
+ * arrived last night. Every one of the 5,268 rows is `YYYY-MM-DDTHH:MM:SS` today; these pin what
+ * happens when that stops being true, because the answer must be "show it" and never "crash" or
+ * "quietly blank it".
+ */
+describe('the Valid till column', () => {
+  it('reads the shape the mirror sends', () => {
+    expect(validTill('2026-12-31T00:00:00')).toBe('31 Dec 2026');
+    expect(validTill('2025-01-31T00:00:00')).toBe('31 Jan 2025');
+  });
+
+  it('renders the SAP no-end-date sentinel rather than hiding it', () => {
+    /* 9999-12-31 means "no end date" to SAP and there are 24 of them. Showing the real value
+       is more honest than inventing the word "never" for something nobody wrote. */
+    expect(validTill('9999-12-31T00:00:00')).toBe('31 Dec 9999');
+  });
+
+  it('passes an unexpected spelling through untouched', () => {
+    /* The feed could change. A value we cannot parse stays readable on screen, where someone
+       will notice it, instead of becoming an em dash that looks like missing data. */
+    expect(validTill('31.12.2026')).toBe('31.12.2026');
+    expect(validTill('not a date')).toBe('not a date');
+  });
+
+  it('uses an em dash only when there is genuinely nothing', () => {
+    expect(validTill(null)).toBe('—');
+    expect(validTill('   ')).toBe('—');
+  });
+
+  it('does not shift the date across a timezone', () => {
+    /* Parsed and formatted in UTC on purpose. Read as local time, a midnight date renders as
+       the previous day for anyone west of Greenwich, which would put a record's expiry a day
+       earlier than the filter that selected it. */
+    expect(validTill('2026-01-01T00:00:00')).toBe('01 Jan 2026');
   });
 });

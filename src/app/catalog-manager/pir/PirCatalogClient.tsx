@@ -12,7 +12,12 @@ import {
   Spinner,
   tableClasses,
 } from '../components/CatalogManagerUI';
-import { exportPirEntries, type PirSort } from '@/app/actions/catalog-manager';
+import {
+  exportPirEntries,
+  type PirExpiring,
+  type PirSort,
+  type PirStatus,
+} from '@/app/actions/catalog-manager';
 import type { PirEntry } from '@/types/catalog-manager';
 import { csvSafe } from '@/lib/catalog-manager-utils';
 
@@ -22,6 +27,8 @@ interface PirFilters {
   porg: string;
   plant: string;
   mgroup: string;
+  status: PirStatus;
+  expiring: PirExpiring;
   sort: PirSort;
   page: number;
 }
@@ -86,6 +93,39 @@ function money(v: number | null, ccy: string | null): string {
   if (v == null) return '—';
   return `${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${ccy ? ` ${ccy}` : ''}`;
 }
+
+/**
+ * `2026-12-31T00:00:00` as `31 Dec 2026`.
+ *
+ * The mirror lands this column as text in that 19-character shape and the table printed it raw,
+ * which is tolerable as one column among twenty and much less so now there are two filters whose
+ * whole subject is this date. Anything that is not that shape is passed through untouched rather
+ * than guessed at or blanked -- the same rule `formatDate` follows elsewhere -- so an unexpected
+ * spelling stays visible instead of silently becoming an em dash.
+ */
+export function validTill(raw: string | null | undefined): string {
+  const v = (raw ?? '').trim();
+  if (!v) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
+  if (!m) return v;
+  const d = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00Z`);
+  if (isNaN(d.getTime())) return v;
+  return `${String(d.getUTCDate()).padStart(2, '0')} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+const MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+] as const;
 
 /**
  * The line under a stat card: its usual description, or "of N" once the figure is a subset.
@@ -186,8 +226,14 @@ export default function PirCatalogClient({
   }
 
   const activeFilters =
-    [filters.country, filters.porg, filters.plant, filters.mgroup].filter(Boolean).length +
-    (filters.q ? 1 : 0);
+    [
+      filters.country,
+      filters.porg,
+      filters.plant,
+      filters.mgroup,
+      filters.status,
+      filters.expiring,
+    ].filter(Boolean).length + (filters.q ? 1 : 0);
   const maxPage = Math.max(1, Math.ceil(total / pageSize));
   const cur = Math.min(page, maxPage);
   const selectCls =
@@ -269,7 +315,13 @@ export default function PirCatalogClient({
         <Card className="flex min-h-0 flex-col">
           <div className="shrink-0 border-b border-slate-100 p-4">
             <div className="flex flex-wrap items-center gap-3">
-              <div className="relative min-w-0 flex-1">
+              {/* A floor, not min-w-0. The row is flex-wrap with seven selects after this, and
+                  `min-w-0` let the search box absorb every pixel they needed: measured at 130px
+                  on a 1280 screen and 109px at 1100, narrow enough that the placeholder was
+                  invisible and a typed query scrolled out of sight. With a floor the selects
+                  wrap to a second line instead, which costs 40px of height and keeps the
+                  control usable. 260px fits "Search info record, materi...". */}
+              <div className="relative min-w-[260px] flex-1">
                 <Icon
                   name="search"
                   className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
@@ -336,6 +388,38 @@ export default function PirCatalogClient({
                     {c}
                   </option>
                 ))}
+              </select>
+              {/* Validity is derived from valid_till_expiry_date against today, not a stored
+                  flag, so these two mean the same thing on every page load. Three quarters of
+                  the mirror is already expired, which is why Active is worth its own control
+                  rather than being something you reconstruct from the Valid till column. */}
+              <select
+                value={filters.status}
+                onChange={(e) => pushParams({ status: e.target.value })}
+                className={selectCls}
+              >
+                <option value="">Active &amp; expired</option>
+                <option value="active">Active only</option>
+                <option value="expired">Expired only</option>
+              </select>
+              {/* Expiring-within implies active, so picking one here overrides a stale
+                  "Expired only" rather than returning nothing. */}
+              <select
+                value={filters.expiring}
+                onChange={(e) =>
+                  pushParams(
+                    e.target.value
+                      ? { expiring: e.target.value, status: '' }
+                      : { expiring: undefined },
+                  )
+                }
+                className={selectCls}
+              >
+                <option value="">Any expiry</option>
+                <option value="30">Expiring in 30 days</option>
+                <option value="60">Expiring in 60 days</option>
+                <option value="90">Expiring in 90 days</option>
+                <option value="180">Expiring in 180 days</option>
               </select>
               <select
                 value={filters.sort}
@@ -462,7 +546,7 @@ export default function PirCatalogClient({
                         <td
                           className={`${tableClasses.td} whitespace-nowrap text-[12.5px] text-slate-500`}
                         >
-                          {e.valid_till_expiry_date ?? '—'}
+                          {validTill(e.valid_till_expiry_date)}
                         </td>
                       </tr>
                     ))}

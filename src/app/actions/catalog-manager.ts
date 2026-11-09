@@ -908,12 +908,25 @@ function mapPirRow(r: QueryResultRow): PirEntry {
 }
 
 export type PirSort = 'supplier' | 'priceHi' | 'priceLo' | 'record';
+/** Validity, measured against today rather than stored: '' means do not filter on it. */
+export type PirStatus = '' | 'active' | 'expired';
+/** Expiring within N days. Implies active — an expired record is not "expiring". */
+export type PirExpiring = '' | '30' | '60' | '90' | '180';
+export const PIR_EXPIRING_DAYS: Record<Exclude<PirExpiring, ''>, number> = {
+  '30': 30,
+  '60': 60,
+  '90': 90,
+  '180': 180,
+};
+
 export interface PirQuery {
   q?: string;
   country?: string;
   porg?: string;
   plant?: string;
   mgroup?: string;
+  status?: PirStatus;
+  expiring?: PirExpiring;
   sort?: PirSort;
   page?: number;
   pageSize?: number;
@@ -949,6 +962,23 @@ export interface PirMeta {
 // columns are qualified to avoid ambiguity, and the effective name is COALESCE(loaded, cached).
 const PIR_DESC_EXPR = `COALESCE(NULLIF(p.material_description, ''), nc.material_description)`;
 const PIR_FROM = `FROM pir_catalog p LEFT JOIN pir_name_cache nc ON nc.product_number = p.product_number`;
+
+/**
+ * `valid_till_expiry_date` as a date, or NULL when it is not one.
+ *
+ * The column is TEXT, not a date: the Power BI mirror lands it as `YYYY-MM-DDTHH:MM:SS`, and
+ * every one of the 5,268 rows is currently that exact 19-character shape. The regex guard is
+ * there because this table is truncated and reloaded nightly from a feed nobody here controls,
+ * and a bare `::date` on a row that arrives in some other spelling does not return NULL — it
+ * raises, and takes the whole page down with it. A row that cannot be read as a date falls
+ * outside every validity filter instead, which is the honest answer for a date we cannot read.
+ *
+ * SAP writes 9999-12-31 for "no end date" (24 rows today). Nothing special is done with it: it
+ * is genuinely in the future, so it reads as Active and never enters an expiring-soon bucket,
+ * which is exactly right.
+ */
+const PIR_VALID_TO_EXPR = `(CASE WHEN p.valid_till_expiry_date ~ '^\\d{4}-\\d{2}-\\d{2}'
+    THEN LEFT(p.valid_till_expiry_date, 10)::date END)`;
 const PIR_SORT_SQL: Record<PirSort, string> = {
   supplier: 'p.supplier_name ASC NULLS LAST, p.product_number ASC NULLS LAST',
   priceHi: 'p.unit_price DESC NULLS LAST',
@@ -984,6 +1014,29 @@ function pirWhere(query: PirQuery): { where: string; params: QueryParams } {
     clauses.push('p.material_group = ?');
     params.push(query.mgroup);
   }
+
+  /* Validity is computed against today, never stored, so "active" means the same thing on every
+     page load rather than whatever the last sync decided. A record is active while its valid-to
+     date has not passed; CURRENT_DATE makes the boundary day itself still valid, which is how a
+     contract that runs "until 31 December" is read by the people who signed it. */
+  if (query.status === 'active') {
+    clauses.push(`${PIR_VALID_TO_EXPR} >= CURRENT_DATE`);
+  } else if (query.status === 'expired') {
+    clauses.push(`${PIR_VALID_TO_EXPR} < CURRENT_DATE`);
+  }
+
+  /* Expiring-within is deliberately a window with BOTH ends: an expired record is not expiring,
+     it has expired. Without the lower bound this would return all 3,947 dead records alongside
+     the 42 that actually need attention, which is the opposite of what the filter is for. It
+     therefore implies active and does not need the status filter set alongside it. */
+  const days = query.expiring ? PIR_EXPIRING_DAYS[query.expiring] : undefined;
+  if (days !== undefined) {
+    clauses.push(
+      `${PIR_VALID_TO_EXPR} >= CURRENT_DATE AND ${PIR_VALID_TO_EXPR} <= CURRENT_DATE + ?::int`,
+    );
+    params.push(days);
+  }
+
   return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
 }
 
