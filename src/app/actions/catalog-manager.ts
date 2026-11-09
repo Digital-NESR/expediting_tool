@@ -2654,6 +2654,252 @@ export async function setUserRole(userId: number, role: CatalogRole): Promise<vo
 }
 
 /* ============================================================================
+   COUNTRY APPROVER MATRIX — one approver per country, the way ProcureGuard's
+   approval-access screen works. `country_approver` already stored this; what was
+   missing was a way to read it as a grid and set a cell from the employee
+   directory rather than from the handful of people who already had an app_user
+   row.
+============================================================================ */
+
+export interface CatalogApproverCell {
+  countryCode: string;
+  countryName: string;
+  /** Null when nobody approves for this country yet. */
+  email: string | null;
+  name: string | null;
+  /** True when the row came from the ProcureGuard seed and nobody has changed it since. */
+  seeded: boolean;
+}
+
+/** Every country with its approver, countries without one included. */
+export async function getCatalogApproverMatrix(): Promise<CatalogApproverCell[]> {
+  if (!(await optionalCatalogActor('Admin'))) return [];
+  const rows = await sql<QueryResultRow[]>(
+    `SELECT c.code, c.name, au.email, au.full_name, ca.seeded_from_procureguard
+       FROM country c
+       LEFT JOIN country_approver ca
+         ON ca.country_code = c.code AND ca.is_active AND ca.spend_category_id IS NULL
+       LEFT JOIN app_user au ON au.id = ca.user_id
+      WHERE c.status = 'Active'
+      ORDER BY c.name`,
+  );
+  return rows.map((r) => ({
+    countryCode: String(r.code),
+    countryName: String(r.name),
+    email: r.email ? String(r.email).toLowerCase() : null,
+    name: r.full_name ? String(r.full_name) : null,
+    seeded: r.seeded_from_procureguard === true,
+  }));
+}
+
+/**
+ * Put someone in a country's approver cell, creating their access if they have none.
+ *
+ * Being a country's approver IS the grant for that country, which is why this writes `app_user`
+ * as well: naming somebody here and then finding they cannot open the tool would be the same
+ * split the old UI had, where the role was set in one screen and the country scope in another.
+ * Their countries gain this one rather than being replaced, so making an existing Contributor
+ * the approver for Oman does not quietly remove the rest of their access.
+ */
+export async function setCatalogCountryApprover(input: {
+  countryCode: string;
+  email: string;
+  name: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const actor = await optionalCatalogActor('Admin');
+  if (!actor) return { success: false, error: 'Admin only.' };
+
+  const email = normalizeEmail(input.email);
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    return { success: false, error: 'That is not a valid email address.' };
+  const [country] = await resolveCountryCodes([input.countryCode]);
+  if (!country) return { success: false, error: 'Unknown country.' };
+
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    const ins = await db.exec(
+      `INSERT INTO app_user (full_name, email, country_code, countries, role)
+       VALUES (?, ?, ?, ARRAY[?]::text[], 'Approver')
+       ON CONFLICT (email) DO UPDATE SET
+         full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), app_user.full_name),
+         role = 'Approver',
+         country_code = COALESCE(app_user.country_code, EXCLUDED.country_code),
+         /* Add, never replace: an approver for Oman who is also a Contributor for Kuwait keeps
+            Kuwait. */
+         countries = ARRAY(SELECT DISTINCT unnest(app_user.countries || EXCLUDED.countries))
+       RETURNING id`,
+      [input.name || email, email, country, country],
+    );
+    const userId = ins.insertId;
+
+    /* One approver per country for now, which is what the matrix shows. Anyone previously in
+       the cell is deactivated rather than deleted, so the history of who could sign off when
+       survives in the table. */
+    await db.exec(
+      `UPDATE country_approver SET is_active = FALSE
+        WHERE country_code = ? AND spend_category_id IS NULL AND is_active AND user_id <> ?`,
+      [country, userId],
+    );
+    /* Reactivate the row if this person has held the cell before, otherwise create it. Not an
+       ON CONFLICT: spend_category_id is nullable and Postgres counts NULLs as distinct, so the
+       constraint that would have to back it cannot be written as a plain UNIQUE. Inside a
+       transaction the two statements are equivalent and need no new index. */
+    const touched = await db.exec(
+      `UPDATE country_approver
+          SET is_active = TRUE, seeded_from_procureguard = FALSE
+        WHERE user_id = ? AND country_code = ? AND spend_category_id IS NULL`,
+      [userId, country],
+    );
+    if (!touched.rowCount) {
+      await db.exec(
+        `INSERT INTO country_approver
+           (user_id, country_code, spend_category_id, tier, is_active, seeded_from_procureguard)
+         VALUES (?, ?, NULL, 2, TRUE, FALSE)`,
+        [userId, country],
+      );
+    }
+    await writeAudit(
+      'Master data',
+      'Country approvers',
+      actor.name,
+      actor.email,
+      `Set ${country} approver to ${email}`,
+      db,
+    );
+  });
+  return { success: true };
+}
+
+/**
+ * The handful of countries the two tools spell differently.
+ *
+ * Catalog Repo keys countries by ISO-ish code with a display name; ProcureGuard keys them by the
+ * name alone. Most match once case and bracketed suffixes are ignored -- "Saudi Arabia (KSA)" and
+ * "Saudi Arabia" are the same place -- and these are the ones that do not. Written out rather
+ * than fuzzy-matched because a wrong match here hands a country's approvals to the wrong person,
+ * which is worse than leaving the cell empty for an admin to fill.
+ */
+const PROCUREGUARD_COUNTRY_ALIASES: Record<string, string> = {
+  AE: 'UAE',
+  EO: 'EOS',
+  HQ: 'HQ Dubai',
+};
+
+const normaliseCountryName = (name: string) =>
+  name
+    .replace(/\s*\([^)]*\)\s*/g, ' ')
+    .trim()
+    .toUpperCase();
+
+/**
+ * Fill every EMPTY cell from ProcureGuard's adhoc Country SCM, and leave the rest alone.
+ *
+ * Only empty cells, deliberately. Someone who has set a country's approver by hand has made a
+ * decision, and a seed that overwrote it would quietly undo their work the next time anyone
+ * pressed the button. Re-running this is therefore safe and does nothing on a matrix that has
+ * been filled in.
+ *
+ * The seeded rows are flagged, so the screen can say they were inherited from ProcureGuard
+ * rather than chosen for the catalogue. They are a starting point: those people were picked to
+ * approve adhoc payments, which is adjacent to approving rates but not the same job.
+ */
+export async function seedCatalogApproversFromProcureGuard(): Promise<{
+  success: boolean;
+  filled?: number;
+  skipped?: string[];
+  error?: string;
+}> {
+  const actor = await optionalCatalogActor('Admin');
+  if (!actor) return { success: false, error: 'Admin only.' };
+
+  let scms: { country: string; display_name: string; email: string }[];
+  try {
+    const { default: procureGuardPool } = await import('@/lib/db-procureguard');
+    const res = await procureGuardPool.query<{
+      country: string;
+      display_name: string;
+      email: string;
+    }>(
+      `SELECT DISTINCT ON (country) country, display_name, email
+         FROM procure_guard_notification_recipients
+        WHERE notification_role = 'SCM Manager' AND request_type = 'adhoc' AND is_active
+          AND email IS NOT NULL AND TRIM(email) <> ''
+        ORDER BY country, id`,
+    );
+    scms = res.rows;
+  } catch (err) {
+    catalogLog.error('seedCatalogApprovers.procureguard_unreachable', err);
+    return { success: false, error: 'Could not read ProcureGuard. Nothing was changed.' };
+  }
+
+  const byName = new Map(scms.map((r) => [normaliseCountryName(r.country), r]));
+  const matrix = await getCatalogApproverMatrix();
+  const empty = matrix.filter((cell) => !cell.email);
+
+  let filled = 0;
+  const skipped: string[] = [];
+
+  for (const cell of empty) {
+    const alias = PROCUREGUARD_COUNTRY_ALIASES[cell.countryCode];
+    const scm =
+      (alias ? byName.get(normaliseCountryName(alias)) : undefined) ??
+      byName.get(normaliseCountryName(cell.countryName));
+    if (!scm) {
+      skipped.push(cell.countryName);
+      continue;
+    }
+    const res = await setCatalogCountryApprover({
+      countryCode: cell.countryCode,
+      email: scm.email,
+      name: scm.display_name,
+    });
+    if (!res.success) {
+      skipped.push(cell.countryName);
+      continue;
+    }
+    await exec(
+      `UPDATE country_approver ca
+          SET seeded_from_procureguard = TRUE
+         FROM app_user au
+        WHERE au.id = ca.user_id AND LOWER(au.email) = ?
+          AND ca.country_code = ? AND ca.spend_category_id IS NULL AND ca.is_active`,
+      [normalizeEmail(scm.email), cell.countryCode],
+    );
+    filled++;
+  }
+
+  return { success: true, filled, skipped };
+}
+
+/** Empty a country's cell. The person keeps their access; they just stop approving. */
+export async function clearCatalogCountryApprover(
+  countryCode: string,
+): Promise<{ success: boolean; error?: string }> {
+  const actor = await optionalCatalogActor('Admin');
+  if (!actor) return { success: false, error: 'Admin only.' };
+  const [country] = await resolveCountryCodes([countryCode]);
+  if (!country) return { success: false, error: 'Unknown country.' };
+
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    await db.exec(
+      `UPDATE country_approver SET is_active = FALSE
+        WHERE country_code = ? AND spend_category_id IS NULL AND is_active`,
+      [country],
+    );
+    await writeAudit(
+      'Master data',
+      'Country approvers',
+      actor.name,
+      actor.email,
+      `Cleared the ${country} approver`,
+      db,
+    );
+  });
+  return { success: true };
+}
+
+/* ============================================================================
    ACCESS REQUESTS — the only way into Catalog Repo, reviewed from the platform
    /admin console (mirrors the ProcureGuard/TI-TE/SourceGuide pattern).
 
@@ -2816,11 +3062,13 @@ export async function approveCatalogAccessRequest(input: {
      which is the whole point of letting them re-select. Both values are still checked here
      rather than trusted, because this is a public POST endpoint. */
   if (!GRANTABLE_ROLES.includes(input.approvedRole))
-    return { success: false, error: 'Grant View or Contributor. Approver comes from the country matrix.' };
+    return {
+      success: false,
+      error: 'Grant View or Contributor. Approver comes from the country matrix.',
+    };
 
   const countries = await resolveCountryCodes(input.countries);
-  if (!countries.length)
-    return { success: false, error: 'Grant at least one country.' };
+  if (!countries.length) return { success: false, error: 'Grant at least one country.' };
 
   // Marking the request Approved and actually granting the role on app_user must land together —
   // a failure between them used to leave a request that reads "Approved" with no role granted.
@@ -2882,9 +3130,13 @@ export async function updateCatalogAccessGrant(input: {
   const email = normalizeEmail(input.userEmail);
 
   if (!GRANTABLE_ROLES.includes(input.role))
-    return { success: false, error: 'Set View or Contributor. Approver comes from the country matrix.' };
+    return {
+      success: false,
+      error: 'Set View or Contributor. Approver comes from the country matrix.',
+    };
   const countries = await resolveCountryCodes(input.countries);
-  if (!countries.length) return { success: false, error: 'Keep at least one country, or revoke instead.' };
+  if (!countries.length)
+    return { success: false, error: 'Keep at least one country, or revoke instead.' };
 
   await withTransaction(catalogManagerPool, async (client) => {
     const db = dbOn(client);

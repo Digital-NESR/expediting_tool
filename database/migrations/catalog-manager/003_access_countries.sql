@@ -50,3 +50,17 @@ CREATE INDEX IF NOT EXISTS catalog_access_requests_status_idx
   ON catalog_access_requests (status, requested_at DESC);
 CREATE INDEX IF NOT EXISTS country_approver_country_idx
   ON country_approver (country_code) WHERE is_active;
+
+-- Where a country's approver came from.
+--
+-- The matrix is seeded once from ProcureGuard's Country SCMs, which is a sensible starting point
+-- and nothing more -- those people were chosen to approve adhoc payments, not catalogue rates.
+-- The flag lets the screen say "this is the ProcureGuard default, nobody has confirmed it",
+-- which is honest about a value that was inherited rather than decided. Setting the cell by hand
+-- clears it.
+--
+-- No unique constraint is added alongside: `spend_category_id` is nullable, and Postgres treats
+-- NULLs as distinct, so a plain UNIQUE over (user_id, country_code, spend_category_id) would not
+-- dedupe the rows this matrix actually writes. The action does an explicit exists-check inside
+-- its transaction instead.
+ALTER TABLE country_approver ADD COLUMN IF NOT EXISTS seeded_from_procureguard BOOLEAN NOT NULL DEFAULT FALSE;
