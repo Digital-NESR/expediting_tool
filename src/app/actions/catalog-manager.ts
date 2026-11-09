@@ -912,7 +912,11 @@ export type PirSort = 'supplier' | 'priceHi' | 'priceLo' | 'record';
 export type PirStatus = '' | 'active' | 'expired';
 /** Expiring within N days. Implies active — an expired record is not "expiring". */
 export type PirExpiring = '' | '30' | '60' | '90' | '180';
-export const PIR_EXPIRING_DAYS: Record<Exclude<PirExpiring, ''>, number> = {
+/* NOT exported. Every export of a `'use server'` file must be an async function -- a type is
+   erased and survives, a runtime const does not, and Next refuses the build with "Only async
+   functions are allowed to be exported in a 'use server' file". Nothing outside this module
+   needs the mapping, so it stays module-local. */
+const PIR_EXPIRING_DAYS: Record<Exclude<PirExpiring, ''>, number> = {
   '30': 30,
   '60': 60,
   '90': 90,
