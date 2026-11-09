@@ -15,6 +15,7 @@ import { getDelegatorsForApp } from '@/lib/delegation';
 import { uploadMimeTypeFor, validateUploadSignature } from '@/lib/documents';
 import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy.server';
 import { SERVICE_ACTIVITIES } from '@/lib/catalog-service-activities';
+import { masterDataFingerprint } from '@/lib/catalog-seed-fingerprint';
 import {
   SEED_COUNTRIES,
   SEED_CURRENCIES,
@@ -153,12 +154,49 @@ function dbOn(client: PoolClient): CatalogDb {
  */
 let seedPromise: Promise<void> | null = null;
 
+/**
+ * Has this database already been seeded from exactly these constants?
+ *
+ * Tolerant on purpose. If `seed_state` is not there -- code deployed ahead of migration 006 --
+ * this answers "no" and the caller does the full seed, which is what it always did. A faster
+ * cold start must not be able to take the tool down.
+ */
+async function masterDataIsCurrent(fingerprint: string): Promise<boolean> {
+  try {
+    const rows = await sql<{ fingerprint: string }[]>(
+      `SELECT fingerprint FROM seed_state WHERE key = 'master-data'`,
+    );
+    return rows[0]?.fingerprint === fingerprint;
+  } catch (err) {
+    if ((err as { code?: string } | null)?.code !== '42P01')
+      catalogLog.error('schema.seedStateUnreadable', err);
+    return false;
+  }
+}
+
 function ensureCatalogSeedData(): Promise<void> {
   if (!seedPromise) {
     seedPromise = (async () => {
       await requireSchema(catalogManagerPool, 'catalog-manager', '001_baseline');
-      await seedMasterData();
-      await seedSupplierDirectory();
+
+      /* The reference data is built from TypeScript constants, so it only needs writing when
+         those constants have changed. Re-upserting them on every cold instance cost seven round
+         trips to write rows that were already correct, and `loadCatalogActor` awaits this, so
+         the bill landed on whoever loaded the first page on a new instance. */
+      const fingerprint = masterDataFingerprint(SPEND_TAXONOMY);
+      if (!(await masterDataIsCurrent(fingerprint))) {
+        await seedMasterData();
+        await seedSupplierDirectory();
+        await exec(
+          `INSERT INTO seed_state (key, fingerprint) VALUES ('master-data', ?)
+           ON CONFLICT (key) DO UPDATE SET fingerprint = EXCLUDED.fingerprint, applied_at = NOW()`,
+          [fingerprint],
+        ).catch((err) => {
+          /* The seed itself succeeded; only the note that it did has failed. Worth knowing, but
+             not worth failing a page over -- the next cold start simply seeds again. */
+          catalogLog.error('schema.seedStateUnwritable', err);
+        });
+      }
     })().catch((err) => {
       seedPromise = null; // let a later request retry if seeding failed
       catalogLog.error('schema.seedFailed', err);
