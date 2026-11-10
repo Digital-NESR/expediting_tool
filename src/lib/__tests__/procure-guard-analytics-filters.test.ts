@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   activeFilterCount,
   applyAnalyticsFilters,
+  buildDateTree,
+  dateNodeKeys,
   dateRangeFor,
   EMPTY_FILTERS,
   type AnalyticsFilterState,
@@ -112,30 +114,32 @@ describe('applyAnalyticsFilters', () => {
       req({ reference_number: 'B', country: 'Kuwait', priority: 'Normal' }),
       req({ reference_number: 'C', country: 'Oman', priority: 'Normal' }),
     ];
-    expect(refs(applyAnalyticsFilters(rows, filters({ countries: ['Oman', 'Kuwait'] }), NOW))).toEqual([
-      'A',
-      'B',
-      'C',
-    ]);
     expect(
-      refs(applyAnalyticsFilters(rows, filters({ countries: ['Oman'], priorities: ['Normal'] }), NOW)),
+      refs(applyAnalyticsFilters(rows, filters({ countries: ['Oman', 'Kuwait'] }), NOW)),
+    ).toEqual(['A', 'B', 'C']);
+    expect(
+      refs(
+        applyAnalyticsFilters(rows, filters({ countries: ['Oman'], priorities: ['Normal'] }), NOW),
+      ),
     ).toEqual(['C']);
   });
 
   it('matches a blank country or priority as Unspecified, the way the options list shows it', () => {
     const rows = [req({ reference_number: 'BLANK', country: null, priority: '  ' })];
-    expect(refs(applyAnalyticsFilters(rows, filters({ countries: ['Unspecified'] }), NOW))).toEqual([
-      'BLANK',
-    ]);
-    expect(refs(applyAnalyticsFilters(rows, filters({ priorities: ['Unspecified'] }), NOW))).toEqual([
-      'BLANK',
-    ]);
+    expect(refs(applyAnalyticsFilters(rows, filters({ countries: ['Unspecified'] }), NOW))).toEqual(
+      ['BLANK'],
+    );
+    expect(
+      refs(applyAnalyticsFilters(rows, filters({ priorities: ['Unspecified'] }), NOW)),
+    ).toEqual(['BLANK']);
   });
 
   it('searches the vendor case-insensitively on a substring', () => {
     const rows = [req({ reference_number: 'A', vendor_name: 'Stewart & Stevenson' })];
     expect(applyAnalyticsFilters(rows, filters({ vendorQuery: 'stevenson' }), NOW)).toHaveLength(1);
-    expect(applyAnalyticsFilters(rows, filters({ vendorQuery: 'halliburton' }), NOW)).toHaveLength(0);
+    expect(applyAnalyticsFilters(rows, filters({ vendorQuery: 'halliburton' }), NOW)).toHaveLength(
+      0,
+    );
   });
 
   it('bounds on the USD equivalent, inclusive at both ends', () => {
@@ -160,9 +164,9 @@ describe('applyAnalyticsFilters', () => {
       req({ reference_number: 'A', requested_by_email: 'a@nesr.com' }),
       req({ reference_number: 'B', requested_by_email: 'b@nesr.com' }),
     ];
-    expect(refs(applyAnalyticsFilters(rows, filters({ requesters: ['b@nesr.com'] }), NOW))).toEqual([
-      'B',
-    ]);
+    expect(refs(applyAnalyticsFilters(rows, filters({ requesters: ['b@nesr.com'] }), NOW))).toEqual(
+      ['B'],
+    );
   });
 });
 
@@ -190,12 +194,109 @@ describe('activeFilterCount', () => {
     expect(activeFilterCount(filters({ scope: 'adhoc' }))).toBe(1);
     expect(activeFilterCount(filters({ countries: ['Oman', 'Kuwait'] }))).toBe(1);
     expect(activeFilterCount(filters({ minAmount: '1', maxAmount: '2' }))).toBe(1);
-    expect(activeFilterCount(filters({ scope: 'adhoc', datePreset: 'last7', vendorQuery: 'x' }))).toBe(
-      3,
-    );
+    expect(
+      activeFilterCount(filters({ scope: 'adhoc', datePreset: 'last7', vendorQuery: 'x' })),
+    ).toBe(3);
   });
 
   it('does not count whitespace typed into a text box', () => {
     expect(activeFilterCount(filters({ vendorQuery: '   ' }))).toBe(0);
+  });
+});
+
+describe('date tree', () => {
+  it('maps a date to its year, quarter, month and day keys', () => {
+    expect(dateNodeKeys('2026-05-24T10:00:00')).toEqual([
+      'Y:2026',
+      'Q:2026-2',
+      'M:2026-05',
+      'D:2026-05-24',
+    ]);
+    // Quarter boundaries, which are the easy ones to get wrong by one.
+    expect(dateNodeKeys('2026-03-31T23:00:00')[1]).toBe('Q:2026-1');
+    expect(dateNodeKeys('2026-04-01T00:00:00')[1]).toBe('Q:2026-2');
+    expect(dateNodeKeys('2026-12-31T12:00:00')[1]).toBe('Q:2026-4');
+  });
+
+  it('has no keys for an unreadable date', () => {
+    expect(dateNodeKeys('not a date')).toEqual([]);
+  });
+
+  it('keeps everything under a ticked year', () => {
+    const rows = [
+      req({ reference_number: 'JAN', created_at: '2026-01-15T10:00:00' }),
+      req({ reference_number: 'DEC', created_at: '2026-12-15T10:00:00' }),
+      req({ reference_number: 'OTHER_YEAR', created_at: '2025-06-15T10:00:00' }),
+    ];
+    expect(
+      refs(
+        applyAnalyticsFilters(rows, filters({ datePreset: 'tree', dateNodes: ['Y:2026'] }), NOW),
+      ),
+    ).toEqual(['JAN', 'DEC']);
+  });
+
+  it('keeps only that quarter, or only that month, or only that day', () => {
+    const rows = [
+      req({ reference_number: 'Q1', created_at: '2026-02-10T10:00:00' }),
+      req({ reference_number: 'Q2_MAY_01', created_at: '2026-05-01T10:00:00' }),
+      req({ reference_number: 'Q2_MAY_24', created_at: '2026-05-24T10:00:00' }),
+      req({ reference_number: 'Q2_JUNE', created_at: '2026-06-10T10:00:00' }),
+    ];
+    const pick = (node: string) =>
+      refs(applyAnalyticsFilters(rows, filters({ datePreset: 'tree', dateNodes: [node] }), NOW));
+    expect(pick('Q:2026-2')).toEqual(['Q2_MAY_01', 'Q2_MAY_24', 'Q2_JUNE']);
+    expect(pick('M:2026-05')).toEqual(['Q2_MAY_01', 'Q2_MAY_24']);
+    expect(pick('D:2026-05-24')).toEqual(['Q2_MAY_24']);
+  });
+
+  it('unions several ticks rather than intersecting them', () => {
+    const rows = [
+      req({ reference_number: 'JAN_2025', created_at: '2025-01-10T10:00:00' }),
+      req({ reference_number: 'MAY_2026', created_at: '2026-05-10T10:00:00' }),
+      req({ reference_number: 'AUG_2026', created_at: '2026-08-10T10:00:00' }),
+    ];
+    expect(
+      refs(
+        applyAnalyticsFilters(
+          rows,
+          filters({ datePreset: 'tree', dateNodes: ['Y:2025', 'M:2026-08'] }),
+          NOW,
+        ),
+      ),
+    ).toEqual(['JAN_2025', 'AUG_2026']);
+  });
+
+  it('does not narrow anything when the tree is open but nothing is ticked', () => {
+    const rows = [req({ reference_number: 'A' }), req({ reference_number: 'B' })];
+    const f = filters({ datePreset: 'tree', dateNodes: [] });
+    expect(applyAnalyticsFilters(rows, f, NOW)).toHaveLength(2);
+    expect(activeFilterCount(f)).toBe(0);
+  });
+
+  it('counts as one active filter once something is ticked', () => {
+    expect(activeFilterCount(filters({ datePreset: 'tree', dateNodes: ['Y:2026'] }))).toBe(1);
+  });
+
+  it('builds only branches that contain requests, newest first, with real counts', () => {
+    const rows = [
+      req({ created_at: '2026-05-24T10:00:00' }),
+      req({ created_at: '2026-05-24T11:00:00' }),
+      req({ created_at: '2026-02-10T10:00:00' }),
+      req({ created_at: '2025-11-01T10:00:00' }),
+    ];
+    const tree = buildDateTree(rows);
+    expect(tree.map((y) => y.label)).toEqual(['2026', '2025']);
+    expect(tree[0].count).toBe(3);
+    expect(tree[0].children.map((q) => q.label)).toEqual(['Q2 · Apr–Jun', 'Q1 · Jan–Mar']);
+    const may = tree[0].children[0].children[0];
+    expect(may.label).toBe('May');
+    expect(may.count).toBe(2);
+    expect(may.children).toHaveLength(1);
+    expect(may.children[0].count).toBe(2);
+  });
+
+  it('leaves undated rows out of the tree instead of inventing a branch', () => {
+    const tree = buildDateTree([req({ created_at: 'not a date' })]);
+    expect(tree).toEqual([]);
   });
 });

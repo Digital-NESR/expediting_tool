@@ -21,7 +21,41 @@ export type RequestScope = 'all' | 'adhoc' | 'advance';
 
 /** Named windows over `created_at`. `custom` reads `from`/`to`; `all` ignores both. */
 export type DatePreset =
-  'all' | 'last7' | 'last30' | 'last90' | 'this-month' | 'last-month' | 'this-year' | 'custom';
+  | 'all'
+  | 'last7'
+  | 'last30'
+  | 'last90'
+  | 'this-month'
+  | 'last-month'
+  | 'this-year'
+  | 'custom'
+  | 'tree';
+
+/**
+ * A node in the Year > Quarter > Month > Day tree, as a string key.
+ *
+ *   Y:2026   Q:2026-2   M:2026-05   D:2026-05-24
+ *
+ * A row is kept when ANY of its four keys is ticked, which is what makes the levels behave the
+ * way the tree looks: ticking a year takes everything under it, ticking two months takes both,
+ * and mixing levels is a union rather than an intersection. The keys come from the row's own
+ * date, so no range arithmetic is involved and a day cannot fall between two nodes.
+ */
+export type DateNodeKey = string;
+
+/** The four keys a date belongs to, outermost first. Empty when the date is unreadable. */
+export function dateNodeKeys(iso: string): DateNodeKey[] {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return [];
+  const y = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return [
+    `Y:${y}`,
+    `Q:${y}-${Math.floor(d.getMonth() / 3) + 1}`,
+    `M:${y}-${mm}`,
+    `D:${y}-${mm}-${String(d.getDate()).padStart(2, '0')}`,
+  ];
+}
 
 export interface AnalyticsFilterState {
   scope: RequestScope;
@@ -29,6 +63,8 @@ export interface AnalyticsFilterState {
   /** `YYYY-MM-DD`, inclusive. Only read when `datePreset` is `custom`. */
   from: string;
   to: string;
+  /** Ticked tree nodes. Only read when `datePreset` is `tree`; empty means no date filter. */
+  dateNodes: DateNodeKey[];
   statuses: string[];
   priorities: string[];
   countries: string[];
@@ -44,6 +80,7 @@ export const EMPTY_FILTERS: AnalyticsFilterState = {
   datePreset: 'all',
   from: '',
   to: '',
+  dateNodes: [],
   statuses: [],
   priorities: [],
   countries: [],
@@ -62,6 +99,7 @@ const DATE_PRESETS: Array<{ value: DatePreset; label: string }> = [
   { value: 'last-month', label: 'Last month' },
   { value: 'this-year', label: 'This year' },
   { value: 'custom', label: 'Custom range…' },
+  { value: 'tree', label: 'Pick by year / quarter / month…' },
 ];
 
 /** Local midnight, so a date typed by a user means that whole day in their own timezone. */
@@ -86,6 +124,9 @@ export function dateRangeFor(
   const everything = { fromMs: Number.NEGATIVE_INFINITY, toMs: Number.POSITIVE_INFINITY };
   switch (filters.datePreset) {
     case 'all':
+    /* The tree ticks nodes rather than spanning a range, so it is applied separately and leaves
+       the range unbounded here. Returning a range would filter the same rows twice. */
+    case 'tree':
       return everything;
     case 'last7':
       return { fromMs: startOfDay(new Date(now.getTime() - 6 * 86_400_000)), toMs: endOfDay(now) };
@@ -136,8 +177,15 @@ export function applyAnalyticsFilters(
   const countries = new Set(filters.countries);
   const requesters = new Set(filters.requesters);
 
+  const nodes = filters.datePreset === 'tree' ? new Set(filters.dateNodes) : null;
+
   return requests.filter((r) => {
     if (filters.scope !== 'all' && r.request_type !== filters.scope) return false;
+
+    if (nodes && nodes.size) {
+      // No keys means an unreadable date, which cannot belong to any node that was ticked.
+      if (!dateNodeKeys(r.created_at).some((k) => nodes.has(k))) return false;
+    }
 
     if (fromMs !== Number.NEGATIVE_INFINITY || toMs !== Number.POSITIVE_INFINITY) {
       const createdMs = new Date(r.created_at).getTime();
@@ -164,7 +212,10 @@ export function applyAnalyticsFilters(
 export function activeFilterCount(filters: AnalyticsFilterState): number {
   let n = 0;
   if (filters.scope !== 'all') n += 1;
-  if (filters.datePreset !== 'all') n += 1;
+  // A tree with nothing ticked is not narrowing anything, so it does not count as active.
+  if (filters.datePreset === 'tree') {
+    if (filters.dateNodes.length) n += 1;
+  } else if (filters.datePreset !== 'all') n += 1;
   if (filters.statuses.length) n += 1;
   if (filters.priorities.length) n += 1;
   if (filters.countries.length) n += 1;
@@ -261,6 +312,216 @@ function MultiSelect({
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+const QUARTER_MONTHS = ['Jan–Mar', 'Apr–Jun', 'Jul–Sep', 'Oct–Dec'];
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+interface TreeNode {
+  key: DateNodeKey;
+  label: string;
+  count: number;
+  children: TreeNode[];
+}
+
+/**
+ * The Year > Quarter > Month > Day tree, built from the dates that actually occur.
+ *
+ * Only branches that contain requests are built, so the tree never offers an empty quarter and
+ * its counts are the number of requests a tick would keep. Everything is sorted newest first,
+ * because the question people bring to this page is almost always about recent months.
+ */
+export function buildDateTree(requests: ProcureGuardAnalyticsRequest[]): TreeNode[] {
+  const years = new Map<number, Map<number, Map<number, Map<number, number>>>>();
+
+  for (const r of requests) {
+    const d = new Date(r.created_at);
+    if (Number.isNaN(d.getTime())) continue;
+    const y = d.getFullYear();
+    const q = Math.floor(d.getMonth() / 3) + 1;
+    const m = d.getMonth() + 1;
+    const day = d.getDate();
+    const quarters = years.get(y) ?? new Map();
+    const months = quarters.get(q) ?? new Map();
+    const days = months.get(m) ?? new Map();
+    days.set(day, (days.get(day) ?? 0) + 1);
+    months.set(m, days);
+    quarters.set(q, months);
+    years.set(y, quarters);
+  }
+
+  const total = (counts: Iterable<number>) => [...counts].reduce((a, b) => a + b, 0);
+  const desc = (a: number, b: number) => b - a;
+
+  return [...years.keys()].sort(desc).map((y) => {
+    const quarters = years.get(y)!;
+    const quarterNodes = [...quarters.keys()].sort(desc).map((q) => {
+      const months = quarters.get(q)!;
+      const monthNodes = [...months.keys()].sort(desc).map((m) => {
+        const days = months.get(m)!;
+        const mm = String(m).padStart(2, '0');
+        const dayNodes = [...days.keys()].sort(desc).map((day) => ({
+          key: `D:${y}-${mm}-${String(day).padStart(2, '0')}`,
+          label: `${String(day).padStart(2, '0')} ${MONTH_NAMES[m - 1].slice(0, 3)}`,
+          count: days.get(day)!,
+          children: [],
+        }));
+        return {
+          key: `M:${y}-${mm}`,
+          label: MONTH_NAMES[m - 1],
+          count: total(days.values()),
+          children: dayNodes,
+        };
+      });
+      return {
+        key: `Q:${y}-${q}`,
+        label: `Q${q} · ${QUARTER_MONTHS[q - 1]}`,
+        count: monthNodes.reduce((a, n) => a + n.count, 0),
+        children: monthNodes,
+      };
+    });
+    return {
+      key: `Y:${y}`,
+      label: String(y),
+      count: quarterNodes.reduce((a, n) => a + n.count, 0),
+      children: quarterNodes,
+    };
+  });
+}
+
+function TreeBranch({
+  node,
+  depth,
+  selected,
+  onToggle,
+}: {
+  node: TreeNode;
+  depth: number;
+  selected: Set<DateNodeKey>;
+  onToggle: (key: DateNodeKey) => void;
+}) {
+  /* Years open by default so the tree is useful on sight; everything deeper starts closed so a
+     busy year does not unroll into hundreds of days. */
+  const [open, setOpen] = useState(depth === 0);
+  const isSelected = selected.has(node.key);
+  const hasChildren = node.children.length > 0;
+
+  return (
+    <li>
+      <div
+        className="flex items-center gap-1 rounded hover:bg-slate-50"
+        style={{ paddingLeft: depth * 14 }}
+      >
+        {hasChildren ? (
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            aria-label={open ? `Collapse ${node.label}` : `Expand ${node.label}`}
+            aria-expanded={open}
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-slate-400 hover:bg-slate-200 hover:text-slate-600"
+          >
+            <svg
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className={`h-3 w-3 transition-transform ${open ? 'rotate-90' : ''}`}
+            >
+              <path d="M7 5l6 5-6 5V5z" />
+            </svg>
+          </button>
+        ) : (
+          <span className="h-5 w-5 shrink-0" />
+        )}
+        <label className="flex flex-1 cursor-pointer items-center gap-2 py-1 text-[13px]">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onToggle(node.key)}
+            className="h-3.5 w-3.5 accent-[#006B0C]"
+          />
+          <span className={isSelected ? 'font-semibold text-[#006B0C]' : 'text-slate-700'}>
+            {node.label}
+          </span>
+          <span className="ml-auto pr-2 text-[11px] tabular-nums text-slate-400">{node.count}</span>
+        </label>
+      </div>
+      {open && hasChildren && (
+        <ul>
+          {node.children.map((child) => (
+            <TreeBranch
+              key={child.key}
+              node={child}
+              depth={depth + 1}
+              selected={selected}
+              onToggle={onToggle}
+            />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+function DateTree({
+  requests,
+  selected,
+  onChange,
+}: {
+  requests: ProcureGuardAnalyticsRequest[];
+  selected: DateNodeKey[];
+  onChange: (next: DateNodeKey[]) => void;
+}) {
+  const tree = useMemo(() => buildDateTree(requests), [requests]);
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
+  const toggle = (key: DateNodeKey) =>
+    onChange(selectedSet.has(key) ? selected.filter((k) => k !== key) : [...selected, key]);
+
+  if (tree.length === 0)
+    return (
+      <p className="px-1 py-2 text-[13px] text-slate-400">No dated requests to choose from.</p>
+    );
+
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-[12px] text-slate-500">
+          Tick any level. Ticking a year takes everything under it; ticking several is a union.
+        </p>
+        {selected.length > 0 && (
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className="text-[12px] font-semibold text-slate-500 hover:text-slate-700"
+          >
+            Clear {selected.length} selected
+          </button>
+        )}
+      </div>
+      <ul className="max-h-[320px] overflow-auto rounded-lg border border-slate-200 bg-white p-1">
+        {tree.map((year) => (
+          <TreeBranch
+            key={year.key}
+            node={year}
+            depth={0}
+            selected={selectedSet}
+            onToggle={toggle}
+          />
+        ))}
+      </ul>
     </div>
   );
 }
@@ -403,6 +664,19 @@ export function AnalyticsFilterBar({
           />
         </div>
       </div>
+
+      {filters.datePreset === 'tree' && (
+        <div className="mt-3 border-t border-slate-100 pt-3">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            Year / Quarter / Month / Day
+          </p>
+          <DateTree
+            requests={requests}
+            selected={filters.dateNodes}
+            onChange={(v) => set('dateNodes', v)}
+          />
+        </div>
+      )}
 
       {(filters.datePreset === 'custom' || filters.minAmount || filters.maxAmount) && (
         <div className="mt-3 grid grid-cols-1 gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2 xl:grid-cols-4">
