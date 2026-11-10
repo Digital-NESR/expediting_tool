@@ -199,6 +199,10 @@ export async function getProcureGuardAnalyticsData(): Promise<ProcureGuardAnalyt
         amount_usd: toUsd(row.amount, row.currency),
         currency: row.currency,
         created_at: row.created_at,
+        priority: row.priority ?? null,
+        country: row.country ?? null,
+        reviewed_at: row.reviewed_at ?? null,
+        spend_value_usd: row.spend_value_usd ?? null,
       };
     });
 
