@@ -16,7 +16,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { AlertTriangle, Eye, Loader2, ShieldAlert } from 'lucide-react';
-import { getTravelAnalytics, revealTravellerIdentity } from '@/app/actions/travel-analytics';
+import {
+  getTravelAnalytics,
+  getTravelDataset,
+  getTravelRoleBands,
+  revealTravellerIdentity,
+} from '@/app/actions/travel-analytics';
+import { buildClientBands, type TravelDataset } from '@/lib/travel-analytics/client-bands';
 import type { TravelFilters } from '@/lib/travel-analytics/filters';
 import type { IdentityDocuments } from '@/lib/travel-analytics/queries';
 import type {
@@ -350,48 +356,115 @@ export default function TravelAnalyticsClient({
 }) {
   const [travellerFilter, setTravellerFilter] = useState('');
 
-  /* The filtered payload replaces the server's, and the server's is what we fall back to. The
-     filters are applied THERE, in loadTravelAnalytics, for the reason the filter bar explains:
-     folding them again in the browser would be a second implementation of every band. */
-  const [data, setData] = useState<TravelAnalyticsData | null>(initial);
-  const [pending, startTransition] = useTransition();
+  /* THE FILTERED BOARD IS BUILT HERE, NOT FETCHED.
+     `dataset` is this reader's rows, loaded once and unfiltered; `buildClientBands` folds them
+     with the same functions the server used to call, so there is no second implementation of any
+     band. 290 bookings fold in well under a frame, which is why a filter change no longer waits
+     on anything. */
+  /* The server's first payload. It paints the board before the dataset arrives, supplies the
+     parts the browser never rebuilds (filter options, role, countries), and is the fallback if
+     the dataset fetch fails. */
+  const [serverData, setServerData] = useState<TravelAnalyticsData | null>(initial);
+  const [dataset, setDataset] = useState<TravelDataset | null>(null);
+  const [filters, setFilters] = useState<TravelFilters>(initial?.appliedFilters ?? {});
   const [filterError, setFilterError] = useState('');
 
-  /* Rebuilding this board is 21 queries, so the cost of asking for it twice is real.
-     `pendingFilters` holds what the bar is showing while the timer runs, so the controls stay
-     responsive to the tick that was just made rather than snapping back to the last applied set. */
-  const [pendingFilters, setPendingFilters] = useState<TravelFilters | null>(null);
+  /* The two bands the browser cannot build. They start as whatever the first render already
+     fetched and are refreshed on a debounce, so they trail the instant bands by a moment
+     instead of holding them up. */
+  const [roleBands, setRoleBands] = useState<{
+    optimisation: TravelAnalyticsData['optimisation'];
+    admin: TravelAnalyticsData['admin'];
+  }>({ optimisation: initial?.optimisation ?? null, admin: initial?.admin ?? null });
+  const [pending, startTransition] = useTransition();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestRef = useRef(0);
 
-  const applyFilters = useCallback((next: TravelFilters) => {
-    setPendingFilters(next);
-
-    /* Ticking five countries used to be five full rebuilds, each one waited through. One burst
-       of changes is one request; the trailing state is the only one anybody wanted. */
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      const seq = ++requestRef.current;
-      startTransition(async () => {
-        const fresh = await getTravelAnalytics(next);
-        /* A reply that has been overtaken is dropped. Without this a slow early request can land
-           after a fast later one and put the board back to a filter nobody is still asking for. */
-        if (seq !== requestRef.current) return;
-        /* A null here means the grant went away mid-session, not that the filter matched nothing
-           — an empty match still returns a payload. Keeping the old data and saying so beats
-           replacing the board with the no-access card over one failed round trip. */
-        if (!fresh) {
-          setFilterError('Could not apply that filter. The board below is unchanged.');
-          return;
-        }
-        setFilterError('');
-        setData(fresh);
-        setPendingFilters(null);
+  /* Fetched once. Until it lands the board renders the server's first payload, so there is no
+     empty state and no spinner on arrival. */
+  useEffect(() => {
+    let live = true;
+    getTravelDataset()
+      .then((d) => {
+        if (live && d) setDataset(d.dataset);
+      })
+      .catch(() => {
+        /* The board keeps working on the server payload; only instant filtering is lost, and
+           the fallback below still fetches a filtered board. */
+        if (live) setDataset(null);
       });
-    }, 220);
+    return () => {
+      live = false;
+    };
   }, []);
 
+  const bands = useMemo(
+    () => (dataset ? buildClientBands(dataset, filters) : null),
+    [dataset, filters],
+  );
+
+  const applyFilters = useCallback(
+    (next: TravelFilters) => {
+      setFilters(next);
+
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        const seq = ++requestRef.current;
+        startTransition(async () => {
+          /* Without the dataset the browser cannot fold, so fall back to the old whole-payload
+             call rather than leaving the board on a stale filter. */
+          if (!dataset) {
+            const fresh = await getTravelAnalytics(next);
+            if (seq !== requestRef.current) return;
+            if (!fresh) {
+              setFilterError('Could not apply that filter. The board below is unchanged.');
+              return;
+            }
+            setFilterError('');
+            setServerData(fresh);
+            setRoleBands({ optimisation: fresh.optimisation, admin: fresh.admin });
+            return;
+          }
+
+          const fresh = await getTravelRoleBands(next);
+          /* A reply that has been overtaken is dropped. Without this a slow early request can
+             land after a fast later one and show bands for a filter nobody is still asking for. */
+          if (seq !== requestRef.current) return;
+          if (!fresh) {
+            setFilterError('Could not refresh the optimisation and admin bands.');
+            return;
+          }
+          setFilterError('');
+          setRoleBands(fresh);
+        });
+      }, 220);
+    },
+    [dataset],
+  );
+
   useEffect(() => () => void (debounceRef.current && clearTimeout(debounceRef.current)), []);
+
+  /* One board, from two sources: whatever the browser folded this frame, and the role-gated
+     bands as last fetched. Before the dataset lands, `bands` is null and the server's payload
+     stands on its own. */
+  const data: TravelAnalyticsData | null = useMemo(() => {
+    if (!serverData) return null;
+    const roles = { optimisation: roleBands.optimisation, admin: roleBands.admin };
+    if (!bands) return { ...serverData, ...roles };
+    /* `filteredCodes` is for the caller's own bookkeeping, not part of the payload shape. */
+    const { bookingsInScope, headline, finance, map, travelTypes, channels } = bands;
+    return {
+      ...serverData,
+      bookingsInScope,
+      headline,
+      finance,
+      map,
+      travelTypes,
+      channels,
+      ...roles,
+      appliedFilters: filters,
+    };
+  }, [serverData, bands, roleBands, filters]);
 
   const travellers = useMemo(() => {
     const rows = data?.admin?.travellers ?? [];
@@ -442,7 +515,7 @@ export default function TravelAnalyticsClient({
 
       <TravelFilterBar
         options={data.filterOptions}
-        applied={pendingFilters ?? data.appliedFilters}
+        applied={filters}
         onChange={applyFilters}
         busy={pending}
         showing={data.bookingsInScope}

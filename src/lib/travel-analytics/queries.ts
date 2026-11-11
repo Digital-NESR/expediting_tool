@@ -81,6 +81,7 @@ import {
   type TravelRole,
   type TravelScope,
 } from './scope';
+import type { TravelDataset } from './client-bands';
 import {
   applyFilters,
   filterOptionsFrom,
@@ -537,6 +538,80 @@ export interface TravelAnalyticsData {
  * optimisation figures and nobody but an admin is sent a traveller's name beside their passport
  * expiry. Hiding a section in the client would leave the data in the page source.
  */
+/**
+ * Everything the browser needs to fold the board for itself, loaded once and unfiltered.
+ *
+ * The auxiliary data is keyed by booking code, so the client taking a subset of it for the
+ * filtered codes returns exactly what a narrower `code = ANY(...)` would have. That is what
+ * makes filtering a fold rather than a round trip.
+ *
+ * Scope is still applied HERE, not in the browser: a reader is sent the bookings their grant
+ * covers and no others. Filtering narrows what the scope already allows and can never widen it.
+ */
+export async function loadTravelDataset(scope: TravelScope): Promise<{
+  dataset: TravelDataset;
+  filterOptions: TravelFilterOptions;
+  role: TravelRole;
+  countries: string[] | null;
+}> {
+  const bookings = await loadScopedBookings(scope);
+  const codes = bookings.map((b) => b.code);
+  const [segments, signals] = await Promise.all([
+    loadBookingSegments(codes),
+    loadChannelSignals(codes),
+  ]);
+
+  return {
+    dataset: {
+      bookings,
+      /* Maps and Sets do not survive the action boundary, so they travel as entries. */
+      segments: [...segments.entries()],
+      flaggedCodes: [...signals.flagged],
+      savingsByCode: [...signals.savingsByCode.entries()],
+    },
+    filterOptions: filterOptionsFrom(bookings),
+    role: scope.role,
+    countries: scope.countries,
+  };
+}
+
+/**
+ * The two bands the browser does not build: optimisation and admin.
+ *
+ * Still keyed on the filtered codes, so this is the one request a filter change still makes —
+ * and only for a reader whose role is sent them at all. A finance reader never calls it.
+ *
+ * The codes are re-derived from the reader's own scope rather than trusted from the browser: an
+ * action is a public endpoint, and a caller posting somebody else's booking codes would
+ * otherwise read bands they have no grant for.
+ */
+export async function loadRoleBands(
+  scope: TravelScope,
+  requestedFilters?: TravelFilters | null,
+): Promise<{ optimisation: OptimisationBand | null; admin: AdminBand | null }> {
+  const wantsOptimisation = canSeeOptimisation(scope.role);
+  const wantsAdmin = canRevealIdentityDocuments(scope.role);
+  if (!wantsOptimisation && !wantsAdmin) return { optimisation: null, admin: null };
+
+  const inScope = await loadScopedBookings(scope);
+  const appliedFilters = sanitiseFilters(requestedFilters, filterOptionsFrom(inScope));
+  const bookings = applyFilters(inScope, appliedFilters);
+  const codes = bookings.map((b) => b.code);
+
+  if (!codes.length) {
+    return {
+      optimisation: wantsOptimisation ? emptyOptimisation() : null,
+      admin: wantsAdmin ? { travellers: [], expiringPassports: [], quality: [] } : null,
+    };
+  }
+
+  const [optimisation, admin] = await Promise.all([
+    wantsOptimisation ? loadOptimisation(codes, bookings) : Promise.resolve(null),
+    wantsAdmin ? loadAdminBand(codes, bookings) : Promise.resolve(null),
+  ]);
+  return { optimisation, admin };
+}
+
 export async function loadTravelAnalytics(
   scope: TravelScope,
   requestedFilters?: TravelFilters | null,

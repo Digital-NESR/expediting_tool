@@ -31,15 +31,21 @@ import {
   type TravelGrantRow,
 } from '@/lib/travel-analytics/grants';
 import {
+  loadRoleBands,
   loadTravelAnalytics,
+  loadTravelDataset,
   readIdentityDocuments,
   REVEALABLE_FIELDS,
   scopedBookingCodes,
   travelCountryOptions,
+  type AdminBand,
   type IdentityDocuments,
+  type OptimisationBand,
   type TravelAnalyticsData,
 } from '@/lib/travel-analytics/queries';
-import { canRevealIdentityDocuments } from '@/lib/travel-analytics/scope';
+import type { TravelDataset } from '@/lib/travel-analytics/client-bands';
+import type { TravelFilterOptions } from '@/lib/travel-analytics/filters';
+import { canRevealIdentityDocuments, type TravelRole } from '@/lib/travel-analytics/scope';
 
 const log = logger('travel-analytics');
 
@@ -69,6 +75,50 @@ export async function getTravelAnalytics(
     return await loadTravelAnalytics(scope, filters ?? null);
   } catch (err) {
     log.error('getTravelAnalytics.failed', err);
+    throw err;
+  }
+}
+
+/**
+ * The board's rows, once, so the browser can filter without asking again.
+ *
+ * Paired with `getTravelRoleBands` rather than replacing `getTravelAnalytics`: the first page
+ * render still uses the whole-payload call, so a reader sees a complete board immediately and
+ * the dataset is what every subsequent filter folds.
+ */
+export async function getTravelDataset(): Promise<{
+  dataset: TravelDataset;
+  filterOptions: TravelFilterOptions;
+  role: TravelRole;
+  countries: string[] | null;
+} | null> {
+  const actor = await requireUser();
+  const scope = await travelScopeFor(actor.email);
+  if (!scope) return null;
+  try {
+    return await loadTravelDataset(scope);
+  } catch (err) {
+    log.error('getTravelDataset.failed', err);
+    throw err;
+  }
+}
+
+/**
+ * The two bands the browser cannot build: optimisation and admin.
+ *
+ * The role gate is applied server-side, as it always was. A finance reader asking for this gets
+ * two nulls, not a hidden section — the figures never reach the page source.
+ */
+export async function getTravelRoleBands(
+  filters?: TravelFilters | null,
+): Promise<{ optimisation: OptimisationBand | null; admin: AdminBand | null } | null> {
+  const actor = await requireUser();
+  const scope = await travelScopeFor(actor.email);
+  if (!scope) return null;
+  try {
+    return await loadRoleBands(scope, filters ?? null);
+  } catch (err) {
+    log.error('getTravelRoleBands.failed', err);
     throw err;
   }
 }
