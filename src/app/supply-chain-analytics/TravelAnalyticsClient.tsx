@@ -14,7 +14,7 @@
    Band 4 · Traveller data    admin only, with the identity documents behind an audited reveal
    ───────────────────────────────────────────────────────────── */
 
-import { useCallback, useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { AlertTriangle, Eye, Loader2, ShieldAlert } from 'lucide-react';
 import { getTravelAnalytics, revealTravellerIdentity } from '@/app/actions/travel-analytics';
 import type { TravelFilters } from '@/lib/travel-analytics/filters';
@@ -357,20 +357,41 @@ export default function TravelAnalyticsClient({
   const [pending, startTransition] = useTransition();
   const [filterError, setFilterError] = useState('');
 
+  /* Rebuilding this board is 21 queries, so the cost of asking for it twice is real.
+     `pendingFilters` holds what the bar is showing while the timer runs, so the controls stay
+     responsive to the tick that was just made rather than snapping back to the last applied set. */
+  const [pendingFilters, setPendingFilters] = useState<TravelFilters | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestRef = useRef(0);
+
   const applyFilters = useCallback((next: TravelFilters) => {
-    startTransition(async () => {
-      const fresh = await getTravelAnalytics(next);
-      /* A null here means the grant went away mid-session, not that the filter matched nothing
-         — an empty match still returns a payload. Keeping the old data and saying so beats
-         replacing the board with the no-access card over one failed round trip. */
-      if (!fresh) {
-        setFilterError('Could not apply that filter. The board below is unchanged.');
-        return;
-      }
-      setFilterError('');
-      setData(fresh);
-    });
+    setPendingFilters(next);
+
+    /* Ticking five countries used to be five full rebuilds, each one waited through. One burst
+       of changes is one request; the trailing state is the only one anybody wanted. */
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const seq = ++requestRef.current;
+      startTransition(async () => {
+        const fresh = await getTravelAnalytics(next);
+        /* A reply that has been overtaken is dropped. Without this a slow early request can land
+           after a fast later one and put the board back to a filter nobody is still asking for. */
+        if (seq !== requestRef.current) return;
+        /* A null here means the grant went away mid-session, not that the filter matched nothing
+           — an empty match still returns a payload. Keeping the old data and saying so beats
+           replacing the board with the no-access card over one failed round trip. */
+        if (!fresh) {
+          setFilterError('Could not apply that filter. The board below is unchanged.');
+          return;
+        }
+        setFilterError('');
+        setData(fresh);
+        setPendingFilters(null);
+      });
+    }, 220);
   }, []);
+
+  useEffect(() => () => void (debounceRef.current && clearTimeout(debounceRef.current)), []);
 
   const travellers = useMemo(() => {
     const rows = data?.admin?.travellers ?? [];
@@ -421,7 +442,7 @@ export default function TravelAnalyticsClient({
 
       <TravelFilterBar
         options={data.filterOptions}
-        applied={data.appliedFilters}
+        applied={pendingFilters ?? data.appliedFilters}
         onChange={applyFilters}
         busy={pending}
         showing={data.bookingsInScope}

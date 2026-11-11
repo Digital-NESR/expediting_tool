@@ -3,6 +3,7 @@ import {
   buildCountryIndex,
   countryOptions,
   displayCountry,
+  isTestBooking,
   resolveBookingCountry,
   type CostCentreCompany,
   type CostCentreDepartment,
@@ -184,5 +185,27 @@ describe('displayCountry', () => {
     );
     expect(resolveBookingCountry(index, 'C251100101', null).country).toBe('Jordan');
     expect(resolveBookingCountry(index, null, '2925').country).toBe('Jordan');
+  });
+});
+
+describe('isTestBooking', () => {
+  it("recognises the agency's own test bookings", () => {
+    // Company 1000 "Satguru Test" on two invented cost centres: 17 bookings, ~$10,100 of
+    // fictitious spend that was the whole of the previously "unmapped" population.
+    expect(isTestBooking('C999999999', '1000')).toBe(true);
+    expect(isTestBooking('C999999997', '1000')).toBe(true);
+    expect(isTestBooking('  c999999999  ', ' 1000 ')).toBe(true);
+  });
+
+  it('needs BOTH the cost centre and the company to match', () => {
+    // Either alone could be a real row. Only the pair identifies an agency test booking.
+    expect(isTestBooking('C999999999', '2112')).toBe(false);
+    expect(isTestBooking('C121100101', '1000')).toBe(false);
+  });
+
+  it('leaves real bookings alone', () => {
+    expect(isTestBooking('C128890009', '2112')).toBe(false);
+    expect(isTestBooking(null, null)).toBe(false);
+    expect(isTestBooking('', '')).toBe(false);
   });
 });

@@ -82,6 +82,32 @@ const key = (value: string | null | undefined): string =>
 
 /** Build the two lookup maps once, from the rows the laptop pool handed back. */
 /**
+ * The travel agency's own test bookings, which are not NESR travel.
+ *
+ * Satguru (the booking agency) books against company code 1000 "Satguru Test" on two invented
+ * cost centres. There are 17 such bookings, all through the portal, worth about $10,100 of
+ * fictitious spend: Dubai to Singapore, Bombay, Seattle, Istanbul, by "Satguru admin" and two
+ * agency staff. They were the whole of the "unmapped" population, which is why they resolved to
+ * no country -- neither the cost centre nor the company exists, because neither is real.
+ *
+ * Matched on the cost centre AND the company code rather than the company name, which is free
+ * text on the booking and would catch a genuine NESR row that happened to mention "test".
+ *
+ * Excluded from the figures rather than left to land in "unmapped", because an admin reading
+ * total spend should not be shown agency test flights as though they were a country whose
+ * mapping is missing. The count is reported so they are visibly removed, not silently dropped.
+ */
+const TEST_COMPANY_CODE = '1000';
+const TEST_COST_CENTRES = new Set(['C999999999', 'C999999997']);
+
+export function isTestBooking(
+  costCentre: string | null | undefined,
+  companyCode: string | null | undefined,
+): boolean {
+  return key(companyCode) === TEST_COMPANY_CODE && TEST_COST_CENTRES.has(key(costCentre));
+}
+
+/**
  * How a country is written for a reader.
  *
  * SAP spells Jordan "Jordon", and that spelling flows through the cost-centre export into this

@@ -43,6 +43,7 @@ import { shortMonthYear } from '@/lib/format';
 import {
   buildCountryIndex,
   countryOptions,
+  isTestBooking,
   resolveBookingCountry,
   type CountryIndex,
 } from './country-map';
@@ -97,35 +98,65 @@ const log = logger('travel-analytics-queries');
  * 60-second process-level snapshot for its request form, which is read on every page load there;
  * this is read once per dashboard view and does not need it.
  */
-const loadCountryIndex = cache(async (): Promise<{ index: CountryIndex; countries: string[] }> => {
-  await ensureLaptopSchema();
-  const [departments, companies] = await Promise.all([
-    laptopProcurementPool.query<{ cost_center: string; company_code: string; department: string }>(
-      `SELECT cost_center, company_code, department FROM laptop_cost_center_departments`,
-    ),
-    laptopProcurementPool.query<{ code: string; name: string; country: string }>(
-      `SELECT code, name, country FROM laptop_cost_center_companies`,
-    ),
-  ]);
+/**
+ * Held across requests for a minute, not just within one.
+ *
+ * The note above was written when this was read once per dashboard view. It is now read on every
+ * filter change too, and each read is two queries against a DIFFERENT database to the bookings —
+ * so a reader ticking through countries paid a cross-database round trip per tick for a mapping
+ * that changes when somebody edits it in the admin screen, which is to say almost never.
+ *
+ * A minute is short enough that an edit shows up while the editor is still looking at it, and
+ * long enough that a burst of filtering costs one read. The laptop tool keeps the same mapping
+ * on the same 60-second terms for its request form, so this is the house figure rather than a
+ * new one.
+ */
+const COUNTRY_INDEX_TTL_MS = 60_000;
+let countryIndexCache: { at: number; value: { index: CountryIndex; countries: string[] } } | null =
+  null;
 
-  const companyRows = companies.rows.map((r) => ({
-    code: r.code,
-    name: r.name,
-    country: r.country,
-  }));
+const loadCountryIndexUncached = cache(
+  async (): Promise<{ index: CountryIndex; countries: string[] }> => {
+    await ensureLaptopSchema();
+    const [departments, companies] = await Promise.all([
+      laptopProcurementPool.query<{
+        cost_center: string;
+        company_code: string;
+        department: string;
+      }>(`SELECT cost_center, company_code, department FROM laptop_cost_center_departments`),
+      laptopProcurementPool.query<{ code: string; name: string; country: string }>(
+        `SELECT code, name, country FROM laptop_cost_center_companies`,
+      ),
+    ]);
 
-  return {
-    index: buildCountryIndex(
-      departments.rows.map((r) => ({
-        costCentre: r.cost_center,
-        companyCode: r.company_code,
-        department: r.department,
-      })),
-      companyRows,
-    ),
-    countries: countryOptions(companyRows),
-  };
-});
+    const companyRows = companies.rows.map((r) => ({
+      code: r.code,
+      name: r.name,
+      country: r.country,
+    }));
+
+    return {
+      index: buildCountryIndex(
+        departments.rows.map((r) => ({
+          costCentre: r.cost_center,
+          companyCode: r.company_code,
+          department: r.department,
+        })),
+        companyRows,
+      ),
+      countries: countryOptions(companyRows),
+    };
+  },
+);
+
+async function loadCountryIndex(): Promise<{ index: CountryIndex; countries: string[] }> {
+  const now = Date.now();
+  if (countryIndexCache && now - countryIndexCache.at < COUNTRY_INDEX_TTL_MS)
+    return countryIndexCache.value;
+  const value = await loadCountryIndexUncached();
+  countryIndexCache = { at: now, value };
+  return value;
+}
 
 /**
  * Every country a grant can be written against.
@@ -224,12 +255,24 @@ async function loadScopedBookings(scope: TravelScope): Promise<ScopedBooking[]> 
   const codes: string[] = [];
   const countries: (string | null)[] = [];
   const resolved = new Map<string, { country: string | null; department: string | null }>();
+  let testBookings = 0;
   for (const row of raw.rows) {
+    /* The agency's own test bookings never enter the population. They are dropped here rather
+       than filtered later so no figure, band or map is ever computed over them -- and counted,
+       so the exclusion can be reported instead of quietly changing a total. */
+    if (isTestBooking(row.costCenter, row.companyCode)) {
+      testBookings += 1;
+      continue;
+    }
     const r = resolveBookingCountry(index, row.costCenter, row.companyCode);
     codes.push(row.code);
     countries.push(r.country);
     resolved.set(row.code, { country: r.country, department: r.department });
   }
+
+  /* Said once per read rather than threaded into the payload: the exclusion is a property of the
+     source data, not something a reader chose, and a silent drop is the thing to avoid. */
+  if (testBookings > 0) log.info('scopedBookings.testExcluded', { bookings: testBookings });
 
   /* $1 and $2 are the pairs; the filter numbers itself from $3 onwards. */
   const filter = countryFilterSql(scope, 'p.country', 3);
