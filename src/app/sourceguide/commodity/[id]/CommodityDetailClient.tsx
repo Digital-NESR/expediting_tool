@@ -150,8 +150,8 @@ export default function CommodityDetailClient({
                   {/* Said plainly, because the distinction is the point: these people are
                       approved for a specific commodity, not for the sub-category at large. */}
                   <p className="-mt-1 mb-3 text-[12.5px] text-slate-500">
-                    Mapped to a specific commodity under {com.subCategory}, not to {com.name}{' '}
-                    itself. Open the commodity to see its full list.
+                    Approved for one commodity under {com.subCategory} rather than for the
+                    sub-category generally. Open a commodity to see its own full list.
                   </p>
                   <div className="overflow-hidden rounded-xl border border-slate-200">
                     <table className="w-full border-collapse text-left text-[13px]">

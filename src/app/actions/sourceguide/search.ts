@@ -17,7 +17,7 @@ import type {
 } from '@/types/sourceguide';
 import { canRead, readUser } from '@/lib/sourceguide/access';
 import { familySql, subCategorySql } from '@/lib/sourceguide/taxonomy-levels';
-import { isCatchAllNode } from '@/lib/sourceguide/taxonomy-levels';
+import { commodityLabel, isCatchAllNode } from '@/lib/sourceguide/taxonomy-levels';
 import { isCentrallyBlocked } from '@/lib/sourceguide/blocked';
 import { logUsage } from '@/lib/sourceguide/activity';
 import {
@@ -274,7 +274,9 @@ export async function getCommodityDetail(commodityId: number): Promise<SgCommodi
        approved for the sub-category generally; one on `Anti gas migration additives` is approved
        for that commodity. Merging them would print a name under `Preferred for Specialty
        Chemicals` that nobody approved for it. */
-    const isCatchAll = isCatchAllNode(commodity.name, commodity.subCategory);
+    /* The STORED name, not `commodity.name` -- `rowToCommodity` has already relabelled a
+       catch-all to `General`, and asking this question of the label would always answer no. */
+    const isCatchAll = isCatchAllNode(comRes.rows[0].name, comRes.rows[0].sub_category);
 
     const relatedByCountry: Record<string, SgRelatedMapping[]> = {};
     if (isCatchAll) {
@@ -471,7 +473,12 @@ export async function getTaxonomy(): Promise<SgTaxonomyCategory[]> {
         fam = { name: r.family, items: [] };
         sub.families.push(fam);
       }
-      fam.items.push({ id: r.id, name: r.name, code: r.code, countries: r.countries });
+      fam.items.push({
+        id: r.id,
+        name: commodityLabel(r.name, r.sub_category),
+        code: r.code,
+        countries: r.countries,
+      });
       sub.count++;
       cat.count++;
     }
