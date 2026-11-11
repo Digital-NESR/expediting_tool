@@ -81,6 +81,27 @@ const key = (value: string | null | undefined): string =>
   (value ?? '').replace(/ /g, ' ').trim().toUpperCase();
 
 /** Build the two lookup maps once, from the rows the laptop pool handed back. */
+/**
+ * How a country is written for a reader.
+ *
+ * SAP spells Jordan "Jordon", and that spelling flows through the cost-centre export into this
+ * mapping -- 24 rows of it in `data/source/cost-center-mapping.csv`. It is matched rather than
+ * corrected upstream, which is a decision already taken elsewhere in this codebase: SOA's country
+ * seed accepts both spellings and says plainly that correcting it at source is not its business,
+ * because SAP is the authority for this data.
+ *
+ * So the correction belongs here, at the point of display, where the next reseed cannot revert it
+ * and nothing upstream has to change. Applied to BOTH the resolved country on a booking and the
+ * list of grantable countries, so a grant, a filter and a chart label always say the same word --
+ * normalising one without the other would write grants that match no booking.
+ */
+const DISPLAY_SPELLING: Record<string, string> = { Jordon: 'Jordan' };
+
+export function displayCountry(country: string | null | undefined): string {
+  const trimmed = (country ?? '').trim();
+  return DISPLAY_SPELLING[trimmed] ?? trimmed;
+}
+
 export function buildCountryIndex(
   departments: readonly CostCentreDepartment[],
   companies: readonly CostCentreCompany[],
@@ -89,7 +110,7 @@ export function buildCountryIndex(
   for (const c of companies) {
     const code = key(c.code);
     if (!code) continue;
-    byCompanyCode.set(code, { name: (c.name ?? '').trim(), country: (c.country ?? '').trim() });
+    byCompanyCode.set(code, { name: (c.name ?? '').trim(), country: displayCountry(c.country) });
   }
 
   const byCostCentre = new Map<string, CostCentreEntry>();
@@ -164,7 +185,7 @@ export function resolveBookingCountry(
 export function countryOptions(companies: readonly CostCentreCompany[]): string[] {
   const seen = new Set<string>();
   for (const c of companies) {
-    const country = (c.country ?? '').trim();
+    const country = displayCountry(c.country);
     if (country) seen.add(country);
   }
   return [...seen].sort((a, b) => a.localeCompare(b));
