@@ -407,7 +407,7 @@ function WipSection({ request }: { request: LaptopRequestDetailData['request'] }
           : 'text-amber-900';
   const headline =
     state.kind === 'raised'
-      ? `SR-${state.serviceRequestId}`
+      ? `INC-${state.serviceRequestId}`
       : state.kind === 'failed'
         ? 'Not raised'
         : state.kind === 'raising'

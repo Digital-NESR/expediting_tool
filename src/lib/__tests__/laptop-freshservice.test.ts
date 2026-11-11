@@ -15,7 +15,7 @@ import {
 import { toUnitPrice } from '@/lib/laptop-procurement/prices';
 import type { LaptopRequest } from '@/types/laptopProcurement';
 
-/** PLP01633, the request the live test (SR-144437) was built from. */
+/** PLP01633, the request the live test (INC-144437) was built from. */
 function request(over: Partial<LaptopRequest> = {}): LaptopRequest {
   return {
     id: 1,
@@ -63,7 +63,7 @@ describe('the Freshservice contract', () => {
     ]);
   });
 
-  it('reproduces the payload that SR-144437 accepted', () => {
+  it('reproduces the payload that INC-144437 accepted', () => {
     const r = buildWipPayload(request(), EMAIL, 100);
     expect(r.ok).toBe(true);
     if (!r.ok) return;

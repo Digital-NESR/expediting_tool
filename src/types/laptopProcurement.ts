@@ -265,7 +265,7 @@ export interface LaptopRequest {
   review_comments: string | null;
 
   /**
-   * The Freshservice service request raised for this device, shown as SR-<id>.
+   * The Freshservice service request raised for this device, shown as INC-<id>.
    * NULL with `freshservice_attempted_at` set means it was tried and failed;
    * NULL with both unset means it has not been tried.
    */

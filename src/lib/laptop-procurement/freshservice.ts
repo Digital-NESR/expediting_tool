@@ -19,7 +19,7 @@ export { stripEnvQuotes };
  *   POST /api/v2/service_catalog/items/173/place_request
  *
  * The seven field keys below were read from the item itself and confirmed
- * against a live request (SR-144437). They are bare names — `country`, not
+ * against a live request (INC-144437). They are bare names — `country`, not
  * `cf_country` — and a wrong key does not error: Freshservice accepts the
  * request and silently leaves the field blank. That is why they are pinned
  * here with tests rather than written inline at the call site.
