@@ -86,10 +86,32 @@ export interface SgSupplierProfile extends SgSupplier {
   mappings: SgMapping[];
 }
 
+/** A supplier mapped elsewhere in this sub-category, carrying the commodity it is mapped to. */
+export interface SgRelatedMapping extends SgMapping {
+  commodityName: string;
+}
+
 export interface SgCommodityDetail {
   commodity: SgCommodity;
   countries: string[];
   mappingsByCountry: Record<string, SgMapping[]>;
+  /**
+   * Suppliers mapped to OTHER commodities in the same sub-category, for the catch-all nodes
+   * whose name repeats their sub-category — `Specialty Chemicals` inside `Specialty Chemicals`.
+   *
+   * Those nodes read like a parent and behave like a leaf: they carry their own mappings and
+   * roll up nothing, so a reader on `Specialty Chemicals` saw 5 Abu Dhabi suppliers where the
+   * sub-category holds 15, and never met the one mapped to `Anti gas migration additives`.
+   *
+   * Kept SEPARATE from `mappingsByCountry` rather than merged into it, because the two say
+   * different things. A supplier on the catch-all is approved for the sub-category generally;
+   * one here is approved for a particular commodity within it. Merging them would put a name
+   * under `Preferred for Specialty Chemicals` that nobody ever approved for that, which is the
+   * kind of wrong a buyer acts on.
+   *
+   * Empty for every node that is not a catch-all.
+   */
+  relatedByCountry: Record<string, SgRelatedMapping[]>;
 }
 
 export interface SgGuide {

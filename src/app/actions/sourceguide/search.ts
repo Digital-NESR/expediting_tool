@@ -7,6 +7,7 @@ import { MATCH_THRESHOLD, matchScore, norm } from '@/lib/sg-fuzzy';
 import type {
   SgCommodity,
   SgCommodityDetail,
+  SgRelatedMapping,
   SgCommodityResult,
   SgMapping,
   SgSearchFilters,
@@ -16,6 +17,7 @@ import type {
 } from '@/types/sourceguide';
 import { canRead, readUser } from '@/lib/sourceguide/access';
 import { familySql, subCategorySql } from '@/lib/sourceguide/taxonomy-levels';
+import { isCatchAllNode } from '@/lib/sourceguide/taxonomy-levels';
 import { isCentrallyBlocked } from '@/lib/sourceguide/blocked';
 import { logUsage } from '@/lib/sourceguide/activity';
 import {
@@ -263,10 +265,56 @@ export async function getCommodityDetail(commodityId: number): Promise<SgCommodi
       };
       (mappingsByCountry[m.country_code] ??= []).push(mapping);
     }
-    const countries = Object.keys(mappingsByCountry);
+    /* A catch-all node repeats its own sub-category's name -- `Specialty Chemicals` inside
+       `Specialty Chemicals`. It reads like a parent and behaves like a leaf: it carries its own
+       mappings and rolls up nothing, so a reader saw 5 Abu Dhabi suppliers where the sub-category
+       holds 15. There are 40 such nodes carrying 825 mappings.
+
+       The siblings are loaded separately and stay separate. A supplier on the catch-all is
+       approved for the sub-category generally; one on `Anti gas migration additives` is approved
+       for that commodity. Merging them would print a name under `Preferred for Specialty
+       Chemicals` that nobody approved for it. */
+    const isCatchAll = isCatchAllNode(commodity.name, commodity.subCategory);
+
+    const relatedByCountry: Record<string, SgRelatedMapping[]> = {};
+    if (isCatchAll) {
+      const relRes = await sourceGuidePool.query(
+        `SELECT m.id, m.commodity_id, m.supplier_code, m.country_code, m.tier, m.status,
+                a.name AS supplier_name, a.email AS supplier_email, a.central_block_status,
+                c.name AS commodity_name
+           FROM sg_mappings m
+           JOIN sg_commodities c ON c.id = m.commodity_id
+           JOIN supplier_avl a ON a.supplier_code = m.supplier_code
+          WHERE m.status = 'Active'
+            AND c.sub_category = $1
+            AND c.id <> $2
+          ORDER BY m.country_code, (m.tier = 'Preferred') DESC, c.name, a.name`,
+        [commodity.subCategory, commodityId],
+      );
+      for (const m of relRes.rows) {
+        (relatedByCountry[m.country_code] ??= []).push({
+          id: m.id,
+          commodityId: m.commodity_id,
+          commodityName: m.commodity_name ?? '',
+          supplierName: m.supplier_name ?? '',
+          supplierCode: m.supplier_code,
+          supplierEmail: m.supplier_email ?? null,
+          supplierBlocked: isCentrallyBlocked(m.central_block_status),
+          country: m.country_code,
+          tier: m.tier,
+          status: m.status,
+        });
+      }
+    }
+
+    /* The country pills come from both, so a country that only the siblings cover is still
+       offered -- otherwise the rollup would be invisible in exactly the countries that need it. */
+    const countries = [
+      ...new Set([...Object.keys(mappingsByCountry), ...Object.keys(relatedByCountry)]),
+    ].sort();
 
     void logUsage('view', 'commodity', commodity.name, String(commodityId), viewer);
-    return { commodity, countries, mappingsByCountry };
+    return { commodity, countries, mappingsByCountry, relatedByCountry };
   } catch (err) {
     readFailed('getCommodityDetail', err, { commodityId });
   }

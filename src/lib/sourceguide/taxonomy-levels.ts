@@ -78,3 +78,27 @@ export function familySql(a: Alias = '', as = 'fam'): string {
             ELSE TRIM(${a}family)
           END AS ${as}`;
 }
+
+/**
+ * This node repeats its own sub-category's name: `Specialty Chemicals` inside `Specialty
+ * Chemicals`, `Lubricants` inside `Lubricants`.
+ *
+ * Forty of these exist, carrying 825 mappings between them. They read like a parent and behave
+ * like a leaf — they hold their own mappings and roll up nothing — so a reader who opened one
+ * saw the suppliers approved for the sub-category at large and never met the ones approved for a
+ * particular commodity inside it. On Specialty Chemicals in Abu Dhabi that was 5 suppliers where
+ * the sub-category holds 15, and the missing ten included every supplier an RFx later suggested.
+ *
+ * The same comparison as `isRedundantFamily`, and for the same reason: trimmed and
+ * case-insensitive, because the exact-match version is the one that silently stops working the
+ * day somebody retypes a level in different case.
+ */
+export function isCatchAllNode(
+  name: string | null | undefined,
+  subCategory: string | null | undefined,
+): boolean {
+  const n = (name ?? '').trim();
+  const sub = (subCategory ?? '').trim();
+  if (!n || !sub) return false;
+  return n.toLowerCase() === sub.toLowerCase();
+}
