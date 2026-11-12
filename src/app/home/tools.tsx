@@ -481,14 +481,15 @@ export const TOOLS: ToolDef[] = [
   {
     id: 'rrsm',
     group: 'development',
-    keywords: 'rrsm portal',
+    keywords:
+      'rrsm rental recurrent recurring services management hire lease equipment rental service agreement renewal off-hire',
     name: 'RRSM',
-    /* No subtitle and a description that only says what is true. The design has been approved
-       but the portal is not built, and inventing a strapline for a tool nobody can open yet
-       would put a guess on the home page of every signed-in employee. Both get written the
-       moment there is something to describe. */
-    description:
-      'Not built yet. The portal is being implemented from the approved design; this card stays greyed out until the first screens land.',
+    subtitle: <>Rental &amp; Recurrent Services Management</>,
+    /* Description restates the name and stops there. The portal is not built and the design is
+       not readable from here yet, so anything about how it works would be invented -- and the
+       "Coming Soon" pill already carries the fact that it has not shipped, which is why the
+       Supply Chain Analytics entry does not say so in its description either. */
+    description: 'Manage NESR’s equipment rentals and recurring service agreements in one place.',
     icon: <LayoutGrid className="w-6 h-6 text-gray-400" />,
     logoClass: 'bg-gray-100',
     hoverClass: HOVER_GREEN,
