@@ -19,7 +19,7 @@ import {
 } from '@/components/ToolMarks';
 import {
   Laptop,
-  LayoutGrid,
+  Forklift,
   BookMarked,
   Building2,
   GraduationCap,
@@ -490,7 +490,7 @@ export const TOOLS: ToolDef[] = [
        "Coming Soon" pill already carries the fact that it has not shipped, which is why the
        Supply Chain Analytics entry does not say so in its description either. */
     description: 'Manage NESR’s equipment rentals and recurring service agreements in one place.',
-    icon: <LayoutGrid className="w-6 h-6 text-gray-400" />,
+    icon: <Forklift className="w-6 h-6 text-gray-400" />,
     logoClass: 'bg-gray-100',
     hoverClass: HOVER_GREEN,
     accent: PREVIEW_GREY,

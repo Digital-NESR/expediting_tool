@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowLeft, LayoutGrid } from 'lucide-react';
+import { ArrowLeft, Forklift } from 'lucide-react';
 
 /**
  * The RRSM preview, before there is anything to preview.
@@ -22,7 +22,7 @@ export default function RrsmPage() {
 
         <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-10 shadow-sm">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100">
-            <LayoutGrid className="h-6 w-6 text-slate-400" />
+            <Forklift className="h-6 w-6 text-slate-400" />
           </div>
 
           <h1 className="mt-5 text-[22px] font-bold tracking-tight text-slate-900">RRSM</h1>
