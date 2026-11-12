@@ -29,6 +29,7 @@ import {
   Receipt,
   ShieldCheck,
   BarChart3,
+  ListChecks,
 } from 'lucide-react';
 
 export type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
@@ -549,6 +550,30 @@ export const TOOLS: ToolDef[] = [
     access: { kind: 'always' },
     badge: { kind: 'adminOrLock', label: 'Access Required' },
     openLabel: 'Open →',
+  },
+
+  {
+    id: 'icsa',
+    group: 'development',
+    keywords:
+      'icsa internal control self assessment self-audit sox controls compliance governance champion cycle questionnaire',
+    name: 'ICSA',
+    subtitle: 'Internal Control Self-Assessment',
+    description:
+      'Run Supply Chain self-audit cycles aligned with SOX controls: champions nominate respondents, each answers their own role-based questionnaire, and reviewers track coverage and compliance by country.',
+    icon: <ListChecks className="h-6 w-6 text-gray-400" />,
+    logoClass: 'bg-gray-100',
+    hoverClass: HOVER_GREEN,
+    accent: PREVIEW_GREY,
+    tone: 'preview',
+    route: '/icsa',
+    /* Coming soon: greyed out for everybody, clickable for administrators only, the same as
+       Supply Chain Analytics. Once it ships this goes back to `always` with an `adminOrLock`
+       badge -- the tool's own layout is the real gate, since respondents are nominated and
+       champions appointed and there is nothing to request from the card. */
+    access: { kind: 'adminPreview' },
+    badge: { kind: 'preview' },
+    openLabel: 'Open preview →',
   },
 
   {

@@ -32,6 +32,12 @@ const PUBLIC_PATHS = [
      notFound() in a production build, so this cannot open a hole in a deployed app --
      see src/app/dev-preview/chain/page.tsx for why it exists at all. */
   ...(process.env.NODE_ENV === 'production' ? [] : ['/dev-preview']),
+  /* ICSA while its demo login is switched on (ICSA_DEMO_PASSWORD set). A demo person has no
+     NextAuth cookie, so this gate would bounce them to SSO. Every ICSA page, action and route
+     checks its own actor through getIcsaActor (src/lib/icsa/access.ts), which accepts a signed
+     demo cookie or a real session and nothing else -- that is the gate for these paths. With the
+     password unset, /icsa is gated here like every other tool. */
+  ...(process.env.ICSA_DEMO_PASSWORD ? ['/icsa', '/api/icsa'] : []),
 ];
 
 // Machine-to-machine API endpoints. Their callers (Vercel Cron, n8n) never carry a
