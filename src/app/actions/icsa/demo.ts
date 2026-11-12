@@ -9,7 +9,6 @@ import {
   demoCookieMaxAge,
   demoCookieValue,
   demoEnabled,
-  demoPasswordMatches,
   demoUserByUsername,
   ensureDemoData,
 } from '@/lib/icsa/demo';
@@ -20,18 +19,17 @@ export interface DemoSignInState {
   error?: string;
 }
 
-/** Signs a demo person in to ICSA. Used with useActionState, so it takes the previous state. */
+/**
+ * Becomes one of the demo people (see src/lib/icsa/demo.ts). Used with useActionState, so it
+ * takes the previous state.
+ */
 export async function icsaDemoSignIn(
   _prev: DemoSignInState,
   form: FormData,
 ): Promise<DemoSignInState> {
-  if (!demoEnabled()) return { error: 'The ICSA demo login is switched off.' };
+  if (!demoEnabled()) return { error: 'The demo login is switched off.' };
   const user = demoUserByUsername(String(form.get('username') ?? ''));
-  const password = String(form.get('password') ?? '');
-  /* One message for both cases, so the form does not confirm which usernames exist. */
-  if (!user || !demoPasswordMatches(password)) {
-    return { error: 'That username and password do not match.' };
-  }
+  if (!user) return { error: 'Pick a demo person first.' };
 
   try {
     await ensureIcsaSchema();
@@ -54,5 +52,5 @@ export async function icsaDemoSignIn(
 
 export async function icsaDemoSignOut(): Promise<void> {
   (await cookies()).delete(DEMO_COOKIE);
-  redirect('/icsa-login');
+  redirect('/login');
 }
