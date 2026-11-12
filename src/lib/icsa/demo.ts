@@ -1,4 +1,4 @@
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
 import type { QueryResultRow } from 'pg';
 import { logger } from '@/lib/logger';
@@ -10,11 +10,13 @@ import type { IcsaSectionKey } from './model';
  * ICSA demo sign-in.
  *
  * SC Agents signs people in with Microsoft SSO. For walking stakeholders through ICSA before it
- * goes live, this adds six demo people (two admins, two champions, two employees) who sign in
- * with a username and one shared password, ICSA_DEMO_PASSWORD.
+ * goes live, the sign-in page also offers six demo people (two admins, two champions, two
+ * employees): pick one and you see ICSA as that person, no password.
  *
  * The demo session is ICSA's own signed cookie, not a NextAuth session, so it opens /icsa and
- * nothing else in the platform. It is off unless ICSA_DEMO_PASSWORD is set. Demo addresses use
+ * nothing else in the platform. It is off unless ICSA_DEMO_LOGIN=true. Anyone who can reach the
+ * sign-in page can then act as a demo admin inside ICSA, so switch it off before real cycles
+ * start. Demo addresses use
  * the reserved .invalid domain, so they can never be a real colleague, and no mail is sent to
  * them. While a demo person is signed in, the people search shows the demo people instead of
  * the Azure AD directory.
@@ -41,16 +43,16 @@ export const DEMO_COUNTRIES = ['Saudi Arabia', 'Oman'] as const;
 export const DEMO_USERS: DemoUser[] = [
   {
     username: 'admin1',
-    name: 'Demo Admin One',
+    name: 'Layla Haddad',
     email: 'admin1@icsa-demo.invalid',
     role: 'admin',
     country: null,
-    jobTitle: 'Supply Chain Governance Lead',
+    jobTitle: 'ICSA Administrator',
     department: 'Supply Chain Governance',
   },
   {
     username: 'admin2',
-    name: 'Demo Admin Two',
+    name: 'Omar Khalil',
     email: 'admin2@icsa-demo.invalid',
     role: 'admin',
     country: null,
@@ -59,7 +61,7 @@ export const DEMO_USERS: DemoUser[] = [
   },
   {
     username: 'champion.ksa',
-    name: 'Demo Champion (Saudi Arabia)',
+    name: 'Faisal Al-Otaibi',
     email: 'champion.ksa@icsa-demo.invalid',
     role: 'champion',
     country: 'Saudi Arabia',
@@ -68,7 +70,7 @@ export const DEMO_USERS: DemoUser[] = [
   },
   {
     username: 'champion.oman',
-    name: 'Demo Champion (Oman)',
+    name: 'Salim Al-Busaidi',
     email: 'champion.oman@icsa-demo.invalid',
     role: 'champion',
     country: 'Oman',
@@ -77,7 +79,7 @@ export const DEMO_USERS: DemoUser[] = [
   },
   {
     username: 'employee.ksa',
-    name: 'Demo Employee (Saudi Arabia)',
+    name: 'Ahmed Al-Ghamdi',
     email: 'employee.ksa@icsa-demo.invalid',
     role: 'employee',
     country: 'Saudi Arabia',
@@ -86,7 +88,7 @@ export const DEMO_USERS: DemoUser[] = [
   },
   {
     username: 'employee.oman',
-    name: 'Demo Employee (Oman)',
+    name: 'Fatima Al-Balushi',
     email: 'employee.oman@icsa-demo.invalid',
     role: 'employee',
     country: 'Oman',
@@ -107,7 +109,25 @@ export const DEMO_COOKIE = 'icsa_demo';
 const SESSION_HOURS = 12;
 
 export function demoEnabled(): boolean {
-  return Boolean(process.env.ICSA_DEMO_PASSWORD && process.env.NEXTAUTH_SECRET);
+  return process.env.ICSA_DEMO_LOGIN === 'true' && Boolean(process.env.NEXTAUTH_SECRET);
+}
+
+const ROLE_LABEL: Record<DemoRole, string> = {
+  admin: 'Admin',
+  champion: 'Champion',
+  employee: 'Employee',
+};
+
+/** "Faisal Al-Otaibi — Champion, Saudi Arabia", for the sign-in dropdown. */
+export function demoLabel(d: DemoUser): string {
+  return `${d.name} — ${ROLE_LABEL[d.role]}${d.country ? `, ${d.country}` : ' (all locations)'}`;
+}
+
+/** What the sign-in page needs: the dropdown options, or null when the demo is off. */
+export function demoOptions(): { username: string; label: string }[] | null {
+  return demoEnabled()
+    ? DEMO_USERS.map((d) => ({ username: d.username, label: demoLabel(d) }))
+    : null;
 }
 
 export function isDemoEmail(email: string): boolean {
@@ -117,17 +137,6 @@ export function isDemoEmail(email: string): boolean {
 export function demoUserByUsername(username: string): DemoUser | null {
   const u = username.trim().toLowerCase();
   return DEMO_USERS.find((d) => d.username === u) ?? null;
-}
-
-function digest(s: string): Buffer {
-  return createHash('sha256').update(s).digest();
-}
-
-/** Constant-time comparison against ICSA_DEMO_PASSWORD. */
-export function demoPasswordMatches(password: string): boolean {
-  const expected = process.env.ICSA_DEMO_PASSWORD;
-  if (!expected || !password) return false;
-  return timingSafeEqual(digest(password), digest(expected));
 }
 
 function sign(payload: string): string {
@@ -166,9 +175,9 @@ export async function currentDemoUser(): Promise<DemoUser | null> {
   return parseDemoCookie((await cookies()).get(DEMO_COOKIE)?.value);
 }
 
-/** Where a signed-out visitor to ICSA is sent. */
+/** Where a signed-out visitor to ICSA is sent: the sign-in page, which shows the demo too. */
 export function icsaSignInPath(): string {
-  return demoEnabled() ? '/icsa-login' : '/login';
+  return '/login';
 }
 
 /**
@@ -188,6 +197,23 @@ export async function ensureDemoData(): Promise<void> {
            SELECT $1, $2, $3, 'demo-seed'
             WHERE NOT EXISTS (SELECT 1 FROM icsa_champions WHERE LOWER(email) = $1 AND country = $3)`,
           [c.email, c.name, c.country],
+        );
+      }
+
+      /* Keep the names on rows seeded earlier in step with DEMO_USERS, so renaming a demo
+         person does not leave the old name on their forms. */
+      for (const d of DEMO_USERS) {
+        await q(
+          `UPDATE icsa_champions SET name = $2 WHERE LOWER(email) = $1 AND name IS DISTINCT FROM $2`,
+          [d.email, d.name],
+        );
+        await q(
+          `UPDATE icsa_enrollments SET champion_name = $2 WHERE LOWER(champion_email) = $1 AND champion_name IS DISTINCT FROM $2`,
+          [d.email, d.name],
+        );
+        await q(
+          `UPDATE icsa_assessments SET respondent_name = $2 WHERE LOWER(respondent_email) = $1 AND respondent_name IS DISTINCT FROM $2`,
+          [d.email, d.name],
         );
       }
 
