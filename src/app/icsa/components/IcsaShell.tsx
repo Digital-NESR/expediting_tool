@@ -3,13 +3,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
-import { icsaDemoSignOut } from '@/app/actions/icsa/demo';
+import DemoSwitcher, { type DemoSwitcherProps } from './DemoSwitcher';
 import {
   ClipboardCheck,
   Home,
   LayoutDashboard,
   ListChecks,
-  LogOut,
   Menu,
   Settings,
   CalendarRange,
@@ -21,8 +20,10 @@ export interface ShellViewer {
   email: string;
   isAdmin: boolean;
   championCountries: string[];
-  /** Signed in with the ICSA demo login: no SSO session, so no way back to NESR Home. */
+  /** Viewing ICSA as a demo person (see src/lib/icsa/demo.ts). */
   isDemo: boolean;
+  /** Also signed in with SSO: false for someone who came in through the demo login only. */
+  hasOwnAccount: boolean;
 }
 
 interface NavItem {
@@ -40,10 +41,13 @@ function isManager(v: ShellViewer) {
 export default function IcsaShell({
   viewer,
   pendingExtensions,
+  demo,
   children,
 }: {
   viewer: ShellViewer;
   pendingExtensions: number;
+  /** The "View as" switcher, for admins and demo people; null hides it. */
+  demo: DemoSwitcherProps | null;
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -109,7 +113,7 @@ export default function IcsaShell({
         </button>
       </div>
       <nav className="flex-1 overflow-y-auto p-3">
-        {!viewer.isDemo && (
+        {viewer.hasOwnAccount && !viewer.isDemo && (
           <Link
             href="/home"
             className="mb-3 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-[#307c4c]/30 hover:bg-[#307c4c]/5 hover:text-[#307c4c]"
@@ -156,16 +160,7 @@ export default function IcsaShell({
         )}
         <p className="truncate text-sm font-semibold text-slate-800">{viewer.name}</p>
         <p className="truncate text-xs text-slate-500">{role}</p>
-        {viewer.isDemo && (
-          <form action={icsaDemoSignOut} className="mt-3">
-            <button
-              type="submit"
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 hover:border-[#307c4c]/40 hover:text-[#307c4c]"
-            >
-              <LogOut className="h-4 w-4" /> Switch demo user
-            </button>
-          </form>
-        )}
+        {demo && <DemoSwitcher {...demo} />}
       </div>
     </>
   );

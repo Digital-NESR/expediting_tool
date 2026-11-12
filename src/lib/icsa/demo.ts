@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
 import type { QueryResultRow } from 'pg';
 import { logger } from '@/lib/logger';
+import { currentActor, isToolAdminEmail } from '@/lib/require-access';
 import { lockForTransaction, withTransaction } from '@/lib/db/tx';
 import { icsaPool } from './db';
 import type { IcsaSectionKey } from './model';
@@ -156,7 +157,7 @@ export function demoCookieMaxAge(): number {
 }
 
 export function parseDemoCookie(value: string | undefined, now = Date.now()): DemoUser | null {
-  if (!value || !demoEnabled()) return null;
+  if (!value || !process.env.NEXTAUTH_SECRET) return null;
   const at = value.lastIndexOf('.');
   if (at < 0) return null;
   const payload = value.slice(0, at);
@@ -171,8 +172,35 @@ export function parseDemoCookie(value: string | undefined, now = Date.now()): De
 
 /** The demo person signed in on this request, if any. */
 export async function currentDemoUser(): Promise<DemoUser | null> {
-  if (!demoEnabled()) return null;
-  return parseDemoCookie((await cookies()).get(DEMO_COOKIE)?.value);
+  const demo = parseDemoCookie((await cookies()).get(DEMO_COOKIE)?.value);
+  if (!demo) return null;
+  /* With the public demo login off, a demo cookie counts only for the ICSA admin who picked
+     it from "View as", and only while their own SSO session lasts. */
+  return demoEnabled() || (await isRealIcsaAdmin()) ? demo : null;
+}
+
+/** The person signed in with Microsoft SSO, if any, ignoring any demo cookie. */
+export async function ssoUser(): Promise<{ email: string; name: string } | null> {
+  return currentActor();
+}
+
+/** True when the SSO session (not a demo cookie) belongs to an ICSA admin. */
+export async function isRealIcsaAdmin(): Promise<boolean> {
+  const real = await currentActor();
+  return Boolean(real && isToolAdminEmail(real.email, process.env.ICSA_ADMIN_EMAILS));
+}
+
+/**
+ * Who may become a demo person: everybody on the sign-in page while ICSA_DEMO_LOGIN=true, and
+ * otherwise only a real ICSA admin, from "View as" inside ICSA.
+ */
+export async function canUseDemo(): Promise<boolean> {
+  return demoEnabled() || (await isRealIcsaAdmin());
+}
+
+/** The "View as" options, for anybody allowed to switch. */
+export function allDemoOptions(): { username: string; label: string }[] {
+  return DEMO_USERS.map((d) => ({ username: d.username, label: demoLabel(d) }));
 }
 
 /** Where a signed-out visitor to ICSA is sent: the sign-in page, which shows the demo too. */
