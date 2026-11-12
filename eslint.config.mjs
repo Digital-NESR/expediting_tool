@@ -17,6 +17,10 @@ const eslintConfig = defineConfig([
     // React UMD bundles + a generated game bundle) and accounts for 3 errors
     // and 551 warnings on its own; nothing under `public/` is ours to lint.
     'public/**',
+    // Not source either. `design/` holds approved design exports kept as reference
+    // material (generated support.js and design-system bundles). They are never
+    // imported by the app, and their two generated-code errors were failing CI.
+    'design/**',
     'coverage/**',
     '.ui-backups/**',
   ]),

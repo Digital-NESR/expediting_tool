@@ -930,6 +930,7 @@ export const ACROSS_THE_CHAIN: { label: string; toolId: string }[] = [
   { label: 'Learning & training', toolId: 'learning-hub' },
   { label: 'Ask the assistant', toolId: 'scai' },
   { label: 'Travel', toolId: 'travel-portal' },
+  { label: 'Internal controls', toolId: 'icsa' },
 ];
 
 /* ─── Derived ────────────────────────────────────────────────────────────────────────────────

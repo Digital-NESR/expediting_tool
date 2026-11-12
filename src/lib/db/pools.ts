@@ -17,6 +17,7 @@ export { default as catalogManagerPool } from '../db-catalog-manager';
 export { default as delegationPool } from '../db-delegation';
 export { default as empDirectoryPool } from '../db-emp-directory';
 export { default as expeditingPool } from '../db-expediting';
+export { default as icsaPool } from '../db-icsa';
 export { default as laptopProcurementPool } from '../db-laptop';
 export { default as learningHubPool } from '../db-learning-hub';
 export { default as procureGuardPool } from '../db-procureguard';

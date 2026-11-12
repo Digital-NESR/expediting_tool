@@ -47,6 +47,11 @@ export const DATABASES = [
     envStyle: 'standard',
   },
   {
+    key: 'icsa',
+    database: () => process.env.ICSA_DB_NAME || 'ICSA_portal',
+    envStyle: 'sns',
+  },
+  {
     key: 'laptop-procurement',
     database: () => process.env.LAPTOP_PROCUREMENT_DB_NAME || 'laptop_procurement_db',
     envStyle: 'standard',
