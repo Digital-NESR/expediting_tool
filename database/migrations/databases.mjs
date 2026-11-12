@@ -62,6 +62,13 @@ export const DATABASES = [
     envStyle: 'standard',
   },
   {
+    /* RRSM. Same server and same credentials as SourceGuide, so the same env style; the name is
+       overridable because every other database here is. */
+    key: 'rrsm',
+    database: () => process.env.RRSM_DB_NAME || 'rrsm_db',
+    envStyle: 'sourceguide',
+  },
+  {
     key: 'sns',
     database: () => process.env.SNS_REGISTRY_DB_NAME ?? process.env.SnS_DB ?? 'sns_registry_db',
     envStyle: 'sns',
