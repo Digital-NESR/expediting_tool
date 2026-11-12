@@ -16,6 +16,7 @@ export type WipState =
   | { kind: 'raised'; serviceRequestId: number }
   | { kind: 'failed'; reason: string }
   | { kind: 'raising' }
+  | { kind: 'disabled' }
   | { kind: 'pending' };
 
 /** The only status that raises a WIP, matching the guard in transitions.ts. */
@@ -47,7 +48,23 @@ type WipColumns = Pick<
   | 'freshservice_attempted_at'
 >;
 
-export function wipState(request: WipColumns, now: number = Date.now()): WipState | null {
+/**
+ * `enabled` is LAPTOP_FRESHSERVICE_WIP_ENABLED, read on the server and passed
+ * down, because the columns alone cannot tell the two apart: a WIP that was
+ * never attempted because the integration is switched off leaves exactly the
+ * nulls that a WIP still in flight leaves. Without it the screen spends two
+ * minutes promising a WIP is on its way and then reports it missing, for every
+ * approved request, for as long as the switch is off.
+ *
+ * Defaults to true so the one fact a caller might not have cannot invent a
+ * disabled state: a screen that wrongly says "raising" recovers on its own,
+ * while one that wrongly says "switched off" would hide a real failure.
+ */
+export function wipState(
+  request: WipColumns,
+  now: number = Date.now(),
+  enabled: boolean = true,
+): WipState | null {
   /* The id is read before the attempt timestamp, and the timestamp before the
      status, because each earlier fact outranks the later one: a WIP that exists
      is reported however the request has since been edited. */
@@ -59,6 +76,12 @@ export function wipState(request: WipColumns, now: number = Date.now()): WipStat
   }
 
   if (request.status !== WIP_DUE_STATUS) return null;
+
+  /* Asked after the id and the attempt, not before: switching the integration
+     off does not rewrite history. A request that already carries a WIP still
+     reports it, and one that already failed still shows why. */
+  if (!enabled) return { kind: 'disabled' };
+
   return wasJustApproved(request.updated_at, now) ? { kind: 'raising' } : { kind: 'pending' };
 }
 

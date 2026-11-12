@@ -362,9 +362,18 @@ function fileBadgeLabel(mime: string | null) {
 const WIP_POLL_MS = 2500;
 const WIP_POLL_ATTEMPTS = 12;
 
-function WipSection({ request }: { request: LaptopRequestDetailData['request'] }) {
+function WipSection({
+  request,
+  wipEnabled,
+}: {
+  request: LaptopRequestDetailData['request'];
+  wipEnabled: boolean;
+}) {
   const router = useRouter();
-  const state = wipState(request);
+  /* `now` left to wipState's own default rather than passed from here: reading
+     the clock in render is what it has always done, and doing it explicitly at
+     the call site only moves the impurity somewhere the compiler objects to. */
+  const state = wipState(request, undefined, wipEnabled);
   const isRaising = state?.kind === 'raising';
 
   /* The WIP is raised in after(), so it happens once the response that rendered
@@ -396,7 +405,9 @@ function WipSection({ request }: { request: LaptopRequestDetailData['request'] }
         ? 'border-red-500/40 bg-red-500/10'
         : state.kind === 'raising'
           ? 'border-sky-500/40 bg-sky-500/10'
-          : 'border-amber-500/40 bg-amber-500/10';
+          : state.kind === 'disabled'
+            ? 'border-slate-400/40 bg-slate-400/10'
+            : 'border-amber-500/40 bg-amber-500/10';
   const textClass =
     state.kind === 'raised'
       ? 'text-emerald-900'
@@ -404,7 +415,9 @@ function WipSection({ request }: { request: LaptopRequestDetailData['request'] }
         ? 'text-red-900'
         : state.kind === 'raising'
           ? 'text-sky-900'
-          : 'text-amber-900';
+          : state.kind === 'disabled'
+            ? 'text-slate-700'
+            : 'text-amber-900';
   const headline =
     state.kind === 'raised'
       ? `INC-${state.serviceRequestId}`
@@ -412,7 +425,9 @@ function WipSection({ request }: { request: LaptopRequestDetailData['request'] }
         ? 'Not raised'
         : state.kind === 'raising'
           ? 'Raising now…'
-          : 'Not raised yet';
+          : state.kind === 'disabled'
+            ? 'Not raised — switched off'
+            : 'Not raised yet';
 
   return (
     <Section title="SAP WIP">
@@ -439,7 +454,9 @@ function WipSection({ request }: { request: LaptopRequestDetailData['request'] }
             ? `Last tried ${fmtDateTime(request.freshservice_attempted_at)}. The approval stands — only the WIP is missing, and it still needs raising.`
             : state.kind === 'raising'
               ? 'The approval just completed and the WIP is being filed in Freshservice. This updates itself — no need to refresh.'
-              : 'The approval is complete, but no WIP has been raised against this request.'}
+              : state.kind === 'disabled'
+                ? 'The approval is complete, but the Freshservice integration is switched off, so no WIP was attempted. It will need raising by hand.'
+                : 'The approval is complete, but no WIP has been raised against this request.'}
       </p>
     </Section>
   );
@@ -668,9 +685,14 @@ function ProcureNewDetailsSection({
 export default function LaptopRequestDetailClient({
   data,
   devices,
+  wipEnabled,
 }: {
   data: LaptopRequestDetailData;
   devices: LaptopDeviceOption[];
+  /* Read from the environment on the server, because the request columns a
+     skipped WIP leaves behind are identical to the ones an in-flight WIP
+     leaves — see wipState. */
+  wipEnabled: boolean;
 }) {
   const [reviewComment, setReviewComment] = useState('');
   const [notice, setNotice] = useState('');
@@ -1505,7 +1527,7 @@ export default function LaptopRequestDetailClient({
               </div>
             </Section>
 
-            {canSeeWip && <WipSection request={request} />}
+            {canSeeWip && <WipSection request={request} wipEnabled={wipEnabled} />}
 
             {isProcureDetailsStage && (
               <ProcureNewDetailsSection

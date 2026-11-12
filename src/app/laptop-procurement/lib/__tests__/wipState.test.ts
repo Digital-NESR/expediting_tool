@@ -162,3 +162,57 @@ describe('the moment just after approval', () => {
     expect(s).toBeNull();
   });
 });
+
+/* The switch the integration is turned off by. Without this the screen reads a
+   skipped WIP as one in flight, because the columns are identical: it promises
+   a WIP is coming, waits out the two-minute window, then reports it missing —
+   for every approved request, for as long as the switch is off. */
+describe('when the integration is switched off', () => {
+  const JUST_NOW = Date.parse(WHEN);
+
+  it('says so rather than claiming a WIP is on its way', () => {
+    const s = wipState(request({ updated_at: WHEN } as Partial<LaptopRequest>), JUST_NOW, false);
+    expect(s).toEqual({ kind: 'disabled' });
+  });
+
+  it('says so instead of reporting one missing once the window has passed', () => {
+    const s = wipState(
+      request({ updated_at: WHEN } as Partial<LaptopRequest>),
+      JUST_NOW + 10 * 60 * 1000,
+      false,
+    );
+    expect(s).toEqual({ kind: 'disabled' });
+  });
+
+  it('still reports a WIP raised before the switch was thrown', () => {
+    // Switching the integration off does not rewrite history.
+    const s = wipState(
+      request({ freshservice_request_id: 145476, freshservice_attempted_at: WHEN }),
+      JUST_NOW,
+      false,
+    );
+    expect(s).toEqual({ kind: 'raised', serviceRequestId: 145476 });
+  });
+
+  it('still reports a failure recorded before the switch was thrown', () => {
+    const s = wipState(
+      request({ freshservice_attempted_at: WHEN, freshservice_error: 'Freshservice unreachable' }),
+      JUST_NOW,
+      false,
+    );
+    expect(s).toEqual({ kind: 'failed', reason: 'Freshservice unreachable' });
+  });
+
+  it('stays silent on a request that never reached Procure New', () => {
+    const s = wipState(request({ status: 'CM Approval' }), JUST_NOW, false);
+    expect(s).toBeNull();
+  });
+
+  it('assumes the integration is on when the caller does not say', () => {
+    /* The default matters: a screen that wrongly says "raising" corrects itself
+       a second later, while one that wrongly says "switched off" would hide a
+       real failure behind a reassurance. */
+    const s = wipState(request({ updated_at: WHEN } as Partial<LaptopRequest>), JUST_NOW);
+    expect(s).toEqual({ kind: 'raising' });
+  });
+});

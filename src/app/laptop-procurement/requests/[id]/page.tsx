@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { cache } from 'react';
 import { notFound } from 'next/navigation';
 import { getLaptopDeviceOptions, getLaptopRequestDetail } from '@/app/actions/laptopProcurement';
+import { isWipEnabled } from '@/lib/laptop-procurement/wip';
 import LaptopRequestDetailClient from '../../components/LaptopRequestDetailClient';
 
 type PageProps = { params: Promise<{ id: string }> };
@@ -40,5 +41,8 @@ export default async function LaptopRequestDetailPage({ params }: PageProps) {
   ]);
   if (!data) notFound();
 
-  return <LaptopRequestDetailClient data={data} devices={devices} />;
+  /* Read here rather than in the component: it is an environment switch, and
+     the screen cannot tell a WIP that was never attempted from one still in
+     flight without it. */
+  return <LaptopRequestDetailClient data={data} devices={devices} wipEnabled={isWipEnabled()} />;
 }
