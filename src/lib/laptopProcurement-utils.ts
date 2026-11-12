@@ -514,13 +514,30 @@ export const LAPTOP_STATUS_ORDER: readonly LaptopRequestStatus[] = [
  * but the branch stays, because a defensive terminal status costs nothing and
  * removing it would leave a request with nowhere to go.
  *
- * Both are kept in the type, the badges and the stat counts. The point is only
- * to stop offering them: a legacy row must still render as itself rather than
- * falling through as an unknown status.
+ * 'Procure New Details' and 'CM Confirm Device' are the remains of a longer
+ * route, where specifying the device and confirming it were waypoints of their
+ * own. Both were collapsed — `submitProcureNewDetails` forwards to 'CM Approval'
+ * and the Country Manager's send-back returns to 'IT Approval' — because the
+ * same two people were walking steps 1 and 2 twice over. Nothing writes either
+ * one now.
+ *
+ * These two matter more than the first pair, because they are not merely
+ * pointless: they are absorbing. `getNextApprovalStatus` and
+ * `getRejectStatusForStage` both return null for them, so a request put into
+ * one has no move out; and they are in neither APPROVAL_ACTIVE_STATUSES nor
+ * TERMINAL_STATUSES, so it also drops out of every pending queue and stat count
+ * built from those. Offering them in the override let an admin strand a request
+ * somewhere nothing could see it and nothing could move it.
+ *
+ * All four are kept in the type, the badges and the stat counts. The point is
+ * only to stop offering them: a legacy row must still render as itself rather
+ * than falling through as an unknown status.
  */
 export const VESTIGIAL_STATUSES: readonly LaptopRequestStatus[] = [
   'Approved',
   'Assign from Inventory & Closed',
+  'Procure New Details',
+  'CM Confirm Device',
 ];
 
 export function isOfferableLaptopStatus(status: LaptopRequestStatus): boolean {
