@@ -131,6 +131,16 @@ export const ADMIN_APPS: AdminApp[] = [
     ],
   },
   {
+    id: 'rrsm',
+    label: 'RRSM',
+    color: '#307c4c',
+    activeBg: '#eaf4ef',
+    activeColor: '#1d4f31',
+    /* No countKey: RRSM has no access-request queue. Access is granted here directly, the way
+       Travel Portal's is, so there is nothing pending to badge. */
+    sections: [{ id: 'countries', label: 'Countries & Team' }],
+  },
+  {
     id: 'learning-hub',
     label: 'Learning Hub',
     color: '#059669',

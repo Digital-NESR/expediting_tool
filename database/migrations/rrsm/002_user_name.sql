@@ -1,0 +1,11 @@
+-- A display name on rrsm_users.
+--
+-- The baseline stored only the email, which is enough to decide access and not enough to read: a
+-- team list of twenty addresses is a list nobody scans. The admin editor picks people from the
+-- employee directory, so the name is already in hand at the moment the row is written; storing it
+-- means the list renders without a second lookup against a directory the row may outlive.
+--
+-- Nullable, and never the source of truth. The email decides who someone is -- a name can be
+-- stale, repeated, or absent for a shared mailbox, and nothing is allowed to resolve a person by
+-- it.
+ALTER TABLE rrsm_users ADD COLUMN IF NOT EXISTS name TEXT;

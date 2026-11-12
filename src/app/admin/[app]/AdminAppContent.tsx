@@ -157,6 +157,7 @@ const LearningHubAnalyticsClient = dynamic(() => import('../LearningHubAnalytics
 });
 
 /* ── Supply Chain Analytics ── */
+const RrsmAdminClient = dynamic(() => import('../RrsmAdminClient'), { loading });
 const TravelAnalyticsGrantsClient = dynamic(() => import('../TravelAnalyticsGrantsClient'), {
   loading,
 });
@@ -285,6 +286,10 @@ export default function AdminAppContent(props: AdminAppContentProps) {
           roles={props.learningHubRoles ?? []}
         />
       );
+
+    /* ── RRSM ── */
+    case 'rrsm/countries':
+      return <RrsmAdminClient />;
 
     /* ── Supply Chain Analytics ── */
     case 'supply-chain-analytics/travel-access':
