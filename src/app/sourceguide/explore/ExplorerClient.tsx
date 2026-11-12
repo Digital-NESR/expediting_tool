@@ -26,6 +26,7 @@ import {
   X,
 } from 'lucide-react';
 import {
+  PATH_SEP,
   buildTree,
   findNode,
   suppliersUnder,
@@ -44,11 +45,28 @@ const TIERS: { id: TierFilter; label: string }[] = [
   { id: 'backup', label: 'Backup' },
 ];
 
-export default function ExplorerClient({ data }: { data: SgExplorerDataset }) {
+/** Every ancestor key of a node path, so a deep link opens the branch it points into. */
+function ancestorKeys(key: string): string[] {
+  const parts = key.split(PATH_SEP);
+  return parts.map((_, i) => parts.slice(0, i + 1).join(PATH_SEP));
+}
+
+export default function ExplorerClient({
+  data,
+  initialNode,
+}: {
+  data: SgExplorerDataset;
+  /** A node key handed over by the command palette. Resolved as initial state rather than in an
+      effect, so the branch is already open on first paint and there is no selection flash. A key
+      that matches nothing leaves the panel on its empty state. */
+  initialNode?: string | null;
+}) {
   const { country, current, withCountry } = useCountryScope();
   const [tier, setTier] = useState<TierFilter>('all');
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(
+    () => new Set(initialNode ? ancestorKeys(initialNode) : []),
+  );
+  const [selectedKey, setSelectedKey] = useState<string | null>(initialNode ?? null);
   const [treeQuery, setTreeQuery] = useState('');
   const [supplierQuery, setSupplierQuery] = useState('');
 
@@ -132,7 +150,7 @@ export default function ExplorerClient({ data }: { data: SgExplorerDataset }) {
   function reveal(node: TreeNode) {
     setExpanded((prev) => {
       const next = new Set(prev);
-      for (let i = 1; i <= node.path.length; i++) next.add(node.path.slice(0, i).join('\u001f'));
+      for (let i = 1; i <= node.path.length; i++) next.add(node.path.slice(0, i).join(PATH_SEP));
       return next;
     });
     setSelectedKey(node.key);
@@ -450,7 +468,7 @@ function Panel({
       <PathTrail
         path={node.path}
         onCrumb={(i) => {
-          const ancestor = findNode(tree, node.path.slice(0, i + 1).join('\u001f'));
+          const ancestor = findNode(tree, node.path.slice(0, i + 1).join(PATH_SEP));
           if (ancestor) onSelect(ancestor);
         }}
       />

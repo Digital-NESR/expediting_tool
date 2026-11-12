@@ -6,9 +6,26 @@ import type { SgStats, Tier } from '@/types/sourceguide';
 
 /* ─── global command-palette search ─────────────────────────── */
 
+/**
+ * A taxonomy node the palette can jump to: a sub-category or a family.
+ *
+ * `key` is the whole path joined by `PATH_SEP`, which is the Explorer's own identity for a node
+ * — a label will not do, because `General` alone appears under nearly every sub-category and
+ * ten commodity names occur in more than one branch. `trail` is the same path, kept apart so
+ * the palette can show where the node sits without having to split the key back up.
+ */
+export interface SgGlobalNode {
+  key: string;
+  label: string;
+  level: 'subCategory' | 'family';
+  trail: string[];
+}
+
 export interface SgGlobalResults {
   commodities: { id: number; name: string; category: string; subCategory: string | null }[];
   suppliers: { code: string; name: string }[];
+  /** Sub-categories and families, which the palette could not reach before. */
+  nodes: SgGlobalNode[];
   categories: { id: string; name: string }[];
   countries: { code: string; name: string; tone: string | null }[];
 }

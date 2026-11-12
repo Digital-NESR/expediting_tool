@@ -27,13 +27,13 @@ export const dynamic = 'force-dynamic';
 export default async function ExplorerPreviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ country?: string }>;
+  searchParams: Promise<{ country?: string; node?: string }>;
 }) {
   if (process.env.NODE_ENV === 'production') notFound();
 
   /* Defaults to the widest node+country pair in the data — Facility > Operations & Maintenance
      in Oman, 58 suppliers — because that is the case the layout has to survive. */
-  const { country = 'OM' } = await searchParams;
+  const { country = 'OM', node } = await searchParams;
 
   const [commodities, facts, suppliers, countries] = await Promise.all([
     sourceGuidePool.query(
@@ -95,7 +95,7 @@ export default async function ExplorerPreviewPage({
       <SourceGuideAccessProvider isAdmin approvedCountries={[]} viewOnly={false} userName="Preview">
         <Suspense fallback={null}>
           <CountryScopeProvider initialCountry={country === 'ALL' ? undefined : country}>
-            <ExplorerClient data={data} />
+            <ExplorerClient data={data} initialNode={node ?? null} />
           </CountryScopeProvider>
         </Suspense>
       </SourceGuideAccessProvider>

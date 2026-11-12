@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, User, Mail } from 'lucide-react';
 import { SG_BRAND, SG_BRAND_SOFT } from '../../constants';
-import { TierBadge, CountryFlag, SupAvatar, PathTrail, BlockedBadge } from '../../ui';
+import { TierBadge, CountryFlag, SupAvatar, PathTrail, BlockedBadge, SectionLabel } from '../../ui';
 import { recordView, BookmarkButton } from '../../pins';
 import type { SgCommodityDetail, SgCountry, SgMapping } from '@/types/sourceguide';
 
@@ -301,23 +301,6 @@ function Meta({ label, value }: { label: string; value: string }) {
         {label}
       </div>
       <div className="mt-0.5 text-[13.5px] font-medium">{value}</div>
-    </div>
-  );
-}
-
-function SectionLabel({
-  children,
-  className = '',
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`mb-3 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] ${className}`}
-      style={{ color: SG_BRAND }}
-    >
-      {children}
     </div>
   );
 }

@@ -33,10 +33,22 @@ import {
 import { log, readFailed, rowToCommodity } from '@/lib/sourceguide/internals';
 import type {
   SgCatalogRow,
+  SgGlobalNode,
   SgGlobalResults,
   SgTaxonomyCategory,
   SgTaxonomyRow,
 } from '@/lib/sourceguide/types';
+import { PATH_SEP, commodityPath } from '@/lib/sourceguide/rollup';
+
+/* Not exported: in a `'use server'` file every export becomes a public POST endpoint, and a
+   non-function export fails the build outright. */
+const EMPTY_GLOBAL: SgGlobalResults = {
+  commodities: [],
+  suppliers: [],
+  nodes: [],
+  categories: [],
+  countries: [],
+};
 
 export async function searchCommodities(
   query: string,
@@ -151,9 +163,9 @@ export async function searchCommodities(
 }
 
 export async function globalSearch(query: string): Promise<SgGlobalResults> {
-  if (!(await canRead())) return { commodities: [], suppliers: [], categories: [], countries: [] };
+  if (!(await canRead())) return EMPTY_GLOBAL;
   const q = (query || '').trim();
-  if (!q) return { commodities: [], suppliers: [], categories: [], countries: [] };
+  if (!q) return EMPTY_GLOBAL;
   try {
     const [index, suppliers, countries] = await Promise.all([
       getCommodityIndex(),
@@ -182,6 +194,44 @@ export async function globalSearch(query: string): Promise<SgGlobalResults> {
       .slice(0, 8)
       .map((x) => ({ code: x.s.code, name: x.s.name }));
 
+    /* Sub-categories and families, which the palette has never been able to reach: a buyer who
+       typed "Completion Tools" got commodities whose name happened to contain it and no way to
+       open the level itself. Nodes are keyed by their whole path, never by label, because
+       `General` repeats under nearly every sub-category and merging two of them would send the
+       reader to a branch they did not pick. The counts are deliberately absent — the Explorer
+       folds those from the fact table, and recomputing them per keystroke here would cost a
+       round trip for a line of subtitle text. */
+    const nodeMap = new Map<string, SgGlobalNode>();
+    for (const r of index) {
+      const path = commodityPath({
+        id: r.id,
+        name: r.name,
+        code: r.code,
+        category: r.category,
+        subCategory: r.sub_category,
+        family: r.family,
+        spendType: r.spend_type,
+      });
+      for (const depth of [3, 4] as const) {
+        const slice = path.slice(0, depth);
+        const key = slice.join(PATH_SEP);
+        if (!nodeMap.has(key)) {
+          nodeMap.set(key, {
+            key,
+            label: slice[depth - 1],
+            level: depth === 3 ? 'subCategory' : 'family',
+            trail: slice.slice(0, depth - 1),
+          });
+        }
+      }
+    }
+    const nodes = [...nodeMap.values()]
+      .map((n) => ({ n, score: matchScore(q, n.label, n.trail.join(' ')) }))
+      .filter((x) => x.score >= MATCH_THRESHOLD)
+      .sort((a, b) => b.score - a.score || a.n.label.localeCompare(b.n.label))
+      .slice(0, 5)
+      .map((x) => x.n);
+
     const catMap = new Map<string, string>();
     for (const r of index) if (!catMap.has(r.category_id)) catMap.set(r.category_id, r.category);
     const cats = [...catMap.entries()]
@@ -198,10 +248,10 @@ export async function globalSearch(query: string): Promise<SgGlobalResults> {
       .slice(0, 4)
       .map((x) => ({ code: x.c.code, name: x.c.name, tone: x.c.tone }));
 
-    return { commodities, suppliers: sup, categories: cats, countries: ctry };
+    return { commodities, suppliers: sup, nodes, categories: cats, countries: ctry };
   } catch (err) {
     log.error('globalSearch.failed', err);
-    return { commodities: [], suppliers: [], categories: [], countries: [] };
+    return EMPTY_GLOBAL;
   }
 }
 

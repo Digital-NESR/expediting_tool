@@ -2,20 +2,26 @@
 
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Box, Building2, Layers, MapPin, CornerDownLeft } from 'lucide-react';
+import { Search, Box, Building2, FolderTree, Layers, MapPin, CornerDownLeft } from 'lucide-react';
 import { SG_BRAND } from './constants';
 import { globalSearch } from '@/app/actions/sourceguide';
 import type { SgGlobalResults } from '@/app/actions/sourceguide';
 
 type Flat = {
-  kind: 'commodity' | 'supplier' | 'category' | 'country';
+  kind: 'commodity' | 'node' | 'supplier' | 'category' | 'country';
   label: string;
   sub?: string;
   href: string;
   tone?: string | null;
 };
 
-const EMPTY: SgGlobalResults = { commodities: [], suppliers: [], categories: [], countries: [] };
+const EMPTY: SgGlobalResults = {
+  commodities: [],
+  suppliers: [],
+  nodes: [],
+  categories: [],
+  countries: [],
+};
 
 export default function SourceGuideCommandPalette({
   isOpen,
@@ -72,6 +78,17 @@ export default function SourceGuideCommandPalette({
         label: c.name,
         sub: [c.category, c.subCategory].filter(Boolean).join(' · '),
         href: `/sourceguide/commodity/${c.id}`,
+      }),
+    );
+    /* Between commodities and suppliers on purpose: a buyer who types a level name wants the
+       level, and the Explorer is the only screen that can answer "who is approved for anything
+       under here". The href carries the whole path, so the two `General`s never collide. */
+    res.nodes.forEach((n) =>
+      f.push({
+        kind: 'node',
+        label: n.label,
+        sub: `${n.level === 'subCategory' ? 'Sub-category' : 'Family'} · ${n.trail.join(' · ')}`,
+        href: `/sourceguide/explore?node=${encodeURIComponent(n.key)}`,
       }),
     );
     res.suppliers.forEach((s) =>
@@ -140,6 +157,8 @@ export default function SourceGuideCommandPalette({
   const icon = (k: Flat['kind'], tone?: string | null) =>
     k === 'commodity' ? (
       <Box className="h-4 w-4" style={{ color: SG_BRAND }} />
+    ) : k === 'node' ? (
+      <FolderTree className="h-4 w-4" style={{ color: SG_BRAND }} />
     ) : k === 'supplier' ? (
       <Building2 className="h-4 w-4 text-slate-500" />
     ) : k === 'category' ? (
@@ -151,11 +170,13 @@ export default function SourceGuideCommandPalette({
   const titleFor = (k: Flat['kind']) =>
     k === 'commodity'
       ? 'Commodities'
-      : k === 'supplier'
-        ? 'Suppliers'
-        : k === 'category'
-          ? 'Categories'
-          : 'Country guides';
+      : k === 'node'
+        ? 'Sub-categories and families'
+        : k === 'supplier'
+          ? 'Suppliers'
+          : k === 'category'
+            ? 'Categories'
+            : 'Country guides';
 
   return (
     <div className="fixed inset-0 z-[80] flex items-start justify-center px-4 pt-[12vh]">

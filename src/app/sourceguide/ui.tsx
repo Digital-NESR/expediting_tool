@@ -4,6 +4,32 @@ import { ChevronRight, Ban } from 'lucide-react';
 import { SG_BRAND, SG_BRAND_SOFT, supplierTone, initials } from './constants';
 import type { Tier, SgCountry } from '@/types/sourceguide';
 
+/**
+ * The small brand-green heading above a block of detail.
+ *
+ * Lifted here from `CommodityDetailClient`, where it was defined privately and used five times.
+ * Two other eyebrows in SourceGuide look similar and are deliberately NOT folded into this: the
+ * Explorer's page heading carries an icon and sits in a flex row, and its "Start anywhere" label
+ * is muted slate rather than brand. Pulling either in would change how they render, and a tidy-up
+ * that quietly restyles two screens is not a tidy-up.
+ */
+export function SectionLabel({
+  children,
+  className = '',
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`mb-3 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] ${className}`}
+      style={{ color: SG_BRAND }}
+    >
+      {children}
+    </div>
+  );
+}
+
 /* ─── Central purchasing block ───────────────────────────────── */
 /**
  * Marks a vendor SAP has centrally blocked for purchasing. Deliberately louder
