@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronRight, Download } from 'lucide-react';
 import { SG_BRAND } from '../constants';
+import { useCountryScope } from '../CountryScope';
 import type { SgTaxonomyCategory } from '@/app/actions/sourceguide';
 
 export default function BrowseClient({
@@ -99,6 +100,9 @@ function SubNode({ sub }: { sub: SgTaxonomyCategory['subs'][number] }) {
 function FamilyNode({ fam }: { fam: SgTaxonomyCategory['subs'][number]['families'][number] }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
+  /* Browse is country-agnostic itself, but the commodity it hands you is not: without the scope
+     the detail page opened on whichever country came first. */
+  const { withCountry } = useCountryScope();
   return (
     <div>
       <Row
@@ -113,7 +117,7 @@ function FamilyNode({ fam }: { fam: SgTaxonomyCategory['subs'][number]['families
           {fam.items.map((item) => (
             <div
               key={item.id}
-              onClick={() => router.push(`/sourceguide/commodity/${item.id}`)}
+              onClick={() => router.push(withCountry(`/sourceguide/commodity/${item.id}`))}
               className="flex cursor-pointer items-center gap-2.5 rounded-md px-3.5 py-2.5 hover:bg-[#eaf4ef]"
             >
               <span className="w-4" />

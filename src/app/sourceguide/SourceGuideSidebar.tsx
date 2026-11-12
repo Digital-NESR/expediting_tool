@@ -2,8 +2,17 @@
 
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Building2, Grid3x3, Layers, LayoutDashboard, LayoutGrid, ListTree } from 'lucide-react';
+import {
+  Building2,
+  Compass,
+  Grid3x3,
+  Layers,
+  LayoutDashboard,
+  LayoutGrid,
+  ListTree,
+} from 'lucide-react';
 import { SG_BRAND } from './constants';
+import { canManage } from '@/lib/sourceguide/can-manage';
 import { useSourceGuideAccess } from './SourceGuideAccessContext';
 import AppSidebar, {
   PinIcon,
@@ -29,7 +38,7 @@ export default function SourceGuideSidebar({
   const pathname = usePathname();
   const { data: session } = useSession();
   const { isAdmin, viewOnly, approvedCountries } = useSourceGuideAccess();
-  const canManage = isAdmin || (!viewOnly && approvedCountries.length > 0);
+  const manage = canManage({ isAdmin, viewOnly, approvedCountries });
 
   const rawName = session?.user?.name || 'Unknown User';
   const initials = sidebarInitials(rawName);
@@ -110,6 +119,16 @@ export default function SourceGuideSidebar({
               label="Dashboard"
               icon={<LayoutDashboard className="w-5 h-5" />}
             />
+            {/* Above the two tree screens, because it is the one that answers the question
+                people come with: who can supply this. Both of those still show the catalogue. */}
+            <SidebarNavLink
+              href="/sourceguide/explore"
+              accent={ACCENT}
+              active={isActive('/sourceguide/explore')}
+              onNavigate={closeOnNav}
+              label="Explore"
+              icon={<Compass className="w-5 h-5" />}
+            />
             <SidebarNavLink
               href="/sourceguide/taxonomy"
               accent={ACCENT}
@@ -126,7 +145,7 @@ export default function SourceGuideSidebar({
               label="Browse"
               icon={<Layers className="w-5 h-5" />}
             />
-            {canManage && (
+            {manage && (
               <SidebarNavLink
                 href="/sourceguide/mappings"
                 accent={ACCENT}

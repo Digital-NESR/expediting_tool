@@ -33,6 +33,16 @@ export default function CommodityDetailClient({
      sub-category at large. Only ever populated on a catch-all node; see the loader. */
   const related = country ? (relatedByCountry?.[country] ?? []) : [];
 
+  /* The chip the reader picked belongs in the URL. Without this a reload, a back navigation or
+     a shared link all reverted to the first country this commodity happens to carry, showing a
+     different supplier list than the one on screen when the link was copied. `replace` rather
+     than `push`, so changing country does not fill the back button with one entry per chip. */
+  useEffect(() => {
+    if (!country) return;
+    const url = `/sourceguide/commodity/${com.id}?country=${encodeURIComponent(country)}`;
+    router.replace(url, { scroll: false });
+  }, [country, com.id, router]);
+
   useEffect(() => {
     recordView({
       kind: 'commodity',

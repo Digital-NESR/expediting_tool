@@ -15,6 +15,7 @@ import { canEdit, canRead, getSgUser, readUser } from '@/lib/sourceguide/access'
 import { isCentrallyBlocked } from '@/lib/sourceguide/blocked';
 import { logActivity, logUsage } from '@/lib/sourceguide/activity';
 import { getAvlIndex, invalidateMappingCaches } from '@/lib/sourceguide/indexes';
+import { vendorCodeScore } from '@/lib/sourceguide/vendor-code';
 import { isoOf, log, rowToCommodity } from '@/lib/sourceguide/internals';
 import type { GapMode, SgCoverageGap, SgGuideRow } from '@/lib/sourceguide/types';
 
@@ -216,7 +217,7 @@ export async function supplierOptions(
     const avl = await getAvlIndex();
     // fuzzy-rank the whole AVL by name (or exact code), keep a few extra to re-rank by in-country
     const top = avl
-      .map((a) => ({ a, score: Math.max(matchScore(p, a.name), a.code.includes(p) ? 1.5 : 0) }))
+      .map((a) => ({ a, score: Math.max(matchScore(p, a.name), vendorCodeScore(p, a.code)) }))
       .filter((x) => x.score >= MATCH_THRESHOLD)
       .sort((x, y) => y.score - x.score || x.a.name.localeCompare(y.a.name))
       .slice(0, limit * 4);

@@ -16,6 +16,8 @@ import type {
   Tier,
 } from '@/types/sourceguide';
 import { canRead, readUser } from '@/lib/sourceguide/access';
+import { canManage } from '@/lib/sourceguide/can-manage';
+import { vendorCodeScore } from '@/lib/sourceguide/vendor-code';
 import { familySql, subCategorySql } from '@/lib/sourceguide/taxonomy-levels';
 import { commodityLabel, isCatchAllNode } from '@/lib/sourceguide/taxonomy-levels';
 import { isCentrallyBlocked } from '@/lib/sourceguide/blocked';
@@ -23,6 +25,7 @@ import { logUsage } from '@/lib/sourceguide/activity';
 import {
   CommodityIndexRow,
   commodityExtra,
+  getAvlIndex,
   getCommodityIndex,
   getCountriesLite,
   getMappedSupplierIndex,
@@ -170,11 +173,13 @@ export async function globalSearch(query: string): Promise<SgGlobalResults> {
         subCategory: x.r.sub_category,
       }));
 
+    /* Eight rather than five: supplier hits are a third of what people search for, and the
+       palette was cutting the list before a code match could surface. */
     const sup = suppliers
-      .map((s) => ({ s, score: Math.max(matchScore(q, s.name), s.code.includes(q) ? 1.5 : 0) }))
+      .map((s) => ({ s, score: Math.max(matchScore(q, s.name), vendorCodeScore(q, s.code)) }))
       .filter((x) => x.score >= MATCH_THRESHOLD)
       .sort((a, b) => b.score - a.score || a.s.name.localeCompare(b.s.name))
-      .slice(0, 5)
+      .slice(0, 8)
       .map((x) => ({ code: x.s.code, name: x.s.name }));
 
     const catMap = new Map<string, string>();
@@ -207,19 +212,46 @@ export async function countSearch(query: string, filters: SgSearchFilters = {}):
   return res.length;
 }
 
+/**
+ * Suppliers matching a name or a vendor code.
+ *
+ * Mapped vendors first, always. For a reader who can edit mappings, vendors that are in the AVL
+ * but mapped nowhere are appended behind them, flagged `unmapped`: 6,994 of the 8,564 AVL rows
+ * are in that state, so a pasted code for one of them previously returned nothing at all, which
+ * reads as "no such vendor" rather than "nobody has mapped it yet". Only the people who can fix
+ * that see them.
+ *
+ * THE GATE IS HERE, NOT IN THE UI. This is a public POST endpoint, so hiding the rows on screen
+ * would still hand them to anyone who called it directly.
+ */
 export async function searchSuppliers(query: string, limit = 6): Promise<SgSupplier[]> {
-  if (!(await canRead())) return [];
+  const user = await readUser();
+  if (!user) return [];
   try {
     const q = (query || '').trim();
     if (q.length < 2) return [];
     // Fuzzy-rank suppliers that are actually mapped somewhere (cached, joined to the AVL by code)
     const suppliers = await getMappedSupplierIndex();
-    return suppliers
-      .map((s) => ({ s, score: Math.max(matchScore(q, s.name), s.code.includes(q) ? 1.5 : 0) }))
+    const mapped = suppliers
+      .map((s) => ({ s, score: Math.max(matchScore(q, s.name), vendorCodeScore(q, s.code)) }))
       .filter((x) => x.score >= MATCH_THRESHOLD)
       .sort((a, b) => b.score - a.score || a.s.name.localeCompare(b.s.name))
       .slice(0, limit)
       .map((x) => ({ code: x.s.code, name: x.s.name, countries: x.s.countries }));
+
+    if (mapped.length >= limit || !canManage(user)) return mapped;
+
+    const known = new Set(suppliers.map((s) => s.code));
+    const avl = await getAvlIndex();
+    const extra = avl
+      .filter((a) => !known.has(a.code))
+      .map((a) => ({ a, score: Math.max(matchScore(q, a.name), vendorCodeScore(q, a.code)) }))
+      .filter((x) => x.score >= MATCH_THRESHOLD)
+      .sort((x, y) => y.score - x.score || x.a.name.localeCompare(y.a.name))
+      .slice(0, limit - mapped.length)
+      .map((x) => ({ code: x.a.code, name: x.a.name, countries: [], unmapped: true }));
+
+    return [...mapped, ...extra];
   } catch (err) {
     log.error('searchSuppliers.failed', err);
     return [];

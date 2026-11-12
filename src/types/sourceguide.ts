@@ -30,6 +30,11 @@ export interface SgSupplier {
   code: string;
   name: string;
   countries: string[];
+  /**
+   * In the AVL but mapped to no commodity anywhere, so SourceGuide holds no approval for it.
+   * Only ever set for a reader who can act on it — see `searchSuppliers`.
+   */
+  unmapped?: boolean;
 }
 
 export interface SgMapping {

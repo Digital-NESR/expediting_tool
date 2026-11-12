@@ -3,19 +3,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Search,
+  ArrowRight,
   Box,
-  Shield,
+  Building2,
+  Clock,
+  Compass,
+  FileSpreadsheet,
+  Grid3x3,
   Layers,
   MapPin,
-  Grid3x3,
-  Zap,
-  FileSpreadsheet,
-  Users,
-  Clock,
-  ArrowRight,
-  Building2,
+  Search,
+  Shield,
   Star,
+  Users,
+  Zap,
 } from 'lucide-react';
 import { SG_BRAND, SG_BRAND_SOFT } from './constants';
 import { StatTile } from './ui';
@@ -163,12 +164,23 @@ export default function DashboardClient({
             )}
           </div>
 
-          <div className="mt-4 flex justify-center">
+          {/* Two buttons on this page used to read almost identically and go to different
+              screens. They now say which one they are, and the one that leads to suppliers
+              leads. */}
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <button
+              onClick={() => router.push('/sourceguide/explore')}
+              className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
+              style={{ background: SG_BRAND }}
+            >
+              <Compass className="h-4 w-4" /> Explore suppliers by category{' '}
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
             <button
               onClick={() => router.push('/sourceguide/taxonomy')}
               className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-[13px] font-semibold text-slate-700 transition-colors hover:border-[#6AAF8E] hover:text-slate-900"
             >
-              <Grid3x3 className="h-4 w-4" style={{ color: SG_BRAND }} /> View full taxonomy{' '}
+              <Grid3x3 className="h-4 w-4" style={{ color: SG_BRAND }} /> Spend taxonomy{' '}
               <ArrowRight className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -277,7 +289,7 @@ export default function DashboardClient({
             onClick={() => router.push('/sourceguide/browse')}
             className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-slate-700 hover:border-[#6AAF8E]"
           >
-            Full taxonomy <ArrowRight className="h-3.5 w-3.5" />
+            Browse the catalogue <ArrowRight className="h-3.5 w-3.5" />
           </button>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
