@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc><helmet>
+<link rel="stylesheet" href="_ds/modernist-a2944fd0-2676-4b80-86b2-5b0988c11cf9/styles.css">
+<style>:root{--color-bg:#FFFFFF;--color-surface:#F2F4F3;--color-text:#1F1F1D;--color-accent:#2A7E4F;--color-divider:color-mix(in srgb,#1F1F1D 30%,transparent);--color-accent-100:#EEF6F1;--color-accent-200:#C5E0D2;--color-accent-300:#9CCAB2;--color-accent-700:#1F5C3A;--color-neutral-200:#E6E7E8;--color-neutral-500:#939597;--color-neutral-700:#58595B;--font-body:Arial,Helvetica,sans-serif}body{margin:0}a{color:var(--color-accent-700)}a:hover{color:var(--color-accent)}input,select,textarea,button{font-family:inherit}</style>
+</helmet>
+<div style="min-height:100vh;display:flex;flex-direction:column;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body)">
+  <sc-if value="{{ isNesr }}" hint-placeholder-val="{{ true }}">
+    <header style="height:56px;flex:none;padding:0 20px;background:var(--color-accent);color:#fff;display:flex;align-items:center;gap:16px">
+      <span style="font-weight:900;font-size:19px;letter-spacing:2px;padding-right:16px;border-right:2px solid rgba(255,255,255,.45)">NESR</span>
+      <span style="font-weight:700;font-size:15px;white-space:nowrap">RRSM</span>
+      <div style="margin-left:auto;display:flex;gap:14px;align-items:center">
+        <button onClick="{{ startTour }}" style="border:none;background:transparent;color:#fff;font-size:13px;font-weight:700;cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:3px">Walkthrough</button>
+        <select value="{{ role }}" onChange="{{ setRole }}" style="height:32px;border:none;padding:0 8px;font-size:13px;font-weight:700;color:var(--color-text)"><option value="buyer">Buyer</option><option value="admin">Central admin</option><option value="ops">Ops validator</option><option value="supplier">Supplier (link)</option></select>
+        <sc-if value="{{ isOpsView }}"><select value="{{ opsMe }}" onChange="{{ setOpsMe }}" style="height:32px;border:none;padding:0 8px;font-size:13px;font-weight:700;color:var(--color-text)"><sc-for list="{{ valOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.k }}">{{ o.label }}</option></sc-for></select></sc-if>
+        <div style="flex:none;width:32px;height:32px;background:var(--color-text);display:grid;place-items:center;font-size:12px;font-weight:700">{{ initials }}</div>
+      </div>
+    </header>
+    <div style="flex:1;display:flex;min-height:0">
+      <sc-if value="{{ showAside }}" hint-placeholder-val="{{ true }}"><aside style="width:196px;flex:none;border-right:1px solid var(--color-divider);display:flex;flex-direction:column;padding-top:8px">
+        <div style="margin:4px 8px 12px;padding:3px;background:var(--color-neutral-200);display:grid;grid-template-columns:1fr 1fr;gap:3px">
+          <sc-for list="{{ kinds }}" as="k" hint-placeholder-count="2">
+            <button onClick="{{ k.go }}" style="min-height:48px;padding:6px 8px;border:none;background:{{ k.bg }};color:{{ k.color }};box-shadow:{{ k.sh }};cursor:pointer;text-align:left;display:flex;flex-direction:column;justify-content:center;gap:3px">
+              <span style="font-size:12px;font-weight:700;line-height:1.15">{{ k.label }}</span>
+              <sc-if value="{{ k.hasN }}"><span style="font-size:10px;font-weight:700;color:{{ k.nFg }}">{{ k.n }} to do</span></sc-if>
+            </button>
+          </sc-for>
+        </div>
+        <sc-for list="{{ nav }}" as="n" hint-placeholder-count="5">
+          <button onClick="{{ n.go }}" style="height:42px;margin:0 8px;padding:0 12px;border:none;background:{{ n.bg }};display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer;text-align:left;font-size:13px;font-weight:{{ n.fw }};color:var(--color-text)">
+            <span>{{ n.label }}</span><sc-if value="{{ n.hasCount }}"><span style="min-width:20px;height:20px;padding:0 6px;background:var(--color-accent);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center">{{ n.count }}</span></sc-if>
+          </button>
+        </sc-for>
+      </aside></sc-if>
+      <main style="flex:1;min-width:0;display:flex;flex-direction:column">
+
+        <sc-if value="{{ isBoard }}" hint-placeholder-val="{{ true }}">
+          <div style="padding:28px 30px 40px;display:flex;flex-direction:column;gap:18px;min-width:0">
+            <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
+              <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:28px;font-weight:700;line-height:1.15">Ticket Board</span><span style="font-size:14px;color:var(--color-neutral-700)">{{ boardSub }}</span></div>
+              <label style="display:flex;gap:8px;align-items:center;font-size:13px;font-weight:700;cursor:pointer"><input type="checkbox" checked="{{ boardMine }}" onChange="{{ toggleBoardMine }}"></input>Only where I act</label>
+            </div>
+            <div style="display:flex;gap:6px 16px;flex-wrap:wrap">
+              <sc-for list="{{ legend }}" as="lg" hint-placeholder-count="8"><div style="display:flex;gap:6px;align-items:center;font-size:12px"><span style="width:12px;height:12px;background:{{ lg.c }}"></span><span>{{ lg.label }}</span></div></sc-for>
+            </div>
+            <div style="overflow-x:auto;padding-bottom:8px">
+              <div style="display:grid;grid-template-columns:repeat(8,minmax(210px,1fr));gap:10px;min-width:1760px">
+                <sc-for list="{{ cols }}" as="col" hint-placeholder-count="8">
+                  <div style="display:flex;flex-direction:column;background:{{ col.tint }};min-height:360px">
+                    <div style="padding:10px 12px;background:{{ col.c }};color:#fff;display:flex;flex-direction:column;gap:2px">
+                      <div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><span style="font-size:13px;font-weight:700">{{ col.label }}</span><span style="font-size:12px;font-weight:700;min-width:22px;height:20px;display:grid;place-items:center;background:rgba(255,255,255,.25)">{{ col.n }}</span></div>
+                      <span style="font-size:11px;opacity:.9">{{ col.who }}</span>
+                    </div>
+                    <div style="padding:8px;display:flex;flex-direction:column;gap:8px">
+                      <sc-for list="{{ col.cards }}" as="k" hint-placeholder-count="2">
+                        <button onClick="{{ k.go }}" style="border:none;border-top:3px solid {{ col.c }};background:var(--color-bg);padding:10px 12px;cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:6px;color:var(--color-text);box-shadow:0 1px 2px rgba(0,0,0,.08)">
+                          <span style="font-size:13px;font-weight:700;line-height:1.25">{{ k.main }}</span>
+                          <span style="font-size:11px;color:var(--color-neutral-700);line-height:1.35">{{ k.sub }}</span>
+                          <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+                            <span style="font-size:12px;font-weight:700">{{ k.val }}</span>
+                            <sc-if value="{{ k.mine }}"><span style="font-size:10px;font-weight:700;padding:2px 6px;background:{{ col.c }};color:#fff">Your action</span></sc-if><sc-if value="{{ k.hasErp }}"><span style="font-size:10px;font-weight:700;padding:2px 6px;background:#FBF1DC;color:#7A5200">{{ k.erpTag }}</span></sc-if>
+                          </div>
+                        </button>
+                      </sc-for>
+                      <sc-if value="{{ col.empty }}"><span style="font-size:12px;color:var(--color-neutral-700);padding:6px 4px">None</span></sc-if>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+          <div style="padding:32px 36px 48px;max-width:960px;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:32px">
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <span style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--color-accent-700)">Action Registry</span>
+              <span style="font-size:28px;font-weight:700;line-height:1.15">{{ homeTitle }}</span>
+              <span style="font-size:14px;color:var(--color-neutral-700)">{{ homeSub }}</span>
+            </div>
+            <sc-for list="{{ buckets }}" as="b" hint-placeholder-count="3">
+              <section style="display:flex;flex-direction:column">
+                <div style="display:flex;align-items:center;gap:14px;padding-bottom:12px;border-bottom:2px solid var(--color-text)">
+                  <span style="flex:none;width:28px;height:28px;background:var(--color-text);color:#fff;display:grid;place-items:center;font-size:13px;font-weight:700">{{ b.n }}</span>
+                  <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0"><span style="font-size:17px;font-weight:700">{{ b.title }}</span><span style="font-size:13px;color:var(--color-neutral-700)">{{ b.hint }}</span></div>
+                  <sc-if value="{{ b.hasBulk }}"><button onClick="{{ b.bulk }}" style="height:34px;padding:0 14px;border:2px solid var(--color-accent);background:transparent;color:var(--color-accent-700);font-size:13px;font-weight:700;cursor:pointer;text-align:left;white-space:nowrap">{{ b.bulkLabel }}</button></sc-if>
+                </div>
+                <sc-for list="{{ b.rows }}" as="r" hint-placeholder-count="2">
+                  <div style="display:flex;align-items:center;gap:16px;padding:12px 0 12px 42px;border-bottom:1px solid var(--color-divider)">
+                    <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0"><span style="font-size:14px;font-weight:700">{{ r.main }}</span><span style="font-size:12px;color:var(--color-neutral-700)">{{ r.meta }}</span></div>
+                    <button onClick="{{ r.go }}" style="height:34px;padding:0 16px;font-size:13px;border:none;background:var(--color-accent);color:#fff;font-weight:700;cursor:pointer;text-align:left;white-space:nowrap">{{ r.cta }}</button>
+                  </div>
+                </sc-for>
+              </section>
+            </sc-for>
+            <sc-if value="{{ allClear }}">
+              <div style="padding:28px;background:var(--color-accent-100);display:flex;flex-direction:column;gap:4px"><span style="font-size:18px;font-weight:700;color:var(--color-accent-700)">You're all caught up</span><span style="font-size:13px;color:var(--color-neutral-700)">Nothing needs you right now.</span></div>
+            </sc-if>
+            <sc-if value="{{ hasWaiting }}">
+              <section style="display:flex;flex-direction:column">
+                <span style="font-size:13px;font-weight:700;color:var(--color-neutral-700);padding-bottom:8px;border-bottom:1px solid var(--color-divider)">Waiting on others · no action needed</span>
+                <sc-for list="{{ waiting }}" as="w" hint-placeholder-count="2">
+                  <div style="display:flex;align-items:center;gap:16px;padding:10px 0;border-bottom:1px solid var(--color-divider)">
+                    <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0"><span style="font-size:13px;font-weight:700">{{ w.main }}</span><span style="font-size:12px;color:var(--color-neutral-700)">{{ w.meta }}</span></div>
+                    <button onClick="{{ w.go }}" style="height:30px;padding:0 12px;border:1px solid var(--color-divider);background:transparent;font-size:12px;font-weight:700;cursor:pointer;text-align:left;white-space:nowrap">{{ w.cta }}</button>
+                  </div>
+                </sc-for>
+              </section>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isTickets }}">
+          <div style="flex:1;display:grid;grid-template-columns:minmax(230px,270px) minmax(0,1fr);min-height:0">
+            <div style="border-right:1px solid var(--color-divider);display:flex;flex-direction:column;min-width:0">
+              <sc-if value="{{ isOpsView }}"><div style="padding:16px 14px 12px;border-bottom:1px solid var(--color-divider);display:flex;flex-direction:column;gap:2px"><span style="font-size:16px;font-weight:700">Pending validation</span><span style="font-size:12px;color:var(--color-neutral-700)">{{ opsSub }}</span></div></sc-if>
+              <sc-if value="{{ showListTabs }}" hint-placeholder-val="{{ true }}"><div style="padding:12px;border-bottom:1px solid var(--color-divider)">
+                <div style="display:flex;border:1px solid var(--color-divider)">
+                  <sc-for list="{{ listTabs }}" as="t" hint-placeholder-count="2">
+                    <button onClick="{{ t.go }}" style="flex:1;height:32px;border:none;background:{{ t.bg }};color:{{ t.color }};font-size:12px;font-weight:700;cursor:pointer;text-align:left;padding:0 10px">{{ t.label }}</button>
+                  </sc-for>
+                </div>
+              </div></sc-if>
+              <div style="overflow:auto;flex:1">
+                <sc-for list="{{ tList }}" as="r" hint-placeholder-count="6">
+                  <button onClick="{{ r.pick }}" style="width:100%;text-align:left;border:none;border-bottom:1px solid var(--color-divider);background:{{ r.bg }};padding:11px 14px;cursor:pointer;display:flex;flex-direction:column;gap:5px;color:var(--color-text)">
+                    <span style="font-size:13px;font-weight:700">{{ r.supName }}</span>
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+                      <span style="font-size:11px;color:var(--color-neutral-700)">PO {{ r.po }}</span>
+                      <span style="font-size:10px;font-weight:700;padding:2px 6px;background:{{ r.stBg }};color:{{ r.stFg }};white-space:nowrap">{{ r.stage }}</span>
+                    </div>
+                  </button>
+                </sc-for>
+                <sc-if value="{{ tEmpty }}"><div style="padding:22px 14px;font-size:13px;color:var(--color-neutral-700)">{{ tEmptyText }}</div></sc-if>
+              </div>
+            </div>
+
+            <sc-if value="{{ hasT }}" hint-placeholder-val="{{ true }}">
+              <div style="min-width:0;overflow:auto">
+                <div style="padding:24px 30px 40px;max-width:1180px;display:flex;flex-direction:column;gap:20px">
+                  <div style="display:flex;flex-direction:column;gap:10px">
+                    <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;color:var(--color-neutral-700)">{{ t.supName }} · {{ t.ctry }}</span><span style="font-size:26px;font-weight:700;line-height:1.1">PO {{ t.po }}</span></div>
+                    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                      <div style="display:flex;gap:3px;width:280px;max-width:100%"><sc-for list="{{ t.prog }}" as="p" hint-placeholder-count="7"><div style="flex:1;height:6px;background:{{ p.bg }}"></div></sc-for></div>
+                      <span style="font-size:12px;font-weight:700">{{ t.progLabel }}</span>
+                    </div>
+                  </div>
+
+                  <div style="padding:18px 20px;border:2px solid {{ t.nEdge }};background:{{ t.nBg }};display:flex;flex-direction:column;gap:14px">
+                    <div style="display:flex;gap:16px 24px;align-items:center;flex-wrap:wrap">
+                      <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:260px">
+                        <span style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:{{ t.nEye }}">{{ t.nLabel }}</span>
+                        <span style="font-size:19px;font-weight:700;line-height:1.2">{{ t.nTitle }}</span>
+                        <span style="font-size:13px;color:var(--color-neutral-700);line-height:1.45">{{ t.hint }}</span>
+                      </div>
+                      <sc-if value="{{ t.showPoEdit }}"><label style="display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:700;color:var(--color-neutral-700)">Correct PO number<input value="{{ poEdit }}" onChange="{{ setPoEdit }}" style="height:38px;width:160px;border:2px solid var(--color-accent);padding:0 8px;font-size:14px;font-weight:700"></input></label></sc-if>
+                      <sc-if value="{{ t.showAmend }}"><label style="display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:700;color:var(--color-neutral-700)">New PO value ({{ t.cur }})<input value="{{ amendVal }}" onChange="{{ setAmend }}" style="height:38px;width:150px;border:2px solid var(--color-accent);padding:0 8px;font-size:14px;font-weight:700;text-align:right"></input></label></sc-if>
+                      <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <sc-for list="{{ t.actions }}" as="a" hint-placeholder-count="1">
+                          <button onClick="{{ a.go }}" style="height:40px;padding:0 18px;border:2px solid {{ a.border }};background:{{ a.bg }};color:{{ a.color }};font-size:13px;font-weight:700;cursor:pointer;text-align:left;white-space:nowrap">{{ a.label }}</button>
+                        </sc-for>
+                      </div>
+                    </div>
+                    <sc-if value="{{ t.hasSub }}">
+                      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--color-divider);font-size:12px">
+                        <span style="color:var(--color-neutral-700)">{{ t.subLine }}</span>
+                        <sc-if value="{{ t.hasFile }}"><button onClick="{{ openFile }}" style="height:28px;padding:0 10px;border:1px solid var(--color-text);background:var(--color-bg);font-size:12px;font-weight:700;cursor:pointer;text-align:left">Open {{ t.file }}</button></sc-if>
+                      </div>
+                    </sc-if>
+                  </div>
+
+                  <div style="display:flex;flex-direction:column;gap:8px">
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px 24px">
+                      <sc-for list="{{ t.keyFacts }}" as="f" hint-placeholder-count="4"><div style="display:flex;flex-direction:column;gap:2px;min-width:0"><span style="font-size:11px;color:var(--color-neutral-700)">{{ f.k }}</span><span style="font-size:14px;font-weight:700;word-break:break-word">{{ f.v }}</span></div></sc-for>
+                    </div>
+                    <details>
+                      <summary style="font-size:12px;font-weight:700;color:var(--color-accent-700);cursor:pointer">More PO details from ERP</summary>
+                      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px 24px;padding-top:10px">
+                        <sc-for list="{{ t.moreFacts }}" as="f" hint-placeholder-count="6"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;color:var(--color-neutral-700)">{{ f.k }}</span><span style="font-size:13px;font-weight:700">{{ f.v }}</span></div></sc-for>
+                      </div>
+                    </details>
+                  </div>
+
+                  <div style="display:flex;flex-direction:column;gap:22px">
+                    <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
+                      <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:17px;font-weight:700">{{ t.tableTitle }}</span><span style="font-size:12px;color:var(--color-neutral-700)">{{ t.tableHint }}</span></div>
+                      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                        <sc-if value="{{ t.erpBanner }}"><span style="font-size:11px;font-weight:700;padding:3px 8px;background:#FBF1DC;color:#7A5200">{{ t.erpBannerText }}</span></sc-if>
+                        <sc-if value="{{ t.canItems }}"><button onClick="{{ toggleItems }}" style="height:30px;padding:0 12px;border:1px solid var(--color-divider);background:transparent;font-size:12px;font-weight:700;cursor:pointer;text-align:left">{{ t.itemsLabel }}</button></sc-if>
+                        <sc-if value="{{ t.canFillAll }}"><button onClick="{{ t.fillAll }}" style="height:30px;padding:0 12px;border:1px solid var(--color-accent);background:transparent;color:var(--color-accent-700);font-size:12px;font-weight:700;cursor:pointer;text-align:left">Fill empty with full month</button></sc-if>
+                      </div>
+                    </div>
+                    <sc-for list="{{ t.igroups }}" as="g" hint-placeholder-count="2">
+                      <div style="display:flex;flex-direction:column">
+                        <div style="display:flex;gap:8px 16px;align-items:center;flex-wrap:wrap;padding:10px 12px;background:var(--color-surface)">
+                          <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:220px"><span style="font-size:14px;font-weight:700">{{ g.desc }}</span><span style="font-size:12px;color:var(--color-neutral-700)">{{ g.meta }}</span></div>
+                          <sc-if value="{{ g.showSel }}">
+                            <select value="{{ g.cat }}" onChange="{{ g.setTpl }}" style="height:30px;border:1px solid var(--color-divider);background:var(--color-bg);font-size:12px;padding:0 6px"><sc-for list="{{ g.tplOpts }}" as="o" hint-placeholder-count="5"><option value="{{ o.k }}">{{ o.label }}</option></sc-for></select>
+                            <select value="{{ g.basis }}" onChange="{{ g.setBasis }}" style="height:30px;border:1px solid var(--color-divider);background:var(--color-bg);font-size:12px;padding:0 6px"><sc-for list="{{ g.basisOpts }}" as="o" hint-placeholder-count="5"><option value="{{ o.k }}">{{ o.label }}</option></sc-for></select>
+                            <sc-if value="{{ g.isHour }}"><label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--color-neutral-700)">Planned hrs<input value="{{ g.plan }}" onChange="{{ g.setPlan }}" style="height:30px;width:60px;border:1px solid var(--color-divider);padding:0 6px;font-size:12px;text-align:right"></input></label></sc-if>
+                          </sc-if>
+                          <sc-if value="{{ g.showAmt }}"><span style="font-size:14px;font-weight:700;white-space:nowrap">{{ g.amtF }}</span></sc-if>
+                        </div>
+                        <sc-for list="{{ g.lines }}" as="l" hint-placeholder-count="2">
+                          <div style="display:flex;flex-direction:column;gap:8px;padding:11px 12px;border-bottom:1px solid var(--color-divider);background:{{ l.bg }}">
+                            <div style="display:flex;gap:10px 16px;align-items:center;flex-wrap:wrap">
+                              <span style="flex:none;width:22px;height:22px;display:grid;place-items:center;font-size:11px;font-weight:700;background:{{ l.dotBg }};color:{{ l.dotFg }}">{{ l.mark }}</span>
+                              <div style="display:flex;flex-direction:column;gap:2px;min-width:150px;flex:1"><span style="font-size:13px;font-weight:700">{{ l.title }}</span><span style="font-size:11px;color:var(--color-neutral-700)">{{ l.sub }}</span></div>
+                              <sc-if value="{{ l.idEdit }}">
+                                <sc-for list="{{ l.ids }}" as="f" hint-placeholder-count="3"><input value="{{ f.v }}" onChange="{{ f.set }}" placeholder="{{ f.label }}" style="height:34px;width:{{ f.w }}px;border:1px solid var(--color-accent);padding:0 8px;font-size:13px"></input></sc-for>
+                              </sc-if>
+                              <sc-if value="{{ l.showUtil }}">
+                                <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--color-neutral-700)">
+                                  <span style="font-weight:700;color:var(--color-text)">{{ l.label }}</span>
+                                  <sc-if value="{{ l.ed }}"><input value="{{ l.v }}" onChange="{{ l.set }}" placeholder="0" style="height:36px;width:72px;border:2px solid {{ l.border }};background:{{ l.inBg }};padding:0 8px;font-size:15px;font-weight:700;text-align:right"></input></sc-if>
+                                  <sc-if value="{{ l.ro }}"><span style="font-size:15px;font-weight:700;color:var(--color-text);min-width:40px;text-align:right">{{ l.vShow }}</span></sc-if>
+                                  <span>{{ l.of }}</span>
+                                </div>
+                                <span style="font-size:11px;font-weight:700;padding:2px 7px;background:{{ l.uBg }};color:{{ l.uFg }};min-width:38px;text-align:center">{{ l.util }}</span>
+                                <span style="font-size:13px;font-weight:700;min-width:90px;text-align:right">{{ l.amt }}</span>
+                              </sc-if>
+                              <sc-if value="{{ l.vSel }}"><select value="{{ l.vid }}" onChange="{{ l.setVid }}" style="height:32px;border:1px solid var(--color-accent);background:var(--color-bg);font-size:12px;font-weight:700;padding:0 6px"><sc-for list="{{ l.vOpts }}" as="o" hint-placeholder-count="3"><option value="{{ o.k }}">{{ o.label }}</option></sc-for></select></sc-if>
+                              <sc-if value="{{ l.vShow2 }}"><span style="font-size:11px;font-weight:700;padding:3px 8px;background:{{ l.vBg }};color:{{ l.vFg }};white-space:nowrap">{{ l.vName }}</span></sc-if>
+                              <sc-if value="{{ l.hasMore }}"><button onClick="{{ l.toggleMore }}" style="border:none;background:transparent;padding:0;color:var(--color-accent-700);font-size:12px;font-weight:700;cursor:pointer;text-align:left;white-space:nowrap">{{ l.moreLabel }}</button></sc-if>
+                            </div>
+                            <sc-if value="{{ l.more }}">
+                              <div style="display:flex;gap:10px 16px;flex-wrap:wrap;padding-left:32px">
+                                <sc-for list="{{ l.extra }}" as="f" hint-placeholder-count="4">
+                                  <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;color:var(--color-neutral-700)">{{ f.label }}
+                                    <sc-if value="{{ f.ed }}"><input value="{{ f.v }}" onChange="{{ f.set }}" style="height:32px;width:{{ f.w }}px;border:1px solid {{ f.border }};background:{{ f.bg }};padding:0 8px;font-size:13px;font-weight:400;color:var(--color-text)"></input></sc-if>
+                                    <sc-if value="{{ f.ro }}"><span style="font-size:13px;font-weight:400;color:var(--color-text);padding:6px 0">{{ f.show }}</span></sc-if>
+                                  </label>
+                                </sc-for>
+                              </div>
+                            </sc-if>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </sc-for>
+                    <sc-if value="{{ t.showUtil }}">
+                      <div style="display:flex;justify-content:flex-end;gap:28px;font-size:14px;flex-wrap:wrap;padding-top:4px"><span style="color:var(--color-neutral-700)">PO value {{ t.poF }}</span><span style="font-weight:700">Utilization {{ t.totF }}</span></div>
+                    </sc-if>
+                  </div>
+
+                  <details style="border-top:1px solid var(--color-divider);padding-top:10px">
+                    <summary style="font-size:13px;font-weight:700;cursor:pointer">Activity · {{ t.logN }}</summary>
+                    <div style="display:flex;flex-direction:column;gap:6px;padding-top:10px">
+                      <sc-for list="{{ t.log }}" as="l" hint-placeholder-count="3"><div style="display:flex;flex-direction:column;font-size:12px;padding:6px 0;border-bottom:1px solid var(--color-divider)"><span>{{ l.t }}</span><span style="color:var(--color-neutral-700)">{{ l.w }}</span></div></sc-for>
+                    </div>
+                  </details>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isPrs }}">
+          <div style="padding:28px 30px 0;display:flex;flex-direction:column;gap:18px;flex:1;max-width:1180px;width:100%;box-sizing:border-box">
+            <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
+              <div style="display:flex;flex-direction:column;gap:6px;max-width:560px"><span style="font-size:28px;font-weight:700;line-height:1.15">PR inbox</span><span style="font-size:14px;color:var(--color-neutral-700);line-height:1.45">Released PRs raised by Stores, synced from ERP 26 Nov 07:00.</span></div>
+              <div style="display:flex;gap:0;align-items:stretch">
+                <sc-for list="{{ prHow }}" as="h" hint-placeholder-count="3">
+                  <div style="display:flex;gap:8px;align-items:center;padding:8px 14px 8px 0">
+                    <span style="flex:none;width:22px;height:22px;background:#5B6B7A;color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700">{{ h.n }}</span>
+                    <span style="font-size:12px;line-height:1.3;max-width:130px">{{ h.t }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--color-divider)">
+              <div style="display:flex;gap:2px">
+                <sc-for list="{{ prTabs }}" as="t" hint-placeholder-count="3">
+                  <button onClick="{{ t.go }}" style="height:40px;padding:0 14px;border:none;border-bottom:3px solid {{ t.edge }};background:transparent;color:var(--color-text);font-size:13px;font-weight:{{ t.fw }};cursor:pointer;text-align:left;display:flex;gap:8px;align-items:center;white-space:nowrap"><span>{{ t.label }}</span><span style="font-size:11px;font-weight:700;padding:1px 7px;background:{{ t.nBg }};color:{{ t.nFg }}">{{ t.n }}</span></button>
+                </sc-for>
+              </div>
+              <input value="{{ prQ }}" onChange="{{ setPrQ }}" placeholder="Search PR, item, segment, cost center" style="margin-left:auto;height:34px;width:280px;max-width:100%;border:1px solid var(--color-divider);background:var(--color-surface);padding:0 10px;font-size:13px;margin-bottom:4px"></input>
+            </div>
+
+            <div style="overflow:auto">
+              <table style="border-collapse:collapse;width:100%;min-width:860px;font-size:13px">
+                <thead><tr style="text-align:left;font-size:11px;color:var(--color-neutral-700)">
+                  <th style="padding:8px 10px;border-bottom:1px solid var(--color-text);font-weight:700;white-space:nowrap;width:28px"></th><th style="padding:8px 10px;border-bottom:1px solid var(--color-text);font-weight:700;white-space:nowrap">PR</th><th style="padding:8px 10px;border-bottom:1px solid var(--color-text);font-weight:700;white-space:nowrap">Segment · cost center</th><th style="padding:8px 10px;border-bottom:1px solid var(--color-text);font-weight:700;white-space:nowrap">Open items</th><th style="padding:8px 10px;border-bottom:1px solid var(--color-text);font-weight:700;white-space:nowrap;text-align:right">Open value / mo</th><th style="padding:8px 10px;border-bottom:1px solid var(--color-text);font-weight:700;white-space:nowrap">On PO</th>
+                </tr></thead>
+                <sc-for list="{{ prCards }}" as="p" hint-placeholder-count="5">
+                  <tbody>
+                    <tr onClick="{{ p.toggleOpen }}" style="cursor:pointer;border-bottom:1px solid var(--color-divider);background:{{ p.rowBg }}">
+                      <td style="padding:12px 10px;font-size:12px;font-weight:700;color:var(--color-neutral-700)">{{ p.chev }}</td>
+                      <td style="padding:12px 10px;white-space:nowrap"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-weight:700">{{ p.pr }}</span><span style="font-size:11px;color:var(--color-neutral-700)">{{ p.by }} · {{ p.date }} · {{ p.ctry }}</span></div></td>
+                      <td style="padding:12px 10px"><div style="display:flex;flex-direction:column;gap:2px"><span>{{ p.seg }}</span><span style="font-size:11px;color:var(--color-neutral-700)">{{ p.cc }} · plant {{ p.plant }}</span></div></td>
+                      <td style="padding:12px 10px;line-height:1.4">{{ p.itemsSum }}</td>
+                      <td style="padding:12px 10px;text-align:right;font-weight:700;white-space:nowrap">{{ p.openValF }}</td>
+                      <td style="padding:12px 10px;font-size:12px;color:var(--color-neutral-700);white-space:nowrap">{{ p.poSum }}</td>
+                    </tr>
+                    <sc-if value="{{ p.expanded }}">
+                      <tr><td colspan="6" style="padding:0 0 14px 38px;background:#F5F7F8;border-bottom:1px solid var(--color-divider)">
+                        <div style="display:flex;flex-direction:column;gap:10px;padding-top:12px">
+                          <table style="border-collapse:collapse;width:100%;font-size:13px">
+                            <thead><tr style="text-align:left;font-size:11px;color:var(--color-neutral-700)">
+                              <th style="padding:6px 8px;width:28px"></th><th style="padding:6px 8px">Item</th><th style="padding:6px 8px">Commodity</th><th style="padding:6px 8px;text-align:right">PR qty</th><th style="padding:6px 8px;text-align:right">Already on PO</th><th style="padding:6px 8px;text-align:right">Open</th><th style="padding:6px 8px;text-align:right">Qty for new PO</th><th style="padding:6px 8px;text-align:right">Rate</th>
+                            </tr></thead>
+                            <tbody>
+                              <sc-for list="{{ p.items }}" as="it" hint-placeholder-count="2">
+                                <tr style="border-top:1px solid var(--color-divider);background:{{ it.bg }};color:{{ it.fg }}">
+                                  <td style="padding:8px"><sc-if value="{{ it.canPick }}"><input type="checkbox" checked="{{ it.picked }}" onChange="{{ it.toggle }}"></input></sc-if></td>
+                                  <td style="padding:8px;font-weight:700">{{ it.desc }}</td>
+                                  <td style="padding:8px;font-size:12px;color:var(--color-neutral-700)">{{ it.tplName }}</td>
+                                  <td style="padding:8px;text-align:right">{{ it.qtyF }}</td>
+                                  <td style="padding:8px;text-align:right">{{ it.onPoF }}</td>
+                                  <td style="padding:8px;text-align:right;font-weight:700">{{ it.openF }}</td>
+                                  <td style="padding:4px 8px;text-align:right"><sc-if value="{{ it.picked }}"><input value="{{ it.pickQty }}" onChange="{{ it.setQty }}" style="height:30px;width:70px;border:2px solid var(--color-accent);padding:0 6px;font-size:13px;font-weight:700;text-align:right"></input></sc-if></td>
+                                  <td style="padding:8px;text-align:right;white-space:nowrap">{{ it.rateF }}</td>
+                                </tr>
+                              </sc-for>
+                            </tbody>
+                          </table>
+                          <sc-if value="{{ p.hasPos }}">
+                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px"><span style="color:var(--color-neutral-700)">Already on</span>
+                              <sc-for list="{{ p.pos }}" as="o" hint-placeholder-count="1"><button onClick="{{ o.open }}" style="height:26px;padding:0 8px;border:1px solid var(--color-divider);background:var(--color-bg);font-size:12px;font-weight:700;cursor:pointer;text-align:left">PO {{ o.po }} →</button></sc-for>
+                            </div>
+                          </sc-if>
+                        </div>
+                      </td></tr>
+                    </sc-if>
+                  </tbody>
+                </sc-for>
+              </table>
+            </div>
+            <sc-if value="{{ prEmpty }}"><div style="padding:28px;background:var(--color-surface);font-size:13px;color:var(--color-neutral-700)">{{ prEmptyText }}</div></sc-if>
+
+            <sc-if value="{{ hasPick }}">
+              <div style="position:sticky;bottom:0;margin:0 -30px;padding:14px 30px;border-top:2px solid var(--color-text);background:var(--color-bg);box-shadow:0 -4px 14px rgba(0,0,0,.08);display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+                <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:240px"><span style="font-size:14px;font-weight:700">{{ pickTitle }}</span><span style="font-size:12px;color:var(--color-neutral-700)">{{ pickSub }}</span></div>
+                <input value="{{ poNo }}" onChange="{{ setPoNo }}" placeholder="ERP PO number" style="height:40px;width:170px;border:2px solid var(--color-accent);padding:0 10px;font-size:14px;font-weight:700"></input>
+                <button onClick="{{ clearPick }}" style="height:40px;padding:0 14px;border:1px solid var(--color-text);background:transparent;font-size:13px;font-weight:700;cursor:pointer;text-align:left">Clear</button>
+                <button onClick="{{ pullPO }}" style="height:40px;padding:0 18px;border:none;background:var(--color-accent);color:#fff;font-size:13px;font-weight:700;cursor:pointer;text-align:left">Pull PO from ERP</button>
+              </div>
+            </sc-if>
+            <div style="height:24px"></div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isMonth }}">
+          <div style="padding:32px 36px 48px;max-width:960px;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:20px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
+              <div style="display:flex;flex-direction:column;gap:6px;max-width:620px"><span style="font-size:26px;font-weight:700;line-height:1.1">Month-end requests</span><span style="font-size:14px;color:var(--color-neutral-700);line-height:1.45">One email per supplier with a link to all their open POs. They pick their email, get a one-time code and fill in or upload. Valid 7 days, no login.</span></div>
+              <sc-if value="{{ canSendAll }}"><button onClick="{{ sendAll }}" style="height:40px;padding:0 18px;font-size:13px;border:none;background:var(--color-accent);color:#fff;font-weight:700;cursor:pointer;text-align:left;white-space:nowrap">Send all ready · {{ readyN }}</button></sc-if>
+            </div>
+            <div style="display:flex;flex-direction:column;border-top:2px solid var(--color-text)">
+              <sc-for list="{{ meRows }}" as="r" hint-placeholder-count="5">
+                <div style="display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--color-divider);flex-wrap:wrap">
+                  <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:240px"><span style="font-size:14px;font-weight:700">{{ r.name }}</span><span style="font-size:12px;color:var(--color-neutral-700)">{{ r.meta }}</span></div>
+                  <span style="font-size:11px;font-weight:700;padding:3px 8px;background:{{ r.stBg }};color:{{ r.stFg }};white-space:nowrap">{{ r.status }}</span>
+                  <sc-if value="{{ r.hasAct }}"><button onClick="{{ r.act }}" style="height:34px;padding:0 14px;border:{{ r.border }};background:{{ r.bg }};color:{{ r.color }};font-size:13px;font-weight:700;cursor:pointer;text-align:left;white-space:nowrap;min-width:90px">{{ r.actLabel }}</button></sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isTrends }}">
+          <div style="padding:28px 30px 48px;max-width:1180px;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:20px">
+            <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:28px;font-weight:700;line-height:1.15">Trends</span><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span style="font-size:14px;color:var(--color-neutral-700)">Month on month · Jun – Nov 26 · {{ trFxNote }}</span><sc-if value="{{ trFxLink }}"><button onClick="{{ goSettings }}" style="border:none;background:transparent;padding:0;color:var(--color-accent-700);font-size:13px;font-weight:700;cursor:pointer;text-align:left;text-decoration:underline">Change rates</button></sc-if></div></div>
+            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--color-divider)">
+              <div style="display:flex;gap:2px">
+                <sc-for list="{{ trTabs }}" as="t" hint-placeholder-count="3"><button onClick="{{ t.go }}" style="height:40px;padding:0 14px;border:none;border-bottom:3px solid {{ t.edge }};background:transparent;color:var(--color-text);font-size:13px;font-weight:{{ t.fw }};cursor:pointer;text-align:left;white-space:nowrap">{{ t.label }}</button></sc-for>
+              </div>
+              <div style="margin-left:auto;margin-bottom:4px;display:flex;gap:8px;align-items:center">
+                <span style="font-size:12px;color:var(--color-neutral-700)">{{ trPick }}</span>
+                <select value="{{ trSel }}" onChange="{{ setTrSel }}" style="height:34px;min-width:240px;border:1px solid var(--color-text);background:var(--color-bg);font-size:13px;font-weight:700;padding:0 8px"><sc-for list="{{ trOpts }}" as="o" hint-placeholder-count="6"><option value="{{ o.k }}">{{ o.label }}</option></sc-for></select>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:2px">
+              <sc-for list="{{ trKpis }}" as="k" hint-placeholder-count="4"><div style="padding:14px 16px;background:var(--color-surface);display:flex;flex-direction:column;gap:4px"><span style="font-size:11px;color:var(--color-neutral-700)">{{ k.k }}</span><span style="font-size:20px;font-weight:700;color:{{ k.c }}">{{ k.v }}</span><span style="font-size:11px;color:var(--color-neutral-700)">{{ k.sub }}</span></div></sc-for>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><span style="font-size:15px;font-weight:700">{{ trChartTitle }}</span>
+                <div style="display:flex;gap:14px;font-size:12px;align-items:center"><span style="display:flex;gap:6px;align-items:center"><span style="width:12px;height:12px;background:var(--color-accent)"></span>Validated</span><span style="display:flex;gap:6px;align-items:center"><span style="width:12px;height:12px;background:repeating-linear-gradient(45deg,#9CCAB2 0 3px,#EEF6F1 3px 6px)"></span>Nov in progress · PO value</span></div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px;align-items:end;height:200px;border-bottom:2px solid var(--color-text);padding:0 6px">
+                <sc-for list="{{ trBars }}" as="b" hint-placeholder-count="6">
+                  <div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;height:100%">
+                    <span style="font-size:11px;font-weight:700;white-space:nowrap">{{ b.label }}</span>
+                    <div style="width:100%;max-width:72px;height:{{ b.h }}px;background:{{ b.bg }}"></div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px;padding:0 6px"><sc-for list="{{ trBars }}" as="b" hint-placeholder-count="6"><div style="display:flex;flex-direction:column;align-items:center;gap:1px"><span style="font-size:12px;font-weight:700">{{ b.m }}</span><span style="font-size:11px;font-weight:700;color:{{ b.dColor }}">{{ b.delta }}</span></div></sc-for></div>
+            </div>
+            <div style="overflow:auto">
+              <table style="border-collapse:collapse;width:100%;min-width:720px;font-size:13px">
+                <thead><tr style="text-align:left;font-size:11px;color:var(--color-neutral-700)"><sc-for list="{{ trHead }}" as="h" hint-placeholder-count="6"><th style="padding:8px 10px;border-bottom:1px solid var(--color-text);font-weight:700;white-space:nowrap;text-align:{{ h.align }}">{{ h.h }}</th></sc-for></tr></thead>
+                <tbody><sc-for list="{{ trRows }}" as="r" hint-placeholder-count="6"><tr style="border-bottom:1px solid var(--color-divider)"><sc-for list="{{ r.cells }}" as="x" hint-placeholder-count="6"><td style="padding:9px 10px;text-align:{{ x.align }};font-weight:{{ x.fw }};color:{{ x.color }};white-space:nowrap">{{ x.v }}</td></sc-for></tr></sc-for></tbody>
+              </table>
+            </div>
+            <sc-if value="{{ trHasSec }}">
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:15px;font-weight:700">{{ trSecTitle }}</span><span style="font-size:12px;color:var(--color-neutral-700)">{{ trSecHint }}</span></div>
+                <div style="overflow:auto">
+                  <table style="border-collapse:collapse;width:100%;min-width:760px;font-size:12px">
+                    <thead><tr style="text-align:left;font-size:11px;color:var(--color-neutral-700)"><sc-for list="{{ trSecHead }}" as="h" hint-placeholder-count="7"><th style="padding:8px 10px;border-bottom:1px solid var(--color-text);font-weight:700;white-space:nowrap;text-align:{{ h.align }}">{{ h.h }}</th></sc-for></tr></thead>
+                    <tbody><sc-for list="{{ trSecRows }}" as="r" hint-placeholder-count="5"><tr onClick="{{ r.go }}" style="border-bottom:1px solid var(--color-divider);cursor:pointer"><sc-for list="{{ r.cells }}" as="x" hint-placeholder-count="7"><td style="padding:3px;text-align:{{ x.align }}"><div style="padding:6px 8px;background:{{ x.bg }};color:{{ x.fg }};font-weight:{{ x.fw }};white-space:nowrap">{{ x.v }}</div></td></sc-for></tr></sc-for></tbody>
+                  </table>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isSettings }}">
+          <div style="padding:28px 30px 48px;max-width:860px;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:20px">
+            <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:28px;font-weight:700;line-height:1.15">Settings</span><span style="font-size:14px;color:var(--color-neutral-700)">Exchange rates to USD, used for every figure in Trends.</span></div>
+            <div style="display:flex;flex-direction:column;border-top:2px solid var(--color-text)">
+              <div style="display:grid;grid-template-columns:minmax(140px,1.2fr) 150px minmax(120px,1fr) minmax(160px,1.4fr);gap:12px;padding:8px 0;font-size:11px;font-weight:700;color:var(--color-neutral-700);border-bottom:1px solid var(--color-text)"><span>Currency</span><span>1 unit = USD</span><span>Example</span><span>Last updated</span></div>
+              <sc-for list="{{ fxRows }}" as="r" hint-placeholder-count="4">
+                <div style="display:grid;grid-template-columns:minmax(140px,1.2fr) 150px minmax(120px,1fr) minmax(160px,1.4fr);gap:12px;padding:10px 0;align-items:center;border-bottom:1px solid var(--color-divider);font-size:13px">
+                  <div style="display:flex;flex-direction:column;gap:1px"><span style="font-weight:700">{{ r.k }}</span><span style="font-size:11px;color:var(--color-neutral-700)">{{ r.name }}</span></div>
+                  <input value="{{ r.draft }}" onChange="{{ r.set }}" style="height:34px;width:130px;border:2px solid {{ r.border }};padding:0 8px;font-size:14px;font-weight:700;text-align:right"></input>
+                  <span style="color:var(--color-neutral-700)">{{ r.ex }}</span>
+                  <span style="font-size:12px;color:var(--color-neutral-700)">{{ r.upd }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <button onClick="{{ fxSave }}" style="height:40px;padding:0 18px;border:none;background:{{ fxSaveBg }};color:#fff;font-size:13px;font-weight:700;cursor:pointer;text-align:left">Save rates</button>
+              <button onClick="{{ fxReset }}" style="height:40px;padding:0 14px;border:1px solid var(--color-text);background:transparent;font-size:13px;font-weight:700;cursor:pointer;text-align:left">Discard changes</button>
+              <span style="font-size:12px;color:var(--color-neutral-700)">{{ fxStatus }}</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;padding-top:12px"><span style="font-size:18px;font-weight:700">Commodity types</span><span style="font-size:13px;color:var(--color-neutral-700)">The ERP commodity code on each PR / PO line decides whether it sits under Rental equipment or Recurrent services.</span></div>
+            <div style="display:flex;flex-direction:column;border-top:2px solid var(--color-text)">
+              <sc-for list="{{ commRows }}" as="r" hint-placeholder-count="6">
+                <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--color-divider);flex-wrap:wrap">
+                  <div style="display:flex;flex-direction:column;gap:1px"><span style="font-size:13px;font-weight:700">{{ r.name }}</span><span style="font-size:11px;color:var(--color-neutral-700)">{{ r.k }} · {{ r.n }}</span></div>
+                  <div style="display:flex;padding:3px;gap:3px;background:var(--color-neutral-200)"><sc-for list="{{ r.opts }}" as="o" hint-placeholder-count="2"><button onClick="{{ o.go }}" style="height:30px;padding:0 12px;border:none;background:{{ o.bg }};color:{{ o.color }};font-size:12px;font-weight:700;cursor:pointer;text-align:left">{{ o.label }}</button></sc-for></div>
+                </div>
+              </sc-for>
+            </div>
+            <span style="font-size:12px;color:var(--color-neutral-700);line-height:1.5">Only Central admin can change rates. A saved rate applies to all months in Trends. Ticket values stay in local currency.</span>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isRenew }}"><div style="padding:22px 26px"><dc-import name="Annual Renewals" embedded="{{ true }}" role="{{ rnRole }}" hint-size="100%,700px"></dc-import></div></sc-if>
+      </main>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isSup }}">
+    <header style="min-height:56px;padding:8px 24px;border-bottom:2px solid var(--color-text);display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+      <span style="font-weight:900;font-size:20px;letter-spacing:2px;color:var(--color-accent)">NESR</span>
+      <span style="font-size:14px;font-weight:700">Supplier utilization portal</span>
+      <span style="font-size:11px;color:var(--color-neutral-700)">Secure link · no login</span>
+      <div style="display:flex;gap:4px;align-items:center;font-size:12px"><sc-for list="{{ spSteps }}" as="x" hint-placeholder-count="3"><span style="padding:4px 10px;font-weight:700;background:{{ x.bg }};color:{{ x.fg }}">{{ x.label }}</span></sc-for></div>
+      <div style="margin-left:auto;display:flex;gap:10px;align-items:center;font-size:11px;color:var(--color-neutral-700)">
+        <button onClick="{{ startTour }}" style="height:30px;padding:0 10px;border:1px solid var(--color-text);background:transparent;font-size:12px;font-weight:700;cursor:pointer;text-align:left">Walkthrough</button>
+        <span>Demo · link opened by</span>
+        <select value="{{ spSid }}" onChange="{{ setSpSid }}" style="height:30px;font-size:12px;font-weight:700;border:1px solid var(--color-divider)"><sc-for list="{{ spSups }}" as="o" hint-placeholder-count="2"><option value="{{ o.k }}">{{ o.label }}</option></sc-for></select>
+        <select value="{{ role }}" onChange="{{ setRole }}" style="height:30px;font-size:12px;border:1px solid var(--color-divider)"><option value="buyer">Back to Buyer</option><option value="ops">Back to Ops validator</option><option value="supplier">Supplier</option></select>
+      </div>
+    </header>
+    <div style="flex:1;background:var(--color-surface);padding:28px 20px;display:flex;justify-content:center">
+      <div style="width:100%;max-width:{{ spMax }};background:var(--color-bg);border-top:4px solid var(--color-accent);padding:26px;display:flex;flex-direction:column;gap:18px;align-self:flex-start">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent-700);font-weight:700">Monthly utilization · Nov 26</span>
+          <span style="font-size:22px;font-weight:700;line-height:1.15">{{ spName }}</span>
+          <span style="font-size:12px;color:var(--color-neutral-700)">Link valid until 3 Dec 26 · {{ spPoCount }} open POs</span>
+        </div>
+
+        <sc-if value="{{ spNone }}"><span style="font-size:14px;color:var(--color-neutral-700)">No open request for this supplier. The buyer hasn't sent the month-end link yet.</span></sc-if>
+
+        <sc-if value="{{ spEmail }}">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <span style="font-size:14px;font-weight:700">1 · Select your email</span>
+            <sc-for list="{{ spEmails }}" as="e" hint-placeholder-count="2">
+              <button onClick="{{ e.pick }}" style="height:44px;padding:0 14px;border:2px solid {{ e.border }};background:{{ e.bg }};display:flex;align-items:center;gap:10px;cursor:pointer;text-align:left;font-size:14px;color:var(--color-text)"><span style="width:14px;height:14px;border:2px solid var(--color-text);background:{{ e.dot }}"></span>{{ e.addr }}</button>
+            </sc-for>
+            <button onClick="{{ sendOtp }}" style="height:44px;padding:0 18px;border:none;background:var(--color-accent);color:#fff;font-size:14px;font-weight:700;cursor:pointer;text-align:left;align-self:flex-start">Send one-time code</button>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ spOtp }}">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <span style="font-size:14px;font-weight:700">2 · Enter the 6-digit code</span>
+            <span style="font-size:12px;color:var(--color-neutral-700)">Sent to {{ spAddr }} · expires in 10 min · demo code 482913</span>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <input value="{{ spCode }}" onChange="{{ setSpCode }}" placeholder="000000" style="height:44px;width:160px;border:2px solid var(--color-text);padding:0 12px;font-size:20px;letter-spacing:.3em;font-weight:700"></input>
+              <button onClick="{{ verifyOtp }}" style="height:44px;padding:0 18px;border:none;background:var(--color-accent);color:#fff;font-size:14px;font-weight:700;cursor:pointer;text-align:left">Verify</button>
+              <button onClick="{{ backEmail }}" style="height:44px;padding:0 14px;border:1px solid var(--color-divider);background:transparent;font-size:13px;cursor:pointer;text-align:left">Use another email</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ spForm }}">
+          <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 14px;background:var(--color-surface)">
+            <span style="font-size:13px">Signed in as <strong>{{ spAddr }}</strong></span>
+            <span style="font-size:12px;color:var(--color-neutral-700)">Enter what was actually used in Nov 26. Quantities and rates are fixed by the PO.</span>
+          </div>
+          <sc-for list="{{ spPos }}" as="p" hint-placeholder-count="2">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;padding-bottom:10px;border-bottom:2px solid var(--color-text)">
+                <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:17px;font-weight:700">PO {{ p.po }}</span><span style="font-size:12px;color:var(--color-neutral-700)">{{ p.seg }} · {{ p.progress }}</span></div>
+                <div style="display:flex;padding:3px;gap:3px;background:var(--color-neutral-200)">
+                  <sc-for list="{{ p.modes }}" as="m" hint-placeholder-count="2"><button onClick="{{ m.go }}" style="height:34px;padding:0 14px;border:none;background:{{ m.bg }};color:{{ m.color }};font-size:13px;font-weight:700;cursor:pointer;text-align:left">{{ m.label }}</button></sc-for>
+                </div>
+              </div>
+              <sc-if value="{{ p.isDoc }}">
+                <button onClick="{{ p.pickFile }}" style="padding:28px;border:2px dashed {{ p.fileBorder }};background:{{ p.fileBg }};display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;text-align:left;color:var(--color-text)">
+                  <span style="font-size:14px;font-weight:700;color:{{ p.fileColor }}">{{ p.fileLabel }}</span>
+                  <span style="font-size:12px;color:var(--color-neutral-700)">{{ p.fileHint }}</span>
+                </button>
+              </sc-if>
+              <sc-if value="{{ p.isForm }}">
+                <sc-if value="{{ p.canFillAll }}"><button onClick="{{ p.fillAll }}" style="align-self:flex-start;height:32px;padding:0 12px;border:1px solid var(--color-accent);background:transparent;color:var(--color-accent-700);font-size:12px;font-weight:700;cursor:pointer;text-align:left">{{ p.fillAllLabel }}</button></sc-if>
+                <div style="display:flex;flex-direction:column">
+                  <sc-for list="{{ p.lines }}" as="l" hint-placeholder-count="3">
+                    <div style="display:flex;flex-direction:column;gap:8px;padding:12px 0;border-bottom:1px solid var(--color-divider)">
+                      <div style="display:flex;gap:12px 16px;align-items:center;flex-wrap:wrap">
+                        <span style="flex:none;width:22px;height:22px;display:grid;place-items:center;font-size:12px;font-weight:700;background:{{ l.dotBg }};color:{{ l.dotFg }}">{{ l.mark }}</span>
+                        <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:200px"><span style="font-size:14px;font-weight:700">{{ l.title }}</span><span style="font-size:12px;color:var(--color-neutral-700)">{{ l.sub }}</span></div>
+                        <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--color-neutral-700)"><span style="font-weight:700;color:var(--color-text)">{{ l.label }}</span>
+                          <input value="{{ l.v }}" onChange="{{ l.set }}" inputmode="decimal" placeholder="0" style="height:40px;width:84px;border:2px solid {{ l.border }};padding:0 10px;font-size:16px;font-weight:700;text-align:right"></input>
+                          <span>{{ l.of }}</span>
+                        </label>
+                        <button onClick="{{ l.full }}" style="height:32px;padding:0 10px;border:1px solid var(--color-divider);background:transparent;font-size:12px;font-weight:700;cursor:pointer;text-align:left;white-space:nowrap">{{ l.fullLabel }}</button>
+                        <button onClick="{{ l.toggleMore }}" style="border:none;background:transparent;padding:0;color:var(--color-accent-700);font-size:12px;font-weight:700;cursor:pointer;text-align:left;white-space:nowrap">{{ l.moreLabel }}</button>
+                      </div>
+                      <sc-if value="{{ l.more }}">
+                        <div style="display:flex;gap:10px 16px;flex-wrap:wrap;padding-left:38px">
+                          <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;color:var(--color-neutral-700)">Off-hire date<input value="{{ l.off }}" onChange="{{ l.setOff }}" placeholder="dd Mon" style="height:34px;width:110px;border:1px solid var(--color-divider);padding:0 8px;font-size:13px"></input></label>
+                          <label style="display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:700;color:var(--color-neutral-700);flex:1;min-width:200px">Remarks<input value="{{ l.rem }}" onChange="{{ l.setRem }}" placeholder="e.g. breakdown 3–5 Nov" style="height:34px;border:1px solid var(--color-divider);padding:0 8px;font-size:13px"></input></label>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+          <div style="position:sticky;bottom:0;margin:0 -26px -26px;padding:14px 26px;background:var(--color-bg);border-top:2px solid var(--color-text);display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+            <div style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:200px">
+              <span style="font-size:13px;font-weight:700">{{ spProgText }}</span>
+              <div style="height:6px;background:var(--color-neutral-200)"><div style="height:6px;width:{{ spProgPct }}%;background:var(--color-accent)"></div></div>
+            </div>
+            <button onClick="{{ spSubmit }}" style="height:46px;padding:0 22px;border:none;background:{{ spSubmitBg }};color:#fff;font-size:14px;font-weight:700;cursor:pointer;text-align:left">Submit to NESR</button>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ spDone }}">
+          <div style="padding:18px;background:var(--color-accent-100);display:flex;flex-direction:column;gap:4px"><span style="font-size:16px;font-weight:700;color:var(--color-accent-700)">Submitted. Thank you.</span><span style="font-size:13px;color:var(--color-neutral-700)">The NESR buyer will review it. This link is now closed.</span></div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ hasTour }}">
+    <div style="position:fixed;right:24px;bottom:84px;width:360px;max-width:calc(100vw - 48px);background:var(--color-text);color:#fff;z-index:7;box-shadow:0 8px 28px rgba(0,0,0,.3);display:flex;flex-direction:column">
+      <div style="height:4px;background:rgba(255,255,255,.2)"><div style="height:4px;width:{{ tour.pct }}%;background:var(--color-accent)"></div></div>
+      <div style="padding:16px 18px;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;justify-content:space-between;gap:10px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;opacity:.8"><span>Step {{ tour.n }} of {{ tour.total }} · {{ tour.roleLabel }}</span><button onClick="{{ tourExit }}" style="border:none;background:transparent;color:#fff;font-size:11px;font-weight:700;cursor:pointer;padding:0;text-align:left">Exit</button></div>
+        <span style="font-size:17px;font-weight:700;line-height:1.25">{{ tour.t }}</span>
+        <span style="font-size:13px;line-height:1.5;opacity:.9">{{ tour.d }}</span>
+        <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:4px">
+          <button onClick="{{ tourPrev }}" style="height:34px;padding:0 14px;border:1px solid rgba(255,255,255,.5);background:transparent;color:#fff;font-size:12px;font-weight:700;cursor:pointer;text-align:left">Back</button>
+          <button onClick="{{ tourNext }}" style="height:34px;padding:0 16px;border:none;background:var(--color-accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer;text-align:left">{{ tour.nextLabel }}</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ hasToast }}"><div style="position:fixed;right:24px;top:72px;background:var(--color-text);color:#fff;padding:12px 18px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:6;max-width:380px">{{ toast }}</div></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const CD = 30;
+const STAGES = [['Buyer review', 'Buyer checks ERP data'], ['Active', 'Until month-end'], ['With supplier', 'OTP link · 7 days'], ['Supplier submitted', 'Buyer checks'], ['Ops validation', 'Ops validator'], ['PO amendment', 'Buyer · ERP'], ['GRN done · Closed', 'Buyer marks GRN done']];
+const PRC = { c: '#5B6B7A', tint: '#EBEEF1', fg: '#3F4B57' };
+const SCOL = [{ c: '#2F6DB5', tint: '#E6EEF8', fg: '#1F4F8A' }, { c: '#138A8A', tint: '#E2F3F3', fg: '#0B6464' }, { c: '#C98A0B', tint: '#FBF1DC', fg: '#7A5200' }, { c: '#D0661F', tint: '#FBEADF', fg: '#93420F' }, { c: '#7A4FB0', tint: '#EFE9F7', fg: '#5A3590' }, { c: '#B23F78', tint: '#F7E6EF', fg: '#8A2C5B' }, { c: '#2A7E4F', tint: '#E6F2EB', fg: '#1F5C3A' }];
+const STC = SCOL.map(x => [x.tint, x.fg]);
+const OWNER = ['buyer', 'buyer', 'supplier', 'buyer', 'ops', 'buyer', ''];
+const ROLES = { admin: ['HQ', 'Central SC admin'], buyer: ['TA', 'Tariq A. · Buyer'], ops: ['RM', 'Rashid M. · Ops validator'], supplier: ['—', 'Supplier'] };
+const NAVS = { buyer: ['board', 'home', 'prs', 'tickets', 'monthend', 'trends', 'renewals'], ops: ['tickets'], admin: ['trends', 'board', 'settings'] };
+const NAVL = { settings: 'Settings', trends: 'Trends', board: 'Ticket Board', home: 'Action Registry', tickets: 'PO workspace', prs: 'PR inbox', monthend: 'Month-end requests', renewals: 'Annual renewals' };
+const NOTES = { buyer: 'Stores raise PRs in ERP; they do not need the portal. The buyer converts PRs to POs, checks the asset lines, sends month-end links, reviews submissions, amends the PO and closes the ticket.', ops: 'Validates utilization. Edit any figure directly, then approve.' };
+const TPL = {
+  vehicle: { name: 'Vehicle', id: [['plate', 'Plate no.'], ['driver', 'Driver'], ['site', 'Site']], util: [['on', 'On-hire'], ['off', 'Off-hire'], ['days', 'Days used'], ['standby', 'Standby'], ['mob', 'Mob / demob'], ['remarks', 'Remarks']], split: true },
+  equip: { name: 'Equipment & cranes', id: [['plate', 'Serial / plate'], ['driver', 'Operator'], ['site', 'Site']], util: [['on', 'On-hire'], ['off', 'Off-hire'], ['days', 'Days used'], ['hours', 'Hours'], ['standby', 'Standby'], ['mob', 'Mob / demob'], ['remarks', 'Remarks']], split: true },
+  tank: { name: 'Tank / cabin', id: [['plate', 'Serial no.'], ['site', 'Site']], util: [['on', 'On-hire'], ['off', 'Off-hire'], ['days', 'Days used'], ['mob', 'Mob / demob'], ['remarks', 'Remarks']], split: true },
+  manpower: { name: 'Manpower', id: [['driver', 'Name'], ['site', 'Site']], util: [['on', 'Start'], ['off', 'End'], ['days', 'Days worked'], ['remarks', 'Remarks']], split: true },
+  catering: { name: 'Catering / consumption', id: [['site', 'Site']], util: [['used', 'Qty consumed'], ['remarks', 'Remarks']], split: false }
+};
+const BASIS = { month: ['Monthly rate', 'Days used', 'month', 'days'], day: ['Daily rate', 'Days used', 'day', 'days'], hour: ['Hourly rate', 'Hours used', 'hour', 'hours'], head: ['Per headcount', 'Headcount', 'person', 'heads'], unit: ['Per unit consumed', 'Qty consumed', 'unit', 'used'] };
+const DEFB = (cat, uom = '') => /hr|hour/i.test(uom) ? 'hour' : /day/i.test(uom) ? 'day' : cat === 'catering' ? 'unit' : 'month';
+const isSplit = (cat, b) => TPL[cat].split && b !== 'head' && b !== 'unit';
+const drv = b => BASIS[b || 'month'][3];
+const W = { heads: 60, plate: 100, driver: 104, site: 84, on: 62, off: 62, days: 50, hours: 54, standby: 54, mob: 70, used: 74, remarks: 150 };
+const COMMS = { 'RNT-VEH': ['Vehicle rental', 'rental'], 'RNT-EQP': ['Equipment & crane rental', 'rental'], 'RNT-TNK': ['Tank & cabin rental', 'rental'], 'SVC-MPW': ['Manpower services', 'service'], 'SVC-CAT': ['Catering & camp services', 'service'], 'SVC-MED': ['Medical services', 'service'] };
+const CAT2C = { vehicle: 'RNT-VEH', equip: 'RNT-EQP', tank: 'RNT-TNK', manpower: 'SVC-MPW', catering: 'SVC-CAT' };
+const VALS = { rm: { name: 'Rashid M.', segs: ['Well Testing', 'Ops Support'] }, yk: { name: 'Yousef K.', segs: ['Coiled Tubing'] }, hs: { name: 'Hamad S.', segs: ['Slickline', 'Cementing'] } };
+const defVal = seg => Object.keys(VALS).find(k => VALS[k].segs.includes(seg)) || 'rm';
+const SUP = {
+  algh: { name: 'Al Ghazal Transport', emails: ['ops@alghazal-transport.ae', 'billing@alghazal-transport.ae', 'm.saleh@alghazal-transport.ae'] },
+  delta: { name: 'Delta Heavy Transport', emails: ['ops@deltaheavy.ae', 'invoices@deltaheavy.ae'] },
+  gcc: { name: 'Gulf Camp Catering', emails: ['camp.habshan@gulfcamp.ae', 'accounts@gulfcamp.ae'] },
+  mirfa: { name: 'Mirfa Tanks & Cabins', emails: ['rental@mirfatanks.ae'] },
+  smg: { name: 'SMG Cranes', emails: ['dispatch@smgcranes.com', 'finance@smgcranes.com'] },
+  excel: { name: 'Excel Medical Services', emails: ['contracts@excelmed.ae'] },
+  kanoo: { name: 'Kanoo Lift', emails: ['kw.rental@kanoolift.com'] },
+  green: { name: 'Green Life Power', emails: ['rentals@greenlifepower.ae'] },
+  mulla: { name: 'Al Mulla Catering', emails: ['kw.camps@almullacatering.com'] }
+};
+let LID = 0;
+const mk = (desc, cat, qty, uom, rate, ids = [], util = [], basis, plan) => { const b = basis || DEFB(cat, uom), pl = plan || 200;
+  return isSplit(cat, b)
+    ? Array.from({ length: qty }, (_, i) => ({ id: ++LID, desc, cat, uom, rate, basis: b, plan: pl, comm: CAT2C[cat], unit: `${i + 1} of ${qty}`, poQty: 1, f: { ...(ids[i] || ids[0] || {}), ...(util[i] || {}) }, v: {} }))
+    : [{ id: ++LID, desc, cat, uom, rate, basis: b, plan: pl, comm: CAT2C[cat], unit: `${qty.toLocaleString('en-US')} ${uom}`, poQty: qty, f: { ...(ids[0] || {}), ...(util[0] || {}) }, v: {} }]; };
+const U = (days, x = {}) => ({ on: '1 Nov', off: '', days: String(days), standby: '0', mob: '', remarks: '', ...x });
+const LG = (t, w) => ({ t, w });
+const base = (o) => ({ ctry: 'UAE', cur: 'AED', prBy: 'Sameer K.', sub: null, amend: null, sentAt: '', ...o });
+const SEED = () => SEED0().map(t => ({ ...t, lines: t.lines.map((l, i) => ({ ...l, seg: l.seg || t.seg, comm: /Ambulance|nurse/i.test(l.desc) ? 'SVC-MED' : l.comm, vid: t.id === 6 && i === 0 ? 'yk' : t.id === 6 ? 'rm' : defVal(t.seg), ok: false })) }));
+const SEED0 = () => [
+  base({ id: 1, pr: '1200078091', prDate: '12 Nov 26', po: '5150009410', released: '18 Nov 26', sup: 'algh', plant: 'AE21', cc: 'CC-3053', seg: 'Well Testing', stage: 1,
+    lines: [...mk('Coaster bus 30-seater with driver', 'vehicle', 4, 'bus', 9800, [{ plate: 'AUH 4-21907', driver: 'Imran K.', site: 'Ruwais' }, { plate: 'AUH 4-21911', driver: 'Joseph M.', site: 'Ruwais' }, { plate: 'AUH 4-22035', driver: 'Ali R.', site: 'Ruwais' }, { plate: 'AUH 4-22036', driver: 'Sunil P.', site: 'Ruwais' }]), ...mk('Pick-up 4×4 without driver', 'vehicle', 2, 'vehicle', 5650, [{ plate: 'AUH 1-77310', site: 'Ruwais' }, { plate: 'AUH 1-77318', site: 'Ruwais' }])],
+    log: [LG('PR raised in ERP', 'Sameer K. · Stores · 12 Nov'), LG('PO 5150009410 recorded; header and lines pulled from ERP', 'Tariq A. · Buyer · 19 Nov'), LG('Lines checked and saved', 'Tariq A. · Buyer · 19 Nov')] }),
+  base({ id: 2, pr: '1200078119', prDate: '13 Nov 26', po: '5150009412', released: '19 Nov 26', sup: 'algh', plant: 'AE11', cc: 'CC-1050', seg: 'Coiled Tubing', stage: 1,
+    lines: mk('Light vehicle with driver', 'vehicle', 3, 'vehicle', 8750, [{ plate: 'AUH 2-31120', driver: 'Ravi S.', site: 'Habshan' }, { plate: 'AUH 2-31124', driver: 'Faisal N.', site: 'Habshan' }, { plate: 'AUH 2-31187', driver: 'Kamal B.', site: 'Habshan' }]),
+    log: [LG('PR raised in ERP', 'Sameer K. · Stores · 13 Nov'), LG('PO recorded and pulled from ERP; lines saved', 'Tariq A. · Buyer · 20 Nov')] }),
+  base({ id: 3, pr: '1200077822', prDate: '28 Oct 26', po: '5150009246', released: '2 Nov 26', sup: 'delta', plant: 'AE11', cc: 'CC-1050', seg: 'Coiled Tubing', stage: 2, sentAt: '24 Nov',
+    lines: [...mk('6X6 prime mover with driver', 'vehicle', 1, 'truck', 90000, [{ plate: 'AUH 1-51102', driver: 'Mohan L.', site: 'Habshan' }]), ...mk('6X6 flatbed trailer (Haz)', 'vehicle', 2, 'trailer', 36575, [{ plate: 'AUH T-8810', site: 'Habshan' }, { plate: 'AUH T-8814', site: 'Habshan' }])],
+    log: [LG('PO recorded and pulled from ERP; lines saved', 'Tariq A. · Buyer · 3 Nov'), LG('Month-end link sent to ops@deltaheavy.ae, invoices@deltaheavy.ae', 'Tariq A. · Buyer · 24 Nov')] }),
+  base({ id: 4, pr: '1200077810', prDate: '27 Oct 26', po: '5150009192', released: '1 Nov 26', sup: 'gcc', plant: 'OPS1', cc: 'CC-1050', seg: 'Coiled Tubing', stage: 3, sentAt: '24 Nov', sub: { mode: 'form', by: 'camp.habshan@gulfcamp.ae', at: '25 Nov' },
+    lines: [...mk('Breakfast', 'catering', 1800, 'meals', 3.75, [{ site: 'Habshan camp' }], [{ used: '1733' }]), ...mk('Lunch', 'catering', 3800, 'meals', 19, [{ site: 'Habshan camp' }], [{ used: '3711' }]), ...mk('Dinner', 'catering', 2800, 'meals', 19, [{ site: 'Habshan camp' }], [{ used: '2751' }]), ...mk('Camp boss', 'manpower', 1, 'person', 5500, [{ driver: 'R. Fernandes', site: 'Habshan camp' }], [U(30)])],
+    log: [LG('Month-end link sent', 'Tariq A. · Buyer · 24 Nov'), LG('Utilization form submitted', 'camp.habshan@gulfcamp.ae · Supplier · 25 Nov')] }),
+  base({ id: 5, pr: '1200077831', prDate: '29 Oct 26', po: '5150009301', released: '3 Nov 26', sup: 'mirfa', plant: 'AE11', cc: 'CC-1050', seg: 'Coiled Tubing', stage: 3, sentAt: '24 Nov', sub: { mode: 'doc', file: 'Mirfa_Nov26_utilization.pdf', by: 'rental@mirfatanks.ae', at: '25 Nov' },
+    lines: [...mk('Frac tank 500 bbl', 'tank', 3, 'tank', 6500, [{ plate: 'FT-501', site: 'Habshan' }, { plate: 'FT-502', site: 'Habshan' }, { plate: 'FT-503', site: 'Habshan' }]), ...mk('Office caravan', 'tank', 2, 'cabin', 4250, [{ plate: 'CAR-112', site: 'Habshan' }, { plate: 'CAR-118', site: 'Habshan' }])],
+    log: [LG('Month-end link sent', 'Tariq A. · Buyer · 24 Nov'), LG('Document uploaded instead of form', 'rental@mirfatanks.ae · Supplier · 25 Nov')] }),
+  base({ id: 6, pr: '1200077790', prDate: '25 Oct 26', po: '5150009214', released: '30 Oct 26', sup: 'smg', plant: 'AE11', cc: 'CC-1050', seg: 'Coiled Tubing', stage: 4, sentAt: '22 Nov', sub: { mode: 'form', by: 'dispatch@smgcranes.com', at: '23 Nov' },
+    lines: [...mk('50T mobile crane with operator', 'equip', 1, 'crane', 38000, [{ plate: 'SMG-50-07', driver: 'Vinod T.', site: 'Habshan' }], [U(30, { hours: '214' })]), ...mk('Hiab 10 ton', 'equip', 2, 'truck', 26549.91, [{ plate: 'AUH 3-22094', driver: 'Asif K.', site: 'Habshan' }, { plate: 'AUH 3-22101', driver: 'Noel D.', site: 'Bab' }], [U(30, { hours: '188' }), U(30, { hours: '96', standby: '6', remarks: 'Standby 19–24 Nov' })])],
+    log: [LG('Utilization form submitted', 'dispatch@smgcranes.com · Supplier · 23 Nov'), LG('Checked and sent for validation', 'Tariq A. · Buyer · 24 Nov')] }),
+  base({ id: 7, pr: '1200077850', prDate: '30 Oct 26', po: '5150009288', released: '4 Nov 26', sup: 'excel', plant: 'OPS1', cc: 'CC-9001', seg: 'Ops Support', stage: 5, sentAt: '22 Nov', sub: { mode: 'buyer', by: 'Tariq A.', at: '23 Nov' },
+    lines: [...mk('Ambulance with driver', 'vehicle', 1, 'unit', 11000, [{ plate: 'AUH 5-10988', driver: 'Prakash V.', site: 'Habshan' }], [U(30)]), ...mk('Site nurse', 'manpower', 1, 'person', 7500, [{ driver: 'A. Mathew', site: 'Habshan' }], [U(26, { on: '5 Nov', remarks: 'Joined 5 Nov' })])],
+    log: [LG('Supplier replied by email; utilization entered by buyer', 'Tariq A. · Buyer · 23 Nov'), LG('Utilization validated', 'Rashid M. · Ops validator · 24 Nov')] }),
+  base({ id: 8, ctry: 'KWT', cur: 'KWD', prBy: 'Hamad S.', pr: '1100045702', prDate: '20 Oct 26', po: '5200010644', released: '27 Oct 26', sup: 'kanoo', plant: '1154', cc: 'C541110101', seg: 'Coiled Tubing', stage: 5, sentAt: '21 Nov', sub: { mode: 'form', by: 'kw.rental@kanoolift.com', at: '22 Nov' }, amend: { from: 2900, to: 2513.33 },
+    lines: mk('Forklift 5T', 'equip', 2, 'unit', 1450, [{ plate: 'KW-FL-221', site: 'Ahmadi base' }, { plate: 'KW-FL-236', site: 'Ahmadi base' }], [U(30, { hours: '140' }), U(22, { hours: '91', off: '22 Nov', mob: 'Demob 22 Nov' })]),
+    log: [LG('Utilization validated', 'Rashid M. · Ops validator · 23 Nov'), LG('PO amended in ERP: KWD 2,900.00 → 2,513.33', 'Tariq A. · Buyer · 24 Nov')] }),
+  base({ id: 9, pr: '1200078102', prDate: '18 Nov 26', po: '5150009455', released: '24 Nov 26', sup: 'smg', plant: 'AE21', cc: 'CC-3053', seg: 'Well Testing', stage: 0,
+    lines: [...mk('150T crane with operator', 'equip', 1, 'crane', 270, [], [], 'hour', 200), ...mk('Rigger / banksman', 'manpower', 2, 'person', 650, [], [], 'day')],
+    log: [LG('PR raised in ERP', 'Sameer K. · Stores · 18 Nov'), LG('PO 5150009455 recorded; header and lines pulled from ERP', 'Tariq A. · Buyer · 25 Nov')] }),
+  base({ id: 10, pr: '1200078127', prDate: '19 Nov 26', po: '5150009461', released: '—', erp: 'unreleased', erpAt: '26 Nov 07:00', sup: 'green', plant: 'AE11', cc: 'CC-1050', seg: 'Coiled Tubing', stage: 0,
+    lines: mk('Air compressor 900 cfm', 'equip', 2, 'unit', 3800),
+    log: [LG('PO 5150009461 recorded', 'Tariq A. · Buyer · 25 Nov'), LG('Found in ERP sync 26 Nov 07:00 · not released (approval level 2 of 3)', 'ERP sync')] })
+];
+const IT = (n, desc, cat, qty, uom, rate, sup, done = []) => ({ n, desc, cat, comm: CAT2C[cat], qty, uom, rate, sup, done });
+const PR_OPEN = [
+  { pr: '1200078140', date: '23 Nov 26', by: 'Sameer K.', ctry: 'UAE', cur: 'AED', plant: 'AE21', cc: 'CC-3053', seg: 'Well Testing', items: [IT(10, 'Pick-up 4×4 without driver', 'vehicle', 3, 'vehicle', 5650, 'algh')] },
+  { pr: '1200078141', date: '23 Nov 26', by: 'Sameer K.', ctry: 'UAE', cur: 'AED', plant: 'AE11', cc: 'CC-1050', seg: 'Coiled Tubing', items: [IT(10, 'Pick-up 4×4 without driver', 'vehicle', 2, 'vehicle', 5650, 'algh')] },
+  { pr: '1200078133', date: '21 Nov 26', by: 'Sameer K.', ctry: 'UAE', cur: 'AED', plant: 'AE11', cc: 'CC-1050', seg: 'Coiled Tubing', items: [IT(10, 'Generator 250 kVA', 'equip', 2, 'unit', 4900, 'green'), IT(20, 'Light tower 9m', 'equip', 4, 'unit', 600, 'smg')] },
+  { pr: '1200078119', date: '13 Nov 26', by: 'Sameer K.', ctry: 'UAE', cur: 'AED', plant: 'AE11', cc: 'CC-1050', seg: 'Coiled Tubing', items: [IT(10, 'Light vehicle with driver', 'vehicle', 5, 'vehicle', 8750, 'algh', [{ po: '5150009412', qty: 3, id: 2 }])] },
+  { pr: '1200078130', date: '20 Nov 26', by: 'Sameer K.', ctry: 'UAE', cur: 'AED', plant: 'AE21', cc: 'CC-3053', seg: 'Well Testing', items: [IT(10, 'Bus 45-seater with driver', 'vehicle', 4, 'bus', 11200, 'algh')] },
+  { pr: '1100045790', date: '22 Nov 26', by: 'Hamad S.', ctry: 'KWT', cur: 'KWD', plant: '3253', cc: 'C532320101', seg: 'Slickline', items: [IT(10, 'Camp catering — lunch', 'catering', 600, 'meals', 2.1, 'mulla')] }
+];
+const TOUR = [
+  { role: 'buyer', screen: 'board', t: 'Ticket Board, colour-coded by stage', d: 'Every PR and PO for the month in one board. Each stage has its own colour, from PR to convert through to GRN done. Cards marked Your action need you.' },
+  { role: 'buyer', screen: 'home', t: 'Action Registry', d: 'Everything that needs the buyer, grouped by step and in process order, each with one button. Things waiting on suppliers or Ops sit below.' },
+  { role: 'buyer', screen: 'prs', t: 'PRs arrive from ERP', d: 'Stores raise PRs in ERP; released ones appear here automatically. Stores do not need to log in to the portal.' },
+  { role: 'buyer', screen: 'prs', t: 'Many PRs → one PO, or one PR → many POs', d: 'Tick items from several PRs (the two pick-up PRs) and record one PO. Or tick part of a PR, for example only the generators, and leave the rest open for another PO.' },
+  { role: 'buyer', screen: 'tickets', sel: 9, t: 'One line per unit, billing basis per item', d: 'For each PO item the buyer confirms the template and how it is billed: monthly, daily, hourly, per headcount or per unit consumed. It is suggested from the ERP unit. Countable items split into one line per unit; the buyer adds plate, driver and site, then saves.' },
+  { role: 'buyer', screen: 'tickets', sel: 10, t: 'PO not synced or not released yet', d: 'ERP syncs once a day. A PO recorded before it syncs, or before it is released, waits here with provisional lines from the PR. Check ERP now does a live lookup; otherwise the next sync moves it on by itself. Saving is locked until the PO is released.' },
+  { role: 'buyer', screen: 'tickets', sel: 1, t: 'Active until month-end', d: 'Saved tickets wait here. Nothing to do until the end of the month.' },
+  { role: 'buyer', screen: 'home', t: 'Send the month-end link', d: 'One email per supplier, sent to every linked address. One link covers all their open POs. Send in bulk or per supplier; valid 7 days.' },
+  { role: 'supplier', sp: { sid: 'delta', step: 'email', email: '', code: '' }, t: 'Supplier opens the link, no login', d: 'Suppliers are external, so there is no SSO. They pick their own email from the addresses linked to them.' },
+  { role: 'supplier', sp: { sid: 'delta', step: 'otp', email: 'ops@deltaheavy.ae', code: '' }, t: 'One-time code to that email', d: 'A 6-digit code goes to the chosen address. Demo code: 482913.' },
+  { role: 'supplier', sp: { sid: 'delta', step: 'form', email: 'ops@deltaheavy.ae', code: '482913' }, t: 'Fill the form or upload a document', d: 'Per PO, the supplier fills in utilization (quantities are fixed by the PO) or uploads their own timesheet, then submits.' },
+  { role: 'buyer', screen: 'tickets', sel: 5, t: 'Document uploaded? Buyer fills the form', d: 'The buyer opens the file, fills the form from it, then sends for Ops validation.' },
+  { role: 'buyer', screen: 'tickets', sel: 3, t: 'Supplier replied by email instead', d: "Use 'Enter on supplier's behalf' to fill it from the email, so the ticket keeps moving." },
+  { role: 'ops', screen: 'tickets', t: 'Ops validator: one screen', d: 'No menu. The Ops validator sees only the POs waiting on them, opens one, edits any figure and approves. The next one opens automatically.' },
+  { role: 'ops', screen: 'tickets', sel: 6, t: 'Ops validator edits and approves', d: 'The validator changes any figure directly. Edits are highlighted and logged, then approved in one click.' },
+  { role: 'buyer', screen: 'tickets', sel: 7, t: 'Buyer amends the PO', d: 'Amend in ERP to the validated value and record the new value here, or mark no amendment needed.' },
+  { role: 'buyer', screen: 'tickets', sel: 8, t: 'Buyer marks the GRN done', d: 'Once the GRN is in ERP against the amended value, the buyer marks it done. The ticket closes and the assets carry into next month.' },
+  { role: 'admin', screen: 'trends', t: 'Trends: supplier, country and asset', d: 'Month-on-month spend and utilization. Central admin compares countries in USD. Buyers see by supplier, and any vehicle or equipment by its plate or serial, Jun to Nov.' },
+  { role: 'buyer', screen: 'renewals', t: 'Annual renewals, unchanged', d: 'Year-long services remind the original requester and validator before expiry to extend or not.' }
+];
+const n2 = v => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const lineVal = l => { const x = parseFloat(l.f[drv(l.basis)]) || 0; return l.basis === 'month' ? l.rate * x / CD : l.rate * x; };
+const planOf = l => l.basis === 'month' ? 1 : l.basis === 'day' ? CD : l.basis === 'hour' ? l.plan : l.poQty;
+const linePO = l => l.basis === 'head' || l.basis === 'unit' ? l.rate * l.poQty : l.rate * planOf(l);
+const tTot = t => t.lines.reduce((a, l) => a + lineVal(l), 0);
+const n0 = v => Math.round(v).toLocaleString('en-US');
+const MONS = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'];
+const FX = { AED: 0.2723, KWD: 3.25, SAR: 0.2667, OMR: 2.6 };
+const hsh = (s, k = 0) => { let h = 2166136261 ^ k; for (const ch of String(s)) { h = Math.imul(h ^ ch.charCodeAt(0), 16777619); } return ((h >>> 0) % 10000) / 10000; };
+const lineHist = (t, l, li) => { const key = l.f.plate || `${t.po}·${li}`, start = hsh(key, 1) < .3 ? Math.floor(hsh(key, 2) * 3) + 1 : 0, rc = hsh(key, 3) > .75 ? 2 + Math.floor(hsh(key, 4) * 3) : -1, dk = drv(l.basis);
+  const full = l.basis === 'month' || l.basis === 'day' ? CD : l.basis === 'hour' ? l.plan : l.poQty;
+  return MONS.map((m, i) => {
+    if (i === 5) { const done = t.stage >= 3, x = parseFloat(l.f[dk]); return done ? { m, st: 'ok', x: isNaN(x) ? 0 : x, val: lineVal(l), pct: full ? Math.round((isNaN(x) ? 0 : x) / full * 100) : 0, rate: l.rate, po: t.po } : { m, st: 'pend', x: null, val: linePO(l), pct: null, rate: l.rate, po: t.po }; }
+    if (i < start) return { m, st: 'none', x: null, val: 0, pct: null, rate: l.rate, po: '' };
+    const r = hsh(key, 10 + i), x = l.basis === 'hour' ? Math.round(full * (.55 + r * .5)) : l.basis === 'month' || l.basis === 'day' ? Math.max(8, Math.round(full - r * r * 14)) : Math.round(full * (.85 + r * .2));
+    const rate = rc >= 0 && i < rc ? +(l.rate * .94).toFixed(2) : l.rate, val = l.basis === 'month' ? rate * x / CD : rate * x;
+    return { m, st: 'ok', x, val, pct: full ? Math.round(x / full * 100) : 0, rate, po: i < 3 ? String(+t.po - 37) : t.po, onHire: i === start && start > 0, rateChg: i === rc };
+  }); };
+const tPO = t => t.lines.reduce((a, l) => a + linePO(l), 0);
+const complete = t => t.lines.every(l => { const v = l.f[drv(l.basis)]; return v !== undefined && v !== ''; });
+
+class Component extends DCLogic {
+  state = { tour: null, tickets: SEED(), prs: PR_OPEN.map(x => ({ ...x, items: x.items.map(i => ({ ...i, done: [...i.done] })) })), pick: {}, poNo: '', kind: 'rental', role: 'buyer', screen: 'board', boardMine: false, trTab: 'supplier', trSel: null, fx: { AED: { rate: '0.2723', name: 'UAE dirham', upd: 'Central SC admin · 1 Nov 26' }, KWD: { rate: '3.2500', name: 'Kuwaiti dinar', upd: 'Central SC admin · 1 Nov 26' }, SAR: { rate: '0.2667', name: 'Saudi riyal', upd: 'Central SC admin · 1 Nov 26' }, OMR: { rate: '2.6008', name: 'Omani rial', upd: 'Central SC admin · 1 Nov 26' } }, fxDraft: {}, sel: 6, allF: false, itemsOpen: {}, showDone: false, mine: false, behalf: {}, amendVal: {}, meSel: {}, sp: { sid: 'delta', step: 'email', email: '', code: '', mode: {}, file: {} }, toast: '' };
+  goTour(i) {
+    if (i < 0) return; if (i >= TOUR.length) return this.setState({ tour: null });
+    const x = TOUR[i], o = { tour: i, role: x.role, mine: false };
+    if (x.screen) o.screen = x.screen; if (x.sel) o.sel = x.sel;
+    if (x.sp) { const sid = x.sp.sid; this.setState(z => ({ tickets: z.tickets.map(t => t.id === 3 && t.stage < 2 ? { ...t, stage: 2, sentAt: '24 Nov' } : t), sp: { ...z.sp, ...x.sp, mode: {}, file: {} } })); }
+    this.setState(o);
+  }
+  erpCheck(id, auto) {
+    const tk = this.state.tickets.find(x => x.id === id); if (!tk) return;
+    if (tk.erp === 'missing') { this.upd(id, t => ({ ...t, erp: 'unreleased', erpAt: auto ? '27 Nov 07:00' : '26 Nov · live', log: [...t.log, LG('Found in ERP · not released yet (approval level 2 of 3)', auto ? 'ERP sync' : this.who())] })); this.flash('Found in ERP · awaiting release'); }
+    else if (tk.erp === 'unreleased') { this.upd(id, t => ({ ...t, erp: 'ok', released: auto ? '27 Nov 26' : '26 Nov 26', erpAt: auto ? '27 Nov 07:00' : '26 Nov · live', log: [...t.log, LG('PO released in ERP · header and lines confirmed: supplier, qty and rates match the PR', auto ? 'ERP sync' : this.who())] })); this.flash('PO released · lines confirmed from ERP'); }
+  }
+  trends(s, role) {
+    if (s.screen !== 'trends') return { isTrends: false };
+    const admin = role === 'admin', tab = s.trTab || (admin ? 'country' : 'supplier');
+    const L = []; s.tickets.forEach(t => t.lines.forEach((l, li) => L.push({ t, l, h: lineHist(t, l, li), key: l.f.plate || '' })));
+    const fx = s.fx || {}, usd = (v, cur) => v * (cur === 'USD' ? 1 : (parseFloat(fx[cur]?.rate) || 0));
+    const sum = (rows, i, conv) => rows.reduce((a, r) => a + (conv ? usd(r.h[i].val, r.t.cur) : r.h[i].val), 0);
+    const fmtK = v => v >= 100000 ? n0(v / 1000) + 'k' : n0(v);
+    const C = (v, o = {}) => ({ v, align: o.a || 'left', fw: o.fw || 400, color: o.c || 'var(--color-text)', bg: o.bg || 'transparent', fg: o.fg || 'var(--color-text)' });
+    const dPct = (a, b) => b ? (a - b) / b * 100 : null;
+    const dTxt = d => d == null ? '' : `${d > 0 ? '+' : ''}${d.toFixed(1)}%`, dCol = d => d == null || Math.abs(d) < 1 ? 'var(--color-neutral-700)' : d > 0 ? '#C0392B' : 'var(--color-accent-700)';
+    const heat = p => p == null ? ['#F2F4F3', 'var(--color-neutral-500)'] : p >= 90 ? ['#2A7E4F', '#fff'] : p >= 70 ? ['#9CCAB2', '#1F1F1D'] : p >= 40 ? ['#FBF1DC', '#7A5200'] : ['#FBEAE8', '#C0392B'];
+    const bars = (vals, pendLast, unit) => { const mx = Math.max(...vals, 1); return vals.map((v, i) => { const d = i ? dPct(v, vals[i - 1]) : null; return { m: MONS[i], h: Math.max(2, Math.round(v / mx * 160)), label: `${unit} ${fmtK(v)}`, bg: i === 5 && pendLast ? 'repeating-linear-gradient(45deg,#9CCAB2 0 4px,#EEF6F1 4px 8px)' : 'var(--color-accent)', delta: i ? dTxt(d) : '—', dColor: dCol(d) }; }); };
+    const tabs = [...(admin ? [['country', 'By country']] : []), ['supplier', 'By supplier'], ['asset', 'By asset · plate / serial']].map(([k, label]) => ({ label, go: () => this.setState({ trTab: k, trSel: null }), edge: tab === k ? 'var(--color-accent)' : 'transparent', fw: tab === k ? 700 : 400 }));
+    const fxNote = Object.entries(fx).map(([k, x]) => `${k} ${x.rate}`).join(' · ');
+    let o = { isTrends: true, trTabs: tabs, trFxNote: `All values in USD · ${fxNote}`, trFxLink: admin, goSettings: () => this.setState({ screen: 'settings' }), trHasSec: false, trSecRows: [], trSecHead: [] };
+    if (tab === 'country') {
+      const cs = [...new Set(L.map(r => r.t.ctry))], opts = [{ k: 'ALL', label: 'All countries' }, ...cs.map(k => ({ k, label: k }))], sel = opts.some(x => x.k === s.trSel) ? s.trSel : 'ALL';
+      const rows = sel === 'ALL' ? L : L.filter(r => r.t.ctry === sel), conv = true, all = sel === 'ALL', cur = 'USD';
+      const vals = MONS.map((_, i) => sum(rows, i, conv)), pend = rows.some(r => r.h[5].st === 'pend');
+      const sups = [...new Set(rows.map(r => r.t.sup))];
+      o = { ...o, trPick: 'Country', trOpts: opts, trSel: sel, setTrSel: e => this.setState({ trSel: e.target.value }), trChartTitle: `Monthly spend · ${cur}`, trBars: bars(vals, pend, cur),
+        trKpis: [{ k: 'Nov 26', v: `${cur} ${n0(vals[5])}`, sub: pend ? 'includes POs not yet validated' : 'validated', c: 'var(--color-text)' }, { k: 'vs Oct', v: dTxt(dPct(vals[5], vals[4])) || '—', sub: `${cur} ${n0(vals[5] - vals[4])}`, c: dCol(dPct(vals[5], vals[4])) }, { k: '6-month average', v: `${cur} ${n0(vals.reduce((a, b) => a + b, 0) / 6)}`, sub: 'Jun – Nov', c: 'var(--color-text)' }, { k: 'Active suppliers', v: String(sups.length), sub: `${rows.filter(r => r.h[5].st !== 'none').length} assets / services`, c: 'var(--color-text)' }],
+        trHead: [{ h: 'Month', align: 'left' }, ...(all ? cs.map(k => ({ h: k, align: 'right' })) : []), { h: 'Suppliers', align: 'right' }, { h: 'Assets', align: 'right' }, { h: `Total ${cur}`, align: 'right' }, { h: 'vs prev', align: 'right' }],
+        trRows: MONS.map((m, i) => ({ cells: [C(m + ' 26', { fw: 700 }), ...(all ? cs.map(k => C(n0(sum(L.filter(r => r.t.ctry === k), i, true)), { a: 'right' })) : []), C(String(new Set(rows.filter(r => r.h[i].st !== 'none').map(r => r.t.sup)).size), { a: 'right' }), C(String(rows.filter(r => r.h[i].st !== 'none').length), { a: 'right' }), C(n0(vals[i]), { a: 'right', fw: 700 }), C(i ? dTxt(dPct(vals[i], vals[i - 1])) : '—', { a: 'right', c: i ? dCol(dPct(vals[i], vals[i - 1])) : 'var(--color-neutral-700)' })] })).reverse(),
+        trHasSec: true, trSecTitle: 'Suppliers', trSecHint: `Monthly spend in ${cur} · click a supplier for its trend`, trSecHead: [{ h: 'Supplier', align: 'left' }, ...MONS.map(m => ({ h: m, align: 'right' })), { h: 'vs Oct', align: 'right' }],
+        trSecRows: sups.map(sp => { const rr = rows.filter(r => r.t.sup === sp), v = MONS.map((_, i) => sum(rr, i, conv)), d = dPct(v[5], v[4]); return { v5: v[5], go: () => this.setState({ trTab: 'supplier', trSel: sp }), cells: [C(SUP[sp].name, { fw: 700 }), ...v.map(x => C(x ? n0(x) : '—', { a: 'right' })), C(dTxt(d) || '—', { a: 'right', fw: 700, fg: dCol(d) })] }; }).sort((a, b) => b.v5 - a.v5) };
+    } else if (tab === 'supplier') {
+      const sups = [...new Set(L.map(r => r.t.sup))], sel = sups.includes(s.trSel) ? s.trSel : sups[0]; const rows = L.filter(r => r.t.sup === sel), cur = 'USD';
+      const vals = MONS.map((_, i) => sum(rows, i, true)), pend = rows.some(r => r.h[5].st === 'pend'), avgU = i => { const p = rows.map(r => r.h[i].pct).filter(x => x != null); return p.length ? Math.round(p.reduce((a, b) => a + b, 0) / p.length) : null; };
+      o = { ...o, trPick: 'Supplier', trOpts: sups.map(k => ({ k, label: SUP[k].name })), trSel: sel, setTrSel: e => this.setState({ trSel: e.target.value }), trChartTitle: `${SUP[sel]?.name} · monthly spend ${cur}`, trBars: bars(vals, pend, cur),
+        trKpis: [{ k: 'Nov 26', v: `${cur} ${n0(vals[5])}`, sub: pend ? 'not yet validated · PO value' : 'validated', c: 'var(--color-text)' }, { k: 'vs Oct', v: dTxt(dPct(vals[5], vals[4])) || '—', sub: `${cur} ${n0(vals[5] - vals[4])}`, c: dCol(dPct(vals[5], vals[4])) }, { k: 'Avg utilization · Oct', v: avgU(4) == null ? '—' : avgU(4) + '%', sub: 'across all assets', c: 'var(--color-text)' }, { k: 'Assets / services', v: String(rows.length), sub: `on ${new Set(rows.map(r => r.t.po)).size} PO${new Set(rows.map(r => r.t.po)).size > 1 ? 's' : ''}`, c: 'var(--color-text)' }],
+        trHead: [{ h: 'Month', align: 'left' }, { h: 'Assets on hire', align: 'right' }, { h: 'Avg utilization', align: 'right' }, { h: `Spend ${cur}`, align: 'right' }, { h: 'vs prev', align: 'right' }],
+        trRows: MONS.map((m, i) => ({ cells: [C(m + ' 26', { fw: 700 }), C(String(rows.filter(r => r.h[i].st !== 'none').length), { a: 'right' }), C(avgU(i) == null ? 'pending' : avgU(i) + '%', { a: 'right' }), C(n0(vals[i]), { a: 'right', fw: 700 }), C(i ? dTxt(dPct(vals[i], vals[i - 1])) : '—', { a: 'right', c: i ? dCol(dPct(vals[i], vals[i - 1])) : 'var(--color-neutral-700)' })] })).reverse(),
+        trHasSec: true, trSecTitle: 'Assets · utilization by month', trSecHint: 'Green ≥ 90% · amber 40–70% · red < 40% · click a plate or serial for its history', trSecHead: [{ h: 'Asset', align: 'left' }, { h: 'Plate / serial', align: 'left' }, ...MONS.map(m => ({ h: m, align: 'center' }))],
+        trSecRows: rows.map(r => ({ go: r.key ? () => this.setState({ trTab: 'asset', trSel: r.key }) : () => this.flash('No plate / serial recorded for this line'), cells: [C(r.l.desc, { fw: 700 }), C(r.key || '—', { fg: r.key ? 'var(--color-text)' : 'var(--color-neutral-500)' }), ...r.h.map(x => { const [bg, fg] = heat(x.pct); return C(x.st === 'none' ? '—' : x.st === 'pend' ? 'pend.' : x.pct + '%', { a: 'center', bg, fg, fw: 700 }); })] })) };
+    } else {
+      const assets = L.filter(r => r.key), sel = assets.some(r => r.key === s.trSel) ? s.trSel : assets[0]?.key, r = assets.find(x => x.key === sel);
+      if (!r) return { ...o, trPick: '', trOpts: [], trKpis: [], trBars: [], trHead: [], trRows: [], trChartTitle: 'No plated assets yet' };
+      const lc = r.t.cur, cur = 'USD', vals = r.h.map(x => usd(x.val, lc)), dk = drv(r.l.basis), unitL = BASIS[r.l.basis][1], ok = r.h.filter(x => x.pct != null);
+      o = { ...o, trPick: 'Plate / serial', trOpts: assets.map(x => ({ k: x.key, label: `${x.key} · ${x.l.desc} · ${SUP[x.t.sup].name}` })), trSel: sel, setTrSel: e => this.setState({ trSel: e.target.value }),
+        trChartTitle: `${r.key} · ${r.l.desc} · monthly charge ${cur}`, trBars: bars(vals, r.h[5].st === 'pend', cur),
+        trKpis: [{ k: 'Supplier', v: SUP[r.t.sup].name, sub: `PO ${r.t.po} · ${r.t.ctry}`, c: 'var(--color-text)' }, { k: 'Current site', v: r.l.f.site || '—', sub: r.l.f.driver ? `Driver / operator: ${r.l.f.driver}` : TPL[r.l.cat].name, c: 'var(--color-text)' }, { k: 'Avg utilization', v: ok.length ? Math.round(ok.reduce((a, x) => a + x.pct, 0) / ok.length) + '%' : '—', sub: `${ok.length} months on hire`, c: 'var(--color-text)' }, { k: 'Total Jun – Nov', v: `${cur} ${n0(vals.reduce((a, b) => a + b, 0))}`, sub: `${lc} ${n2(r.l.rate)} / ${BASIS[r.l.basis][2]} = USD ${n2(usd(r.l.rate, lc))}`, c: 'var(--color-text)' }],
+        trHead: [{ h: 'Month', align: 'left' }, { h: 'PO', align: 'left' }, { h: unitL, align: 'right' }, { h: 'Utilization', align: 'right' }, { h: 'Rate USD', align: 'right' }, { h: `Charge ${cur}`, align: 'right' }, { h: 'Note', align: 'left' }],
+        trRows: r.h.map(x => ({ cells: [C(x.m + ' 26', { fw: 700 }), C(x.po || '—', { c: 'var(--color-neutral-700)' }), C(x.x == null ? '—' : String(x.x), { a: 'right' }), C(x.pct == null ? (x.st === 'pend' ? 'pending' : '—') : x.pct + '%', { a: 'right', fw: 700, c: x.pct == null ? 'var(--color-neutral-500)' : x.pct < 70 ? '#8A5A00' : 'var(--color-accent-700)' }), C(n2(usd(x.rate, lc)), { a: 'right' }), C(x.st === 'none' ? '—' : n2(usd(x.val, lc)), { a: 'right', fw: 700 }),
+          C(x.st === 'none' ? 'Not on hire' : x.st === 'pend' ? 'Awaiting validation · PO value' : x.onHire ? 'On-hire' : x.rateChg ? 'Rate change' : x.po !== r.t.po && x.po ? 'Previous PO' : '', { c: 'var(--color-neutral-700)' })] })).reverse() };
+    }
+    return o;
+  }
+  flash(t) { this.setState({ toast: t }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: '' }), 2800); }
+  who() { return ROLES[this.state.role][1] + ' · 26 Nov'; }
+  upd(id, fn) { this.setState(s => ({ tickets: s.tickets.map(t => t.id === id ? fn({ ...t, lines: t.lines.map(l => ({ ...l, f: { ...l.f }, v: { ...l.v } })), log: [...t.log] }) : t) })); }
+  move(id, stage, msg, extra = {}) { this.upd(id, t => ({ ...t, ...extra, stage, log: [...t.log, LG(msg, this.who())] })); this.flash(msg); }
+  setLine(tid, li, k, val, who) { this.upd(tid, t => { t.lines[li].f[k] = val; if (who === 'ops') t.lines[li].v[k] = true; return t; }); }
+  sendSup(sid, resend) {
+    const s = this.state, n = s.tickets.filter(t => t.sup === sid && (t.stage === 1 || t.stage === 2)).length;
+    this.setState(st => ({ tickets: st.tickets.map(t => t.sup === sid && (t.stage === 1 || t.stage === 2) ? { ...t, stage: 2, sentAt: '26 Nov', log: [...t.log, LG(`${resend ? 'Link re-sent' : 'Month-end link sent'} to ${SUP[sid].emails.join(', ')}`, ROLES.buyer[1] + ' · 26 Nov')] } : t), meSel: { ...st.meSel, [sid]: false } }));
+    return n;
+  }
+  reitem(tid, key, patch) {
+    this.upd(tid, t => { const idx = t.lines.map((l, i) => [l, i]).filter(([l]) => `${l.desc}|${l.pr || t.pr}` === key); if (!idx.length) return t;
+      const l0 = idx[0][0], units = isSplit(l0.cat, l0.basis) ? idx.length : l0.poQty;
+      const cat = patch.cat || l0.cat, b = patch.basis || (patch.cat ? (TPL[cat].util.some(u => u[0] === drv(l0.basis)) || l0.basis === 'month' || l0.basis === 'day' || l0.basis === 'hour' ? (cat === 'catering' ? 'unit' : l0.basis === 'unit' ? 'month' : l0.basis) : DEFB(cat)) : l0.basis), plan = patch.plan || l0.plan;
+      const prevF = idx.map(([l]) => l.f); const nl0 = mk(l0.desc, cat, units, l0.uom, l0.rate, idx.map(([l]) => ({ ...l.f })), [], b, plan).map(l => ({ ...l, pr: l0.pr, cc: l0.cc, seg: l0.seg, comm: l0.comm, vid: l0.vid, ok: false }));
+      const nl = nl0.map((l, i) => ({ ...l, f: { ...(prevF[i] || prevF[0] || {}) } }));
+      if (patch.cat || patch.basis) t.log = [...t.log, LG(`${l0.desc}: ${patch.cat ? 'template → ' + TPL[cat].name : 'billing → ' + BASIS[b][0]}`, this.who())];
+      const first = idx[0][1]; const rest = t.lines.filter((l, i) => !idx.some(([, j]) => j === i)); rest.splice(Math.min(first, rest.length), 0, ...nl); t.lines = rest; return t; });
+  }
+  igroups(t, o) {
+    const keys = [...new Set(t.lines.map(l => `${l.desc}|${l.pr || t.pr}`))], multiPR = new Set(t.lines.map(l => l.pr || t.pr)).size > 1;
+    return keys.map(key => {
+      const idx = t.lines.map((l, i) => [l, i]).filter(([l]) => `${l.desc}|${l.pr || t.pr}` === key), l0 = idx[0][0], T = TPL[l0.cat], dk = drv(l0.basis), sp = isSplit(l0.cat, l0.basis);
+      const full = l0.basis === 'month' || l0.basis === 'day' ? CD : l0.basis === 'hour' ? l0.plan : l0.poQty, units = sp ? idx.length : l0.poQty;
+      const extraF = [...T.util.filter(u => u[0] !== dk && u[0] !== 'used'), ...(T.id.some(x => x[0] === 'plate') && !o.idEdit ? [] : [])];
+      return { desc: l0.desc, meta: [`${units.toLocaleString('en-US')} ${l0.uom}`, `${t.cur} ${n2(l0.rate)} / ${BASIS[l0.basis][2]}`, COMMS[l0.comm]?.[0], l0.seg || t.seg, multiPR ? `PR ${l0.pr || t.pr}` : ''].filter(Boolean).join(' · '),
+        showSel: o.sel, cat: l0.cat, basis: l0.basis, isHour: l0.basis === 'hour', plan: String(l0.plan),
+        tplOpts: Object.entries(TPL).map(([k, x]) => ({ k, label: x.name })), basisOpts: Object.entries(BASIS).map(([k, x]) => ({ k, label: x[0] })),
+        setTpl: e => this.reitem(t.id, key, { cat: e.target.value }), setBasis: e => this.reitem(t.id, key, { basis: e.target.value }),
+        setPlan: e => { const v = parseFloat(e.target.value) || 0; this.upd(t.id, z => { z.lines.forEach(x => { if (`${x.desc}|${x.pr || z.pr}` === key) x.plan = v; }); return z; }); },
+        showAmt: o.showUtil, amtF: `${t.cur} ${n2(idx.reduce((a, [l]) => a + lineVal(l), 0))}`,
+        lines: idx.map(([l, li], n) => {
+          const v = l.f[dk] ?? '', has = v !== '' && !isNaN(parseFloat(v)), ed = o.utilEdit && (!o.me || l.vid === o.me), mineV = !o.me || l.vid === o.me;
+          const pct = has && full ? Math.round(parseFloat(v) / full * 100) : null, edited = Object.keys(l.v).length > 0, mk2 = `${t.id}|${l.id}`, more = !!o.more[mk2];
+          const idText = T.id.map(([k]) => l.f[k]).filter(Boolean).join(' · ');
+          const extra = extraF.map(([k, lab]) => ({ label: lab, v: l.f[k] || '', show: l.f[k] || '—', ed, ro: !ed, w: W[k] ? Math.max(W[k], 90) : 90, border: l.v[k] ? '#B9770E' : 'var(--color-divider)', bg: l.v[k] ? '#FFF4E5' : 'var(--color-bg)', set: e => this.setLine(t.id, li, k, e.target.value, o.who) }));
+          const filledExtra = extraF.filter(([k]) => l.f[k]).length;
+          return { title: sp ? `Unit ${n + 1}` : l.desc, sub: o.idEdit ? (sp ? `of ${idx.length}` : `PO qty ${l.unit}`) : (idText || (sp ? 'No plate / name recorded' : `PO qty ${l.unit}`)),
+            bg: o.me && l.vid !== o.me ? 'var(--color-surface)' : 'transparent',
+            mark: o.showUtil ? (has ? '✓' : String(n + 1)) : String(n + 1), dotBg: o.showUtil && has ? 'var(--color-accent)' : 'var(--color-neutral-200)', dotFg: o.showUtil && has ? '#fff' : 'var(--color-text)',
+            idEdit: o.idEdit, ids: T.id.map(([k, lab]) => ({ label: lab, v: l.f[k] || '', w: k === 'site' ? 110 : 130, set: e => this.setLine(t.id, li, k, e.target.value, o.who) })),
+            showUtil: o.showUtil, label: BASIS[l.basis][1], ed, ro: !ed, v: String(v), vShow: has ? String(v) : '—', of: l.basis === 'hour' ? `/ ${full} hrs` : l.basis === 'month' || l.basis === 'day' ? `/ ${CD} days` : `/ ${full.toLocaleString('en-US')}`,
+            border: l.v[dk] ? '#B9770E' : has ? 'var(--color-accent)' : 'var(--color-text)', inBg: l.v[dk] ? '#FFF4E5' : 'var(--color-bg)',
+            util: pct == null ? '—' : pct + '%', uBg: pct == null ? 'var(--color-neutral-200)' : pct >= 90 ? 'var(--color-accent-100)' : pct >= 40 ? '#FBF1DC' : '#FBEAE8', uFg: pct == null ? 'var(--color-neutral-700)' : pct >= 90 ? 'var(--color-accent-700)' : pct >= 40 ? '#7A5200' : '#C0392B',
+            amt: has ? n2(lineVal(l)) : '—',
+            vSel: o.assign, vid: l.vid, vOpts: Object.entries(VALS).map(([k, x]) => ({ k, label: x.name })), setVid: e => { const val = e.target.value; this.upd(t.id, z => { z.lines[li].vid = val; return z; }); },
+            vShow2: o.showV && !o.assign, vName: `${VALS[l.vid]?.name || '—'}${l.ok ? ' ✓' : ''}`, vBg: l.ok ? 'var(--color-accent-100)' : mineV && o.me ? '#EFE9F7' : 'var(--color-neutral-200)', vFg: l.ok ? 'var(--color-accent-700)' : mineV && o.me ? '#5A3590' : 'var(--color-text)',
+            hasMore: o.showUtil && extraF.length > 0, more, moreLabel: more ? 'Hide details' : edited ? 'Details · edited' : filledExtra ? `Details · ${filledExtra}` : 'Details',
+            toggleMore: () => this.setState(z => ({ lineMore: { ...(z.lineMore || {}), [mk2]: !more } })), extra };
+        }) };
+    });
+  }
+  groups(t, idEdit, utilEdit, who, showUtil = true, all = true, vx = {}) {
+    const keys = [...new Set(t.lines.map(l => l.cat + '|' + l.basis))], multiPR = new Set(t.lines.map(l => l.pr || t.pr)).size > 1;
+    const RO = (show, o = {}) => ({ ed: false, ro: true, show, color: o.color || 'var(--color-text)', align: o.align || 'left', fw: o.fw || 400, hl: 'transparent' });
+    return keys.map(gk => {
+      const [cat, b] = gk.split('|'), T = TPL[cat], dk = drv(b), sp = isSplit(cat, b);
+      let util = T.util.filter(u => u[0] !== 'used' || dk === 'used');
+      if (!util.some(u => u[0] === dk)) util = [[dk, BASIS[b][1]], ...util.filter(u => u[0] !== 'days' || dk === 'days')];
+      util = util.map(u => u[0] === dk ? [u[0], BASIS[b][1] + ' ★'] : u);
+      if (showUtil && !all) util = util.filter(u => u[0] === dk); if (!showUtil) util = [];
+      const fields = [...T.id.map(x => [...x, 'id']), ...util.map(x => [...x, 'util'])];
+      const idx = t.lines.map((l, i) => [l, i]).filter(([l]) => l.cat + '|' + l.basis === gk);
+      return { name: `${T.name} · ${BASIS[b][0]}`, showSub: showUtil, subF: `${t.cur} ${n2(idx.reduce((a, [l]) => a + lineVal(l), 0))}`,
+        heads: [{ h: 'Segment', align: 'left' }, ...(multiPR ? [{ h: 'PR · CC', align: 'left' }] : []), ...(vx.showV ? [{ h: 'Validator', align: 'left' }] : []), ...fields.map(f => ({ h: f[1], align: 'left' })), ...(showUtil ? [{ h: 'Util.', align: 'right' }, { h: `Amount ${t.cur}`, align: 'right' }] : [])],
+        rows: idx.map(([l, li]) => {
+          const cells = fields.map(([k, lab, kind]) => { const ed = kind === 'id' ? idEdit : utilEdit && (!vx.me || l.vid === vx.me), v = l.f[k] || '';
+            return { v, ed, ro: !ed, show: v || '—', color: v ? 'var(--color-text)' : 'var(--color-neutral-500)', align: 'left', fw: k === dk ? 700 : 400, w: W[k] || 70, ph: k === 'on' || k === 'off' ? 'dd Mon' : '', hl: l.v[k] ? '#FFF4E5' : 'transparent', border: l.v[k] ? '#B9770E' : 'var(--color-accent)', set: e => this.setLine(t.id, li, k, e.target.value, who) }; });
+          const d = parseFloat(l.f[dk]), den = l.basis === 'month' || l.basis === 'day' ? CD : l.basis === 'hour' ? l.plan : l.poQty, pct = isNaN(d) || !den ? null : Math.round(d / den * 100);
+          return { item: l.desc, unit: `${sp ? `Unit ${l.unit}` : `PO qty ${l.unit}`} · ${l.comm || ''}`, cells: [RO(l.seg || t.seg), ...(multiPR ? [RO(`${l.pr || t.pr} · ${l.cc || t.cc}`, { color: 'var(--color-neutral-700)' })] : []),
+            ...(vx.showV ? [vx.assign ? { isSel: true, ed: false, ro: false, v: l.vid, opts: Object.entries(VALS).map(([k, x]) => ({ k, label: x.name })), set: e => { const val = e.target.value; this.upd(t.id, z => { z.lines[li].vid = val; return z; }); }, hl: 'transparent', align: 'left' } : RO(`${VALS[l.vid]?.name || '—'}${l.ok ? ' ✓' : ''}`, { fw: l.vid === vx.me ? 700 : 400, color: l.ok ? 'var(--color-accent-700)' : 'var(--color-text)' })] : []), ...cells,
+            ...(showUtil ? [RO(pct == null ? '—' : pct + '%', { align: 'right', fw: 700, color: pct == null ? 'var(--color-neutral-500)' : pct < 100 ? '#8A5A00' : 'var(--color-accent-700)' }), RO(n2(lineVal(l)), { align: 'right', fw: 700 })] : [])] };
+        }) };
+    });
+  }
+  renderVals() {
+    const s0 = this.state, role = s0.role, isSup = role === 'supplier', kind = s0.kind || 'rental';
+    const kOfC = code => (s0.comm || {})[code] || COMMS[code]?.[1] || 'rental';
+    const kOfCat = kOfC;
+    const kOfT = t => kOfC(t.lines[0]?.comm);
+    const inK = t => kOfT(t) === kind;
+    const prK = p => ({ ...p, items: p.items.filter(i => kOfC(i.comm) === kind) });
+    const isOps = role === 'ops', me = s0.opsMe || 'rm', myPend = t => t.stage === 4 && t.lines.some(l => l.vid === me && !l.ok);
+    const s = isSup ? s0 : isOps ? { ...s0, screen: 'tickets', mine: true, sel: s0.tickets.some(t => t.id === s0.sel && myPend(t)) ? s0.sel : (s0.tickets.find(myPend) || {}).id } : { ...s0, tickets: s0.tickets.filter(inK), prs: s0.prs.map(prK).filter(p => p.items.length), sel: s0.tickets.some(t => t.id === s0.sel && inK(t)) ? s0.sel : (s0.tickets.find(inK) || {}).id };
+    const OWN = { 0: 'buyer', 1: 'buyer', 2: 'supplier', 3: 'buyer', 4: 'ops', 5: 'buyer' };
+    const kN = k => { const T = s0.tickets.filter(t => kOfT(t) === k), oq = i => i.qty - i.done.reduce((a, d) => a + d.qty, 0);
+      if (role === 'ops') return T.filter(myPend).length;
+      if (role !== 'buyer') return 0;
+      const prs = s0.prs.filter(p => p.items.some(i => kOfC(i.comm) === k && oq(i) > 0)).length;
+      const sups = new Set(T.filter(t => t.stage === 1).map(t => t.sup)).size;
+      return prs + sups + T.filter(t => [0, 3, 5].includes(t.stage) && (t.stage !== 0 || (t.erp || 'ok') === 'ok')).length; };
+    const kinds = [['rental', 'Rental equipment'], ['service', 'Recurrent services']].map(([k, label]) => { const on = kind === k, n = kN(k); return { label, go: () => this.setState({ kind: k }), bg: on ? 'var(--color-accent)' : 'transparent', color: on ? '#fff' : 'var(--color-neutral-700)', sh: on ? '0 1px 3px rgba(0,0,0,.2)' : 'none', hasN: n > 0, n, nFg: on ? '#fff' : 'var(--color-accent-700)' }; });
+    const A = (label, go, kind) => ({ label, go, bg: kind === 'p' ? 'var(--color-accent)' : 'transparent', color: kind === 'p' ? '#fff' : 'var(--color-text)', border: kind === 'p' ? 'var(--color-accent)' : 'var(--color-text)' });
+    const mineOf = t => OWNER[t.stage] === role && (t.stage !== 0 || (t.erp || 'ok') === 'ok');
+    const navCount = {};
+    const nav = () => (NAVS[role] || []).map(k => { const c = navCount[k] || 0; return { label: NAVL[k], count: c, hasCount: !!c, go: () => this.setState({ screen: k }), bg: s.screen === k ? 'var(--color-accent-100)' : 'transparent', fw: s.screen === k ? 700 : 400 }; });
+    const listTabs = [[false, `All · ${s.tickets.length}`], [true, `Needs me · ${s.tickets.filter(mineOf).length}`]].map(([k, label]) => ({ label, go: () => this.setState({ mine: k }), bg: s.mine === k ? 'var(--color-text)' : 'transparent', color: s.mine === k ? '#fff' : 'var(--color-text)' }));
+    const shown = isOps ? s.tickets.filter(myPend) : s.tickets.filter(t => !s.mine || mineOf(t)).sort((a, b) => a.stage - b.stage);
+    const tList = shown.map(t => ({ po: isOps ? `${t.po} · ${t.ctry} · ${t.lines.length} lines · ${t.cur} ${n2(tTot(t))}` : `${t.po} · ${t.ctry}`, ctry: t.ctry, nLines: t.lines.length, supName: SUP[t.sup].name, stage: STAGES[t.stage][0], stBg: STC[t.stage][0], stFg: STC[t.stage][1], totF: `${t.cur} ${n2(t.stage < 2 ? tPO(t) : tTot(t))}`, pick: () => this.setState({ sel: t.id }), bg: t.id === s.sel ? 'var(--color-accent-100)' : 'transparent' }));
+    const tk = s.tickets.find(x => x.id === s.sel);
+    let t = null, amendVal = '';
+    if (tk) {
+      const st = tk.stage, behalf = !!s.behalf[tk.id], sup = SUP[tk.sup], tot = tTot(tk), po = tPO(tk);
+      const idEdit = role === 'buyer' && st === 0;
+      const utilEdit = (role === 'buyer' && (st === 3 || (st === 2 && behalf))) || (role === 'ops' && st === 4);
+      amendVal = s.amendVal[tk.id] ?? tot.toFixed(2);
+      const acts = []; let hint = '', title = '';
+      const ownerName = { buyer: 'Buyer', supplier: 'Supplier', ops: 'Ops validator' }[OWNER[st]];
+      const nSup = s.tickets.filter(x => x.sup === tk.sup && x.stage === 1).length;
+      const erp = tk.erp || 'ok';
+      if (st === 0 && erp !== 'ok') {
+        const miss = erp === 'missing';
+        title = miss ? 'PO not in ERP yet' : 'PO not released yet';
+        hint = miss ? `Not in the last sync (${tk.erpAt}). It syncs once a day, so a new PO can take until tomorrow. The lines below are built from the PR; you can prepare plates and drivers now, but can't save until the PO is released.` : `Found in ERP (${tk.erpAt}) but still in approval, level 2 of 3. The portal checks again on every sync and moves on by itself once it is released.`;
+        if (role === 'buyer') { if (s.poEditId === tk.id) acts.push(A('Cancel', () => this.setState({ poEditId: null }), 's'), A('Save PO number', () => { const v = (s.poEdit || '').trim(); if (!/^\d{8,12}$/.test(v)) return this.flash('Enter digits only'); this.upd(tk.id, t => ({ ...t, po: v, erp: 'missing', log: [...t.log, LG(`PO number corrected: ${t.po} → ${v}`, this.who())] })); this.setState({ poEditId: null }); }, 'p'));
+          else acts.push(...(miss ? [A('Wrong PO number?', () => this.setState({ poEditId: tk.id, poEdit: tk.po }), 's')] : []), A('Run tonight’s sync (demo)', () => this.erpCheck(tk.id, true), 's'), A('Check ERP now', () => this.erpCheck(tk.id, false), 'p')); }
+      }
+      else if (role === 'buyer' && st === 0) { title = 'Check the lines and save'; hint = 'Pulled from ERP, one line per unit. Confirm the template and billing for each item, add plate, driver and site, then save.'; acts.push(A('Save to portal', () => this.move(tk.id, 1, 'Lines checked and saved'), 'p')); }
+      else if (role === 'buyer' && st === 1) { title = 'Send the month-end link'; hint = `Do this at month-end. One link covers all ${nSup} open PO${nSup > 1 ? 's' : ''} for ${sup.name}.`; acts.push(A('Send link now', () => { this.sendSup(tk.sup); this.flash(`Link sent to ${sup.emails.length} email${sup.emails.length > 1 ? 's' : ''} · valid 7 days`); }, 'p')); }
+      else if (role === 'buyer' && st === 2 && !behalf) { title = 'Waiting for the supplier'; hint = `Link sent ${tk.sentAt} to ${sup.emails.length} address${sup.emails.length > 1 ? 'es' : ''}, valid 7 days. If they replied by email instead, enter it yourself.`; acts.push(A('Resend', () => { this.sendSup(tk.sup, true); this.flash('Link re-sent · new 7-day window'); }, 's'), A('Enter their reply', () => this.setState(x => ({ behalf: { ...x.behalf, [tk.id]: true } })), 'p')); }
+      else if (role === 'buyer' && st === 2 && behalf) { title = "Enter the supplier's reply"; hint = 'Fill the figure on each line from their email, then save.'; acts.push(A('Cancel', () => this.setState(x => ({ behalf: { ...x.behalf, [tk.id]: false } })), 's'), A('Save as submitted', () => { if (!complete(tk)) return this.flash('Fill the figure on every line'); this.move(tk.id, 3, "Utilization entered by buyer from supplier's email", { sub: { mode: 'buyer', by: 'Tariq A.', at: '26 Nov' } }); }, 'p')); }
+      else if (role === 'buyer' && st === 3) { title = tk.sub?.mode === 'doc' ? 'Fill the form from their document' : "Check the supplier's figures"; hint = tk.sub?.mode === 'doc' ? 'The supplier uploaded a file instead of the form. Open it, fill the figure on each line, then send to Ops.' : 'Check the figure on each line against what you expect, then send to Ops.'; hint += ' Check the validator on each row (defaulted from its segment).'; const byV = {}; tk.lines.forEach(l => byV[l.vid] = (byV[l.vid] || 0) + 1); acts.push(A(Object.keys(byV).length > 1 ? `Send to ${Object.keys(byV).length} validators` : 'Send to Ops validator', () => { if (!complete(tk)) return this.flash('Fill the figure on every line first'); this.upd(tk.id, t => ({ ...t, lines: t.lines.map(l => ({ ...l, ok: false })) })); this.move(tk.id, 4, `Sent for validation: ${Object.entries(byV).map(([k, n]) => `${VALS[k].name} (${n} line${n > 1 ? 's' : ''})`).join(', ')}`); }, 'p')); }
+      else if (role === 'ops' && st === 4) { const mine = tk.lines.filter(l => l.vid === me), others = tk.lines.filter(l => l.vid !== me); title = `Validate your ${mine.length} line${mine.length > 1 ? 's' : ''}`; hint = `Change any figure on your lines directly; edits are highlighted.${others.length ? ` ${others.length} other line${others.length > 1 ? 's are' : ' is'} with ${[...new Set(others.map(l => VALS[l.vid].name))].join(', ')} (read-only).` : ''}`; if (mine.some(l => !l.ok)) acts.push(A(`Approve my ${mine.length} line${mine.length > 1 ? 's' : ''}`, () => { const n = mine.reduce((a, l) => a + Object.keys(l.v).length, 0), rest = tk.lines.filter(l => l.vid !== me && !l.ok); this.upd(tk.id, t => ({ ...t, lines: t.lines.map(l => l.vid === me ? { ...l, ok: true } : l), log: [...t.log, LG(`${mine.length} line${mine.length > 1 ? 's' : ''} validated${n ? ` · ${n} field${n > 1 ? 's' : ''} edited` : ''}`, `${VALS[me].name} · Ops validator · 26 Nov`)] })); if (!rest.length) this.move(tk.id, 5, 'All lines validated'); else this.flash(`Approved · waiting on ${[...new Set(rest.map(l => VALS[l.vid].name))].join(', ')}`); }, 'p')); }
+      else if (role === 'buyer' && st === 5 && !tk.amend) { title = 'Record the PO amendment'; hint = `Ops validated ${tk.cur} ${n2(tot)} against a PO of ${tk.cur} ${n2(po)}. Amend in ERP and enter the new value.`; acts.push(A('No change needed', () => { this.upd(tk.id, t => ({ ...t, amend: { from: po, to: po }, log: [...t.log, LG('No PO amendment needed', this.who())] })); this.flash('Recorded · mark GRN done when posted'); }, 's'), A('Record amendment', () => { const v = parseFloat(String(amendVal).replace(/,/g, '')); if (isNaN(v)) return this.flash('Enter the new PO value'); this.upd(tk.id, t => ({ ...t, amend: { from: po, to: v }, log: [...t.log, LG(`PO amended in ERP: ${tk.cur} ${n2(po)} → ${n2(v)}`, this.who())] })); this.flash('Amendment recorded · mark GRN done when posted'); }, 'p')); }
+      else if (role === 'buyer' && st === 5) { title = 'Mark the GRN done'; hint = `PO ${tk.amend.to === tk.amend.from ? 'unchanged' : 'amended to ' + tk.cur + ' ' + n2(tk.amend.to)}. Once the GRN is posted in ERP, mark it done to close this PO for the month.`; acts.push(A('Mark GRN done', () => this.move(tk.id, 6, `GRN done · ${tk.cur} ${n2(tk.amend.to)} · closed`), 'p')); }
+      else if (st === 6) { title = 'Closed for Nov 26'; hint = 'GRN done. The assets carry into the Dec 26 cycle.'; }
+      else { title = `Waiting on ${ownerName}`; hint = st === 4 ? `With validators: ${[...new Set(tk.lines.map(l => l.vid))].map(v => `${VALS[v].name} ${tk.lines.filter(l => l.vid === v).every(l => l.ok) ? '✓ done' : '· pending'}`).join(' · ')}.` : st === 2 ? 'The supplier has the link. Nothing to do here.' : 'Nothing for you on this PO right now.'; }
+      const sub = tk.sub, showUtil = st >= 3 || (st === 2 && behalf), canItems = role === 'buyer' && (st === 3 || (st === 2 && behalf)), open = !!s.itemsOpen[tk.id];
+      const act = acts.length > 0;
+      t = { ...tk, supName: sup.name, nTitle: title, hint, actions: acts, nLabel: act ? 'Your next step' : st === 6 ? 'Done' : 'No action needed', nEdge: act ? 'var(--color-accent)' : 'var(--color-divider)', nBg: act ? 'var(--color-accent-100)' : 'var(--color-surface)', nEye: act ? 'var(--color-accent-700)' : 'var(--color-neutral-700)',
+        prog: STAGES.map((_, i) => ({ bg: i < st ? 'var(--color-accent)' : i === st ? 'var(--color-text)' : 'var(--color-neutral-200)' })), progLabel: `Step ${st + 1} of ${STAGES.length} · ${STAGES[st][0]}`,
+        keyFacts: [{ k: 'Supplier', v: sup.name }, { k: tk.prs && tk.prs.length > 1 ? 'PRs' : 'PR', v: tk.prs ? tk.prs.join(', ') : tk.pr }, { k: 'PO in ERP', v: (tk.erp || 'ok') === 'ok' ? `Released ${tk.released}` : tk.erp === 'missing' ? 'Not synced yet' : 'Awaiting release' }, st < 3 ? { k: 'PO value / month', v: `${tk.cur} ${n2(po)}` } : { k: 'Utilization / PO', v: `${tk.cur} ${n2(tot)} / ${n2(po)}` }],
+        moreFacts: [{ k: 'Plant · Cost center', v: `${tk.plant} · ${tk.cc}` }, { k: 'Segment', v: tk.seg }, { k: 'PR raised by (Stores)', v: `${tk.prBy}, ${tk.prDate}` }, { k: 'Country', v: tk.ctry }, { k: 'Amended PO', v: tk.amend ? `${tk.cur} ${n2(tk.amend.to)}` : '—' }, { k: 'Supplier emails', v: sup.emails.join(', ') }],
+        hasSub: !!sub, subLine: sub ? `${sub.mode === 'doc' ? 'Document uploaded' : sub.mode === 'buyer' ? 'Entered by buyer from email' : 'Form filled by supplier'} · ${sub.by} · ${sub.at}` : '', hasFile: !!sub?.file, file: sub?.file || '',
+        tableTitle: showUtil ? 'Utilization' : 'Assets on this PO', tableHint: utilEdit ? (role === 'ops' ? 'Edit any figure on your lines · changes are highlighted amber' : 'Fill or correct the figure on each line') : idEdit ? 'One row per unit · add plate / serial, driver and site' : st < 3 ? 'Utilization appears once the supplier replies' : '',
+        canItems, itemsLabel: open ? 'Done' : 'Change template / billing', showUtil, allLabel: s.allF ? 'Fewer columns' : 'All columns',
+        showItems: role === 'buyer' && (st === 0 || (canItems && open)), items: [...new Map(tk.lines.map(l => [`${l.desc}|${l.pr || tk.pr}`, l])).entries()].map(([key, l]) => { const n = tk.lines.filter(x => `${x.desc}|${x.pr || tk.pr}` === key), units = isSplit(l.cat, l.basis) ? n.length : l.poQty;
+          return { desc: l.desc, unitsF: `${units.toLocaleString('en-US')} ${l.uom}`, rateF: `${tk.cur} ${n2(l.rate)} / ${BASIS[l.basis][2]}`, cat: l.cat, basis: l.basis, isHour: l.basis === 'hour', plan: String(l.plan),
+            splitF: isSplit(l.cat, l.basis) ? `${n.length} lines` : 'one line',
+            tplOpts: Object.entries(TPL).map(([k, x]) => ({ k, label: x.name })), basisOpts: Object.entries(BASIS).map(([k, x]) => ({ k, label: x[0] })),
+            setTpl: e => this.reitem(tk.id, key, { cat: e.target.value }), setBasis: e => this.reitem(tk.id, key, { basis: e.target.value }),
+            setPlan: e => { const v = parseFloat(e.target.value) || 0; this.upd(tk.id, t => { t.lines.forEach(x => { if (`${x.desc}|${x.pr || t.pr}` === key) x.plan = v; }); return t; }); } }; }),
+        igroups: this.igroups(tk, { idEdit, utilEdit, who: role, showUtil, sel: role === 'buyer' && (st === 0 || (canItems && open)), assign: role === 'buyer' && st === 3, me: role === 'ops' ? me : null, showV: st >= 3, more: s.lineMore || {} }), canFillAll: utilEdit && role === 'buyer' && tk.lines.some(l => { const v = l.f[drv(l.basis)]; return v === undefined || v === ''; }), fillAll: () => this.upd(tk.id, z => { z.lines.forEach(l => { const dk = drv(l.basis); if (l.f[dk] === undefined || l.f[dk] === '') l.f[dk] = String(l.basis === 'month' || l.basis === 'day' ? CD : l.basis === 'hour' ? l.plan : l.poQty); }); return z; }),
+        groups: this.groups(tk, idEdit, utilEdit, role, showUtil, s.allF, { assign: role === 'buyer' && st === 3, me: role === 'ops' ? me : null, showV: st >= 3 }), poF: `${tk.cur} ${n2(po)}`, totF: `${tk.cur} ${n2(tot)}`,
+        showAmend: role === 'buyer' && st === 5 && !tk.amend, showPoEdit: s.poEditId === tk.id, poEdit: s.poEdit || '', setPoEdit: e => this.setState({ poEdit: e.target.value }), erpBanner: st === 0 && (tk.erp || 'ok') !== 'ok', erpBannerText: tk.erp === 'missing' ? 'Provisional · built from the PR until the PO syncs from ERP' : 'From ERP · PO awaiting release', logN: tk.log.length, log: [...tk.log].reverse() };
+    }
+    const openOf = i => i.qty - i.done.reduce((a, d) => a + d.qty, 0);
+    const known = new Set(s.prs.map(p => p.pr));
+    const hist = s.tickets.filter(x => x.pr && !known.has(x.pr)).map(x => { const g = {}; x.lines.forEach(l => { const k = l.desc; g[k] = g[k] || IT((Object.keys(g).length + 1) * 10, l.desc, l.cat, 0, l.uom, l.rate, x.sup, [{ po: x.po, qty: 0, id: x.id }]); const q = TPL[l.cat].split ? 1 : l.poQty; g[k].qty += q; g[k].done[0].qty += q; });
+      return { pr: x.pr, date: x.prDate, by: x.prBy, ctry: x.ctry, cur: x.cur, plant: x.plant, cc: x.cc, seg: x.seg, items: Object.values(g) }; });
+    const allPr = [...s.prs, ...hist];
+    const prCards = allPr.map(p => { const open = p.items.reduce((a, i) => a + openOf(i), 0), on = p.items.reduce((a, i) => a + i.done.length, 0);
+      const st = open === 0 ? ['Fully on PO', 'var(--color-accent-200)', 'var(--color-accent-700)'] : on ? ['Partly on PO', '#FFF4E5', '#8A5A00'] : ['Released · no PO yet', '#E6E7E8', '#1F1F1D'];
+      const pos = [...new Map(p.items.flatMap(i => i.done).map(d => [d.po, d])).values()].map(d => ({ po: d.po, open: () => this.setState({ screen: 'tickets', sel: d.id, mine: false }) }));
+      const tab = open === 0 ? 'done' : on ? 'partial' : 'open', exp = !!s.prOpen?.[p.pr] || p.items.some(i => s.pick[p.pr + '|' + i.n] !== undefined);
+      const openItems = p.items.filter(i => openOf(i) > 0);
+      return { ...p, status: st[0], stBg: st[1], stFg: st[2], pos, hasPos: pos.length > 0, rank: open ? 0 : 1, tab, expanded: exp, chev: exp ? '▾' : '▸', rowBg: exp ? '#F5F7F8' : 'transparent',
+        toggleOpen: () => this.setState(z => ({ prOpen: { ...(z.prOpen || {}), [p.pr]: !exp } })),
+        itemsSum: (openItems.length ? openItems : p.items).map(i => `${i.desc} × ${(openItems.length ? openOf(i) : i.qty).toLocaleString('en-US')}`).join(', '),
+        openValF: open ? `${p.cur} ${n2(openItems.reduce((a, i) => a + openOf(i) * i.rate, 0))}` : '—',
+        poSum: pos.length ? pos.map(d => d.po).join(', ') : '—',
+        items: p.items.map(i => { const k = p.pr + '|' + i.n, o = openOf(i), picked = s.pick[k] !== undefined;
+          return { n: i.n, desc: i.desc, tplName: `${COMMS[i.comm]?.[0] || ''} · ${i.comm}`, qtyF: i.qty.toLocaleString('en-US'), onPoF: (i.qty - o).toLocaleString('en-US'), openF: o.toLocaleString('en-US'), rateF: `${p.cur} ${n2(i.rate)}`,
+            canPick: o > 0 && role === 'buyer', picked, pickQty: s.pick[k] ?? '', bg: picked ? 'var(--color-accent-100)' : 'transparent', fg: o > 0 ? 'var(--color-text)' : 'var(--color-neutral-500)',
+            toggle: () => this.setState(z => { const pk = { ...z.pick }; if (pk[k] !== undefined) delete pk[k]; else pk[k] = String(o); return { pick: pk }; }),
+            setQty: e => { const v = e.target.value; this.setState(z => ({ pick: { ...z.pick, [k]: v } })); } }; }) };
+    }).sort((a, b) => a.rank - b.rank);
+    const doneN = prCards.filter(p => p.rank === 1).length, prOpenN = prCards.length - doneN;
+    const prT = s.prTab || 'open', pq = (s.prQ || '').toLowerCase();
+    const prShown = prCards.filter(p => p.tab === prT && (!pq || [p.pr, p.seg, p.cc, p.plant, ...p.items.map(i => i.desc)].join(' ').toLowerCase().includes(pq)));
+    const prTabs = [['open', 'To convert'], ['partial', 'Partly on PO'], ['done', 'Fully on PO']].map(([k, label]) => { const on = prT === k; return { label, n: prCards.filter(p => p.tab === k).length, go: () => this.setState({ prTab: k }), edge: on ? '#5B6B7A' : 'transparent', fw: on ? 700 : 400, nBg: on ? '#5B6B7A' : 'var(--color-neutral-200)', nFg: on ? '#fff' : 'var(--color-text)' }; });
+    const picks = Object.entries(s.pick).map(([k, q]) => { const [pr, n] = k.split('|'); const p = s.prs.find(x => x.pr === pr); const i = p && p.items.find(x => String(x.n) === n); return p && i ? { p, i, q: parseFloat(q) } : null; }).filter(Boolean);
+    const pickPrs = [...new Set(picks.map(x => x.p.pr))];
+    const pullPO = () => {
+      const no = s.poNo.trim(); if (!/^\d{8,12}$/.test(no)) return this.flash('Enter the ERP PO number (digits)');
+      if (s.tickets.some(x => x.po === no)) return this.flash(`PO ${no} is already in the portal`);
+      if (new Set(picks.map(x => x.p.ctry)).size > 1) return this.flash('One PO cannot mix countries');
+      for (const x of picks) { if (!(x.q > 0) || x.q > openOf(x.i)) return this.flash(`Qty for ${x.i.desc} must be 1–${openOf(x.i)}`); if (TPL[x.i.cat].split && x.q % 1) return this.flash(`${x.i.desc}: whole units only`); }
+      const id = Date.now(), f = picks[0].p, uniq = k => [...new Set(picks.map(x => x.p[k]))];
+      const lines = picks.flatMap(x => mk(x.i.desc, x.i.cat, x.q, x.i.uom, x.i.rate).map(l => ({ ...l, pr: x.p.pr, cc: x.p.cc, seg: x.p.seg, comm: x.i.comm || l.comm, vid: defVal(x.p.seg), ok: false })));
+      const one = (k) => uniq(k).length === 1 ? uniq(k)[0] : 'Multiple';
+      const tkt = base({ id, ctry: f.ctry, cur: f.cur, prBy: f.by, prs: pickPrs, prDate: f.date, po: no, released: '—', erp: 'missing', erpAt: '26 Nov 07:00', sup: picks[0].i.sup, plant: one('plant'), cc: one('cc'), seg: one('seg'), stage: 0, lines,
+        log: [LG(`PO ${no} recorded against ${pickPrs.length > 1 ? pickPrs.length + ' PRs: ' : 'PR '}${pickPrs.join(', ')}`, this.who()), LG('Not in last ERP sync (26 Nov 07:00). Lines built from the PR as provisional; they confirm when the PO syncs.', 'Portal')] });
+      this.setState(z => ({ tickets: [...z.tickets, tkt], prs: z.prs.map(p => ({ ...p, items: p.items.map(i => { const x = picks.find(y => y.p.pr === p.pr && y.i.n === i.n); return x ? { ...i, done: [...i.done, { po: no, qty: x.q, id }] } : i; }) })), pick: {}, poNo: '', sel: id, screen: 'tickets', mine: false }));
+      this.flash(`PO ${no} recorded · not in ERP yet, lines provisional from PR`);
+    };
+    const supIds = [...new Set(s.tickets.filter(x => x.stage >= 1 && x.stage <= 3).map(x => x.sup))];
+    const meRows = supIds.map(sid => { const ts = s.tickets.filter(x => x.sup === sid && x.stage >= 1 && x.stage <= 3), open = ts.filter(x => x.stage === 1), sent = ts.filter(x => x.stage === 2), done = ts.filter(x => x.stage === 3);
+      const status = open.length ? 'Ready to send' : sent.length ? `Sent ${sent[0].sentAt} · expires ${sent[0].sentAt === '26 Nov' ? '3 Dec' : '1 Dec'}` : 'Submitted';
+      return { name: SUP[sid].name, emails: SUP[sid].emails, pos: ts.map(x => x.po).join(', '), lines: ts.reduce((a, x) => a + x.lines.length, 0), status, stBg: open.length ? '#E6E7E8' : sent.length ? '#FFF4E5' : 'var(--color-accent-200)', stFg: open.length ? '#1F1F1D' : sent.length ? '#8A5A00' : 'var(--color-accent-700)',
+        meta: `${ts.length} PO${ts.length > 1 ? 's' : ''} · ${ts.reduce((a, x) => a + x.lines.length, 0)} lines · ${SUP[sid].emails.join(', ')}`, ready: !!open.length, border: open.length ? 'none' : '1px solid var(--color-text)', bg: open.length ? 'var(--color-accent)' : 'transparent', color: open.length ? '#fff' : 'var(--color-text)',
+        hasAct: !!(open.length || sent.length), actLabel: open.length ? 'Send' : 'Resend', act: () => { this.sendSup(sid, !open.length); this.flash(`${open.length ? 'Link sent' : 'Link re-sent'} to ${SUP[sid].name}`); } }; });
+    const readyIds = supIds.filter(x => s.tickets.some(t => t.sup === x && t.stage === 1));
+    const openT = id => this.setState({ screen: 'tickets', sel: id, mine: false });
+    const by = k => s.tickets.filter(k);
+    const R1 = (x, cta, meta, go) => ({ main: SUP[x.sup].name, meta: `PO ${x.po} · ${meta}`, cta, go: go || (() => openT(x.id)) });
+    let buckets = [], waiting = [];
+    if (role === 'buyer') {
+      const prOpen = s.prs.filter(p => p.items.some(i => i.qty - i.done.reduce((a, d) => a + d.qty, 0) > 0));
+      const amendT = by(x => x.stage === 5 && !x.amend), grnT = by(x => x.stage === 5 && x.amend);
+      buckets = [
+        { title: 'Convert PRs to POs', hint: 'Released PRs from Stores. Record the PO number and the lines are pulled from ERP.', rows: prOpen.map(p => ({ main: `PR ${p.pr}`, meta: `${p.items.map(i => i.desc).join(', ')} · ${p.seg}`, cta: 'Convert', go: () => this.setState({ screen: 'prs' }) })) },
+        { title: 'Check new POs', hint: 'Confirm template and billing, add plates and drivers, save.', rows: by(x => x.stage === 0 && (x.erp || 'ok') === 'ok').map(x => R1(x, 'Check', `${x.lines.length} lines`)) },
+        { title: 'Send month-end links', hint: 'One link per supplier covers all their open POs.', rows: readyIds.map(sid => { const n = by(x => x.sup === sid && x.stage === 1).length; return { main: SUP[sid].name, meta: `${n} PO${n > 1 ? 's' : ''} · ${SUP[sid].emails.length} email${SUP[sid].emails.length > 1 ? 's' : ''}`, cta: 'Send link', go: () => { this.sendSup(sid); this.flash(`Link sent to ${SUP[sid].name}`); } }; }), bulk: readyIds.length > 1 ? () => { readyIds.forEach(x => this.sendSup(x)); this.flash(`Links sent to ${readyIds.length} suppliers`); } : null, bulkLabel: `Send all · ${readyIds.length}` },
+        { title: 'Check supplier replies', hint: 'Confirm the figures, or fill them from an uploaded file, then send to Ops.', rows: by(x => x.stage === 3).map(x => R1(x, x.sub?.mode === 'doc' ? 'Fill from file' : 'Check', x.sub?.mode === 'doc' ? 'uploaded a document' : x.sub?.mode === 'buyer' ? 'entered from email' : 'filled the form')) },
+        { title: 'Record PO amendments', hint: 'Ops validated. Amend in ERP and record the new value.', rows: amendT.map(x => R1(x, 'Record', `validated ${x.cur} ${n2(tTot(x))}`)) },
+        { title: 'Mark GRN done', hint: 'Once the GRN is posted in ERP, mark it done to close the PO for the month.', rows: grnT.map(x => R1(x, 'Mark GRN done', `${x.cur} ${n2(x.amend.to)}`, () => this.move(x.id, 6, `GRN done · ${x.cur} ${n2(x.amend.to)} · closed`))) }
+      ];
+      waiting = [...by(x => x.stage === 0 && (x.erp || 'ok') !== 'ok').map(x => ({ main: `${SUP[x.sup].name} · PO ${x.po}`, meta: x.erp === 'missing' ? 'Waiting on ERP · not synced yet' : 'Waiting on ERP · PO not released', cta: 'View', go: () => openT(x.id) })), ...by(x => x.stage === 2).map(x => ({ main: `${SUP[x.sup].name} · PO ${x.po}`, meta: `With supplier · link sent ${x.sentAt}`, cta: 'Enter their reply', go: () => this.setState(z => ({ screen: 'tickets', sel: x.id, mine: false, behalf: { ...z.behalf, [x.id]: true } })) })),
+        ...by(x => x.stage === 4).map(x => ({ main: `${SUP[x.sup].name} · PO ${x.po}`, meta: 'With Ops validator', cta: 'View', go: () => openT(x.id) }))];
+    } else if (role === 'ops') {
+      buckets = [{ title: 'Validate utilization', hint: 'Change any figure directly, then approve.', rows: by(x => x.stage === 4).map(x => R1(x, 'Validate', `${x.lines.length} lines · ${x.cur} ${n2(tTot(x))}`)) }];
+    }
+    buckets = buckets.filter(b => b.rows.length).map((b, i) => ({ ...b, n: i + 1, hasBulk: !!b.bulk }));
+    const actN = buckets.reduce((a, b) => a + b.rows.length, 0);
+    navCount.home = actN; navCount.prs = role === 'buyer' ? s.prs.filter(p => p.items.some(i => i.qty - i.done.reduce((a, d) => a + d.qty, 0) > 0)).length : 0; navCount.monthend = readyIds.length;
+    // supplier portal
+    const sp = s.sp, spSupIds = [...new Set(s.tickets.filter(x => x.stage === 2).map(x => x.sup))];
+    const spSups = [...new Set([...spSupIds, sp.sid])].map(k => ({ k, label: SUP[k].name }));
+    const spT = s.tickets.filter(x => x.sup === sp.sid && x.stage === 2);
+    const spPos = spT.map(x => { const m = sp.mode[x.id] || 'form', file = sp.file[x.id];
+      return { po: x.po, seg: x.seg, nLines: x.lines.length, isDoc: m === 'doc', isForm: m === 'form',
+        modes: [['form', 'Fill utilization form'], ['doc', 'Upload document']].map(([k, label]) => ({ label, go: () => this.setState(z => ({ sp: { ...z.sp, mode: { ...z.sp.mode, [x.id]: k } } })), bg: m === k ? 'var(--color-text)' : 'transparent', color: m === k ? '#fff' : 'var(--color-text)' })),
+        fileLabel: file || 'No file chosen · PDF, XLSX or image', fileColor: file ? 'var(--color-accent-700)' : 'var(--color-neutral-700)',
+        pickFile: () => this.setState(z => ({ sp: { ...z.sp, file: { ...z.sp.file, [x.id]: `${SUP[x.sup].name.split(' ')[0]}_Nov26_timesheet_${x.po.slice(-4)}.pdf` } } })),
+        lines: x.lines.map((l, li) => { const dk = drv(l.basis), full = l.basis === 'month' || l.basis === 'day' ? CD : l.basis === 'hour' ? l.plan : l.poQty, v = l.f[dk] ?? '', ok = v !== '' && !isNaN(parseFloat(v)), over = ok && parseFloat(v) > full * (l.basis === 'hour' ? 1.5 : 1), more = !!sp.more?.[l.id];
+          const unitL = l.basis === 'hour' ? 'hrs' : l.basis === 'month' || l.basis === 'day' ? 'days' : l.uom;
+          return { title: l.desc, sub: [TPL[l.cat].split && l.basis !== 'head' && l.basis !== 'unit' ? `Unit ${l.unit}` : `PO qty ${l.unit}`, l.f.plate, l.f.driver, l.f.site].filter(Boolean).join(' · '),
+            label: BASIS[l.basis][1], v: String(v), of: l.basis === 'hour' ? `of ${full} planned hrs` : l.basis === 'month' || l.basis === 'day' ? `of ${CD} days` : `of ${full.toLocaleString('en-US')} ${l.uom}`,
+            border: over ? '#C0392B' : ok ? 'var(--color-accent)' : 'var(--color-text)', mark: ok ? '✓' : String(li + 1), dotBg: ok ? 'var(--color-accent)' : 'var(--color-neutral-200)', dotFg: ok ? '#fff' : 'var(--color-text)',
+            set: e => this.setLine(x.id, li, dk, e.target.value, 'supplier'), full: () => this.setLine(x.id, li, dk, String(full), 'supplier'), fullLabel: l.basis === 'hour' ? `All ${full} hrs` : l.basis === 'month' || l.basis === 'day' ? 'Full month' : 'Full PO qty',
+            more, moreLabel: more ? 'Hide' : (l.f.off || l.f.remarks) ? 'Note added' : '+ Off-hire / note', toggleMore: () => this.setState(z => ({ sp: { ...z.sp, more: { ...(z.sp.more || {}), [l.id]: !more } } })),
+            off: l.f.off || '', setOff: e => this.setLine(x.id, li, 'off', e.target.value, 'supplier'), rem: l.f.remarks || '', setRem: e => this.setLine(x.id, li, 'remarks', e.target.value, 'supplier'), ok }; }) }; });
+    spPos.forEach(p => { const x = spT.find(t => t.po === p.po), n = p.lines.filter(l => l.ok).length; p.done = p.isDoc ? !!sp.file[x.id] : n === p.lines.length; p.progress = p.isDoc ? (sp.file[x.id] ? 'document attached' : 'no document yet') : `${n} of ${p.lines.length} filled`;
+      p.canFillAll = n < p.lines.length; p.fillAllLabel = 'Fill every empty line with the full month / PO qty'; p.fillAll = () => this.upd(x.id, t => { t.lines.forEach(l => { const dk = drv(l.basis); if (l.f[dk] === undefined || l.f[dk] === '') l.f[dk] = String(l.basis === 'month' || l.basis === 'day' ? CD : l.basis === 'hour' ? l.plan : l.poQty); }); return t; });
+      p.fileBorder = sp.file[x.id] ? 'var(--color-accent)' : 'var(--color-divider)'; p.fileBg = sp.file[x.id] ? 'var(--color-accent-100)' : 'transparent'; p.fileHint = sp.file[x.id] ? 'Click to replace' : 'PDF, XLSX or photo of your signed timesheet · click to choose'; p.fileLabel = sp.file[x.id] || 'Upload your timesheet'; });
+    const spDoneN = spPos.filter(p => p.done).length;
+    const spStep = spT.length || sp.step === 'done' ? sp.step : 'none';
+    const spSet = o => this.setState(z => ({ sp: { ...z.sp, ...o } }));
+    return {
+      role, initials: ROLES[role][0], setRole: e => this.setState({ role: e.target.value, screen: e.target.value === 'ops' ? 'tickets' : e.target.value === 'admin' ? 'trends' : 'board', trTab: e.target.value === 'admin' ? 'country' : 'supplier', trSel: null }),
+      opsMe: me, setOpsMe: e => this.setState({ opsMe: e.target.value }), valOpts: Object.entries(VALS).map(([k, x]) => ({ k, label: `${x.name} · ${x.segs.join(', ')}` })),
+      showAside: !isOps, isOpsView: isOps, showListTabs: !isOps, opsSub: shown.length ? `${shown.length} PO${shown.length > 1 ? 's' : ''} with lines assigned to ${VALS[me].name}` : 'Nothing pending', tEmptyText: isOps ? 'All caught up. New POs appear here when the buyer sends them for validation.' : 'Nothing waiting on you.',
+      kinds, isNesr: !isSup, isSup, nav: nav(), roleNote: NOTES[role] || '',
+      isTickets: s.screen === 'tickets', isPrs: s.screen === 'prs', isMonth: s.screen === 'monthend', isRenew: s.screen === 'renewals', rnRole: role === 'ops' ? 'owner' : 'buyer',
+      listTabs, tList, tEmpty: !tList.length, hasT: !!t, t, amendVal, setAmend: e => { const v = e.target.value; this.setState(x => ({ amendVal: { ...x.amendVal, [s.sel]: v } })); },
+      openFile: () => this.flash(`Opening ${tk?.sub?.file} (preview)`),
+      prCards: prShown, prTabs, prQ: s.prQ || '', setPrQ: e => this.setState({ prQ: e.target.value }), prEmpty: !prShown.length, prEmptyText: pq ? 'No PRs match your search.' : prT === 'done' ? 'No fully converted PRs yet.' : prT === 'partial' ? 'No PRs are partly on a PO.' : 'Every PR is on a PO. Nothing to convert.',
+      prHow: [{ n: 1, t: 'Open a PR and tick items' }, { n: 2, t: 'Add items from other PRs if they share a PO' }, { n: 3, t: 'Enter the PO number and pull it from ERP' }], hasPick: picks.length > 0, pickTitle: `${picks.length} item${picks.length > 1 ? 's' : ''} from ${pickPrs.length} PR${pickPrs.length > 1 ? 's' : ''} → one PO`, pickSub: picks.map(x => `${x.i.desc} × ${x.q || 0} (PR ${x.p.pr})`).join(' · '), poNo: s.poNo, setPoNo: e => this.setState({ poNo: e.target.value }), clearPick: () => this.setState({ pick: {} }), pullPO,
+      meRows, readyN: readyIds.length, canSendAll: readyIds.length > 0, sendAll: () => { readyIds.forEach(x => this.sendSup(x)); this.flash(`Links sent to ${readyIds.length} supplier${readyIds.length > 1 ? 's' : ''} · valid 7 days`); },
+      ...this.trends(s, role),
+      isSettings: s.screen === 'settings' && role === 'admin',
+      fxRows: Object.entries(s.fx).map(([k, x]) => { const d = s.fxDraft[k] ?? x.rate, v = parseFloat(d), bad = !(v > 0), ch = d !== x.rate; return { k, name: x.name, draft: d, border: bad ? '#C0392B' : ch ? '#B9770E' : 'var(--color-divider)', ex: bad ? 'Enter a positive number' : `1,000 ${k} = USD ${n0(1000 * v)}`, upd: x.upd, set: e => { const val = e.target.value; this.setState(z => ({ fxDraft: { ...z.fxDraft, [k]: val } })); } }; }),
+      fxStatus: Object.keys(s.fxDraft).filter(k => s.fxDraft[k] !== s.fx[k].rate).length ? `${Object.keys(s.fxDraft).filter(k => s.fxDraft[k] !== s.fx[k].rate).length} unsaved change(s)` : 'All rates saved',
+      fxSaveBg: Object.keys(s.fxDraft).some(k => s.fxDraft[k] !== s.fx[k].rate) ? 'var(--color-accent)' : 'var(--color-neutral-500)',
+      fxSave: () => { const ch = Object.entries(s.fxDraft).filter(([k, v]) => v !== s.fx[k].rate); if (!ch.length) return this.flash('No changes'); if (ch.some(([, v]) => !(parseFloat(v) > 0))) return this.flash('Fix invalid rates first'); this.setState(z => { const fx = { ...z.fx }; ch.forEach(([k, v]) => fx[k] = { ...fx[k], rate: v, upd: 'Central SC admin · 10 Nov 26' }); return { fx, fxDraft: {} }; }); this.flash(`${ch.length} rate${ch.length > 1 ? 's' : ''} saved · Trends updated`); },
+      fxReset: () => this.setState({ fxDraft: {} }),
+      commRows: Object.entries(COMMS).map(([k, x]) => { const cur = kOfC(k), n = s0.tickets.reduce((a, t) => a + t.lines.filter(l => l.comm === k).length, 0); return { k, name: x[0], n: `${n} PO line${n === 1 ? '' : 's'}`, opts: [['rental', 'Rental equipment'], ['service', 'Recurrent services']].map(([v, label]) => ({ label, bg: cur === v ? 'var(--color-accent)' : 'transparent', color: cur === v ? '#fff' : 'var(--color-neutral-700)', go: () => { this.setState(z => ({ comm: { ...(z.comm || {}), [k]: v } })); this.flash(`${x[0]} → ${label}`); } })) }; }),
+      isBoard: s.screen === 'board', boardMine: !!s.boardMine, toggleBoardMine: () => this.setState(z => ({ boardMine: !z.boardMine })),
+      boardSub: `Nov 26 cycle · ${kind === 'rental' ? 'Rental equipment' : 'Recurrent services'} · click a card to open it`,
+      legend: [{ c: PRC.c, label: 'PR to convert' }, ...STAGES.map((x, i) => ({ c: SCOL[i].c, label: x[0] }))],
+      cols: (() => { const oq = i => i.qty - i.done.reduce((a, d) => a + d.qty, 0), WHO = { buyer: 'Buyer', supplier: 'Supplier', ops: 'Ops validator', '': 'Done' };
+        const prC = s.prs.filter(p => p.items.some(i => oq(i) > 0)).map(p => ({ main: `PR ${p.pr}`, sub: `${p.items.filter(i => oq(i) > 0).map(i => `${i.desc} × ${oq(i)}`).join(', ')} · ${p.ctry}`, val: `${p.cur} ${n2(p.items.reduce((a, i) => a + oq(i) * i.rate, 0))}`, mine: role === 'buyer', go: () => this.setState({ screen: 'prs' }) }));
+        const col0 = { label: 'PR to convert', who: 'Buyer · from ERP', ...PRC, cards: role === 'buyer' || !s.boardMine ? prC : [] };
+        const tc = STAGES.map((x, i) => ({ label: x[0], who: WHO[OWNER[i]], ...SCOL[i], cards: s.tickets.filter(t => t.stage === i && (!s.boardMine || OWNER[i] === role)).map(t => ({ main: SUP[t.sup].name, sub: `PO ${t.po} · ${t.ctry} · ${t.lines.length} line${t.lines.length > 1 ? 's' : ''}`, val: `${t.cur} ${n2(i >= 3 ? tTot(t) : t.lines.reduce((a, l) => a + linePO(l), 0))}`, mine: OWNER[i] === role && (t.erp || 'ok') === 'ok', hasErp: (t.erp || 'ok') !== 'ok', erpTag: t.erp === 'missing' ? 'Not in ERP yet' : 'PO not released', go: () => this.setState({ screen: 'tickets', sel: t.id, mine: false }) })) }));
+        return [col0, ...tc].map(x => ({ ...x, n: x.cards.length, empty: !x.cards.length })); })(),
+      isHome: s.screen === 'home', buckets, waiting, hasWaiting: waiting.length > 0, allClear: !buckets.length, homeTitle: actN ? `${actN} thing${actN > 1 ? 's' : ''} need${actN > 1 ? '' : 's'} you` : 'Nothing needs you', homeSub: role === 'ops' ? 'Nov 26 cycle · POs sent to you for validation' : 'Nov 26 cycle · work top to bottom, in the order the process runs',
+      toggleAll: () => this.setState(z => ({ allF: !z.allF })), toggleItems: () => this.setState(z => ({ itemsOpen: { ...z.itemsOpen, [z.sel]: !z.itemsOpen[z.sel] } })),
+      spSid: sp.sid, spSups, setSpSid: e => spSet({ sid: e.target.value, step: 'email', email: '', code: '', mode: {}, file: {} }),
+      spName: SUP[sp.sid].name, spPoCount: spT.length, spNone: spStep === 'none', spEmail: spStep === 'email', spOtp: spStep === 'otp', spForm: spStep === 'form', spDone: spStep === 'done', spMax: spStep === 'form' ? '820px' : '520px',
+      spEmails: SUP[sp.sid].emails.map(addr => ({ addr, pick: () => spSet({ email: addr }), border: sp.email === addr ? 'var(--color-accent)' : 'var(--color-divider)', bg: sp.email === addr ? 'var(--color-accent-100)' : 'transparent', dot: sp.email === addr ? 'var(--color-accent)' : 'transparent' })),
+      sendOtp: () => { if (!sp.email) return this.flash('Select your email'); spSet({ step: 'otp' }); this.flash(`Code sent to ${sp.email}`); },
+      spAddr: sp.email, spCode: sp.code, setSpCode: e => spSet({ code: e.target.value.replace(/\D/g, '').slice(0, 6) }),
+      verifyOtp: () => sp.code === '482913' ? spSet({ step: 'form' }) : this.flash('Code not valid'), backEmail: () => spSet({ step: 'email', code: '' }),
+      spSteps: [['email', '1 Email'], ['otp', '2 Code'], ['form', '3 Utilization']].map(([k, label], i) => { const idx = ['email', 'otp', 'form', 'done'].indexOf(spStep); return { label, bg: idx === i ? 'var(--color-text)' : idx > i ? 'var(--color-accent-100)' : 'transparent', fg: idx === i ? '#fff' : idx > i ? 'var(--color-accent-700)' : 'var(--color-neutral-500)' }; }),
+      spProgText: `${spDoneN} of ${spPos.length} PO${spPos.length > 1 ? 's' : ''} ready${spDoneN < spPos.length ? ' · fill every line or upload a document' : ' · you can submit'}`, spProgPct: spPos.length ? spDoneN / spPos.length * 100 : 0, spSubmitBg: spDoneN === spPos.length ? 'var(--color-accent)' : 'var(--color-neutral-500)',
+      spPos, spSubmit: () => {
+        for (const x of spT) { const m = sp.mode[x.id] || 'form'; if (m === 'doc' && !sp.file[x.id]) return this.flash(`Choose a file for PO ${x.po}`); if (m === 'form' && !complete(x)) return this.flash(`Fill days used / qty consumed for PO ${x.po}`); }
+        this.setState(z => ({ tickets: z.tickets.map(x => { if (!(x.sup === sp.sid && x.stage === 2)) return x; const m = sp.mode[x.id] || 'form';
+          return { ...x, stage: 3, sub: { mode: m, file: m === 'doc' ? sp.file[x.id] : '', by: sp.email, at: '26 Nov' }, log: [...x.log, LG(m === 'doc' ? 'Document uploaded instead of form' : 'Utilization form submitted', `${sp.email} · Supplier · 26 Nov`)] }; }), sp: { ...z.sp, step: 'done' } }));
+      },
+      hasTour: s.tour != null, tour: s.tour != null ? { ...TOUR[s.tour], n: s.tour + 1, total: TOUR.length, pct: (s.tour + 1) / TOUR.length * 100, roleLabel: { buyer: 'Buyer', ops: 'Ops validator', supplier: 'Supplier' }[TOUR[s.tour].role], nextLabel: s.tour === TOUR.length - 1 ? 'Finish' : 'Next' } : null,
+      startTour: () => this.goTour(0), tourNext: () => this.goTour(s.tour + 1), tourPrev: () => this.goTour(Math.max(0, s.tour - 1)), tourExit: () => this.setState({ tour: null }),
+      hasToast: !!s.toast, toast: s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>body{margin:0;background:#F4F5F4;font-family:Arial,Helvetica,sans-serif;color:#1F1F1D}a{color:#2A7E4F}a:hover{color:#1F5C3A}*{box-sizing:border-box}</style>
+</helmet>
+<div style="min-height:100vh;display:flex;flex-direction:column">
+  <header style="background:#2A7E4F;color:#fff;padding:18px 32px;display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+    <div style="font-weight:900;font-size:22px;letter-spacing:2px;padding-right:24px;border-right:1px solid rgba(255,255,255,.4)">NESR</div>
+    <div style="display:flex;flex-direction:column;gap:2px">
+      <div style="font-size:20px;font-weight:700">Rental &amp; Recurrent Service Management — AS-IS Process Maps</div>
+      <div style="font-size:13px;opacity:.9">Discovery sessions, Sep–Oct 2026 · Oman, Kuwait, KSA, UAE</div>
+    </div>
+  </header>
+  <nav style="background:#fff;border-bottom:1px solid #D1D3D4;padding:0 32px;display:flex;gap:4px;flex-wrap:wrap">
+    <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="5">
+      <button onClick="{{ t.go }}" style="border:none;background:none;padding:14px 16px;font:inherit;font-size:14px;font-weight:700;cursor:pointer;color:{{ t.color }};border-bottom:3px solid {{ t.bar }}">{{ t.label }}</button>
+    </sc-for>
+  </nav>
+
+  <sc-if value="{{ isMap }}" hint-placeholder-val="{{ true }}">
+    <main style="padding:24px 32px;display:flex;flex-direction:column;gap:20px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap">
+        <div style="display:flex;flex-direction:column;gap:6px;max-width:760px">
+          <div style="font-size:24px;font-weight:700">{{ map.title }}</div>
+          <div style="font-size:14px;color:#58595B;line-height:1.5;text-wrap:pretty">{{ map.summary }}</div>
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#58595B;align-items:center">
+          <div style="display:flex;gap:6px;align-items:center"><span style="width:18px;height:12px;background:#fff;border:1.5px solid #2A7E4F;border-radius:3px"></span>Task</div>
+          <div style="display:flex;gap:6px;align-items:center"><span style="width:18px;height:12px;background:#EEF6F1;border:1.5px dashed #2A7E4F;border-radius:3px"></span>Decision</div>
+          <div style="display:flex;gap:6px;align-items:center"><span style="width:16px;height:16px;border-radius:50%;background:#C0392B;color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center">1</span>Pain point</div>
+          <div style="display:flex;gap:6px;align-items:center"><span style="padding:1px 5px;background:#1F1F1D;color:#fff;font-size:10px;border-radius:2px">SAP</span>System / channel</div>
+        </div>
+      </div>
+
+      <div style="background:#fff;border:1px solid #D1D3D4;overflow:auto">
+        <div style="position:relative;width:{{ canvasW }}px;height:{{ canvasH }}px">
+          <div style="position:absolute;left:0;top:0;width:{{ canvasW }}px;height:36px;background:#1F1F1D;color:#fff;display:flex;align-items:center;padding-left:16px;font-size:12px;font-weight:700;letter-spacing:.5px">TIMING</div>
+          <sc-for list="{{ timeMarks }}" as="m" hint-placeholder-count="0">
+            <div style="position:absolute;top:8px;left:{{ m.left }}px;width:150px;text-align:center;color:#fff;font-size:12px;font-weight:700">{{ m.label }}</div>
+          </sc-for>
+          <sc-for list="{{ lanes }}" as="l" hint-placeholder-count="5">
+            <div style="position:absolute;left:0;top:{{ l.top }}px;width:{{ canvasW }}px;height:{{ laneH }}px;border-top:1px solid #D1D3D4;background:{{ l.bg }}"></div>
+            <div style="position:absolute;left:0;top:{{ l.top }}px;width:140px;height:{{ laneH }}px;background:#2A7E4F;color:#fff;display:flex;align-items:center;padding:0 14px;font-size:13px;font-weight:700;line-height:1.25;border-top:1px solid rgba(255,255,255,.3)">{{ l.name }}</div>
+          </sc-for>
+          <svg width="{{ canvasW }}" height="{{ canvasH }}" style="position:absolute;left:0;top:0;pointer-events:none">
+            <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1F1F1D"></path></marker></defs>
+            <sc-for list="{{ edges }}" as="e" hint-placeholder-count="0">
+              <path d="{{ e.d }}" fill="none" stroke="#1F1F1D" stroke-width="1.4" stroke-dasharray="{{ e.dash }}" marker-end="url(#ah)"></path>
+              <text x="{{ e.lx }}" y="{{ e.ly }}" font-size="11" font-weight="700" fill="#2A7E4F" font-family="Arial">{{ e.label }}</text>
+            </sc-for>
+          </svg>
+          <sc-for list="{{ steps }}" as="s" hint-placeholder-count="0">
+            <div style="position:absolute;left:{{ s.left }}px;top:{{ s.top }}px;width:150px;height:80px">
+              <sc-if value="{{ s.isDecision }}">
+                <div style="width:100%;height:100%;background:#EEF6F1;border:1.5px dashed #2A7E4F;border-radius:4px;padding:8px 10px;display:flex;flex-direction:column;justify-content:center;gap:4px">
+                  <div style="font-size:10px;font-weight:700;color:#2A7E4F;letter-spacing:.5px">DECISION</div>
+                  <div style="font-size:12px;font-weight:700;line-height:1.25">{{ s.label }}</div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ s.isTask }}">
+                <div style="width:100%;height:100%;background:#fff;border:1.5px solid #2A7E4F;border-radius:4px;padding:8px 10px;display:flex;flex-direction:column;justify-content:space-between;gap:4px;box-shadow:0 1px 2px rgba(0,0,0,.06)">
+                  <div style="font-size:12px;line-height:1.25;color:#1F1F1D">{{ s.label }}</div>
+                  <sc-if value="{{ s.showSys }}"><div style="display:flex;gap:4px"><span style="padding:1px 5px;background:{{ s.sysBg }};color:#fff;font-size:10px;font-weight:700;border-radius:2px">{{ s.sys }}</span></div></sc-if>
+                </div>
+              </sc-if>
+              <sc-if value="{{ s.showPain }}">
+                <div style="position:absolute;top:-9px;right:-9px;width:22px;height:22px;border-radius:50%;background:#C0392B;color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center;border:2px solid #fff">{{ s.pain }}</div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px">
+        <sc-if value="{{ showPain }}" hint-placeholder-val="{{ true }}">
+          <section style="background:#fff;border:1px solid #D1D3D4;border-top:4px solid #C0392B;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+            <div style="font-size:16px;font-weight:700">Pain Points</div>
+            <sc-for list="{{ pains }}" as="p" hint-placeholder-count="4">
+              <div style="display:flex;gap:12px;align-items:flex-start">
+                <span style="flex:none;width:22px;height:22px;border-radius:50%;background:#C0392B;color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center">{{ p.n }}</span>
+                <div style="display:flex;flex-direction:column;gap:2px"><div style="font-size:13px;font-weight:700">{{ p.title }}</div><div style="font-size:13px;color:#58595B;line-height:1.45;text-wrap:pretty">{{ p.text }}</div></div>
+              </div>
+            </sc-for>
+          </section>
+        </sc-if>
+        <section style="background:#fff;border:1px solid #D1D3D4;border-top:4px solid #2A7E4F;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+          <div style="font-size:16px;font-weight:700">Source &amp; Participants</div>
+          <div style="font-size:13px;color:#58595B;line-height:1.5">{{ map.source }}</div>
+          <div style="font-size:16px;font-weight:700;margin-top:6px">Open Items From Session</div>
+          <sc-for list="{{ map.actions }}" as="a" hint-placeholder-count="3">
+            <div style="display:flex;gap:10px;font-size:13px;line-height:1.45"><span style="flex:none;width:8px;height:8px;background:#2A7E4F;margin-top:5px"></span><span>{{ a }}</span></div>
+          </sc-for>
+        </section>
+      </div>
+    </main>
+  </sc-if>
+
+  <sc-if value="{{ isCompare }}">
+    <main style="padding:24px 32px;display:flex;flex-direction:column;gap:20px">
+      <div style="display:flex;flex-direction:column;gap:6px;max-width:820px">
+        <div style="font-size:24px;font-weight:700">Country Comparison</div>
+        <div style="font-size:14px;color:#58595B;line-height:1.5;text-wrap:pretty">Same intent everywhere — estimate, deliver, validate, amend, close — but each country assigns the steps to different teams and timings. The highlighted cells are where countries diverge most.</div>
+      </div>
+      <div style="background:#fff;border:1px solid #D1D3D4;overflow:auto">
+        <div style="display:grid;grid-template-columns:180px repeat(4,minmax(200px,1fr));min-width:980px">
+          <div style="background:#1F1F1D;color:#fff;padding:12px 14px;font-size:13px;font-weight:700">Step</div>
+          <sc-for list="{{ countryHeads }}" as="h" hint-placeholder-count="4"><div style="background:#2A7E4F;color:#fff;padding:12px 14px;font-size:13px;font-weight:700;border-left:1px solid rgba(255,255,255,.25)">{{ h }}</div></sc-for>
+          <sc-for list="{{ compareRows }}" as="r" hint-placeholder-count="8">
+            <div style="padding:12px 14px;font-size:13px;font-weight:700;border-top:1px solid #D1D3D4;background:#F4F5F4">{{ r.label }}</div>
+            <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="4">
+              <div style="padding:12px 14px;font-size:13px;line-height:1.45;border-top:1px solid #D1D3D4;border-left:1px solid #D1D3D4;background:{{ c.bg }}">{{ c.text }}</div>
+            </sc-for>
+          </sc-for>
+        </div>
+      </div>
+      <section style="background:#fff;border:1px solid #D1D3D4;border-top:4px solid #2A7E4F;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:16px;font-weight:700">Common Gaps Across All Four Countries</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px">
+          <sc-for list="{{ commonGaps }}" as="g" hint-placeholder-count="6">
+            <div style="display:flex;flex-direction:column;gap:4px;padding:12px 14px;background:#EEF6F1"><div style="font-size:13px;font-weight:700;color:#2A7E4F">{{ g.t }}</div><div style="font-size:13px;color:#1F1F1D;line-height:1.45">{{ g.d }}</div></div>
+          </sc-for>
+        </div>
+      </section>
+    </main>
+  </sc-if>
+
+  <footer style="margin-top:auto;background:#1F1F1D;color:#fff;padding:12px 32px;font-size:11px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><span>National Energy Services Reunited Corp. · www.nesr.com</span><span>AS-IS based on AI meeting recaps — validate with country teams</span></footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showPain&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;showSystems&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;defaultCountry&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;OMN&quot;,&quot;KWT&quot;,&quot;KSA&quot;,&quot;UAE&quot;,&quot;CMP&quot;],&quot;default&quot;:&quot;OMN&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+const MAPS = {
+  OMN: {
+    title: 'Oman — Monthly PO & Invoice Reconciliation',
+    summary: 'Buyer raises the monthly PO at contract price before month close; supplier sends invoice with signed timesheets and delivery notes; buyer reconciles, agrees discrepancies with Operations by email, revises the PO and re-runs approval.',
+    source: 'Session 22 Oct 2026 · Said, Suhail (Supply Chain Oman), Aamil. Prime-mover rentals used as the reference flow. GRN step not discussed in session.',
+    actions: ['Category-based buyer structure from 1 Nov (one owner per category)', 'Align CT & Stimulation suppliers to the standard cycle', 'Master data cleanup: ~9,000 of 30,000 item descriptions flagged', 'Share spend deck & Excel by category / supplier / stakeholder'],
+    lanes: ['Operations', 'Buyer (Supply Chain)', 'Approvers', 'Supplier'],
+    steps: [
+      { c: 0, l: 1, t: 'Create monthly PO at contract price', sys: 'SAP', time: '25th – 5th', pain: 1 },
+      { c: 1, l: 2, t: 'PO approval cycle', sys: 'SAP' },
+      { c: 2, l: 1, t: 'Send PO to supplier before month close', sys: 'Email' },
+      { c: 3, l: 3, t: 'Deliver service — 1st to 30th', sys: 'On site', time: 'Service month', pain: 2 },
+      { c: 4, l: 0, t: 'Sign timesheet / delivery note', sys: 'Paper' },
+      { c: 5, l: 3, t: 'Send invoice + signed timesheets + DNs', sys: 'Email', time: 'Month end' },
+      { c: 6, l: 1, t: 'Actuals match PO & evidence complete?', d: true },
+      { c: 7, l: 0, t: 'Verify service, agree discrepancy', sys: 'Email', pain: 3 },
+      { c: 8, l: 1, t: 'Revise PO to agreed actuals (Mostafa)', sys: 'SAP', time: '1st week next month' },
+      { c: 9, l: 2, t: 'Re-approval of revised PO', sys: 'SAP', pain: 4 },
+      { c: 10, l: 1, t: 'Confirm PO — no evidence, no confirmation', sys: 'SAP' },
+      { c: 11, l: 3, t: 'Invoice processed', sys: 'SAP' }
+    ],
+    edges: [[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7,'Mismatch'],[7,8],[8,9],[9,10],[10,11],[6,10,'Match','over']],
+    pains: [
+      { t: 'Segment-based buying', d: 'Different buyers paid different rates to the same supplier for similar items. Rental / hire / leasing used interchangeably — ~9,000 of 30,000 PO item descriptions need review.' },
+      { t: 'Two cycles in one country', d: 'Coil Tubing and Stimulation run 25th–25th with some suppliers because their systems can’t support the calendar month.' },
+      { t: 'Disputes live in email chains', d: 'SC and Ops managers have no shared view of recurring services, disputes or approval status.' },
+      { t: 'Revised PO restarts approval', d: 'Every agreed change re-enters the full approval cycle, pushing closure into the following month.' }
+    ]
+  },
+  KWT: {
+    title: 'Kuwait — Monthly Rental Procure-to-Pay',
+    summary: 'Operations emails a request; Sourcing checks contracts (RFQ + Sirion if none); Warehouse raises the PR; Buyer issues an estimated PO and amends it to actuals at month end; the same warehouse person posts the GRN.',
+    source: 'Session 22 Oct 2026 · Sara, Tala, Saneaka (Supply Chain Kuwait), Aamil. Based on "Monthly Rental Process for KWT" and the Monthly Rentals tracker.',
+    actions: ['Assess 25th–25th cutoff with Ops, Finance and suppliers', 'Flag "estimate" in PO header; track re-approval, not only first approval', 'Add drilling tools, catering, vehicle monitoring to the recurrent inventory', 'Lift travel-portal adoption above 80% and consolidate ticket POs monthly'],
+    lanes: ['Operations', 'Sourcing', 'Legal / Sirion', 'Warehouse', 'Buyer', 'Approvers (Ops · SC · Fin · CD)', 'Supplier'],
+    steps: [
+      { c: 0, l: 0, t: 'Email request for rental / recurring service', sys: 'Email' },
+      { c: 1, l: 1, t: 'Existing contract can be extended?', d: true },
+      { c: 2, l: 1, t: 'Float RFQ, award supplier', sys: 'Email' },
+      { c: 3, l: 2, t: 'Review & approve contract', sys: 'Sirion' },
+      { c: 4, l: 3, t: 'Create PR for number of rentals', sys: 'SAP', time: '3rd – 8th', pain: 1 },
+      { c: 5, l: 4, t: 'Create estimated PO at start of month', sys: 'SAP', pain: 2 },
+      { c: 6, l: 5, t: 'Sequential approval, 4–5 days', sys: 'SAP', pain: 3 },
+      { c: 7, l: 6, t: 'Deliver; send actuals (vehicle no., dates)', sys: 'Email', time: '25th – 31st', pain: 4 },
+      { c: 8, l: 0, t: 'Confirm actual services before month end', sys: 'Email' },
+      { c: 9, l: 4, t: 'Amend PO; separate PO for overtime / extra trips', sys: 'SAP', pain: 5 },
+      { c: 10, l: 5, t: 'Re-approve amended PO', sys: 'SAP' },
+      { c: 11, l: 3, t: 'GRN by the person who raised the PR', sys: 'SAP', time: 'After month end' }
+    ],
+    edges: [[0,1],[1,2,'No'],[2,3],[3,4],[1,4,'Yes','over'],[4,5],[5,6],[6,7],[7,8],[8,9],[9,10],[10,11]],
+    pains: [
+      { t: 'PRs raised early look aged', d: 'PRs created 20th–30th of the prior month to beat congestion count against the buyer’s 5-day PO KPI.' },
+      { t: 'Estimate not visible to supplier', d: 'Estimated status isn’t shown in the PO header. A Jan T&M PO (~KWD 137.7k → 129.97k) was created 11 Jan and approved only in February.' },
+      { t: 'Approval inside a 5-day window', d: 'Four approvers take 4–5 days; tracked in Excel with Aiman. Calendar-month cutoff leaves almost no time after actuals arrive.' },
+      { t: 'Actuals arrive late', d: 'First actuals around the 25th, the rest by the 30th/31st — amendments and approvals are compressed into month end.' },
+      { t: 'PO count grows', d: 'Overtime, extra trips and each flight ticket become separate POs to approve and reconcile; ~20% of travel still outside the portal.' }
+    ]
+  },
+  KSA: {
+    title: 'KSA — Recurring Services Process Flow (30–30)',
+    summary: 'A designated Ops focal point per segment forecasts and raises the PR; Procurement issues POs per segment, supplier and cost center; site validates timesheets; Procurement amends; Ops focal point closes the GRN.',
+    source: 'Session 26 Oct 2026 · Lila, Sami, Mohammed, Ahmad, Nora, Aamil. Timing windows from the KSA "Recurring Services Process Flow" slide.',
+    actions: ['Share top-spend suppliers and KSA category / sub-category list', 'Consolidate Ops and SC Excel trackers for gap analysis', 'Name an accountable service owner for each rental / service', 'Design escalation (e.g. 2 days) and possible passive approval'],
+    lanes: ['Ops focal point (segment)', 'Procurement (SC)', 'Supplier', 'Site / service owner', 'Ops manager', 'Finance / AP'],
+    steps: [
+      { c: 0, l: 0, t: 'Forecast next month & create service PR', sys: 'SAP', time: '25th – 31st', pain: 1 },
+      { c: 1, l: 1, t: 'Release PR; PO per segment · supplier · cost center', sys: 'SAP', time: '1st – 7th', pain: 2 },
+      { c: 2, l: 2, t: 'Service delivery', sys: 'On site', time: 'Current month' },
+      { c: 3, l: 2, t: 'Submit timesheet', sys: 'Email', time: '31st – 3rd', pain: 3 },
+      { c: 4, l: 3, t: 'Validate service ticket & timesheet', sys: 'Paper', time: '4th – 6th', pain: 4 },
+      { c: 5, l: 2, t: 'Send signed timesheet / pro forma to SC', sys: 'Email', time: '7th – 10th' },
+      { c: 6, l: 1, t: 'Amend PO to actual utilization', sys: 'SAP', time: '11th – 15th' },
+      { c: 7, l: 4, t: 'Validate pro forma invoice', sys: 'Email', pain: 5 },
+      { c: 8, l: 0, t: 'GRN closure', sys: 'SAP', time: '15th – 18th' },
+      { c: 9, l: 5, t: 'Invoice processing', sys: 'SAP' }
+    ],
+    edges: [[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8],[8,9]],
+    pains: [
+      { t: 'Single focal point, no backup', d: 'One person per segment raises PRs and closes GRNs. Absence stalls the whole cycle.' },
+      { t: 'Fragmented Excel tracking', d: 'Ops and SC keep separate trackers per segment. Days on site are only visible inside PR/PO attachments.' },
+      { t: 'Late supplier submissions', d: 'Reconciliation starts before month end and repeats after; closure can stretch to ~45 days.' },
+      { t: 'No clear service owner', d: 'Timesheets get redirected between people. Equipment moves between sites without SC knowing — no live utilization view.' },
+      { t: 'Ops manager involved late', d: 'New rentals sourced from a field request can be rejected by the Ops manager after sourcing work is done.' }
+    ]
+  },
+  UAE: {
+    title: 'UAE — Monthly Service PR-to-GRN (Shared Services)',
+    summary: 'Store Team raises service PRs; Buyer issues estimated POs by the 12th (shared services under the Ops Support plant); service leader verifies delivery; Facility splits cost by cost center; Ops Manager approves the amount by email; Warehouse posts the GRN.',
+    source: 'Session 22 Sep 2026 · Rami, Kenneth (Supply Chain UAE), Ahmad, Aamil.',
+    actions: ['Management approval to move service PRs out of Stores', 'Confirm with SAP team whether service entry sheets need approval', 'Route shared-service costs to segment Ops managers by cost center', 'Clear outstanding approvals (signatures, diesel issue, disputes)'],
+    lanes: ['Store team', 'Buyer team', 'Supplier', 'Service leader', 'Facility team', 'Operations manager', 'Warehouse'],
+    steps: [
+      { c: 0, l: 0, t: 'Create monthly service PR', sys: 'SAP', time: 'Before 5th', pain: 1 },
+      { c: 1, l: 1, t: 'Issue estimated PO; shared under Ops Support plant', sys: 'SAP', time: 'By 12th' },
+      { c: 2, l: 2, t: 'Deliver; submit timesheet to service leader', sys: 'Email', time: '~26th' },
+      { c: 3, l: 3, t: 'Verify service was delivered', sys: 'Email' },
+      { c: 4, l: 4, t: 'Utilization split by cost center (e.g. CT 47%)', sys: 'Excel', pain: 2 },
+      { c: 5, l: 1, t: 'Calculate verified cost; log in tracker', sys: 'Excel' },
+      { c: 6, l: 5, t: 'Approve cost?', d: true, pain: 3 },
+      { c: 7, l: 1, t: 'Amend PO, split lines by cost center', sys: 'SAP', pain: 4 },
+      { c: 8, l: 6, t: 'Post service GRN (no SAP approval)', sys: 'SAP', time: 'Before close' },
+      { c: 9, l: 2, t: 'Invoice', sys: 'Email' }
+    ],
+    edges: [[0,1],[1,2],[2,3],[3,4,'Shared'],[4,5],[6,7,'Approved'],[5,6],[7,8],[8,9]],
+    pains: [
+      { t: 'Stores own service PRs', d: 'A legacy of shared services. Moving it needs a management-approved structural change.' },
+      { t: 'Monthly manual re-split', d: 'Staffing rotations change the split every month for catering, transport and similar services.' },
+      { t: 'Approvals by email', d: 'Held when a timesheet is badly signed or an issue is open (e.g. Delta transportation diesel). GRN blocked, expediting KPI hit.' },
+      { t: 'One PO, many segments', d: 'Supplier can’t invoice finished work until every segment resolves; SAP can’t route one PO to two approvers.' }
+    ]
+  }
+};
+const ORDER = ['OMN', 'KWT', 'KSA', 'UAE'];
+const NAMES = { OMN: 'Oman', KWT: 'Kuwait', KSA: 'KSA', UAE: 'UAE' };
+const SYSBG = { SAP: '#1F5C3A', Email: '#58595B', Excel: '#4E9A72', Sirion: '#1F1F1D', Paper: '#8A6D3B', 'On site': '#6B7280' };
+const LW = 140, CW = 180, LH = 124, TH = 36, BW = 150, BH = 80;
+const COMPARE = [
+  ['Cycle', ['Calendar month; CT & Stim 25th–25th', 'Calendar month; 25th–25th under review', '30–30 policy; ~45-day closure in practice', 'Calendar month; estimates used for close'], [0,0,1,0]],
+  ['Who raises the PR', ['Not discussed — PO raised by buyer', 'Warehouse, 3rd–8th', 'Ops focal point per segment, 25th–31st', 'Store Team, before 5th'], [0,1,1,1]],
+  ['PO type & timing', ['Contract-price PO, 25th–5th', 'Estimated PO early month', 'PO per segment/supplier/CC, 1st–7th', 'Estimated PO by 12th; shared under Ops Support'], [0,0,0,1]],
+  ['Service validation', ['Ops signs timesheet / DN', 'Ops confirms before month end', 'Site / service owner, 4th–6th', 'Service leader verifies delivery'], [0,0,1,0]],
+  ['Cost approval', ['Revised PO re-approved', 'Ops → SC → Fin → CD, 4–5 days', 'Ops manager validates pro forma', 'Ops Manager by email'], [0,1,0,1]],
+  ['Variable usage', ['Revise PO', 'Separate PO for overtime / extra trips', 'Amend PO to actual', 'Amend PO; split lines by cost center'], [0,1,0,1]],
+  ['GRN posted by', ['Not discussed', 'Warehouse (PR creator)', 'Ops focal point, 15th–18th', 'Warehouse, no SAP approval'], [1,0,0,0]],
+  ['Tracking', ['Excel + email', 'Excel tracker (Aiman) + email', 'Separate Ops & SC Excel', 'Tracking sheet + email'], [0,0,0,0]],
+  ['Biggest pain', ['Segment buying → inconsistent rates', 'Late approvals; estimate not flagged', 'Unclear service owner for timesheets', 'Multi-segment PO blocks invoicing'], [1,1,1,1]]
+];
+const GAPS = [
+  { t: 'No single register', d: 'Every country tracks recurring services in Excel — often one per segment, and separately in Ops and SC.' },
+  { t: 'Validation by email', d: 'Timesheets, disputes and approvals move through email chains with no SLA or escalation.' },
+  { t: 'Unclear service owner', d: 'Who validates each rental is implicit; documents bounce between people.' },
+  { t: 'Month-end compression', d: 'Actuals arrive in the last days of the month, leaving no time to amend and approve.' },
+  { t: 'Estimate vs. actual not visible', d: 'Estimated POs aren’t flagged; re-approval status isn’t tracked.' },
+  { t: 'Inconsistent categories', d: 'Rental / hire / leasing naming and segment buying prevent benchmarking across countries.' }
+];
+
+class Component extends DCLogic {
+  state = { tab: this.props.defaultCountry ?? 'OMN' };
+  renderVals() {
+    const tab = this.state.tab;
+    const showPain = this.props.showPain ?? true;
+    const showSys = this.props.showSystems ?? true;
+    const tabs = [...ORDER.map(k => ({ k, label: NAMES[k] })), { k: 'CMP', label: 'Comparison' }].map(t => ({
+      ...t, go: () => this.setState({ tab: t.k }),
+      color: t.k === tab ? '#2A7E4F' : '#58595B', bar: t.k === tab ? '#2A7E4F' : 'transparent'
+    }));
+    const map = MAPS[tab] || MAPS.OMN;
+    const cols = Math.max(...map.steps.map(s => s.c)) + 1;
+    const canvasW = LW + cols * CW + 20, canvasH = TH + map.lanes.length * LH;
+    const geo = map.steps.map(s => {
+      const left = LW + s.c * CW + 15, top = TH + s.l * LH + 24;
+      return { left, top, cx: left + BW / 2, cy: top + BH / 2, r: left + BW };
+    });
+    const steps = map.steps.map((s, i) => ({
+      left: geo[i].left, top: geo[i].top, label: s.t, sys: s.sys || '', sysBg: SYSBG[s.sys] || '#58595B',
+      isDecision: !!s.d, isTask: !s.d, showSys: showSys && !!s.sys, showPain: showPain && !!s.pain, pain: s.pain
+    }));
+    const edges = map.edges.map(([a, b, label, route]) => {
+      const A = geo[a], B = geo[b];
+      if (route === 'over') {
+        const yT = Math.min(A.top, B.top) - 14;
+        return { d: `M${A.cx},${A.top} V${yT} H${B.cx} V${B.top - 2}`, lx: (A.cx + B.cx) / 2 - 14, ly: yT - 4, label: label || '', dash: '5 4' };
+      }
+      const x1 = A.r, y1 = A.cy, x2 = B.left - 2, y2 = B.cy, mx = x1 + (x2 - x1) / 2;
+      return { d: y1 === y2 ? `M${x1},${y1} H${x2}` : `M${x1},${y1} H${mx} V${y2} H${x2}`, lx: mx + 4, ly: y1 === y2 ? y1 - 6 : (y1 + y2) / 2, label: label || '', dash: '' };
+    });
+    const timeMarks = map.steps.filter(s => s.time).map(s => ({ left: LW + s.c * CW + 15, label: s.time }));
+    const lanes = map.lanes.map((name, i) => ({ name, top: TH + i * LH, bg: i % 2 ? '#FAFBFA' : '#fff' }));
+    const pains = map.pains.map((p, i) => ({ n: i + 1, title: p.t, text: p.d }));
+    const compareRows = COMPARE.map(([label, cells, hi]) => ({ label, cells: cells.map((text, i) => ({ text, bg: hi[i] ? '#FFF4E5' : '#fff' })) }));
+    return {
+      tabs, map, steps, edges, timeMarks, lanes, pains, canvasW, canvasH, laneH: LH, showPain,
+      isMap: tab !== 'CMP', isCompare: tab === 'CMP',
+      countryHeads: ORDER.map(k => NAMES[k]), compareRows, commonGaps: GAPS
+    };
+  }
+}
+</script>
+</body>
+</html>
