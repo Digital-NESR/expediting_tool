@@ -615,7 +615,12 @@ const EDGE_DEFS: Omit<EdgeSpec, 'route'>[] = [
  * See `ACROSS_THE_CHAIN` near the foot of this file for the four that are deliberately off
  * the canvas.
  */
-export const OFF_CHAIN_TOOL_IDS: string[] = [];
+export const OFF_CHAIN_TOOL_IDS: string[] = [
+  /* RRSM, until somebody can say which stage it serves. It is not built, and guessing a stage
+     would draw it into the process map as though the question were settled. Move it onto a
+     stage in `STAGES` as soon as the portal's scope is known. */
+  'rrsm',
+];
 
 /* ─── The drawing, declared ──────────────────────────────────────────────────────────────
    One spec, from which `layoutProcess` works out all twenty-one boxes, four lane hulls and

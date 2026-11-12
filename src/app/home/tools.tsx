@@ -19,6 +19,7 @@ import {
 } from '@/components/ToolMarks';
 import {
   Laptop,
+  LayoutGrid,
   BookMarked,
   Building2,
   GraduationCap,
@@ -475,6 +476,31 @@ export const TOOLS: ToolDef[] = [
     route: '/learning-hub',
     access: { kind: 'always' },
     badge: { kind: 'success', label: 'Open Access' },
+  },
+
+  {
+    id: 'rrsm',
+    group: 'development',
+    keywords: 'rrsm portal',
+    name: 'RRSM',
+    /* No subtitle and a description that only says what is true. The design has been approved
+       but the portal is not built, and inventing a strapline for a tool nobody can open yet
+       would put a guess on the home page of every signed-in employee. Both get written the
+       moment there is something to describe. */
+    description:
+      'Not built yet. The portal is being implemented from the approved design; this card stays greyed out until the first screens land.',
+    icon: <LayoutGrid className="w-6 h-6 text-gray-400" />,
+    logoClass: 'bg-gray-100',
+    hoverClass: HOVER_GREEN,
+    accent: PREVIEW_GREY,
+    tone: 'preview',
+    route: '/rrsm',
+    /* Greyed and inert for everyone but a platform admin. The card is only the UI half of
+       that -- `src/app/rrsm/layout.tsx` carries the server-side gate, because this one is
+       bypassed by typing the URL. */
+    access: { kind: 'adminPreview' },
+    badge: { kind: 'preview' },
+    openLabel: 'Open preview →',
   },
 
   {
