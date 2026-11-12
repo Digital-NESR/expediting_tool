@@ -6,7 +6,7 @@ import { getIcsaActor, hasAnyAccess } from '@/lib/icsa/access';
 import { listPendingExtensions } from '@/lib/icsa/queries';
 import IcsaShell from './components/IcsaShell';
 import { CARD } from './components/ui';
-import { icsaSignInPath } from '@/lib/icsa/demo';
+import { allDemoOptions, currentDemoUser, icsaSignInPath, ssoUser } from '@/lib/icsa/demo';
 
 export const metadata: Metadata = { title: 'NESR | ICSA' };
 export const dynamic = 'force-dynamic';
@@ -47,7 +47,11 @@ export default async function IcsaLayout({ children }: { children: React.ReactNo
     );
   }
 
-  const pending = actor.isAdmin ? (await listPendingExtensions()).length : 0;
+  const [pending, own, demoUser] = await Promise.all([
+    actor.isAdmin ? listPendingExtensions().then((l) => l.length) : 0,
+    ssoUser(),
+    currentDemoUser(),
+  ]);
 
   return (
     <IcsaShell
@@ -57,8 +61,18 @@ export default async function IcsaLayout({ children }: { children: React.ReactNo
         isAdmin: actor.isAdmin,
         championCountries: actor.championCountries,
         isDemo: actor.isDemo,
+        hasOwnAccount: Boolean(own),
       }}
       pendingExtensions={pending}
+      demo={
+        actor.isAdmin || actor.isDemo
+          ? {
+              options: allDemoOptions(),
+              current: demoUser?.username ?? null,
+              hasOwnAccount: Boolean(own),
+            }
+          : null
+      }
     >
       {children}
     </IcsaShell>

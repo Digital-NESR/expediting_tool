@@ -7,10 +7,11 @@ import { ensureIcsaSchema } from '@/lib/icsa/db';
 import {
   DEMO_COOKIE,
   demoCookieMaxAge,
+  canUseDemo,
   demoCookieValue,
-  demoEnabled,
   demoUserByUsername,
   ensureDemoData,
+  ssoUser,
 } from '@/lib/icsa/demo';
 
 const log = logger('icsa-demo-auth');
@@ -27,7 +28,7 @@ export async function icsaDemoSignIn(
   _prev: DemoSignInState,
   form: FormData,
 ): Promise<DemoSignInState> {
-  if (!demoEnabled()) return { error: 'The demo login is switched off.' };
+  if (!(await canUseDemo())) return { error: 'The demo login is switched off.' };
   const user = demoUserByUsername(String(form.get('username') ?? ''));
   if (!user) return { error: 'Pick a demo person first.' };
 
@@ -50,7 +51,8 @@ export async function icsaDemoSignIn(
   redirect('/icsa');
 }
 
+/** Leaves the demo person: back to your own account if you have one, else to sign-in. */
 export async function icsaDemoSignOut(): Promise<void> {
   (await cookies()).delete(DEMO_COOKIE);
-  redirect('/login');
+  redirect((await ssoUser()) ? '/icsa' : '/login');
 }
