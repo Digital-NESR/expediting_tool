@@ -228,11 +228,34 @@ export function demoLabel(d: DemoUser): string {
   return `${d.name} — ${ROLE_LABEL[d.role]}${d.country ? `, ${d.country}` : ' (all locations)'}`;
 }
 
+/** One entry in the demo dropdowns. `group` is the heading it sits under. */
+export interface DemoOption {
+  username: string;
+  label: string;
+  group: string;
+}
+
+const ROLE_ORDER: DemoRole[] = ['admin', 'champion', 'employee'];
+const ROLE_GROUP: Record<DemoRole, string> = {
+  admin: 'Admins',
+  champion: 'Champions',
+  employee: 'Employees',
+};
+
+/** Every demo person for the dropdowns: admins first, then champions, then employees. */
+export function allDemoOptions(): DemoOption[] {
+  return ROLE_ORDER.flatMap((role) =>
+    DEMO_USERS.filter((d) => d.role === role).map((d) => ({
+      username: d.username,
+      label: demoLabel(d),
+      group: ROLE_GROUP[role],
+    })),
+  );
+}
+
 /** What the sign-in page needs: the dropdown options, or null when the demo is off. */
-export function demoOptions(): { username: string; label: string }[] | null {
-  return demoEnabled()
-    ? DEMO_USERS.map((d) => ({ username: d.username, label: demoLabel(d) }))
-    : null;
+export function demoOptions(): DemoOption[] | null {
+  return demoEnabled() ? allDemoOptions() : null;
 }
 
 export function isDemoEmail(email: string): boolean {
@@ -300,11 +323,6 @@ export async function isRealIcsaAdmin(): Promise<boolean> {
  */
 export async function canUseDemo(): Promise<boolean> {
   return demoEnabled() || (await isRealIcsaAdmin());
-}
-
-/** The "View as" options, for anybody allowed to switch. */
-export function allDemoOptions(): { username: string; label: string }[] {
-  return DEMO_USERS.map((d) => ({ username: d.username, label: demoLabel(d) }));
 }
 
 /** Where a signed-out visitor to ICSA is sent: the sign-in page, which shows the demo too. */

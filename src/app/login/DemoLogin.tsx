@@ -2,11 +2,10 @@
 
 import { useActionState } from 'react';
 import { icsaDemoSignIn, type DemoSignInState } from '@/app/actions/icsa/demo';
+import DemoOptionGroups from '@/app/icsa/components/DemoOptionGroups';
+import type { DemoOption } from '@/lib/icsa/demo';
 
-export interface DemoOption {
-  username: string;
-  label: string;
-}
+export type { DemoOption };
 
 /** "Demo login — testing only": pick an ICSA demo person and enter ICSA as them. */
 export default function DemoLogin({ options }: { options: DemoOption[] }) {
@@ -27,11 +26,7 @@ export default function DemoLogin({ options }: { options: DemoOption[] }) {
           defaultValue={options[0]?.username}
           className="min-w-0 flex-1 rounded-xl border border-white/15 bg-slate-800 px-3 py-2.5 text-sm text-white focus:border-[#307c4c] focus:outline-none"
         >
-          {options.map((o) => (
-            <option key={o.username} value={o.username}>
-              {o.label}
-            </option>
-          ))}
+          <DemoOptionGroups options={options} />
         </select>
         <button
           type="submit"

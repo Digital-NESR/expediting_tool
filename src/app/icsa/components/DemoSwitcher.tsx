@@ -3,9 +3,11 @@
 import { useActionState } from 'react';
 import { LogOut } from 'lucide-react';
 import { icsaDemoSignIn, icsaDemoSignOut, type DemoSignInState } from '@/app/actions/icsa/demo';
+import type { DemoOption } from '@/lib/icsa/demo';
+import DemoOptionGroups from './DemoOptionGroups';
 
 export interface DemoSwitcherProps {
-  options: { username: string; label: string }[];
+  options: DemoOption[];
   /** The demo person being viewed as, or null when you are yourself. */
   current: string | null;
   /** Signed in with SSO too, so leaving the demo returns to your own account. */
@@ -29,11 +31,7 @@ export default function DemoSwitcher({ options, current, hasOwnAccount }: DemoSw
           key={current ?? 'self'}
           className="min-w-0 flex-1 rounded-md border border-amber-300 bg-white px-2 py-1.5 text-xs text-slate-800"
         >
-          {options.map((o) => (
-            <option key={o.username} value={o.username}>
-              {o.label}
-            </option>
-          ))}
+          <DemoOptionGroups options={options} />
         </select>
         <button
           type="submit"
