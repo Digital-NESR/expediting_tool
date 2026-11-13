@@ -9,6 +9,7 @@ import { withTransaction } from '@/lib/db/tx';
 import { exec, icsaPool, sql } from '@/lib/icsa/db';
 import {
   canManageCountry,
+  icsaAdminEmails,
   requireIcsaActor,
   requireIcsaAdmin,
   type IcsaActor,
@@ -21,6 +22,7 @@ import {
 } from '@/lib/icsa/lifecycle';
 import {
   assignedMail,
+  extensionRequestMail,
   mailConfigured,
   requestMail,
   sendIcsaMail,
@@ -489,6 +491,27 @@ export async function requestIcsaExtension(
       enrollmentId,
       detail: { requestedDeadline, reason },
     });
+    /* The request is on the Administration page either way; the email only tells the admins
+       to look, so a mail problem does not undo it. */
+    const admins = icsaAdminEmails(actor);
+    if (admins.length && (mailConfigured() || actor.isDemo)) {
+      try {
+        await sendIcsaMail(
+          extensionRequestMail({
+            to: admins,
+            championName: actor.name,
+            championEmail: actor.email,
+            cycleLabel: e.cycle_label,
+            country: e.country,
+            currentDeadline: e.deadline,
+            requestedDeadline,
+            reason: reason.trim(),
+          }),
+        );
+      } catch (err) {
+        log.warn('extensionRequest.mail_failed', { enrollmentId, error: String(err) });
+      }
+    }
     revalidate();
     return { success: true };
   } catch (err) {

@@ -247,3 +247,78 @@ export function returnedMail(i: {
     meta: { assessmentId: i.assessmentId },
   };
 }
+
+/** To the ICSA administrators: a champion asks for more time for their country. */
+export function extensionRequestMail(i: {
+  to: string[];
+  championName: string | null;
+  championEmail: string;
+  cycleLabel: string;
+  country: string;
+  currentDeadline: string;
+  requestedDeadline: string;
+  reason: string;
+}): IcsaMail {
+  const link = appUrl('/icsa/admin');
+  const who = i.championName || i.championEmail;
+  return {
+    kind: 'extension-request',
+    to: i.to,
+    cc: [],
+    subject: `ICSA ${i.cycleLabel}: ${i.country} asks for an extension to ${i.requestedDeadline}`,
+    bodyHtml: frame(
+      'Extension requested',
+      [
+        `${esc(who)} (${esc(i.championEmail)}), champion for <b>${esc(i.country)}</b>, asks to move the deadline for cycle <b>${esc(i.cycleLabel)}</b> from <b>${esc(i.currentDeadline)}</b> to <b>${esc(i.requestedDeadline)}</b>.`,
+        `Reason: <i>${esc(i.reason)}</i>`,
+        'Approve or reject it on the ICSA Administration page.',
+      ],
+      { label: 'Review the request', href: link },
+    ),
+    bodyText: [
+      `${who} (${i.championEmail}), champion for ${i.country}, asks to move the ${i.cycleLabel} deadline from ${i.currentDeadline} to ${i.requestedDeadline}.`,
+      `Reason: ${i.reason}`,
+      `Decide here: ${link}`,
+    ].join('\n\n'),
+    meta: { country: i.country, cycle: i.cycleLabel },
+  };
+}
+
+/** To the champion who asked: the administrator approved or rejected the extension. */
+export function extensionDecisionMail(i: {
+  to: string;
+  cc: string[];
+  name: string | null;
+  cycleLabel: string;
+  country: string;
+  requestedDeadline: string;
+  approved: boolean;
+  note: string | null;
+  enrollmentId: number;
+}): IcsaMail {
+  const link = appUrl(`/icsa/enrollments/${i.enrollmentId}`);
+  const outcome = i.approved
+    ? `has been approved. The new deadline for <b>${esc(i.country)}</b> is <b>${esc(i.requestedDeadline)}</b>.`
+    : `has been rejected, so the deadline for <b>${esc(i.country)}</b> stays as it was.`;
+  return {
+    kind: 'extension-decision',
+    to: [i.to],
+    cc: i.cc,
+    subject: `ICSA ${i.cycleLabel}: extension for ${i.country} ${i.approved ? 'approved' : 'rejected'}`,
+    bodyHtml: frame(
+      i.approved ? 'Extension approved' : 'Extension rejected',
+      [
+        `Dear ${esc(i.name || 'colleague')},`,
+        `Your request to extend cycle <b>${esc(i.cycleLabel)}</b> to ${esc(i.requestedDeadline)} ${outcome}`,
+        ...(i.note ? [`Note from the administrator: <i>${esc(i.note)}</i>`] : []),
+      ],
+      { label: 'Open the country', href: link },
+    ),
+    bodyText: [
+      `Your ICSA extension request for ${i.country} (${i.cycleLabel}, to ${i.requestedDeadline}) was ${i.approved ? 'approved' : 'rejected'}.`,
+      ...(i.note ? [`Note: ${i.note}`] : []),
+      link,
+    ].join('\n\n'),
+    meta: { enrollmentId: i.enrollmentId, country: i.country, cycle: i.cycleLabel },
+  };
+}

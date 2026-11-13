@@ -2,7 +2,7 @@ import { cache } from 'react';
 import type { QueryResultRow } from 'pg';
 import { AccessError, currentActor, isToolAdminEmail, normalizeEmail } from '@/lib/require-access';
 import { ensureIcsaSchema, sql } from './db';
-import { currentDemoUser } from './demo';
+import { DEMO_USERS, currentDemoUser } from './demo';
 
 /**
  * Who may do what in ICSA.
@@ -110,4 +110,21 @@ export async function requireIcsaManager(): Promise<IcsaActor> {
     throw new AccessError('Only ICSA champions and administrators can do that.');
   }
   return actor;
+}
+
+/**
+ * Who to email about things only an administrator decides (extension requests): everyone in
+ * ADMIN_EMAILS and ICSA_ADMIN_EMAILS. A demo person's request goes to the demo admins instead.
+ */
+export function icsaAdminEmails(actor: Pick<IcsaActor, 'isDemo'>): string[] {
+  if (actor.isDemo) return DEMO_USERS.filter((d) => d.role === 'admin').map((d) => d.email);
+  return [
+    ...new Set(
+      [process.env.ADMIN_EMAILS, process.env.ICSA_ADMIN_EMAILS]
+        .join(',')
+        .split(',')
+        .map((e) => normalizeEmail(e))
+        .filter((e) => e.includes('@')),
+    ),
+  ];
 }

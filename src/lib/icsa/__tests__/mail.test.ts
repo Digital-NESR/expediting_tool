@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { assignedMail, mailTestRecipient, redirectForTest, sendIcsaMail } from '../mail';
+import {
+  assignedMail,
+  extensionDecisionMail,
+  extensionRequestMail,
+  mailTestRecipient,
+  redirectForTest,
+  sendIcsaMail,
+} from '../mail';
 
 const base = () =>
   assignedMail({
@@ -51,5 +58,45 @@ describe('ICSA test recipient', () => {
     vi.stubGlobal('fetch', fetchMock);
     await sendIcsaMail(base());
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('extension emails', () => {
+  it('asks every admin, with the dates and the reason', () => {
+    const m = extensionRequestMail({
+      to: ['a@nesr.com', 'b@nesr.com'],
+      championName: 'Yousef',
+      championEmail: 'y@nesr.com',
+      cycleLabel: 'Q1 2027',
+      country: 'Kuwait',
+      currentDeadline: '2027-03-31',
+      requestedDeadline: '2027-04-15',
+      reason: 'Stock count <week>',
+    });
+    expect(m.kind).toBe('extension-request');
+    expect(m.to).toEqual(['a@nesr.com', 'b@nesr.com']);
+    expect(m.subject).toContain('Kuwait asks for an extension to 2027-04-15');
+    expect(m.bodyHtml).toContain('Stock count &lt;week&gt;');
+    expect(m.bodyHtml).toContain('/icsa/admin');
+  });
+
+  it('tells the champion the outcome, and only mentions a note when there is one', () => {
+    const base = {
+      to: 'y@nesr.com',
+      cc: [],
+      name: 'Yousef',
+      cycleLabel: 'Q1 2027',
+      country: 'Kuwait',
+      requestedDeadline: '2027-04-15',
+      enrollmentId: 9,
+    };
+    const yes = extensionDecisionMail({ ...base, approved: true, note: null });
+    expect(yes.subject).toContain('approved');
+    expect(yes.bodyHtml).toContain('The new deadline for <b>Kuwait</b> is <b>2027-04-15</b>');
+    expect(yes.bodyHtml).not.toContain('Note from the administrator');
+    const no = extensionDecisionMail({ ...base, approved: false, note: 'Too late' });
+    expect(no.subject).toContain('rejected');
+    expect(no.bodyHtml).toContain('Too late');
+    expect(no.bodyHtml).toContain('/icsa/enrollments/9');
   });
 });

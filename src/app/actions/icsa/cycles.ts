@@ -8,6 +8,7 @@ import { createSqlHelpers } from '@/lib/db/sql';
 import { withTransaction } from '@/lib/db/tx';
 import { ensureIcsaSchema, exec, icsaPool, sql } from '@/lib/icsa/db';
 import { requireIcsaAdmin } from '@/lib/icsa/access';
+import { extensionDecisionMail, mailConfigured, sendIcsaMail } from '@/lib/icsa/mail';
 import { logEvent, markOutstandingNotCompleted, TODAY_SQL } from '@/lib/icsa/lifecycle';
 import { FREQUENCIES, ICSA_COUNTRIES, todayInDubai, type IcsaFrequency } from '@/lib/icsa/model';
 
@@ -252,10 +253,11 @@ export async function decideIcsaExtension(
     if (!approve && !note?.trim()) {
       return { success: false, error: 'Add a note so the champion knows why it was refused.' };
     }
-    await withTransaction(icsaPool, async (client) => {
+    const decided = await withTransaction(icsaPool, async (client) => {
       const { sql: tx } = createSqlHelpers(client);
       const [r] = await tx<QueryResultRow[]>(
         `SELECT r.id, r.enrollment_id, r.requested_deadline::text AS requested_deadline, r.status,
+                r.requested_by, e.country, e.champion_email, e.champion_name, c.label AS cycle_label,
                 e.status AS enrollment_status, e.cycle_id, e.closed_by, c.status AS cycle_status,
                 (r.requested_deadline >= ${TODAY_SQL}) AS still_future
            FROM icsa_extension_requests r
@@ -308,7 +310,32 @@ export async function decideIcsaExtension(
         enrollmentId: Number(r.enrollment_id),
         detail: { requestId, deadline: r.requested_deadline, note },
       });
+      return r;
     });
+
+    /* Tell the champion who asked, copying the country's champion if that is someone else.
+       The decision stands whether or not the email goes. */
+    if (mailConfigured() || actor.isDemo) {
+      const to = normalizeEmail(decided.requested_by);
+      const champion = normalizeEmail(decided.champion_email);
+      try {
+        await sendIcsaMail(
+          extensionDecisionMail({
+            to,
+            cc: champion && champion !== to ? [champion] : [],
+            name: champion === to ? (decided.champion_name ?? null) : null,
+            cycleLabel: decided.cycle_label,
+            country: decided.country,
+            requestedDeadline: decided.requested_deadline,
+            approved: approve,
+            note: note?.trim() || null,
+            enrollmentId: Number(decided.enrollment_id),
+          }),
+        );
+      } catch (err) {
+        log.warn('extensionDecision.mail_failed', { requestId, error: String(err) });
+      }
+    }
     revalidatePath('/icsa', 'layout');
     return { success: true };
   } catch (err) {
