@@ -778,7 +778,7 @@ function QuestionCard({
         {RESPONSES.map((v) => (
           <label
             key={v}
-            className={`cursor-pointer rounded-lg border px-4 py-1.5 text-sm font-semibold transition ${
+            className={`relative cursor-pointer rounded-lg border px-4 py-1.5 text-sm font-semibold transition ${
               r === v
                 ? OPTION_ON[v]
                 : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
@@ -897,7 +897,7 @@ function QuestionCard({
             {locked && !files.length && <p className="text-sm text-slate-400">None</p>}
           </div>
           {gap && (
-            <div className="grid gap-3 sm:grid-cols-[1fr_200px_160px]">
+            <div className="grid gap-3 xl:grid-cols-[1fr_200px_160px]">
               <div>
                 <label className={LABEL} htmlFor={`ac-${k}`}>
                   Action plan to close the gap

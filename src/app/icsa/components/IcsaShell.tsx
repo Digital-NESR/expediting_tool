@@ -166,7 +166,7 @@ export default function IcsaShell({
   );
 
   return (
-    <div className="flex h-[100dvh] bg-slate-50">
+    <div className="flex h-[100dvh] overflow-hidden bg-slate-50">
       <aside className="hidden w-[260px] shrink-0 flex-col border-r border-slate-200 bg-white lg:flex">
         {sidebar}
       </aside>
@@ -190,7 +190,10 @@ export default function IcsaShell({
           </button>
           <p className="text-sm font-bold text-slate-800">ICSA</p>
         </header>
-        <main className="flex-1 overflow-y-auto">
+        {/* relative: screen-reader-only (absolute) elements inside the page must stay in this
+            scroll area. Otherwise they stretch the window, and focusing one (a radio) scrolls the
+            whole window down to blank space. */}
+        <main className="relative flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">{children}</div>
         </main>
       </div>
