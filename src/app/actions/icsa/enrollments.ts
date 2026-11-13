@@ -10,7 +10,7 @@ import { exec, icsaPool, sql } from '@/lib/icsa/db';
 import {
   canManageCountry,
   requireIcsaActor,
-  requireIcsaCountry,
+  requireIcsaAdmin,
   type IcsaActor,
 } from '@/lib/icsa/access';
 import {
@@ -19,7 +19,13 @@ import {
   sweepOverdue,
   TODAY_SQL,
 } from '@/lib/icsa/lifecycle';
-import { mailConfigured, requestMail, sendIcsaMail, MailNotConfiguredError } from '@/lib/icsa/mail';
+import {
+  assignedMail,
+  mailConfigured,
+  requestMail,
+  sendIcsaMail,
+  MailNotConfiguredError,
+} from '@/lib/icsa/mail';
 import {
   AWAITING_RESPONDENT,
   isSectionKey,
@@ -76,44 +82,92 @@ function revalidate() {
   revalidatePath('/icsa', 'layout');
 }
 
-/* ─── Enrol ─────────────────────────────────────────────────────────────────────────────── */
+/* ─── Assign countries ──────────────────────────────────────────────────────────────────── */
+
+export interface CountryAssignment {
+  country: string;
+  /** One of the country's champions from the Administration page. */
+  championEmail: string;
+}
 
 /**
- * A champion takes their country into an open cycle. The country's deadline starts as the
- * cycle's; only an approved extension moves it.
+ * The administrator puts countries into an open cycle, each with one of its champions, who is
+ * emailed and then nominates the respondents. A country's deadline starts as the cycle's; only
+ * an approved extension moves it. Champions cannot add their own country.
  */
-export async function enrollIcsaCountry(
+export async function assignIcsaCountries(
   cycleId: number,
-  country: string,
-): Promise<IcsaResult<{ id: number }>> {
+  assignments: CountryAssignment[],
+): Promise<IcsaResult<{ assigned: number; skipped: string[]; emailError: string | null }>> {
   try {
-    const actor = await requireIcsaCountry(country);
+    const actor = await requireIcsaAdmin();
+    if (!assignments.length) return { success: false, error: 'Pick at least one country.' };
     await sweepOverdue(true);
     const [c] = await sql<QueryResultRow[]>(
-      `SELECT status, deadline::text AS deadline, (deadline < ${TODAY_SQL}) AS past FROM icsa_cycles WHERE id = ?`,
+      `SELECT label, status, threshold_pct, deadline::text AS deadline,
+              (deadline < ${TODAY_SQL}) AS past
+         FROM icsa_cycles WHERE id = ?`,
       [cycleId],
     );
     if (!c) return { success: false, error: 'That cycle no longer exists.' };
     if (c.status !== 'open' || c.past) return { success: false, error: 'That cycle is closed.' };
 
-    const rows = await sql<QueryResultRow[]>(
-      `INSERT INTO icsa_enrollments (cycle_id, country, champion_email, champion_name, deadline)
-       VALUES (?, ?, ?, ?, ?) ON CONFLICT (cycle_id, country) DO NOTHING RETURNING id`,
-      [cycleId, country, actor.email, actor.name, c.deadline],
-    );
-    if (!rows[0]) return { success: false, error: `${country} is already enrolled in this cycle.` };
-    const id = Number(rows[0].id);
-    await logEvent(sql, {
-      actor: actor.email,
-      action: 'enrollment.created',
-      cycleId,
-      enrollmentId: id,
-      detail: { country },
-    });
+    let assigned = 0;
+    const skipped: string[] = [];
+    let emailError: string | null = null;
+    for (const a of assignments) {
+      const email = normalizeEmail(a.championEmail);
+      const [champ] = await sql<QueryResultRow[]>(
+        `SELECT email, name FROM icsa_champions WHERE country = ? AND LOWER(email) = ?`,
+        [a.country, email],
+      );
+      if (!champ) {
+        skipped.push(`${a.country} (that person is not one of its champions)`);
+        continue;
+      }
+      const rows = await sql<QueryResultRow[]>(
+        `INSERT INTO icsa_enrollments (cycle_id, country, champion_email, champion_name, deadline)
+         VALUES (?, ?, ?, ?, ?) ON CONFLICT (cycle_id, country) DO NOTHING RETURNING id`,
+        [cycleId, a.country, champ.email, champ.name, c.deadline],
+      );
+      if (!rows[0]) {
+        skipped.push(`${a.country} (already in this cycle)`);
+        continue;
+      }
+      const id = Number(rows[0].id);
+      assigned += 1;
+      await logEvent(sql, {
+        actor: actor.email,
+        action: 'enrollment.created',
+        cycleId,
+        enrollmentId: id,
+        detail: { country: a.country, champion: champ.email },
+      });
+      if (!mailConfigured() && !actor.isDemo) {
+        emailError = new MailNotConfiguredError().message;
+        continue;
+      }
+      try {
+        await sendIcsaMail(
+          assignedMail({
+            to: champ.email,
+            name: champ.name,
+            cycleLabel: c.label,
+            country: a.country,
+            deadline: c.deadline,
+            thresholdPct: Number(c.threshold_pct),
+            enrollmentId: id,
+          }),
+        );
+      } catch (err) {
+        emailError = err instanceof Error ? err.message : 'Some champions could not be emailed.';
+      }
+    }
     revalidate();
-    return { success: true, data: { id } };
+    if (!assigned) return { success: false, error: `Nothing was added: ${skipped.join('; ')}.` };
+    return { success: true, data: { assigned, skipped, emailError } };
   } catch (err) {
-    return fail(err, 'Could not enrol the country.', 'enrollIcsaCountry.failed');
+    return fail(err, 'Could not assign the countries.', 'assignIcsaCountries.failed');
   }
 }
 

@@ -18,7 +18,8 @@ export class MailNotConfiguredError extends Error {
 }
 
 export interface IcsaMail {
-  kind: 'request' | 'reminder' | 'returned' | 'extension-request' | 'extension-decision';
+  kind:
+    'request' | 'reminder' | 'returned' | 'assigned' | 'extension-request' | 'extension-decision';
   to: string[];
   cc?: string[];
   subject: string;
@@ -38,14 +39,42 @@ function unquote(v: string): string {
     : t;
 }
 
-export async function sendIcsaMail(message: IcsaMail): Promise<void> {
-  /* Demo people live on the reserved .invalid domain (see ./demo.ts): there is nobody to
-     deliver to, so a demo request or reminder counts as sent without leaving the app. */
-  if (message.to.length && message.to.every((a) => /\.invalid$/i.test(a))) {
+/**
+ * While testing, ICSA_MAIL_TEST_RECIPIENT sends every ICSA email to that one address instead of
+ * the real people (demo people included), with the intended recipients shown at the top.
+ */
+export function mailTestRecipient(): string | null {
+  const v = unquote(process.env.ICSA_MAIL_TEST_RECIPIENT ?? '').toLowerCase();
+  return v.includes('@') ? v : null;
+}
+
+/** The message re-addressed to the test recipient, saying who it was meant for. */
+export function redirectForTest(message: IcsaMail, testTo: string): IcsaMail {
+  const meantFor = [...message.to, ...(message.cc ?? []).map((c) => `${c} (cc)`)].join(', ');
+  const note = `TEST MODE: in production this email would go to ${meantFor}.`;
+  return {
+    ...message,
+    to: [testTo],
+    cc: [],
+    subject: `[ICSA TEST] ${message.subject}`,
+    bodyHtml: `<p style="font-family:Arial,Helvetica,sans-serif;background:#fff4d6;border:1px solid #f0c36d;padding:8px 12px;margin:0 0 12px;font-size:13px">${esc(note)}</p>${message.bodyHtml}`,
+    bodyText: `${note}\n\n${message.bodyText}`,
+    meta: { ...message.meta, intendedTo: meantFor },
+  };
+}
+
+export async function sendIcsaMail(original: IcsaMail): Promise<void> {
+  const url = process.env.N8N_ICSA_WEBHOOK_URL;
+  const testTo = mailTestRecipient();
+  let message = original;
+  if (testTo && url && original.to.length) {
+    message = redirectForTest(original, testTo);
+  } else if (message.to.length && message.to.every((a) => /\.invalid$/i.test(a))) {
+    /* Demo people live on the reserved .invalid domain (see ./demo.ts): there is nobody to
+       deliver to, so a demo email counts as sent without leaving the app. */
     log.info('mail.skipped_demo', { kind: message.kind, ...message.meta });
     return;
   }
-  const url = process.env.N8N_ICSA_WEBHOOK_URL;
   if (!url) throw new MailNotConfiguredError();
   if (!message.to.length) throw new Error('That message has no recipient.');
 
@@ -154,6 +183,40 @@ export function requestMail(i: RequestMailInput): IcsaMail {
       `Due ${i.deadline}. Open it here: ${link}`,
     ].join('\n\n'),
     meta: { assessmentId: i.assessmentId, country: i.country, cycle: i.cycleLabel },
+  };
+}
+
+/** To a champion: the administrator has put their country into a cycle. */
+export function assignedMail(i: {
+  to: string;
+  name: string | null;
+  cycleLabel: string;
+  country: string;
+  deadline: string;
+  thresholdPct: number;
+  enrollmentId: number;
+}): IcsaMail {
+  const link = appUrl(`/icsa/enrollments/${i.enrollmentId}`);
+  return {
+    kind: 'assigned',
+    to: [i.to],
+    cc: [],
+    subject: `ICSA ${i.cycleLabel}: ${i.country} is assigned to you`,
+    bodyHtml: frame(
+      'ICSA cycle assigned',
+      [
+        `Dear ${esc(i.name || 'colleague')},`,
+        `The ICSA administrator has added <b>${esc(i.country)}</b> to cycle <b>${esc(i.cycleLabel)}</b>, with you as its champion.`,
+        `Please choose the people who should complete the self-assessment, give each of them their form sections, and send them the form. The deadline is <b>${esc(i.deadline)}</b>, and the country can be closed once ${i.thresholdPct}% of them have submitted.`,
+      ],
+      { label: 'Choose respondents', href: link },
+    ),
+    bodyText: [
+      `Dear ${i.name || 'colleague'},`,
+      `${i.country} has been added to ICSA cycle ${i.cycleLabel} with you as champion.`,
+      `Choose the respondents and send them the form by ${i.deadline}: ${link}`,
+    ].join('\n\n'),
+    meta: { enrollmentId: i.enrollmentId, country: i.country, cycle: i.cycleLabel },
   };
 }
 

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus } from 'lucide-react';
 import { closeIcsaCycle, createIcsaCycle, updateIcsaCycle } from '@/app/actions/icsa/cycles';
-import { enrollIcsaCountry } from '@/app/actions/icsa/enrollments';
+import { assignIcsaCountries } from '@/app/actions/icsa/enrollments';
 import { FREQUENCIES, FREQUENCY_LABEL, type IcsaFrequency } from '@/lib/icsa/model';
 import { BTN, BTN_DANGER, BTN_QUIET, Banner, CARD, INPUT, LABEL } from '../components/ui';
 
@@ -305,26 +305,149 @@ export function CycleAdminActions({
   );
 }
 
-export function EnrollButton({ cycleId, country }: { cycleId: number; country: string }) {
+export interface AssignableCountry {
+  country: string;
+  champions: { email: string; name: string | null }[];
+}
+
+/**
+ * Administrator: put countries into this cycle. Each needs a champion from the Administration
+ * page; that champion is emailed and nominates the respondents.
+ */
+export function AssignCountries({
+  cycleId,
+  countries,
+}: {
+  cycleId: number;
+  countries: AssignableCountry[];
+}) {
   const router = useRouter();
+  const [picked, setPicked] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ tone: 'ok' | 'warn' | 'error'; text: string } | null>(null);
+  const ready = countries.filter((c) => c.champions.length);
+  const missing = countries.filter((c) => !c.champions.length);
+  const chosen = Object.entries(picked);
+
+  async function assign() {
+    setBusy(true);
+    setMsg(null);
+    const res = await assignIcsaCountries(
+      cycleId,
+      chosen.map(([country, championEmail]) => ({ country, championEmail })),
+    );
+    setBusy(false);
+    if (!res.success) return setMsg({ tone: 'error', text: res.error ?? 'That did not work.' });
+    const d = res.data!;
+    const parts = [`${d.assigned} ${d.assigned === 1 ? 'country' : 'countries'} added.`];
+    if (d.skipped.length) parts.push(`Skipped: ${d.skipped.join('; ')}.`);
+    if (d.emailError) parts.push(`Champions were not all emailed: ${d.emailError}`);
+    else parts.push('Their champions have been emailed.');
+    setMsg({ tone: d.emailError || d.skipped.length ? 'warn' : 'ok', text: parts.join(' ') });
+    setPicked({});
+    router.refresh();
+  }
+
   return (
-    <div>
-      <button
-        className={BTN}
-        disabled={busy}
-        onClick={async () => {
-          setBusy(true);
-          const res = await enrollIcsaCountry(cycleId, country);
-          setBusy(false);
-          if (!res.success) return setError(res.error ?? 'Could not enrol.');
-          router.push(`/icsa/enrollments/${res.data!.id}`);
-        }}
-      >
-        {busy ? 'Enrolling…' : `Enrol ${country}`}
-      </button>
-      {error && <p className="mt-1 text-xs text-red-700">{error}</p>}
+    <div className={`${CARD} mb-6 p-5`}>
+      <h2 className="font-bold text-slate-800">Assign countries</h2>
+      <p className="mt-1 text-sm text-slate-500">
+        Tick the countries taking part in this cycle. Each country&apos;s champion is emailed, sees
+        the cycle on their Cycles page and chooses the respondents.
+      </p>
+      {ready.length > 0 ? (
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          {ready.map((c) => {
+            const on = c.country in picked;
+            return (
+              <div
+                key={c.country}
+                className={`rounded-lg border p-3 ${on ? 'border-[#307c4c] bg-[#307c4c]/5' : 'border-slate-200'}`}
+              >
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-800">
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={(e) =>
+                      setPicked((prev) => {
+                        const next = { ...prev };
+                        if (e.target.checked) next[c.country] = c.champions[0].email;
+                        else delete next[c.country];
+                        return next;
+                      })
+                    }
+                  />
+                  {c.country}
+                </label>
+                {c.champions.length === 1 ? (
+                  <p className="mt-1 pl-6 text-xs text-slate-500">
+                    Champion: {c.champions[0].name || c.champions[0].email}
+                  </p>
+                ) : (
+                  <select
+                    aria-label={`Champion for ${c.country}`}
+                    className={`${INPUT} mt-2 py-1.5 text-xs`}
+                    value={picked[c.country] ?? c.champions[0].email}
+                    disabled={!on}
+                    onChange={(e) =>
+                      setPicked((prev) => ({ ...prev, [c.country]: e.target.value }))
+                    }
+                  >
+                    {c.champions.map((ch) => (
+                      <option key={ch.email} value={ch.email}>
+                        {ch.name || ch.email}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="mt-3 text-sm text-slate-500">
+          Every country with a champion is already in this cycle.
+        </p>
+      )}
+      {missing.length > 0 && (
+        <p className="mt-3 text-xs text-slate-500">
+          No champion yet, so they cannot be added: {missing.map((c) => c.country).join(', ')}. Add
+          champions on the Administration page.
+        </p>
+      )}
+      {msg && (
+        <div className="mt-3">
+          <Banner tone={msg.tone}>{msg.text}</Banner>
+        </div>
+      )}
+      {ready.length > 0 && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button className={BTN} disabled={busy || !chosen.length} onClick={assign}>
+            {busy
+              ? 'Assigning…'
+              : chosen.length
+                ? `Assign ${chosen.length} ${chosen.length === 1 ? 'country' : 'countries'}`
+                : 'Assign countries'}
+          </button>
+          {ready.length > 1 && (
+            <button
+              type="button"
+              className={BTN_QUIET}
+              onClick={() =>
+                setPicked(
+                  chosen.length === ready.length
+                    ? {}
+                    : Object.fromEntries(
+                        ready.map((c) => [c.country, picked[c.country] ?? c.champions[0].email]),
+                      ),
+                )
+              }
+            >
+              {chosen.length === ready.length ? 'Clear' : 'Select all'}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -12,7 +12,11 @@ export default async function CyclesPage() {
   if (!actor) redirect(icsaSignInPath());
   if (!actor.isAdmin && !isChampion(actor)) redirect('/icsa');
 
-  const [cycles, enrollments] = await Promise.all([listCycles(), listEnrollments(actor)]);
+  const [allCycles, enrollments] = await Promise.all([listCycles(), listEnrollments(actor)]);
+  /* Champions see only the cycles the administrator has assigned their country to. */
+  const cycles = actor.isAdmin
+    ? allCycles
+    : allCycles.filter((c) => enrollments.some((e) => e.cycleId === c.id));
 
   return (
     <>
@@ -22,15 +26,15 @@ export default async function CyclesPage() {
         actions={actor.isAdmin ? <NewCycleForm /> : undefined}
       >
         {actor.isAdmin
-          ? 'Open a cycle for each period. Champions then enrol their country and nominate respondents.'
-          : 'Enrol your country in an open cycle, then nominate the people who must complete the self-audit.'}
+          ? 'Open a cycle for each period and assign the countries taking part. Each country’s champion then chooses the respondents.'
+          : 'Cycles your country has been assigned to. Open one to choose the people who must complete the self-assessment.'}
       </PageHeader>
 
       {!cycles.length ? (
         <Empty title="No cycles yet.">
           {actor.isAdmin
             ? 'Open the first one above.'
-            : 'The administrator has not opened a cycle yet.'}
+            : 'Your country has not been assigned to a cycle yet. You will get an email when it is.'}
         </Empty>
       ) : (
         <div className={`${CARD} overflow-x-auto`}>
@@ -80,7 +84,7 @@ export default async function CyclesPage() {
                       {mine.length ? (
                         mine.map((e) => e.country).join(', ')
                       ) : (
-                        <span className="text-slate-400">None enrolled</span>
+                        <span className="text-slate-400">None assigned</span>
                       )}
                     </td>
                     <td className={TD}>

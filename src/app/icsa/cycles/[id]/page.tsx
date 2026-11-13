@@ -1,8 +1,15 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { getIcsaActor, isChampion } from '@/lib/icsa/access';
-import { getCycle, listEnrollments } from '@/lib/icsa/queries';
-import { FREQUENCY_LABEL, daysLeft, fmtDate, isPastDeadline, progress } from '@/lib/icsa/model';
+import { getCycle, listChampions, listEnrollments } from '@/lib/icsa/queries';
+import {
+  FREQUENCY_LABEL,
+  ICSA_COUNTRIES,
+  daysLeft,
+  fmtDate,
+  isPastDeadline,
+  progress,
+} from '@/lib/icsa/model';
 import {
   BTN_QUIET,
   CARD,
@@ -15,7 +22,7 @@ import {
   TH,
   ThresholdBar,
 } from '../../components/ui';
-import { CycleAdminActions, EnrollButton } from '../CycleForms';
+import { AssignCountries, CycleAdminActions, type AssignableCountry } from '../CycleForms';
 import { icsaSignInPath } from '@/lib/icsa/demo';
 
 export default async function CyclePage({ params }: { params: Promise<{ id: string }> }) {
@@ -26,10 +33,21 @@ export default async function CyclePage({ params }: { params: Promise<{ id: stri
   const cycle = await getCycle(Number(id) || 0);
   if (!cycle) notFound();
   const enrollments = await listEnrollments(actor, cycle.id);
+  /* A champion only reaches a cycle their country has been assigned to. */
+  if (!actor.isAdmin && !enrollments.length) redirect('/icsa/cycles');
 
   const enrolled = new Set(enrollments.map((e) => e.country));
-  const canEnrol = cycle.status === 'open' && !isPastDeadline(cycle.deadline);
-  const toEnrol = canEnrol ? actor.championCountries.filter((c) => !enrolled.has(c)) : [];
+  const canAssign = actor.isAdmin && cycle.status === 'open' && !isPastDeadline(cycle.deadline);
+  let assignable: AssignableCountry[] = [];
+  if (canAssign) {
+    const champions = await listChampions();
+    assignable = ICSA_COUNTRIES.filter((c) => !enrolled.has(c)).map((country) => ({
+      country,
+      champions: champions
+        .filter((ch) => ch.country === country)
+        .map((ch) => ({ email: ch.email, name: ch.name })),
+    }));
+  }
   const overall = progress(
     enrollments.flatMap((e) => e.statuses),
     cycle.thresholdPct,
@@ -73,7 +91,7 @@ export default async function CyclePage({ params }: { params: Promise<{ id: stri
       </PageHeader>
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi label="Countries enrolled" value={enrollments.length} />
+        <Kpi label="Countries assigned" value={enrollments.length} />
         <Kpi label="Requests sent" value={overall.requested} />
         <Kpi label="Responses" value={overall.responded} sub="Submitted or reviewed" />
         <Kpi
@@ -83,26 +101,11 @@ export default async function CyclePage({ params }: { params: Promise<{ id: stri
         />
       </div>
 
-      {toEnrol.length > 0 && (
-        <div className={`${CARD} mb-6 p-5`}>
-          <h2 className="font-bold text-slate-800">Enrol your country</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Enrolling makes you the champion running this cycle for that country. You then nominate
-            respondents and assign each one their form sections.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-3">
-            {toEnrol.map((c) => (
-              <EnrollButton key={c} cycleId={cycle.id} country={c} />
-            ))}
-          </div>
-        </div>
-      )}
+      {canAssign && <AssignCountries cycleId={cycle.id} countries={assignable} />}
 
       {!enrollments.length ? (
-        <Empty title="No country has enrolled yet.">
-          {actor.isAdmin
-            ? 'Champions see this cycle on their Cycles page and enrol from there.'
-            : null}
+        <Empty title="No country is in this cycle yet.">
+          {actor.isAdmin ? 'Assign countries above; their champions are emailed.' : null}
         </Empty>
       ) : (
         <div className={`${CARD} overflow-x-auto`}>
