@@ -11,8 +11,8 @@ import type { IcsaSectionKey } from './model';
  * ICSA demo sign-in.
  *
  * SC Agents signs people in with Microsoft SSO. For walking stakeholders through ICSA before it
- * goes live, the sign-in page also offers six demo people (two admins, two champions, two
- * employees): pick one and you see ICSA as that person, no password.
+ * goes live, the sign-in page also offers demo people (two admins, plus a champion and
+ * employees for each of the DEMO_COUNTRIES): pick one and you see ICSA as that person, no password.
  *
  * The demo session is ICSA's own signed cookie, not a NextAuth session, so it opens /icsa and
  * nothing else in the platform. It is off unless ICSA_DEMO_LOGIN=true. Anyone who can reach the
@@ -38,70 +38,174 @@ export interface DemoUser {
   department: string;
 }
 
-/** The two example locations, both from the ICSA list. */
-export const DEMO_COUNTRIES = ['Saudi Arabia', 'Oman'] as const;
+/** The example locations, all from the ICSA list. */
+export const DEMO_COUNTRIES = [
+  'Saudi Arabia',
+  'Oman',
+  'HQ Dubai',
+  'Kuwait',
+  'Egypt',
+  'Algeria',
+] as const;
+
+const DEMO_DOMAIN = 'icsa-demo.invalid';
+
+function person(
+  username: string,
+  name: string,
+  role: DemoRole,
+  country: string | null,
+  jobTitle: string,
+  department: string,
+): DemoUser {
+  return {
+    username,
+    name,
+    email: `${username}@${DEMO_DOMAIN}`,
+    role,
+    country,
+    jobTitle,
+    department,
+  };
+}
 
 export const DEMO_USERS: DemoUser[] = [
-  {
-    username: 'admin1',
-    name: 'Layla Haddad',
-    email: 'admin1@icsa-demo.invalid',
-    role: 'admin',
-    country: null,
-    jobTitle: 'ICSA Administrator',
-    department: 'Supply Chain Governance',
-  },
-  {
-    username: 'admin2',
-    name: 'Omar Khalil',
-    email: 'admin2@icsa-demo.invalid',
-    role: 'admin',
-    country: null,
-    jobTitle: 'Internal Controls Analyst',
-    department: 'Supply Chain Governance',
-  },
-  {
-    username: 'champion.ksa',
-    name: 'Faisal Al-Otaibi',
-    email: 'champion.ksa@icsa-demo.invalid',
-    role: 'champion',
-    country: 'Saudi Arabia',
-    jobTitle: 'Supply Chain Manager',
-    department: 'Supply Chain',
-  },
-  {
-    username: 'champion.oman',
-    name: 'Salim Al-Busaidi',
-    email: 'champion.oman@icsa-demo.invalid',
-    role: 'champion',
-    country: 'Oman',
-    jobTitle: 'Supply Chain Manager',
-    department: 'Supply Chain',
-  },
-  {
-    username: 'employee.ksa',
-    name: 'Ahmed Al-Ghamdi',
-    email: 'employee.ksa@icsa-demo.invalid',
-    role: 'employee',
-    country: 'Saudi Arabia',
-    jobTitle: 'Storekeeper',
-    department: 'Warehouse',
-  },
-  {
-    username: 'employee.oman',
-    name: 'Fatima Al-Balushi',
-    email: 'employee.oman@icsa-demo.invalid',
-    role: 'employee',
-    country: 'Oman',
-    jobTitle: 'Buyer',
-    department: 'Procurement',
-  },
+  person('admin1', 'Layla Haddad', 'admin', null, 'ICSA Administrator', 'Supply Chain Governance'),
+  person(
+    'admin2',
+    'Omar Khalil',
+    'admin',
+    null,
+    'Internal Controls Analyst',
+    'Supply Chain Governance',
+  ),
+
+  person(
+    'champion.ksa',
+    'Faisal Al-Otaibi',
+    'champion',
+    'Saudi Arabia',
+    'Supply Chain Manager',
+    'Supply Chain',
+  ),
+  person(
+    'champion.oman',
+    'Salim Al-Busaidi',
+    'champion',
+    'Oman',
+    'Supply Chain Manager',
+    'Supply Chain',
+  ),
+  person(
+    'champion.dubai',
+    'Rania Mansour',
+    'champion',
+    'HQ Dubai',
+    'Head of Procurement',
+    'Supply Chain',
+  ),
+  person(
+    'champion.kuwait',
+    'Yousef Al-Mutairi',
+    'champion',
+    'Kuwait',
+    'Supply Chain Manager',
+    'Supply Chain',
+  ),
+  person(
+    'champion.egypt',
+    'Karim Abdelaziz',
+    'champion',
+    'Egypt',
+    'Supply Chain Manager',
+    'Supply Chain',
+  ),
+  person(
+    'champion.algeria',
+    'Nadia Benali',
+    'champion',
+    'Algeria',
+    'Supply Chain Manager',
+    'Supply Chain',
+  ),
+
+  person('employee.ksa', 'Ahmed Al-Ghamdi', 'employee', 'Saudi Arabia', 'Storekeeper', 'Warehouse'),
+  person(
+    'employee.ksa2',
+    'Noura Al-Qahtani',
+    'employee',
+    'Saudi Arabia',
+    'Inventory Controller',
+    'Warehouse',
+  ),
+  person('employee.oman', 'Fatima Al-Balushi', 'employee', 'Oman', 'Buyer', 'Procurement'),
+  person(
+    'employee.oman2',
+    'Hamed Al-Harthy',
+    'employee',
+    'Oman',
+    'Planner',
+    'Supply Chain Planning',
+  ),
+  person(
+    'employee.dubai1',
+    'Priya Nair',
+    'employee',
+    'HQ Dubai',
+    'Category Manager',
+    'Procurement',
+  ),
+  person(
+    'employee.dubai2',
+    'Tariq Saeed',
+    'employee',
+    'HQ Dubai',
+    'Procurement Policy Lead',
+    'Supply Chain Governance',
+  ),
+  person('employee.kuwait1', 'Abdullah Al-Enezi', 'employee', 'Kuwait', 'Buyer', 'Procurement'),
+  person('employee.kuwait2', 'Mariam Al-Rashidi', 'employee', 'Kuwait', 'Storekeeper', 'Warehouse'),
+  person('employee.egypt1', 'Mona Farouk', 'employee', 'Egypt', 'Senior Buyer', 'Procurement'),
+  person(
+    'employee.egypt2',
+    'Hossam Ibrahim',
+    'employee',
+    'Egypt',
+    'Inventory Accountant',
+    'Finance',
+  ),
+  person(
+    'employee.algeria1',
+    'Yacine Boudiaf',
+    'employee',
+    'Algeria',
+    'Warehouse Supervisor',
+    'Warehouse',
+  ),
+  person(
+    'employee.algeria2',
+    'Amina Cherif',
+    'employee',
+    'Algeria',
+    'Planner',
+    'Supply Chain Planning',
+  ),
 ];
 
 /** The sections each demo employee is sent, matching their job. */
 const DEMO_EMPLOYEE_SECTIONS: Record<string, IcsaSectionKey[]> = {
   'employee.ksa': ['grn', 'movement'],
+  'employee.ksa2': ['valuation', 'movement'],
   'employee.oman': ['sourcing', 'po'],
+  'employee.oman2': ['planning'],
+  'employee.dubai1': ['sourcing', 'po'],
+  'employee.dubai2': ['policy'],
+  'employee.kuwait1': ['sourcing', 'po'],
+  'employee.kuwait2': ['grn', 'movement'],
+  'employee.egypt1': ['sourcing', 'po'],
+  'employee.egypt2': ['valuation'],
+  'employee.algeria1': ['grn', 'movement', 'valuation'],
+  'employee.algeria2': ['planning', 'policy'],
 };
 
 export const DEMO_CYCLE_LABEL = 'Demo cycle (Q4 2026)';
@@ -132,7 +236,7 @@ export function demoOptions(): { username: string; label: string }[] | null {
 }
 
 export function isDemoEmail(email: string): boolean {
-  return email.toLowerCase().endsWith('@icsa-demo.invalid');
+  return email.toLowerCase().endsWith(`@${DEMO_DOMAIN}`);
 }
 
 export function demoUserByUsername(username: string): DemoUser | null {
@@ -209,8 +313,8 @@ export function icsaSignInPath(): string {
 }
 
 /**
- * Makes sure the demo world exists: the two champions, and one open demo cycle with both
- * locations enrolled and a form already sent to each demo employee. Idempotent, and it never
+ * Makes sure the demo world exists: the champions, and one open demo cycle with every demo
+ * location enrolled and a form already sent to each demo employee. Idempotent, and it never
  * rebuilds a demo cycle that exists, so whatever people did during a demo is kept.
  */
 export async function ensureDemoData(): Promise<void> {
@@ -245,30 +349,45 @@ export async function ensureDemoData(): Promise<void> {
         );
       }
 
-      const existing = await q(`SELECT id FROM icsa_cycles WHERE LOWER(label) = LOWER($1)`, [
-        DEMO_CYCLE_LABEL,
-      ]);
-      if (existing.rows.length) return;
-
-      const cycle = await q(
-        `INSERT INTO icsa_cycles
-           (label, frequency, period_start, period_end, deadline, threshold_pct, created_by)
-         VALUES ($1, 'quarterly', DATE '2026-10-01', DATE '2026-12-31',
-                 GREATEST((NOW() AT TIME ZONE 'Asia/Dubai')::date + 30, DATE '2026-12-31'),
-                 70, 'demo-seed')
-         RETURNING id, deadline::text AS deadline`,
+      /* The demo cycle is created once. Locations and people added to DEMO_USERS later are
+         added to it without touching what is already there, so demo answers are kept. */
+      const existing = await q(
+        `SELECT id, deadline::text AS deadline FROM icsa_cycles WHERE LOWER(label) = LOWER($1)`,
         [DEMO_CYCLE_LABEL],
       );
+      const cycle = existing.rows.length
+        ? existing
+        : await q(
+            `INSERT INTO icsa_cycles
+               (label, frequency, period_start, period_end, deadline, threshold_pct, created_by)
+             VALUES ($1, 'quarterly', DATE '2026-10-01', DATE '2026-12-31',
+                     GREATEST((NOW() AT TIME ZONE 'Asia/Dubai')::date + 30, DATE '2026-12-31'),
+                     70, 'demo-seed')
+             RETURNING id, deadline::text AS deadline`,
+            [DEMO_CYCLE_LABEL],
+          );
       const { id: cycleId, deadline } = cycle.rows[0] as QueryResultRow;
 
       for (const country of DEMO_COUNTRIES) {
         const champ = DEMO_USERS.find((d) => d.role === 'champion' && d.country === country)!;
-        const enr = await q(
-          `INSERT INTO icsa_enrollments (cycle_id, country, champion_email, champion_name, deadline)
-           VALUES ($1, $2, $3, $4, $5::date) RETURNING id`,
-          [cycleId, country, champ.email, champ.name, deadline],
+        const found = await q(
+          `SELECT id FROM icsa_enrollments WHERE cycle_id = $1 AND country = $2`,
+          [cycleId, country],
         );
-        const enrollmentId = (enr.rows[0] as QueryResultRow).id;
+        let enrollmentId = (found.rows[0] as QueryResultRow | undefined)?.id;
+        if (!enrollmentId) {
+          const enr = await q(
+            `INSERT INTO icsa_enrollments (cycle_id, country, champion_email, champion_name, deadline)
+             VALUES ($1, $2, $3, $4, $5::date) RETURNING id`,
+            [cycleId, country, champ.email, champ.name, deadline],
+          );
+          enrollmentId = (enr.rows[0] as QueryResultRow).id;
+          await q(
+            `INSERT INTO icsa_events (cycle_id, enrollment_id, actor, action, detail)
+             VALUES ($1, $2, 'demo-seed', 'demo_seeded', '{}'::jsonb)`,
+            [cycleId, enrollmentId],
+          );
+        }
         for (const emp of DEMO_USERS.filter(
           (d) => d.role === 'employee' && d.country === country,
         )) {
@@ -276,7 +395,10 @@ export async function ensureDemoData(): Promise<void> {
             `INSERT INTO icsa_assessments
                (enrollment_id, respondent_email, respondent_name, job_title, department,
                 sections, status, nominated_by, requested_at)
-             VALUES ($1, $2, $3, $4, $5, $6::text[], 'requested', $7, NOW())`,
+             SELECT $1, $2::text, $3, $4, $5, $6::text[], 'requested', $7, NOW()
+              WHERE NOT EXISTS (
+                SELECT 1 FROM icsa_assessments
+                 WHERE enrollment_id = $1 AND LOWER(respondent_email) = $2::text)`,
             [
               enrollmentId,
               emp.email,
@@ -288,11 +410,6 @@ export async function ensureDemoData(): Promise<void> {
             ],
           );
         }
-        await q(
-          `INSERT INTO icsa_events (cycle_id, enrollment_id, actor, action, detail)
-           VALUES ($1, $2, 'demo-seed', 'demo_seeded', '{}'::jsonb)`,
-          [cycleId, enrollmentId],
-        );
       }
     });
   } catch (err) {
