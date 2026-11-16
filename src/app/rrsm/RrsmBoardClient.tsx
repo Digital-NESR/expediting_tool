@@ -38,6 +38,7 @@ import {
   type RrsmBoard,
 } from '@/app/actions/rrsm/cycle';
 import InvitationsPanel from './InvitationsPanel';
+import RenewalsPanel from './RenewalsPanel';
 import {
   ERP_STATUS_LABEL,
   STAGE_LABEL,
@@ -52,7 +53,7 @@ import {
 
 const BRAND = '#307c4c';
 
-type View = 'ops' | 'buyer' | 'invite';
+type View = 'ops' | 'buyer' | 'invite' | 'renew';
 
 const STAGE_TONE: Record<CycleStage, string> = {
   awaiting_supplier: 'bg-slate-100 text-slate-600',
@@ -188,6 +189,9 @@ export default function RrsmBoardClient({ board }: { board: RrsmBoard }) {
                   /* Ops own the chase, the same people who opened the cycle. A buyer has nothing
                      to act on until the submissions are in. */
                   ['invite', 'Suppliers · invitations', board.canValidate],
+                  /* Visible to both: a validator should see what is running out even though
+                     only a buyer may commit to another year of it. */
+                  ['renew', 'Renewals', true],
                 ] as [View, string, boolean][]
               ).map(([id, label, allowed]) => (
                 <button
@@ -231,6 +235,8 @@ export default function RrsmBoardClient({ board }: { board: RrsmBoard }) {
 
           {view === 'invite' ? (
             <InvitationsPanel countryCode={board.country.code} />
+          ) : view === 'renew' ? (
+            <RenewalsPanel countryCode={board.country.code} />
           ) : (
             <>
               {/* ── the lines, grouped by supplier ──────────────── */}
