@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 import DemoSwitcher, { type DemoSwitcherProps } from './DemoSwitcher';
 import {
+  BarChart3,
   ClipboardCheck,
   Home,
   LayoutDashboard,
@@ -70,6 +71,12 @@ export default function IcsaShell({
       href: '/icsa/dashboard',
       label: 'Review dashboard',
       icon: <LayoutDashboard className="h-4 w-4" />,
+      show: isManager,
+    },
+    {
+      href: '/icsa/analytics',
+      label: 'Analytics',
+      icon: <BarChart3 className="h-4 w-4" />,
       show: isManager,
     },
     {

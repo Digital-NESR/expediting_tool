@@ -51,7 +51,6 @@ interface EnrollmentRow {
   cycle_id: number;
   cycle_label: string;
   cycle_status: string;
-  threshold_pct: number;
   country: string;
   champion_email: string;
   champion_name: string | null;
@@ -66,7 +65,7 @@ async function loadEnrollment(
   mustBeOpen = true,
 ): Promise<EnrollmentRow> {
   const [e] = await sql<QueryResultRow[]>(
-    `SELECT e.id, e.cycle_id, c.label AS cycle_label, c.status AS cycle_status, c.threshold_pct,
+    `SELECT e.id, e.cycle_id, c.label AS cycle_label, c.status AS cycle_status,
             e.country, e.champion_email, e.champion_name, e.deadline::text AS deadline, e.status
        FROM icsa_enrollments e JOIN icsa_cycles c ON c.id = e.cycle_id WHERE e.id = ?`,
     [enrollmentId],
@@ -106,7 +105,7 @@ export async function assignIcsaCountries(
     if (!assignments.length) return { success: false, error: 'Pick at least one country.' };
     await sweepOverdue(true);
     const [c] = await sql<QueryResultRow[]>(
-      `SELECT label, status, threshold_pct, deadline::text AS deadline,
+      `SELECT label, status, deadline::text AS deadline,
               (deadline < ${TODAY_SQL}) AS past
          FROM icsa_cycles WHERE id = ?`,
       [cycleId],
@@ -157,7 +156,6 @@ export async function assignIcsaCountries(
             cycleLabel: c.label,
             country: a.country,
             deadline: c.deadline,
-            thresholdPct: Number(c.threshold_pct),
             enrollmentId: id,
           }),
         );
@@ -414,8 +412,8 @@ export async function sendIcsaReminders(
 /* ─── Close and extend ──────────────────────────────────────────────────────────────────── */
 
 /**
- * Close a country for this cycle. A champion may close once the response rate reaches the
- * administrator's threshold; an administrator may close at any time. Whoever has not submitted is
+ * Close a country for this cycle. A champion may close once everyone they sent the form to has
+ * submitted it; an administrator may close at any time. Whoever has not submitted is
  * marked not completed.
  */
 export async function closeIcsaEnrollment(enrollmentId: number, note: string): Promise<IcsaResult> {
@@ -429,13 +427,12 @@ export async function closeIcsaEnrollment(enrollmentId: number, note: string): P
         `SELECT status FROM icsa_assessments WHERE enrollment_id = ?`,
         [enrollmentId],
       );
-      const p = progress(
-        st.map((r) => r.status as AssessmentStatus),
-        Number(e.threshold_pct),
-      );
+      const p = progress(st.map((r) => r.status as AssessmentStatus));
       if (!actor.isAdmin && !p.met) {
         throw new AccessError(
-          `The ${p.thresholdPct}% threshold has not been reached yet: ${p.responded} of ${p.requested} have responded. Wait, or ask the administrator for an extension.`,
+          p.requested
+            ? `Not everyone has submitted yet: ${p.responded} of ${p.requested} forms are in. Wait, remind them, or ask the administrator for an extension.`
+            : 'Nobody has been sent the form yet.',
           409,
         );
       }
@@ -449,7 +446,7 @@ export async function closeIcsaEnrollment(enrollmentId: number, note: string): P
         action: 'enrollment.closed',
         cycleId: e.cycle_id,
         enrollmentId,
-        detail: { responded: p.responded, requested: p.requested, threshold: p.thresholdPct, note },
+        detail: { responded: p.responded, requested: p.requested, note },
       });
     });
     revalidate();

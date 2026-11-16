@@ -100,29 +100,16 @@ export function CyclePill({ status }: { status: 'open' | 'closed' }) {
   return <EnrollmentPill status={status} />;
 }
 
-/** Response rate against the threshold, with the threshold marked on the bar. */
-export function ThresholdBar({
-  rate,
-  thresholdPct,
-  label,
-}: {
-  rate: number;
-  thresholdPct: number;
-  label?: ReactNode;
-}) {
-  const met = rate * 100 >= thresholdPct;
+/** Share of forms submitted. Green only when every form is in. */
+export function ResponseBar({ rate, label }: { rate: number; label?: ReactNode }) {
+  const done = rate >= 1;
   return (
     <div className="min-w-[160px]">
       {label && <div className="mb-1 flex justify-between text-xs text-slate-500">{label}</div>}
-      <div className="relative h-2 rounded-full bg-slate-100">
+      <div className="h-2 rounded-full bg-slate-100">
         <div
-          className={`h-2 rounded-full ${met ? 'bg-[#2a7e4f]' : 'bg-amber-400'}`}
+          className={`h-2 rounded-full ${done ? 'bg-[#2a7e4f]' : 'bg-amber-400'}`}
           style={{ width: `${Math.min(100, Math.round(rate * 100))}%` }}
-        />
-        <div
-          className="absolute -top-1 h-4 w-0.5 bg-slate-700"
-          style={{ left: `${thresholdPct}%` }}
-          title={`Threshold ${thresholdPct}%`}
         />
       </div>
     </div>

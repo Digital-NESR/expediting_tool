@@ -193,7 +193,6 @@ export function assignedMail(i: {
   cycleLabel: string;
   country: string;
   deadline: string;
-  thresholdPct: number;
   enrollmentId: number;
 }): IcsaMail {
   const link = appUrl(`/icsa/enrollments/${i.enrollmentId}`);
@@ -207,7 +206,7 @@ export function assignedMail(i: {
       [
         `Dear ${esc(i.name || 'colleague')},`,
         `The ICSA administrator has added <b>${esc(i.country)}</b> to cycle <b>${esc(i.cycleLabel)}</b>, with you as its champion.`,
-        `Please choose the people who should complete the self-assessment, give each of them their form sections, and send them the form. The deadline is <b>${esc(i.deadline)}</b>, and the country can be closed once ${i.thresholdPct}% of them have submitted.`,
+        `Please choose the people who should complete the self-assessment, give each of them their form sections, and send them the form. Everyone you choose has to submit their whole form by <b>${esc(i.deadline)}</b>.`,
       ],
       { label: 'Choose respondents', href: link },
     ),

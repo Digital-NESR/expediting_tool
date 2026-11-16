@@ -48,7 +48,7 @@ export function ChampionsPanel({ champions }: { champions: Champion[] }) {
       <h2 className="font-bold text-slate-800">Champions</h2>
       <p className="mt-1 text-sm text-slate-500">
         A champion runs a country inside each cycle: nominates respondents, chases, reviews, and
-        closes once the threshold is met. One person can champion several countries.
+        closes once every form is in. One person can champion several countries.
       </p>
       <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_200px_auto]">
         <div className="relative">

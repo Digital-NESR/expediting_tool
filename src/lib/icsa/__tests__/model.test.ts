@@ -68,29 +68,25 @@ describe('submissionIssues', () => {
   });
 });
 
-describe('progress against the threshold', () => {
+describe('progress: complete only when everyone asked has submitted', () => {
   it('ignores people the champion has not sent the request to yet', () => {
-    const p = progress(['nominated', 'submitted', 'requested'], 50);
+    const p = progress(['nominated', 'submitted', 'requested']);
     expect(p.requested).toBe(2);
     expect(p.responded).toBe(1);
-    expect(p.met).toBe(true);
-  });
-
-  it('needs the ceiling of the threshold, so 70% of 3 is 3 responses', () => {
-    const p = progress(['submitted', 'reviewed', 'in_progress'], 70);
     expect(p.met).toBe(false);
     expect(p.shortBy).toBe(1);
   });
 
-  it('70% of 10 is exactly 7', () => {
-    const statuses = [...Array(7).fill('submitted'), ...Array(3).fill('requested')] as Parameters<
-      typeof progress
-    >[0];
-    expect(progress(statuses, 70).met).toBe(true);
+  it('is met once every request is submitted or reviewed', () => {
+    expect(progress(['nominated', 'submitted', 'reviewed']).met).toBe(true);
+  });
+
+  it('a returned form is not in', () => {
+    expect(progress(['submitted', 'returned']).met).toBe(false);
   });
 
   it('is never met with nobody asked', () => {
-    expect(progress([], 70).met).toBe(false);
+    expect(progress([]).met).toBe(false);
   });
 });
 

@@ -18,7 +18,7 @@ import {
   EnrollmentPill,
   Kpi,
   PageHeader,
-  ThresholdBar,
+  ResponseBar,
   CARD,
 } from '../../components/ui';
 import {
@@ -42,10 +42,7 @@ export default async function EnrollmentPage({ params }: { params: Promise<{ id:
   ]);
   if (!cycle) notFound();
 
-  const p = progress(
-    assessments.map((a) => a.status),
-    cycle.thresholdPct,
-  );
+  const p = progress(assessments.map((a) => a.status));
   const isOpen = enrollment.status === 'open';
   const rows: RespondentRow[] = assessments.map((a) => {
     const t = scoreAnswers(a.answers, sectionsByKeys(a.sections)).total;
@@ -125,11 +122,14 @@ export default async function EnrollmentPage({ params }: { params: Promise<{ id:
           </p>
           <p className="mt-1 text-2xl font-bold text-[#2a7e4f]">{Math.round(p.rate * 100)}%</p>
           <div className="mt-2">
-            <ThresholdBar rate={p.rate} thresholdPct={cycle.thresholdPct} />
+            <ResponseBar rate={p.rate} />
           </div>
           <p className="mt-1 text-xs text-slate-500">
-            Threshold {cycle.thresholdPct}% ·{' '}
-            {p.met ? 'met, you can close' : `${p.shortBy} more needed`}
+            {p.met
+              ? 'Every form is in, so you can close the country.'
+              : p.requested
+                ? `${p.shortBy} still to submit. You can close once every form is in.`
+                : 'Nobody has been sent the form yet.'}
           </p>
         </div>
       </div>

@@ -30,7 +30,6 @@ export interface CycleInput {
   periodStart: string;
   periodEnd: string;
   deadline: string;
-  thresholdPct: number;
 }
 
 function validate(i: CycleInput, isNew: boolean): string | null {
@@ -42,9 +41,6 @@ function validate(i: CycleInput, isNew: boolean): string | null {
   }
   if (i.periodEnd < i.periodStart) return 'The period cannot end before it starts.';
   if (isNew && i.deadline < todayInDubai()) return 'The deadline cannot be in the past.';
-  const t = Number(i.thresholdPct);
-  if (!Number.isInteger(t) || t < 1 || t > 100)
-    return 'The threshold is a whole percentage from 1 to 100.';
   return null;
 }
 
@@ -65,14 +61,13 @@ export async function createIcsaCycle(input: CycleInput): Promise<IcsaResult<{ i
 
     const { insertId } = await exec(
       `INSERT INTO icsa_cycles (label, frequency, period_start, period_end, deadline, threshold_pct, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+       VALUES (?, ?, ?, ?, ?, 100, ?) RETURNING id`,
       [
         input.label.trim(),
         input.frequency,
         input.periodStart,
         input.periodEnd,
         input.deadline,
-        Number(input.thresholdPct),
         actor.email,
       ],
     );
@@ -90,37 +85,29 @@ export async function createIcsaCycle(input: CycleInput): Promise<IcsaResult<{ i
 }
 
 /**
- * Change an open cycle's deadline or threshold. A new deadline moves every country still on the
+ * Change an open cycle's deadline. A new deadline moves every country still on the
  * old one; a country whose deadline was already extended past it keeps its extension.
  */
 export async function updateIcsaCycle(
   cycleId: number,
-  input: { deadline: string; thresholdPct: number; reason: string },
+  input: { deadline: string; reason: string },
 ): Promise<IcsaResult> {
   try {
     const actor = await requireIcsaAdmin();
     if (!ISO_DATE.test(input.deadline)) return { success: false, error: 'Enter a deadline.' };
     if (input.deadline < todayInDubai())
       return { success: false, error: 'The deadline cannot be in the past.' };
-    const t = Number(input.thresholdPct);
-    if (!Number.isInteger(t) || t < 1 || t > 100) {
-      return { success: false, error: 'The threshold is a whole percentage from 1 to 100.' };
-    }
     if (!input.reason?.trim()) return { success: false, error: 'Say why the cycle is changing.' };
 
     await withTransaction(icsaPool, async (client) => {
       const { sql: tx } = createSqlHelpers(client);
       const [old] = await tx<QueryResultRow[]>(
-        `SELECT deadline::text AS deadline, threshold_pct, status FROM icsa_cycles WHERE id = ? FOR UPDATE`,
+        `SELECT deadline::text AS deadline, status FROM icsa_cycles WHERE id = ? FOR UPDATE`,
         [cycleId],
       );
       if (!old) throw new AccessError('That cycle no longer exists.', 404);
       if (old.status !== 'open') throw new AccessError('That cycle is closed.', 409);
-      await tx(`UPDATE icsa_cycles SET deadline = ?, threshold_pct = ? WHERE id = ?`, [
-        input.deadline,
-        t,
-        cycleId,
-      ]);
+      await tx(`UPDATE icsa_cycles SET deadline = ? WHERE id = ?`, [input.deadline, cycleId]);
       /* Countries on the old cycle deadline follow it; a country with an extension keeps the
          later of its own date and the new one. */
       await tx(
@@ -133,7 +120,7 @@ export async function updateIcsaCycle(
         actor: actor.email,
         action: 'cycle.updated',
         cycleId,
-        detail: { from: { deadline: old.deadline, thresholdPct: old.threshold_pct }, to: input },
+        detail: { from: { deadline: old.deadline }, to: input },
       });
     });
     revalidatePath('/icsa', 'layout');

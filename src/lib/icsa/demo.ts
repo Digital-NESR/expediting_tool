@@ -380,7 +380,7 @@ export async function ensureDemoData(): Promise<void> {
                (label, frequency, period_start, period_end, deadline, threshold_pct, created_by)
              VALUES ($1, 'quarterly', DATE '2026-10-01', DATE '2026-12-31',
                      GREATEST((NOW() AT TIME ZONE 'Asia/Dubai')::date + 30, DATE '2026-12-31'),
-                     70, 'demo-seed')
+                     100, 'demo-seed')
              RETURNING id, deadline::text AS deadline`,
             [DEMO_CYCLE_LABEL],
           );

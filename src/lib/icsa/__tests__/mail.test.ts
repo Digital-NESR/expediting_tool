@@ -15,7 +15,6 @@ const base = () =>
     cycleLabel: 'Q1 2027',
     country: 'Saudi Arabia',
     deadline: '2027-03-31',
-    thresholdPct: 70,
     enrollmentId: 4,
   });
 

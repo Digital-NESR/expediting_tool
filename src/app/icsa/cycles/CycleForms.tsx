@@ -53,7 +53,6 @@ export function NewCycleForm() {
     periodStart: initial.start,
     periodEnd: initial.end,
     deadline: '',
-    thresholdPct: 70,
   });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -70,7 +69,7 @@ export function NewCycleForm() {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const res = await createIcsaCycle({ ...f, thresholdPct: Number(f.thresholdPct) });
+    const res = await createIcsaCycle(f);
     setBusy(false);
     if (!res.success) return setError(res.error ?? 'Could not open the cycle.');
     setOpen(false);
@@ -124,20 +123,6 @@ export function NewCycleForm() {
           />
         </div>
         <div>
-          <label className={LABEL} htmlFor="c-thr">
-            Completion threshold (%)
-          </label>
-          <input
-            id="c-thr"
-            type="number"
-            min={1}
-            max={100}
-            className={INPUT}
-            value={f.thresholdPct}
-            onChange={(e) => setF({ ...f, thresholdPct: Number(e.target.value) })}
-          />
-        </div>
-        <div>
           <label className={LABEL} htmlFor="c-start">
             Period start
           </label>
@@ -175,9 +160,9 @@ export function NewCycleForm() {
         </div>
       </div>
       <p className="mt-3 text-xs text-slate-500">
-        Champions can close their country once {f.thresholdPct || '…'}% of the people they asked
-        have submitted. A country still open after the deadline, without an approved extension, is
-        force-closed and everyone who had not submitted is recorded as not completed.
+        Champions can close their country once everyone they asked has submitted the whole form. A
+        country still open after the deadline, without an approved extension, is force-closed and
+        everyone who had not submitted is recorded as not completed.
       </p>
       {error && (
         <div className="mt-3">
@@ -196,19 +181,10 @@ export function NewCycleForm() {
   );
 }
 
-export function CycleAdminActions({
-  cycleId,
-  deadline,
-  thresholdPct,
-}: {
-  cycleId: number;
-  deadline: string;
-  thresholdPct: number;
-}) {
+export function CycleAdminActions({ cycleId, deadline }: { cycleId: number; deadline: string }) {
   const router = useRouter();
   const [mode, setMode] = useState<'none' | 'edit' | 'close'>('none');
   const [d, setD] = useState(deadline);
-  const [t, setT] = useState(thresholdPct);
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -218,7 +194,7 @@ export function CycleAdminActions({
     setError(null);
     const res =
       mode === 'edit'
-        ? await updateIcsaCycle(cycleId, { deadline: d, thresholdPct: Number(t), reason })
+        ? await updateIcsaCycle(cycleId, { deadline: d, reason })
         : await closeIcsaCycle(cycleId, reason);
     setBusy(false);
     if (!res.success) return setError(res.error ?? 'That did not work.');
@@ -231,7 +207,7 @@ export function CycleAdminActions({
     return (
       <>
         <button className={BTN_QUIET} onClick={() => setMode('edit')}>
-          Change deadline or threshold
+          Change deadline
         </button>
         <button className={BTN_DANGER} onClick={() => setMode('close')}>
           Close cycle
@@ -245,33 +221,17 @@ export function CycleAdminActions({
         {mode === 'edit' ? 'Change the cycle' : 'Close the whole cycle'}
       </h3>
       {mode === 'edit' ? (
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          <div>
-            <label className={LABEL} htmlFor="e-dl">
-              Deadline
-            </label>
-            <input
-              id="e-dl"
-              type="date"
-              className={INPUT}
-              value={d}
-              onChange={(e) => setD(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className={LABEL} htmlFor="e-thr">
-              Threshold (%)
-            </label>
-            <input
-              id="e-thr"
-              type="number"
-              min={1}
-              max={100}
-              className={INPUT}
-              value={t}
-              onChange={(e) => setT(Number(e.target.value))}
-            />
-          </div>
+        <div className="mt-3">
+          <label className={LABEL} htmlFor="e-dl">
+            Deadline
+          </label>
+          <input
+            id="e-dl"
+            type="date"
+            className={INPUT}
+            value={d}
+            onChange={(e) => setD(e.target.value)}
+          />
         </div>
       ) : (
         <p className="mt-2 text-sm text-slate-600">

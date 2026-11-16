@@ -58,7 +58,7 @@ let lastSweep = 0;
  *
  *   1. A country whose deadline (the cycle's, or an approved extension's) has passed while still
  *      open is force-closed, and everybody who had not submitted is marked not completed, which
- *      is how they count against the threshold.
+ *      is how they count as missing.
  *   2. A cycle past its own deadline with no country left open is closed.
  *
  * Failures are logged, never thrown: a page should still render if the sweep could not run.

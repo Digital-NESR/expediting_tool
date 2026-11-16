@@ -31,7 +31,7 @@ import {
   RateChip,
   TD,
   TH,
-  ThresholdBar,
+  ResponseBar,
 } from '../components/ui';
 import ScopeFilter from './ScopeFilter';
 import { icsaSignInPath } from '@/lib/icsa/demo';
@@ -76,10 +76,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
   const reviewed = all.filter((a) => a.status === 'reviewed').length;
   const rates = responded.map((x) => x.score.total.rate).filter((r): r is number => r !== null);
   const avg = rates.length ? rates.reduce((s, r) => s + r, 0) / rates.length : null;
-  const coverage = progress(
-    all.map((a) => a.status),
-    cycle?.thresholdPct ?? 70,
-  );
+  const coverage = progress(all.map((a) => a.status));
 
   /* Compliance by section and country, pooled over every response in that country. */
   const countriesInView = [...new Set(responded.map((x) => x.a.country))].sort();
@@ -128,10 +125,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
           </a>
         }
       >
-        {cycle
-          ? `${cycle.label}: deadline ${fmtDate(cycle.deadline)}, threshold ${cycle.thresholdPct}%.`
-          : 'Every cycle.'}{' '}
-        Open an assessment to read its answers, then mark it reviewed or return it for changes.
+        {cycle ? `${cycle.label}: deadline ${fmtDate(cycle.deadline)}.` : 'Every cycle.'} Open an
+        assessment to read its answers, then mark it reviewed or return it for changes.
       </PageHeader>
 
       <div className={`${CARD} mb-6 p-4`}>
@@ -166,7 +161,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
                     'Cycle',
                     'Champion',
                     'Deadline',
-                    'Responses vs threshold',
+                    'Forms submitted',
                     'Status',
                     '',
                   ].map((h) => (
@@ -179,7 +174,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
               <tbody className="divide-y divide-slate-100">
                 {enrollments.map((e) => {
                   const c = cycles.find((x) => x.id === e.cycleId);
-                  const p = progress(e.statuses, c?.thresholdPct ?? 70);
+                  const p = progress(e.statuses);
                   return (
                     <tr key={e.id} className="hover:bg-[#307c4c]/5">
                       <td className={`${TD} font-semibold`}>{e.country}</td>
@@ -187,9 +182,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
                       <td className={TD}>{e.championName || e.championEmail}</td>
                       <td className={TD}>{fmtDate(e.deadline)}</td>
                       <td className={TD}>
-                        <ThresholdBar
+                        <ResponseBar
                           rate={p.rate}
-                          thresholdPct={p.thresholdPct}
                           label={
                             <>
                               <span>

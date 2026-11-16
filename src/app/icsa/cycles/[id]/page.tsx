@@ -20,7 +20,7 @@ import {
   PageHeader,
   TD,
   TH,
-  ThresholdBar,
+  ResponseBar,
 } from '../../components/ui';
 import { AssignCountries, CycleAdminActions, type AssignableCountry } from '../CycleForms';
 import { icsaSignInPath } from '@/lib/icsa/demo';
@@ -48,10 +48,7 @@ export default async function CyclePage({ params }: { params: Promise<{ id: stri
         .map((ch) => ({ email: ch.email, name: ch.name })),
     }));
   }
-  const overall = progress(
-    enrollments.flatMap((e) => e.statuses),
-    cycle.thresholdPct,
-  );
+  const overall = progress(enrollments.flatMap((e) => e.statuses));
   const left = daysLeft(cycle.deadline);
 
   return (
@@ -74,11 +71,7 @@ export default async function CyclePage({ params }: { params: Promise<{ id: stri
               Dashboard
             </a>
             {actor.isAdmin && cycle.status === 'open' && (
-              <CycleAdminActions
-                cycleId={cycle.id}
-                deadline={cycle.deadline}
-                thresholdPct={cycle.thresholdPct}
-              />
+              <CycleAdminActions cycleId={cycle.id} deadline={cycle.deadline} />
             )}
           </>
         }
@@ -97,7 +90,7 @@ export default async function CyclePage({ params }: { params: Promise<{ id: stri
         <Kpi
           label="Response rate"
           value={`${Math.round(overall.rate * 100)}%`}
-          sub={`Threshold ${cycle.thresholdPct}%`}
+          sub="Every form has to be in"
         />
       </div>
 
@@ -112,18 +105,16 @@ export default async function CyclePage({ params }: { params: Promise<{ id: stri
           <table className="w-full min-w-[860px]">
             <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
-                {['Country', 'Champion', 'Deadline', 'Responses vs threshold', 'Status', ''].map(
-                  (h) => (
-                    <th key={h} className={TH}>
-                      {h}
-                    </th>
-                  ),
-                )}
+                {['Country', 'Champion', 'Deadline', 'Forms submitted', 'Status', ''].map((h) => (
+                  <th key={h} className={TH}>
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {enrollments.map((e) => {
-                const p = progress(e.statuses, cycle.thresholdPct);
+                const p = progress(e.statuses);
                 const nominated = e.statuses.filter((s) => s === 'nominated').length;
                 return (
                   <tr key={e.id} className="hover:bg-[#307c4c]/5">
@@ -141,15 +132,16 @@ export default async function CyclePage({ params }: { params: Promise<{ id: stri
                       )}
                     </td>
                     <td className={TD}>
-                      <ThresholdBar
+                      <ResponseBar
                         rate={p.rate}
-                        thresholdPct={cycle.thresholdPct}
                         label={
                           <>
                             <span>
-                              {p.responded} of {p.requested} responded
+                              {p.responded} of {p.requested} submitted
                             </span>
-                            <span>{p.met ? 'Threshold met' : `${p.shortBy} more needed`}</span>
+                            <span>
+                              {p.met ? 'All in' : p.requested ? `${p.shortBy} to go` : ''}
+                            </span>
                           </>
                         }
                       />

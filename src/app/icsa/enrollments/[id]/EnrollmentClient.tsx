@@ -158,7 +158,7 @@ export function EnrollmentActions({
           <button
             className={BTN_QUIET}
             disabled={!canClose}
-            title={canClose ? '' : `Available once ${p.thresholdPct}% have responded`}
+            title={canClose ? '' : 'Available once everyone has submitted'}
             onClick={() => setMode('close')}
           >
             Close country
@@ -182,12 +182,11 @@ export function EnrollmentActions({
         <div className={`${CARD} p-4`}>
           <h3 className="font-bold text-slate-800">Close this country for the cycle?</h3>
           <p className="mt-1 text-sm text-slate-600">
-            {p.responded} of {p.requested} have responded ({pct(p.rate)}, threshold {p.thresholdPct}
-            %). Anyone who has not submitted will be recorded as not completed and can no longer
-            answer.
+            {p.responded} of {p.requested} have submitted ({pct(p.rate)}). Anyone who has not
+            submitted will be recorded as not completed and can no longer answer.
             {!p.met &&
               isAdmin &&
-              ' The threshold has not been met; you are closing it as administrator.'}
+              ' Not every form is in; you are closing it early as administrator.'}
           </p>
           <label className={`${LABEL} mt-3`} htmlFor="close-note">
             Note (optional)
@@ -332,7 +331,7 @@ export function NominatePanel({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [filter, setFilter] = useState({ country, department: '', jobTitle: '', q: '' });
+  const [filter, setFilter] = useState({ country, department: '', q: '' });
   const [departments, setDepartments] = useState<string[]>([]);
   const [people, setPeople] = useState<DirectoryPerson[]>([]);
   const [truncated, setTruncated] = useState(false);
@@ -412,7 +411,7 @@ export function NominatePanel({
 
       <form
         onSubmit={search}
-        className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[160px_1fr_1fr_1fr_auto]"
+        className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[160px_1fr_1fr_auto]"
       >
         <div>
           <label className={LABEL} htmlFor="f-country">
@@ -449,18 +448,6 @@ export function NominatePanel({
               </option>
             ))}
           </select>
-        </div>
-        <div>
-          <label className={LABEL} htmlFor="f-job">
-            Job title contains
-          </label>
-          <input
-            id="f-job"
-            className={INPUT}
-            value={filter.jobTitle}
-            placeholder="e.g. Storekeeper, Buyer"
-            onChange={(e) => setFilter({ ...filter, jobTitle: e.target.value })}
-          />
         </div>
         <div>
           <label className={LABEL} htmlFor="f-q">

@@ -7,7 +7,7 @@ import {
 
 /**
  * ICSA domain rules that both the server and the browser need: response options, scoring,
- * completeness checks, cycle progress against the admin's threshold. Pure functions only; no
+ * completeness checks, cycle progress. Pure functions only; no
  * database, no React, so they are unit-tested directly.
  */
 
@@ -106,7 +106,7 @@ export const ASSESSMENT_STATUS_LABEL: Record<AssessmentStatus, string> = {
 /** A respondent may edit their form in these states. */
 export const EDITABLE_STATUSES: AssessmentStatus[] = ['requested', 'in_progress', 'returned'];
 
-/** These count as a response toward the cycle threshold. */
+/** These count as a response: the form is in. */
 export const RESPONDED_STATUSES: AssessmentStatus[] = ['submitted', 'reviewed'];
 
 /** Waiting on the respondent, so a reminder makes sense. */
@@ -290,28 +290,23 @@ export interface Progress {
   responded: number;
   /** responded ÷ requested, 0..1; 0 when nothing has been sent. */
   rate: number;
-  thresholdPct: number;
-  /** True when the response rate has reached the admin's threshold. */
+  /** True when everyone who was sent the form has submitted it. */
   met: boolean;
-  /** How many more responses the threshold needs; 0 once met. */
+  /** How many have still to submit; 0 once met. */
   shortBy: number;
 }
 
-export function progress(statuses: AssessmentStatus[], thresholdPct: number): Progress {
+/**
+ * A country is complete only when every person sent the form has submitted it. There is no
+ * partial threshold: the whole form has to be filled by everyone asked.
+ */
+export function progress(statuses: AssessmentStatus[]): Progress {
   const sent = statuses.filter((s) => s !== 'nominated');
   const responded = sent.filter((s) => RESPONDED_STATUSES.includes(s)).length;
   const requested = sent.length;
   const rate = requested ? responded / requested : 0;
-  const needed = Math.ceil((thresholdPct / 100) * requested - 1e-9);
-  const met = requested > 0 && responded >= needed;
-  return {
-    requested,
-    responded,
-    rate,
-    thresholdPct,
-    met,
-    shortBy: met ? 0 : Math.max(0, needed - responded),
-  };
+  const met = requested > 0 && responded === requested;
+  return { requested, responded, rate, met, shortBy: requested - responded };
 }
 
 /* ─── Dates ─────────────────────────────────────────────────────────────────────────────── */

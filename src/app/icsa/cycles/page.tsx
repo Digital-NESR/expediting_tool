@@ -46,7 +46,6 @@ export default async function CyclesPage() {
                   'Frequency',
                   'Period',
                   'Deadline',
-                  'Threshold',
                   actor.isAdmin ? 'Countries' : 'Your countries',
                   'Responses',
                   'Status',
@@ -60,10 +59,7 @@ export default async function CyclesPage() {
             <tbody className="divide-y divide-slate-100">
               {cycles.map((c) => {
                 const mine = enrollments.filter((e) => e.cycleId === c.id);
-                const p = progress(
-                  mine.flatMap((e) => e.statuses),
-                  c.thresholdPct,
-                );
+                const p = progress(mine.flatMap((e) => e.statuses));
                 return (
                   <tr key={c.id} className="hover:bg-[#307c4c]/5">
                     <td className={TD}>
@@ -79,7 +75,6 @@ export default async function CyclesPage() {
                       {fmtDate(c.periodStart)} – {fmtDate(c.periodEnd)}
                     </td>
                     <td className={TD}>{fmtDate(c.deadline)}</td>
-                    <td className={TD}>{c.thresholdPct}%</td>
                     <td className={TD}>
                       {mine.length ? (
                         mine.map((e) => e.country).join(', ')

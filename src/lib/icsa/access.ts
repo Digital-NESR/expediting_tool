@@ -7,8 +7,8 @@ import { DEMO_USERS, currentDemoUser } from './demo';
 /**
  * Who may do what in ICSA.
  *
- *   admin       ADMIN_EMAILS or ICSA_ADMIN_EMAILS. Opens and closes cycles, sets deadlines and
- *               the threshold, appoints champions, decides extensions, sees every country.
+ *   admin       ADMIN_EMAILS or ICSA_ADMIN_EMAILS. Opens and closes cycles, sets deadlines,
+ *               appoints champions, decides extensions, sees every country.
  *   champion    A row in icsa_champions per country. Runs that country inside a cycle.
  *   respondent  Has at least one assessment sent to them. Fills in their own forms only.
  *
