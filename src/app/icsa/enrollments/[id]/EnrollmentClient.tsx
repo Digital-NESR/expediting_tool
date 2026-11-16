@@ -182,8 +182,8 @@ export function EnrollmentActions({
         <div className={`${CARD} p-4`}>
           <h3 className="font-bold text-slate-800">Close this country for the cycle?</h3>
           <p className="mt-1 text-sm text-slate-600">
-            {p.responded} of {p.requested} have submitted ({pct(p.rate)}). Anyone who has not
-            submitted will be recorded as not completed and can no longer answer.
+            {p.responded} of {p.requested} have submitted. Anyone who has not submitted will be
+            recorded as not completed and can no longer answer.
             {!p.met &&
               isAdmin &&
               ' Not every form is in; you are closing it early as administrator.'}

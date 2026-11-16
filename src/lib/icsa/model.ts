@@ -244,13 +244,10 @@ export interface Issue {
 
 /** Everything stopping a respondent from submitting. Empty means they may submit. */
 export function submissionIssues(
-  doc: { designation?: string | null; answers: Answers | null | undefined },
+  doc: { answers: Answers | null | undefined },
   sections: IcsaSection[],
 ): Issue[] {
   const issues: Issue[] = [];
-  if (!String(doc.designation ?? '').trim()) {
-    issues.push({ step: 'details', text: 'Enter your designation.' });
-  }
   const { per } = scoreAnswers(doc.answers, sections);
   for (const { section: s, tally: c } of per) {
     if (c.un) {
@@ -307,6 +304,24 @@ export function progress(statuses: AssessmentStatus[]): Progress {
   const rate = requested ? responded / requested : 0;
   const met = requested > 0 && responded === requested;
   return { requested, responded, rate, met, shortBy: requested - responded };
+}
+
+/**
+ * How much of the forms sent out has been filled in: questions answered ÷ questions asked,
+ * over every form past `nominated`. One section done out of three is about 33%, not 100%.
+ */
+export function formCompletion(
+  docs: { status: AssessmentStatus; sections: string[]; answers: Answers | null | undefined }[],
+): { answered: number; asked: number; rate: number } {
+  let answered = 0;
+  let asked = 0;
+  for (const d of docs) {
+    if (d.status === 'nominated') continue;
+    const t = scoreAnswers(d.answers, sectionsByKeys(d.sections)).total;
+    answered += t.done;
+    asked += t.n;
+  }
+  return { answered, asked, rate: asked ? answered / asked : 0 };
 }
 
 /* ─── Dates ─────────────────────────────────────────────────────────────────────────────── */

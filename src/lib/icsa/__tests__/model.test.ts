@@ -5,6 +5,7 @@ import {
   complianceBand,
   daysLeft,
   directoryCountriesFor,
+  formCompletion,
   isPastDeadline,
   progress,
   rankGaps,
@@ -54,17 +55,17 @@ describe('scoreAnswers', () => {
 });
 
 describe('submissionIssues', () => {
-  it('blocks on designation, unanswered questions and gaps without remarks', () => {
+  it('blocks on unanswered questions and gaps without remarks', () => {
     const s = sectionsByKeys(['policy']);
     const answers: Answers = Object.fromEntries(
       s[0].questions.map((q) => [answerKey(q.ref), { r: 'Yes' as const }]),
     );
-    expect(submissionIssues({ designation: 'Buyer', answers }, s)).toEqual([]);
+    expect(submissionIssues({ answers }, s)).toEqual([]);
 
     answers[answerKey(s[0].questions[0].ref)] = { r: 'No' };
     delete answers[answerKey(s[0].questions[1].ref)];
-    const issues = submissionIssues({ designation: '', answers }, s);
-    expect(issues.map((i) => i.step)).toEqual(['details', 'policy', 'policy']);
+    const issues = submissionIssues({ answers }, s);
+    expect(issues.map((i) => i.step)).toEqual(['policy', 'policy']);
   });
 });
 
@@ -127,5 +128,28 @@ describe('helpers', () => {
     const ranked = rankGaps([doc('Oman', 'No'), doc('Oman', 'Partial'), doc('Kuwait', 'No')]);
     expect(ranked[0].question.ref).toBe('Q1.1');
     expect(ranked[0]).toMatchObject({ no: 2, partial: 1, countries: ['Oman', 'Kuwait'] });
+  });
+});
+
+describe('formCompletion: questions answered over questions asked', () => {
+  it('counts one section of three as about a third, not 100%', () => {
+    const three = ['policy', 'grn', 'po'];
+    const policy = sectionsByKeys(['policy'])[0];
+    const answers = Object.fromEntries(
+      policy.questions.map((q) => [answerKey(q.ref), { r: 'Yes' as const }]),
+    );
+    const total = sectionsByKeys(three).reduce((n, s) => n + s.questions.length, 0);
+    const f = formCompletion([{ status: 'in_progress', sections: three, answers }]);
+    expect(f.answered).toBe(policy.questions.length);
+    expect(f.asked).toBe(total);
+    expect(f.rate).toBeCloseTo(policy.questions.length / total);
+  });
+
+  it('leaves out people not sent the form yet, and is 0 with nobody asked', () => {
+    expect(formCompletion([{ status: 'nominated', sections: ['grn'], answers: {} }])).toEqual({
+      answered: 0,
+      asked: 0,
+      rate: 0,
+    });
   });
 });

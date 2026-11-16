@@ -19,7 +19,13 @@ export class MailNotConfiguredError extends Error {
 
 export interface IcsaMail {
   kind:
-    'request' | 'reminder' | 'returned' | 'assigned' | 'extension-request' | 'extension-decision';
+    | 'request'
+    | 'reminder'
+    | 'returned'
+    | 'submitted'
+    | 'assigned'
+    | 'extension-request'
+    | 'extension-decision';
   to: string[];
   cc?: string[];
   subject: string;
@@ -181,6 +187,50 @@ export function requestMail(i: RequestMailInput): IcsaMail {
         : `Reminder: your ICSA for ${i.country}, cycle ${i.cycleLabel}, has not been submitted yet.`,
       `Sections: ${i.sections.join(', ')}.`,
       `Due ${i.deadline}. Open it here: ${link}`,
+    ].join('\n\n'),
+    meta: { assessmentId: i.assessmentId, country: i.country, cycle: i.cycleLabel },
+  };
+}
+
+/** To a champion: one of their respondents has submitted, so there is a form to review. */
+export function submittedMail(i: {
+  to: string;
+  championName: string | null;
+  respondent: string;
+  cycleLabel: string;
+  country: string;
+  compliance: number | null;
+  openItems: number;
+  submittedCount: number;
+  requestedCount: number;
+  assessmentId: number;
+}): IcsaMail {
+  const link = appUrl(`/icsa/assessments/${i.assessmentId}`);
+  const rate = i.compliance === null ? 'n/a' : `${Math.round(i.compliance * 100)}%`;
+  const allIn = i.requestedCount > 0 && i.submittedCount === i.requestedCount;
+  const tally = `${i.submittedCount} of ${i.requestedCount} forms for ${i.country} are now in${
+    allIn ? ': every form is in, so you can close the country once they are reviewed' : ''
+  }.`;
+  return {
+    kind: 'submitted',
+    to: [i.to],
+    cc: [],
+    subject: `ICSA ${i.cycleLabel}: ${i.respondent} submitted their self-assessment (${i.country})`,
+    bodyHtml: frame(
+      'Self-assessment submitted',
+      [
+        `Dear ${esc(i.championName || 'colleague')},`,
+        `<b>${esc(i.respondent)}</b> has submitted their ICSA for <b>${esc(i.country)}</b>, cycle <b>${esc(i.cycleLabel)}</b>.`,
+        `Compliance ${rate}, with ${i.openItems} open item${i.openItems === 1 ? '' : 's'} (No or Partial).`,
+        esc(tally),
+        'Please review it, then mark it reviewed or return it for changes.',
+      ],
+      { label: 'Review the form', href: link },
+    ),
+    bodyText: [
+      `${i.respondent} submitted their ICSA for ${i.country} (${i.cycleLabel}).`,
+      `Compliance ${rate}, ${i.openItems} open items. ${tally}`,
+      `Review it here: ${link}`,
     ].join('\n\n'),
     meta: { assessmentId: i.assessmentId, country: i.country, cycle: i.cycleLabel },
   };

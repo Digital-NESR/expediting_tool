@@ -7,7 +7,7 @@ import { logger } from '@/lib/logger';
 import { exec, sql } from '@/lib/icsa/db';
 import { canManageCountry, requireIcsaActor, type IcsaActor } from '@/lib/icsa/access';
 import { logEvent } from '@/lib/icsa/lifecycle';
-import { mailConfigured, returnedMail, sendIcsaMail } from '@/lib/icsa/mail';
+import { mailConfigured, returnedMail, sendIcsaMail, submittedMail } from '@/lib/icsa/mail';
 import {
   ANSWER_FIELD_MAX,
   ANSWER_FIELDS,
@@ -15,6 +15,8 @@ import {
   MAX_EVIDENCE_BYTES,
   MAX_FILES_PER_QUESTION,
   RESPONSES,
+  RESPONDED_STATUSES,
+  scoreAnswers,
   sectionsByKeys,
   submissionIssues,
   type Answer,
@@ -44,13 +46,15 @@ interface Row {
   cycle_id: number;
   cycle_label: string;
   enrollment_status: string;
+  champion_email: string;
+  champion_name: string | null;
 }
 
 async function load(id: number): Promise<Row | null> {
   const [r] = await sql<QueryResultRow[]>(
     `SELECT a.id, a.enrollment_id, a.respondent_email, a.respondent_name, a.sections, a.status,
             a.designation, a.answers, e.country, e.cycle_id, c.label AS cycle_label,
-            e.status AS enrollment_status
+            e.status AS enrollment_status, e.champion_email, e.champion_name
        FROM icsa_assessments a
        JOIN icsa_enrollments e ON e.id = a.enrollment_id
        JOIN icsa_cycles c ON c.id = e.cycle_id
@@ -108,8 +112,9 @@ function cleanPatch(patch: Record<string, Answer>, a: Row): Answers | string {
 }
 
 /**
- * Autosave. Merges the changed answers (each answer replaced whole) and the designation; the
- * first save moves the form from "not started" to "in progress".
+ * Autosave. Merges the changed answers (each answer replaced whole); the first save moves the
+ * form from "not started" to "in progress". `designation` is still accepted from older pages,
+ * though the form no longer asks for it (the directory job title is shown instead).
  */
 export async function saveIcsaAssessment(
   id: number,
@@ -159,10 +164,42 @@ export async function submitIcsaAssessment(id: number): Promise<IcsaResult> {
       enrollmentId: a.enrollment_id,
       assessmentId: id,
     });
+    await tellChampion(actor, a);
     revalidatePath('/icsa', 'layout');
     return { success: true };
   } catch (err) {
     return fail(err, 'Could not submit the assessment.', 'submitIcsaAssessment.failed');
+  }
+}
+
+/**
+ * Email the country's champion that a form is in, with its headline figures and how many of the
+ * country's forms are now in. The submission stands whether or not the email goes.
+ */
+async function tellChampion(actor: IcsaActor, a: Row): Promise<void> {
+  if (!mailConfigured() && !actor.isDemo) return;
+  try {
+    const statuses = await sql<QueryResultRow[]>(
+      `SELECT status FROM icsa_assessments WHERE enrollment_id = ? AND status <> 'nominated'`,
+      [a.enrollment_id],
+    );
+    const t = scoreAnswers(a.answers, sectionsByKeys(a.sections)).total;
+    await sendIcsaMail(
+      submittedMail({
+        to: a.champion_email,
+        championName: a.champion_name,
+        respondent: a.respondent_name || a.respondent_email,
+        cycleLabel: a.cycle_label,
+        country: a.country,
+        compliance: t.rate,
+        openItems: t.open,
+        submittedCount: statuses.filter((s) => RESPONDED_STATUSES.includes(s.status)).length,
+        requestedCount: statuses.length,
+        assessmentId: a.id,
+      }),
+    );
+  } catch (err) {
+    log.warn('submitted.mail_failed', { assessmentId: a.id, error: String(err) });
   }
 }
 

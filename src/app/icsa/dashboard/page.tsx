@@ -14,6 +14,7 @@ import {
   RESPONDED_STATUSES,
   fmtDate,
   pct,
+  formCompletion,
   progress,
   questionText,
   rankGaps,
@@ -77,6 +78,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
   const rates = responded.map((x) => x.score.total.rate).filter((r): r is number => r !== null);
   const avg = rates.length ? rates.reduce((s, r) => s + r, 0) / rates.length : null;
   const coverage = progress(all.map((a) => a.status));
+  const filled = formCompletion(all);
 
   /* Compliance by section and country, pooled over every response in that country. */
   const countriesInView = [...new Set(responded.map((x) => x.a.country))].sort();
@@ -144,9 +146,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
         <Kpi label="Reviewed" value={reviewed} />
         <Kpi label="Average compliance" value={pct(avg)} sub="Submitted and reviewed only" />
         <Kpi
-          label="Response rate"
-          value={`${Math.round(coverage.rate * 100)}%`}
-          sub={`${coverage.responded} of ${coverage.requested} asked`}
+          label="Form completion"
+          value={`${Math.round(filled.rate * 100)}%`}
+          sub={`${coverage.responded} of ${coverage.requested} forms submitted`}
         />
       </div>
 
@@ -156,15 +158,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
             <table className="w-full min-w-[760px]">
               <thead className="border-b border-slate-200 bg-slate-50">
                 <tr>
-                  {[
-                    'Country',
-                    'Cycle',
-                    'Champion',
-                    'Deadline',
-                    'Forms submitted',
-                    'Status',
-                    '',
-                  ].map((h) => (
+                  {['Country', 'Cycle', 'Champion', 'Deadline', 'Forms', 'Status', ''].map((h) => (
                     <th key={h} className={TH}>
                       {h}
                     </th>
@@ -175,6 +169,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
                 {enrollments.map((e) => {
                   const c = cycles.find((x) => x.id === e.cycleId);
                   const p = progress(e.statuses);
+                  const f = formCompletion(all.filter((a) => a.enrollmentId === e.id));
                   return (
                     <tr key={e.id} className="hover:bg-[#307c4c]/5">
                       <td className={`${TD} font-semibold`}>{e.country}</td>
@@ -183,13 +178,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
                       <td className={TD}>{fmtDate(e.deadline)}</td>
                       <td className={TD}>
                         <ResponseBar
-                          rate={p.rate}
+                          rate={f.rate}
                           label={
                             <>
                               <span>
-                                {p.responded} of {p.requested}
+                                {p.responded} of {p.requested} submitted
                               </span>
-                              <span>{Math.round(p.rate * 100)}%</span>
+                              <span>{Math.round(f.rate * 100)}% filled</span>
                             </>
                           }
                         />

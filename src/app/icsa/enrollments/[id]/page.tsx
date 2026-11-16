@@ -8,6 +8,7 @@ import {
   AWAITING_RESPONDENT,
   daysLeft,
   fmtDate,
+  formCompletion,
   progress,
   scoreAnswers,
   sectionsByKeys,
@@ -43,6 +44,7 @@ export default async function EnrollmentPage({ params }: { params: Promise<{ id:
   if (!cycle) notFound();
 
   const p = progress(assessments.map((a) => a.status));
+  const filled = formCompletion(assessments);
   const isOpen = enrollment.status === 'open';
   const rows: RespondentRow[] = assessments.map((a) => {
     const t = scoreAnswers(a.answers, sectionsByKeys(a.sections)).total;
@@ -118,12 +120,15 @@ export default async function EnrollmentPage({ params }: { params: Promise<{ id:
         <Kpi label="Awaiting review" value={awaitingReview} />
         <div className={`${CARD} border-t-4 border-t-[#2a7e4f] p-4`}>
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Response rate
+            Form completion
           </p>
-          <p className="mt-1 text-2xl font-bold text-[#2a7e4f]">{Math.round(p.rate * 100)}%</p>
+          <p className="mt-1 text-2xl font-bold text-[#2a7e4f]">{Math.round(filled.rate * 100)}%</p>
           <div className="mt-2">
-            <ResponseBar rate={p.rate} />
+            <ResponseBar rate={filled.rate} />
           </div>
+          <p className="mt-1 text-xs text-slate-500">
+            {filled.answered} of {filled.asked} questions answered across the forms sent.
+          </p>
           <p className="mt-1 text-xs text-slate-500">
             {p.met
               ? 'Every form is in, so you can close the country.'

@@ -82,7 +82,6 @@ export default function AssessmentForm({
   const router = useRouter();
   const sections = useMemo(() => sectionsByKeys(a.sections), [a.sections]);
   const [answers, setAnswers] = useState<Answers>(a.answers ?? {});
-  const [designation, setDesignation] = useState(a.designation ?? '');
   const [evidence, setEvidence] = useState(initialEvidence);
   const [step, setStep] = useState<string>(canEdit ? 'details' : 'summary');
   const [save, setSave] = useState<SaveState>('idle');
@@ -90,20 +89,16 @@ export default function AssessmentForm({
   const [busy, setBusy] = useState(false);
 
   const dirtyKeys = useRef(new Set<string>());
-  const dirtyDesignation = useRef(false);
   const saving = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flushRef = useRef<() => Promise<boolean>>(async () => true);
-  const latest = useRef({ answers, designation });
+  const latest = useRef({ answers });
   useEffect(() => {
-    latest.current = { answers, designation };
-  }, [answers, designation]);
+    latest.current = { answers };
+  }, [answers]);
 
   const score = useMemo(() => scoreAnswers(answers, sections), [answers, sections]);
-  const issues = useMemo(
-    () => submissionIssues({ designation, answers }, sections),
-    [designation, answers, sections],
-  );
+  const issues = useMemo(() => submissionIssues({ answers }, sections), [answers, sections]);
 
   const flash = (tone: 'ok' | 'error', text: string) => {
     setToast({ tone, text });
@@ -111,32 +106,26 @@ export default function AssessmentForm({
   };
 
   const flush = useCallback(async (): Promise<boolean> => {
-    if (!dirtyKeys.current.size && !dirtyDesignation.current) return true;
+    if (!dirtyKeys.current.size) return true;
     if (saving.current) {
       timer.current = setTimeout(() => void flushRef.current(), 400);
       return false;
     }
     const keys = [...dirtyKeys.current];
-    const withDesignation = dirtyDesignation.current;
     dirtyKeys.current.clear();
-    dirtyDesignation.current = false;
     saving.current = true;
     setSave('saving');
     const patch: Answers = {};
     for (const k of keys) patch[k] = latest.current.answers[k] ?? {};
-    const res = await saveIcsaAssessment(a.id, {
-      answers: patch,
-      ...(withDesignation ? { designation: latest.current.designation } : {}),
-    });
+    const res = await saveIcsaAssessment(a.id, { answers: patch });
     saving.current = false;
     if (!res.success) {
       keys.forEach((k) => dirtyKeys.current.add(k));
-      if (withDesignation) dirtyDesignation.current = true;
       setSave('error');
       if (res.error && !res.error.startsWith('Could not save')) flash('error', res.error);
       return false;
     }
-    setSave(dirtyKeys.current.size || dirtyDesignation.current ? 'dirty' : 'saved');
+    setSave(dirtyKeys.current.size ? 'dirty' : 'saved');
     return true;
   }, [a.id]);
 
@@ -152,7 +141,7 @@ export default function AssessmentForm({
 
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
-      if (dirtyKeys.current.size || dirtyDesignation.current) {
+      if (dirtyKeys.current.size) {
         void flush();
         e.preventDefault();
       }
@@ -346,23 +335,7 @@ export default function AssessmentForm({
               value={`${a.cycleLabel} (${fmtDate(a.periodStart)} – ${fmtDate(a.periodEnd)})`}
             />
             <ReadOnly label="Completed by" value={a.respondentName || a.respondentEmail} />
-            <div>
-              <label className={LABEL} htmlFor="designation">
-                Designation
-              </label>
-              <input
-                id="designation"
-                className={INPUT}
-                value={designation}
-                disabled={!canEdit}
-                placeholder={a.jobTitle ?? 'Your job title'}
-                onChange={(e) => {
-                  setDesignation(e.target.value);
-                  dirtyDesignation.current = true;
-                  touch();
-                }}
-              />
-            </div>
+            <ReadOnly label="Job title" value={a.jobTitle || a.designation || '–'} />
             <ReadOnly label="Due" value={fmtDate(a.deadline)} />
             <ReadOnly label="Champion" value={a.championName || a.championEmail} />
           </div>
@@ -417,7 +390,7 @@ export default function AssessmentForm({
       <div className="space-y-4">
         <Head eyebrow="Summary of responses" title={`${a.country} · ${a.cycleLabel}`}>
           {a.respondentName || a.respondentEmail}
-          {designation ? `, ${designation}` : ''}
+          {a.jobTitle || a.designation ? `, ${a.jobTitle || a.designation}` : ''}
         </Head>
         {banner}
         {canReview && (a.status === 'submitted' || a.status === 'reviewed') && (

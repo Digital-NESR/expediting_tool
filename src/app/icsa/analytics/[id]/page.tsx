@@ -64,7 +64,7 @@ export default async function CountryAnalyticsPage({
         <Kpi
           label="Forms submitted"
           value={`${snap.progress.responded} of ${snap.progress.requested}`}
-          sub={snap.progress.met ? 'All in' : `${snap.progress.shortBy} still to submit`}
+          sub={`${Math.round(snap.completion * 100)}% of questions filled${snap.progress.met ? ', all in' : ''}`}
         />
         <Kpi label="Compliance" value={pct(snap.compliance)} sub="Yes ÷ (Yes + No + Partial)" />
         <Kpi label="Gaps" value={snap.gaps.length} sub="Questions answered No or Partial" />

@@ -2,7 +2,14 @@ import type { QueryResultRow } from 'pg';
 import { sql } from './db';
 import type { IcsaActor } from './access';
 import { countryGaps, type CountryGap, type GapReview } from './ai';
-import { RESPONDED_STATUSES, progress, scoreAnswers, sectionsByKeys, type Progress } from './model';
+import {
+  RESPONDED_STATUSES,
+  formCompletion,
+  progress,
+  scoreAnswers,
+  sectionsByKeys,
+  type Progress,
+} from './model';
 import { ICSA_SECTIONS } from './questions';
 import {
   getCycle,
@@ -45,6 +52,8 @@ export interface ActionPlan {
 export interface CountrySnapshot {
   enrollment: Enrollment;
   progress: Progress;
+  /** Questions answered ÷ questions asked, over every form sent (submitted or not). */
+  completion: number;
   /** Submitted or reviewed forms: the only ones the figures count. */
   forms: number;
   /** Yes ÷ (Yes + No + Partial), pooled over every submitted form. */
@@ -129,6 +138,7 @@ function snapshot(
   return {
     enrollment,
     progress: progress(assessments.map((a) => a.status)),
+    completion: formCompletion(assessments).rate,
     forms: responded.length,
     compliance: pool(),
     perSection: ICSA_SECTIONS.map((s) => ({

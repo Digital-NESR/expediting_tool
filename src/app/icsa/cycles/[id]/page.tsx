@@ -1,13 +1,19 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { getIcsaActor, isChampion } from '@/lib/icsa/access';
-import { getCycle, listChampions, listEnrollments } from '@/lib/icsa/queries';
+import {
+  getCycle,
+  listChampions,
+  listEnrollments,
+  listManagedAssessments,
+} from '@/lib/icsa/queries';
 import {
   FREQUENCY_LABEL,
   ICSA_COUNTRIES,
   daysLeft,
   fmtDate,
   isPastDeadline,
+  formCompletion,
   progress,
 } from '@/lib/icsa/model';
 import {
@@ -49,6 +55,10 @@ export default async function CyclePage({ params }: { params: Promise<{ id: stri
     }));
   }
   const overall = progress(enrollments.flatMap((e) => e.statuses));
+  const forms = await listManagedAssessments(actor, { cycleId: cycle.id });
+  const filled = formCompletion(forms);
+  const filledFor = (enrollmentId: number) =>
+    formCompletion(forms.filter((a) => a.enrollmentId === enrollmentId));
   const left = daysLeft(cycle.deadline);
 
   return (
@@ -88,9 +98,9 @@ export default async function CyclePage({ params }: { params: Promise<{ id: stri
         <Kpi label="Requests sent" value={overall.requested} />
         <Kpi label="Responses" value={overall.responded} sub="Submitted or reviewed" />
         <Kpi
-          label="Response rate"
-          value={`${Math.round(overall.rate * 100)}%`}
-          sub="Every form has to be in"
+          label="Form completion"
+          value={`${Math.round(filled.rate * 100)}%`}
+          sub={`${filled.answered} of ${filled.asked} questions answered`}
         />
       </div>
 
@@ -105,7 +115,7 @@ export default async function CyclePage({ params }: { params: Promise<{ id: stri
           <table className="w-full min-w-[860px]">
             <thead className="border-b border-slate-200 bg-slate-50">
               <tr>
-                {['Country', 'Champion', 'Deadline', 'Forms submitted', 'Status', ''].map((h) => (
+                {['Country', 'Champion', 'Deadline', 'Forms', 'Status', ''].map((h) => (
                   <th key={h} className={TH}>
                     {h}
                   </th>
@@ -133,15 +143,13 @@ export default async function CyclePage({ params }: { params: Promise<{ id: stri
                     </td>
                     <td className={TD}>
                       <ResponseBar
-                        rate={p.rate}
+                        rate={filledFor(e.id).rate}
                         label={
                           <>
                             <span>
                               {p.responded} of {p.requested} submitted
                             </span>
-                            <span>
-                              {p.met ? 'All in' : p.requested ? `${p.shortBy} to go` : ''}
-                            </span>
+                            <span>{Math.round(filledFor(e.id).rate * 100)}% filled</span>
                           </>
                         }
                       />

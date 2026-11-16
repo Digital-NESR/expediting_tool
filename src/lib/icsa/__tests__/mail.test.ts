@@ -6,6 +6,7 @@ import {
   mailTestRecipient,
   redirectForTest,
   sendIcsaMail,
+  submittedMail,
 } from '../mail';
 
 const base = () =>
@@ -97,5 +98,31 @@ describe('extension emails', () => {
     expect(no.subject).toContain('rejected');
     expect(no.bodyHtml).toContain('Too late');
     expect(no.bodyHtml).toContain('/icsa/enrollments/9');
+  });
+});
+
+describe('submitted email to the champion', () => {
+  const base = {
+    to: 'c@nesr.com',
+    championName: 'Faisal',
+    respondent: 'Noura',
+    cycleLabel: 'Q1 2027',
+    country: 'Saudi Arabia',
+    compliance: 0.64,
+    openItems: 10,
+    assessmentId: 11,
+  };
+  it('gives the figures and how many forms are in', () => {
+    const m = submittedMail({ ...base, submittedCount: 1, requestedCount: 3 });
+    expect(m.kind).toBe('submitted');
+    expect(m.to).toEqual(['c@nesr.com']);
+    expect(m.subject).toContain('Noura submitted');
+    expect(m.bodyHtml).toContain('Compliance 64%, with 10 open items');
+    expect(m.bodyHtml).toContain('1 of 3 forms for Saudi Arabia are now in.');
+    expect(m.bodyHtml).toContain('/icsa/assessments/11');
+  });
+  it('says so when every form is in', () => {
+    const m = submittedMail({ ...base, submittedCount: 3, requestedCount: 3 });
+    expect(m.bodyText).toContain('every form is in');
   });
 });

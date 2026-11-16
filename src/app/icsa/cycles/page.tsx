@@ -83,9 +83,7 @@ export default async function CyclesPage() {
                       )}
                     </td>
                     <td className={TD}>
-                      {p.requested
-                        ? `${p.responded} of ${p.requested} (${Math.round(p.rate * 100)}%)`
-                        : '–'}
+                      {p.requested ? `${p.responded} of ${p.requested} submitted` : '–'}
                     </td>
                     <td className={TD}>
                       <CyclePill status={c.status} />

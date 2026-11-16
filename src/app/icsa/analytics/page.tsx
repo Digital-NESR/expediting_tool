@@ -137,12 +137,13 @@ function CountryCard({ s }: { s: CountrySnapshot }) {
         </div>
         <div className="flex-1">
           <ResponseBar
-            rate={s.progress.rate}
+            rate={s.completion}
             label={
               <>
                 <span>
                   {s.progress.responded} of {s.progress.requested} submitted
                 </span>
+                <span>{Math.round(s.completion * 100)}% filled</span>
               </>
             }
           />
