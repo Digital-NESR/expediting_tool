@@ -27,6 +27,12 @@ const PUBLIC_PATHS = [
      sent to an address the request itself went to -- both checked inside the page's own actions,
      which is where the enforcement has to live for a route this gate lets through. */
   '/soa-upload',
+  /* The RRSM supplier submission, public for the same reason and gated the same way: a per-link
+     token in the path, plus a one-time code sent to an address the invitation itself went to.
+     Both are checked inside src/app/actions/rrsm/supplier.ts, which is where enforcement has to
+     live for a route this gate waves through -- and which re-checks every line id against the
+     link rather than trusting one from a browser. */
+  '/rrsm/submit',
   '/help',
   /* The chain view's dev preview. Outside production only, and the page itself calls
      notFound() in a production build, so this cannot open a hole in a deployed app --

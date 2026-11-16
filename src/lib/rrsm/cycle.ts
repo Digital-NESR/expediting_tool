@@ -44,12 +44,24 @@ export const ERP_STATUS_LABEL: Record<ErpStatus, string> = {
  * `closed` is terminal here. Nothing reopens a closed line; a correction after close is a new
  * cycle's problem, which is what the 25th-to-25th boundary is for.
  */
-const MOVES: Record<CycleStage, { to: CycleStage; by: ('buyer' | 'ops')[] }[]> = {
+/**
+ * Who can act, as the rules see it.
+ *
+ * `supplier` is not a role anybody holds in `rrsm_users`: it is whoever has opened a submission
+ * link and proved they can read one of that supplier's addresses. It is listed here so the
+ * transition table can say what they may do, rather than the supplier page keeping a second,
+ * quieter copy of the rules.
+ */
+export type CycleRole = 'buyer' | 'ops' | 'supplier';
+
+const MOVES: Record<CycleStage, { to: CycleStage; by: CycleRole[] }[]> = {
   awaiting_supplier: [
-    /* Ops can fill a line in themselves. Most of the Kuwait register is vehicles on a standing
-       rate where the supplier has nothing to add, and the tracker's own flow is "copy last
-       month, Ops confirm" with no supplier step at all. */
-    { to: 'submitted', by: ['ops'] },
+    /* Either side can fill a line in. The supplier does it from their link; Ops can do it for
+       them, because most of the Kuwait register is vehicles on a standing rate where the
+       supplier has nothing to add, and the tracker's own flow is "copy last month, Ops confirm"
+       with no supplier step at all. A supplier who never replies must not be able to stall a
+       cycle. */
+    { to: 'submitted', by: ['ops', 'supplier'] },
   ],
   submitted: [
     { to: 'validated', by: ['ops'] },
@@ -62,16 +74,18 @@ const MOVES: Record<CycleStage, { to: CycleStage; by: ('buyer' | 'ops')[] }[]> =
        who said what. */
     { to: 'returned', by: ['buyer'] },
   ],
-  returned: [{ to: 'submitted', by: ['ops'] }],
+  /* A returned line goes back to whoever is being asked to look again. `returned_to` on the row
+     says which of them that is; this only says both are capable of answering. */
+  returned: [{ to: 'submitted', by: ['ops', 'supplier'] }],
   closed: [],
 };
 
-export function canMove(from: CycleStage, to: CycleStage, role: 'buyer' | 'ops'): boolean {
+export function canMove(from: CycleStage, to: CycleStage, role: CycleRole): boolean {
   return MOVES[from].some((m) => m.to === to && m.by.includes(role));
 }
 
 /** Every stage this role can move a line to from here. Drives which buttons are drawn. */
-export function movesFor(from: CycleStage, role: 'buyer' | 'ops'): CycleStage[] {
+export function movesFor(from: CycleStage, role: CycleRole): CycleStage[] {
   return MOVES[from].filter((m) => m.by.includes(role)).map((m) => m.to);
 }
 
