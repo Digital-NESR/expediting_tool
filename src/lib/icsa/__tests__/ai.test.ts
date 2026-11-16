@@ -11,7 +11,7 @@ import {
 
 afterEach(() => vi.unstubAllEnvs());
 
-const docs = [
+const docs: Parameters<typeof countryGaps>[1] = [
   {
     respondentName: 'Ahmed',
     respondentEmail: 'a@x.com',
