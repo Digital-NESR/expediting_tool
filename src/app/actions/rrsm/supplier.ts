@@ -13,7 +13,7 @@ import {
   verifyCode,
   type SubmissionTarget,
 } from '@/lib/rrsm/supplier-access';
-import { notifyRrsm } from '@/lib/rrsm/notify';
+import { sendRrsmMail, supplierCodeMail, supplierSubmittedMail } from '@/lib/rrsm/notify';
 
 /**
  * The supplier's half of the cycle, reached by an emailed link and no NESR account.
@@ -168,15 +168,16 @@ export async function requestRrsmCode(
     /* The code leaves by the same path as every other RRSM mail. If that path is not configured
        the supplier never receives it, so a failure here is returned rather than logged and
        swallowed: a page that says "code sent" when nothing was sent is worse than an error. */
-    const sent = await notifyRrsm({
-      event: 'supplier.code_requested',
-      to: [issued.email],
-      supplierName: t.supplierName,
-      countryName: t.countryName,
-      period: t.period,
-      code: issued.code,
-      expiresInSeconds: CODE_TTL_SECONDS,
-    });
+    const sent = await sendRrsmMail(
+      supplierCodeMail({
+        email: issued.email,
+        supplierName: t.supplierName,
+        countryName: t.countryName,
+        period: t.period,
+        code: issued.code,
+        expiresInSeconds: CODE_TTL_SECONDS,
+      }),
+    );
     if (!sent.ok) {
       return {
         success: false,
@@ -308,18 +309,32 @@ export async function submitRrsmCycle(
     }
 
     const total = rows.reduce((n, r) => n + lineValue(Number(r.qty), Number(r.rate)), 0);
-    /* Best effort: the submission is already saved, so a mail that does not go out is a chase
-       problem rather than a lost submission. Logged inside notifyRrsm either way. */
-    await notifyRrsm({
-      event: 'supplier.submitted',
-      supplierName: t.supplierName,
-      countryName: t.countryName,
-      period: t.period,
-      lines: rows.length,
-      total,
-      currency: t.currency,
-      submittedBy: email,
-    });
+
+    /* Who hears about it: everyone holding a grant in this country, which is the people who can
+       act on it. Resolved here rather than in the workflow, so the recipient list is a database
+       question rather than something n8n has to know about roles. */
+    const { rows: watchers } = await rrsmPool.query<QueryResultRow>(
+      `SELECT DISTINCT email FROM rrsm_users WHERE active AND country_code = $1`,
+      [t.countryCode],
+    );
+    const to = watchers.map((w) => String(w.email));
+
+    /* Best effort, unlike the code mail: the submission is already saved, so a mail that does not
+       go out is a chase problem rather than a lost submission. Logged inside sendRrsmMail. */
+    if (to.length) {
+      await sendRrsmMail(
+        supplierSubmittedMail({
+          to,
+          supplierName: t.supplierName,
+          countryName: t.countryName,
+          period: t.period,
+          lines: rows.length,
+          total,
+          currency: t.currency,
+          submittedBy: email,
+        }),
+      );
+    }
 
     return { success: true, moved: rows.length };
   } catch (err) {
