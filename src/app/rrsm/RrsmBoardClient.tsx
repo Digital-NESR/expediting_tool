@@ -37,6 +37,7 @@ import {
   type BoardLine,
   type RrsmBoard,
 } from '@/app/actions/rrsm/cycle';
+import InvitationsPanel from './InvitationsPanel';
 import {
   ERP_STATUS_LABEL,
   STAGE_LABEL,
@@ -51,7 +52,7 @@ import {
 
 const BRAND = '#307c4c';
 
-type View = 'ops' | 'buyer';
+type View = 'ops' | 'buyer' | 'invite';
 
 const STAGE_TONE: Record<CycleStage, string> = {
   awaiting_supplier: 'bg-slate-100 text-slate-600',
@@ -184,6 +185,9 @@ export default function RrsmBoardClient({ board }: { board: RrsmBoard }) {
                 [
                   ['ops', 'Ops · what was used', board.canValidate],
                   ['buyer', 'Buyer · PR and PO', board.canBuy],
+                  /* Ops own the chase, the same people who opened the cycle. A buyer has nothing
+                     to act on until the submissions are in. */
+                  ['invite', 'Suppliers · invitations', board.canValidate],
                 ] as [View, string, boolean][]
               ).map(([id, label, allowed]) => (
                 <button
@@ -225,80 +229,88 @@ export default function RrsmBoardClient({ board }: { board: RrsmBoard }) {
             )}
           </div>
 
-          {/* ── the lines, grouped by supplier ──────────────── */}
-          <div className="space-y-5">
-            {board.suppliers.map((s) => (
-              <section
-                key={s.code}
-                className="overflow-hidden rounded-xl border border-slate-200 bg-white"
-              >
-                <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5">
-                  <h2 className="text-[13.5px] font-semibold text-slate-800">{s.name}</h2>
-                  <span className="font-mono text-[11px] text-slate-400">{s.code}</span>
-                  {s.paymentTerms && (
-                    <span className="rounded bg-white px-1.5 py-0.5 font-mono text-[10.5px] text-slate-500">
-                      {s.paymentTerms}
-                    </span>
-                  )}
-                  <span className="flex-1" />
-                  <span className="text-[12.5px] text-slate-500">
-                    {money.format(s.lines.reduce((n, l) => n + lineValue(l.qty, l.rate), 0))}{' '}
-                    {board.country!.currency}
-                  </span>
-                </header>
+          {view === 'invite' ? (
+            <InvitationsPanel countryCode={board.country.code} />
+          ) : (
+            <>
+              {/* ── the lines, grouped by supplier ──────────────── */}
+              <div className="space-y-5">
+                {board.suppliers.map((s) => (
+                  <section
+                    key={s.code}
+                    className="overflow-hidden rounded-xl border border-slate-200 bg-white"
+                  >
+                    <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5">
+                      <h2 className="text-[13.5px] font-semibold text-slate-800">{s.name}</h2>
+                      <span className="font-mono text-[11px] text-slate-400">{s.code}</span>
+                      {s.paymentTerms && (
+                        <span className="rounded bg-white px-1.5 py-0.5 font-mono text-[10.5px] text-slate-500">
+                          {s.paymentTerms}
+                        </span>
+                      )}
+                      <span className="flex-1" />
+                      <span className="text-[12.5px] text-slate-500">
+                        {money.format(s.lines.reduce((n, l) => n + lineValue(l.qty, l.rate), 0))}{' '}
+                        {board.country!.currency}
+                      </span>
+                    </header>
 
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[56rem] text-[13px]">
-                    <thead>
-                      <tr className="text-[10.5px] uppercase tracking-wider text-slate-400">
-                        <th className="px-4 py-2 text-left font-semibold">Asset / service</th>
-                        {view === 'ops' ? (
-                          <>
-                            <th className="px-2 py-2 text-left font-semibold">On hire</th>
-                            <th className="px-2 py-2 text-right font-semibold">Days</th>
-                            <th className="px-2 py-2 text-right font-semibold">Qty</th>
-                            <th className="px-2 py-2 text-right font-semibold">Rate</th>
-                            <th className="px-2 py-2 text-right font-semibold">Total</th>
-                            <th className="px-2 py-2 text-right font-semibold">vs last month</th>
-                          </>
-                        ) : (
-                          <>
-                            <th className="px-2 py-2 text-right font-semibold">Total</th>
-                            <th className="px-2 py-2 text-left font-semibold">PR</th>
-                            <th className="px-2 py-2 text-left font-semibold">PO</th>
-                            <th className="px-2 py-2 text-left font-semibold">SAP status</th>
-                            <th className="px-2 py-2 text-left font-semibold">Invoice</th>
-                          </>
-                        )}
-                        <th className="px-4 py-2 text-right font-semibold">Stage</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {s.lines.map((l) => (
-                        <Row
-                          key={l.id}
-                          line={l}
-                          view={view}
-                          currency={board.country!.currency}
-                          money={money}
-                          canValidate={board.canValidate}
-                          canBuy={board.canBuy}
-                          busy={busy}
-                          onRun={run}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            ))}
-          </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[56rem] text-[13px]">
+                        <thead>
+                          <tr className="text-[10.5px] uppercase tracking-wider text-slate-400">
+                            <th className="px-4 py-2 text-left font-semibold">Asset / service</th>
+                            {view === 'ops' ? (
+                              <>
+                                <th className="px-2 py-2 text-left font-semibold">On hire</th>
+                                <th className="px-2 py-2 text-right font-semibold">Days</th>
+                                <th className="px-2 py-2 text-right font-semibold">Qty</th>
+                                <th className="px-2 py-2 text-right font-semibold">Rate</th>
+                                <th className="px-2 py-2 text-right font-semibold">Total</th>
+                                <th className="px-2 py-2 text-right font-semibold">
+                                  vs last month
+                                </th>
+                              </>
+                            ) : (
+                              <>
+                                <th className="px-2 py-2 text-right font-semibold">Total</th>
+                                <th className="px-2 py-2 text-left font-semibold">PR</th>
+                                <th className="px-2 py-2 text-left font-semibold">PO</th>
+                                <th className="px-2 py-2 text-left font-semibold">SAP status</th>
+                                <th className="px-2 py-2 text-left font-semibold">Invoice</th>
+                              </>
+                            )}
+                            <th className="px-4 py-2 text-right font-semibold">Stage</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {s.lines.map((l) => (
+                            <Row
+                              key={l.id}
+                              line={l}
+                              view={view}
+                              currency={board.country!.currency}
+                              money={money}
+                              canValidate={board.canValidate}
+                              canBuy={board.canBuy}
+                              busy={busy}
+                              onRun={run}
+                            />
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                ))}
+              </div>
 
-          {!board.suppliers.length && (
-            <Empty
-              title="The cycle is open and empty"
-              body="Nothing was carried forward, which means the register has no active service lines for this country yet."
-            />
+              {!board.suppliers.length && (
+                <Empty
+                  title="The cycle is open and empty"
+                  body="Nothing was carried forward, which means the register has no active service lines for this country yet."
+                />
+              )}
+            </>
           )}
         </>
       )}
