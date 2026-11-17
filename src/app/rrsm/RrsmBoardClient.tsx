@@ -22,6 +22,7 @@ import {
   ArrowLeft,
   Check,
   ChevronDown,
+  CircleQuestionMark,
   Forklift,
   Loader2,
   Lock,
@@ -158,7 +159,18 @@ export default function RrsmBoardClient({
           )}
         </div>
 
-        <CountryScope board={board} />
+        <div className="flex items-center gap-1.5">
+          {/* Beside the country picker rather than tucked in a menu: the people who need it most
+              are the ones who have not learnt where anything is yet. */}
+          <Link
+            href="/rrsm/help"
+            title="Help & Training"
+            className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+          >
+            <CircleQuestionMark className="h-4 w-4" />
+          </Link>
+          <CountryScope board={board} />
+        </div>
       </div>
 
       {error && (

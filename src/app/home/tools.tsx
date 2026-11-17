@@ -503,6 +503,7 @@ export const TOOLS: ToolDef[] = [
     access: { kind: 'adminPreview' },
     badge: { kind: 'preview' },
     openLabel: 'Open preview →',
+    helpHref: '/help/rrsm',
   },
 
   {
