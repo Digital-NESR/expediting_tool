@@ -148,8 +148,15 @@ const BOARD: RrsmBoard = {
   ],
 };
 
-export default function RrsmBoardPreviewPage() {
+export default async function RrsmBoardPreviewPage({
+  searchParams,
+}: {
+  /* Mirrors the real page, so `?view=` -- what a renewal reminder email links at -- can be
+     checked here rather than only behind SSO. */
+  searchParams?: Promise<{ view?: string }>;
+}) {
   if (process.env.NODE_ENV === 'production') notFound();
+  const sp = searchParams ? await searchParams : {};
 
   return (
     <>
@@ -158,7 +165,7 @@ export default function RrsmBoardPreviewPage() {
         data, not reachable in production. Rendered as somebody holding both roles, so both views
         are enabled.
       </div>
-      <RrsmBoardClient board={BOARD} />
+      <RrsmBoardClient board={BOARD} initialView={sp.view} />
     </>
   );
 }

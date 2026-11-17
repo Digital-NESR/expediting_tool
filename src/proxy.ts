@@ -53,6 +53,7 @@ const PUBLIC_PATHS = [
 // past the cookie check; the laptop path has a dynamic <id> segment.
 const MACHINE_PATHS = [
   /^\/api\/procure-guard\/reminders\/?$/,
+  /^\/api\/rrsm\/reminders\/?$/,
   /^\/api\/laptop-procurement\/requests\/[^/]+\/status\/?$/,
   /^\/api\/catalog-manager\/revalidate\/?$/,
 ];

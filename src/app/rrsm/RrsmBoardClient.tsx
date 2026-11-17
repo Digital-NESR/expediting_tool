@@ -63,15 +63,31 @@ const STAGE_TONE: Record<CycleStage, string> = {
   closed: 'bg-slate-900 text-white',
 };
 
-export default function RrsmBoardClient({ board }: { board: RrsmBoard }) {
+const VIEWS: readonly View[] = ['ops', 'buyer', 'invite', 'renew'];
+
+export default function RrsmBoardClient({
+  board,
+  initialView,
+}: {
+  board: RrsmBoard;
+  /** `?view=` from the URL. A renewal reminder links straight at the tab it is about. */
+  initialView?: string;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   /* Opens on whichever half this person actually does. Somebody who holds both sees Ops first,
-     because the cycle starts there and a buyer has nothing to act on until it has. */
-  const [view, setView] = useState<View>(board.canValidate ? 'ops' : 'buyer');
+     because the cycle starts there and a buyer has nothing to act on until it has.
+     An explicit `?view=` wins, so an emailed link lands on the thing it is about. Resolved as
+     initial state rather than in an effect: an effect would render the wrong tab first and
+     then swap it, which reads as a flicker and loses any click made in between. */
+  const [view, setView] = useState<View>(() => {
+    const wanted = String(initialView ?? '').trim() as View;
+    if (VIEWS.includes(wanted)) return wanted;
+    return board.canValidate ? 'ops' : 'buyer';
+  });
 
   const money = useMemo(
     () =>

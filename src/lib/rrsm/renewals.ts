@@ -60,6 +60,34 @@ export function dueReminder(due: Date, today: Date, sent: readonly number[]): nu
   return Math.max(...candidates);
 }
 
+/**
+ * Every step the clock has reached for this date, sent or not.
+ *
+ * The companion `dueReminder` needs to send ONE message today; this says which steps the daily
+ * job should then consider spent. Without it a renewal that nobody looked at for two months
+ * sends the 90-day notice today, the 60-day tomorrow and the 30-day the day after -- three
+ * emails in three days about one contract. That is the ProcureGuard mistake, where an approver
+ * got ten mails in a minute and built an inbox rule that buried the genuine ones too.
+ *
+ * So the job sends the earliest missed step, which is what honestly describes how late this is,
+ * and marks every reached step spent. The next mail then waits for a step the clock has not
+ * reached yet.
+ */
+export function reachedSteps(due: Date, today: Date): number[] {
+  const left = daysUntil(due, today);
+  return REMINDER_DAYS.filter((d) => left <= d);
+}
+
+/** How a step reads to somebody who has to act on it. Days are the unit people actually use. */
+export const REMINDER_LABEL: Record<number, string> = {
+  90: '90 days',
+  60: '60 days',
+  30: '30 days',
+  14: '2 weeks',
+  7: '1 week',
+  0: 'today',
+};
+
 /** How a renewal reads on screen: the nearer the date, the louder. */
 export type Urgency = 'overdue' | 'urgent' | 'soon' | 'ahead';
 

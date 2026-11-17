@@ -22,6 +22,7 @@ export type RrsmMailKind =
   | 'supplier.invitation'
   | 'supplier.submitted'
   | 'cycle.reminder'
+  | 'renewal.reminder'
   | 'line.returned';
 
 export interface RrsmMail {
@@ -163,6 +164,108 @@ export function supplierSubmittedMail(input: {
         `<p>It is waiting on Ops to confirm what was actually used.</p>`,
     ),
     meta: { supplier: input.supplierName, period: input.period, lines: input.lines },
+  };
+}
+
+/**
+ * The annual renewal nudge: one email per person, listing everything of theirs that is running out.
+ *
+ * A digest rather than one mail per contract, for the reason ProcureGuard learnt the hard way:
+ * built per row, a buyer covering a country with thirty expiring hires received thirty emails in
+ * the same minute, and the rule they wrote to silence them buried the genuine ones too.
+ *
+ * Soonest first, so a reader who stops after the first row has seen the worst one. Twelve months
+ * of use sits in the table because it is the figure the decision turns on, and a line that ran at
+ * zero all year is called out rather than left to be noticed.
+ */
+export function renewalReminderMail(input: {
+  to: string[];
+  cc?: string[];
+  items: {
+    description: string;
+    assetRef: string;
+    segment: string;
+    supplierName: string;
+    countryName: string;
+    dueOn: string;
+    daysLeft: number;
+    monthsUsed: number;
+  }[];
+  url: string;
+}): RrsmMail {
+  const items = [...input.items].sort((a, b) => a.daysLeft - b.daysLeft);
+  const soonest = items[0];
+  const n = items.length;
+
+  /* The subject is the only part of this that most people read, so it has to be true of the
+     whole digest rather than of its worst line. Driving the wording off the most urgent item
+     alone produced "4 contracts have expired" for a digest in which one had: a subject that
+     overstates once teaches a reader to stop trusting every later one.
+     
+     So the count of expired lines decides the wording, not the soonest line's state. */
+  const expired = items.filter((i) => i.daysLeft < 0).length;
+  const one = n === 1;
+  const subject =
+    expired === n
+      ? `NESR RRSM: ${one ? 'a contract has' : `${n} contracts have`} expired without a renewal decision`
+      : expired > 0
+        ? `NESR RRSM: ${n} contracts need a renewal decision, ${expired} already expired`
+        : soonest.daysLeft === 0
+          ? one
+            ? `NESR RRSM: a contract ends today`
+            : `NESR RRSM: ${n} contracts need a renewal decision, one ends today`
+          : one
+            ? `NESR RRSM: a contract needs a renewal decision in ${soonest.daysLeft} days`
+            : `NESR RRSM: ${n} contracts need a renewal decision, the first in ${soonest.daysLeft} days`;
+
+  const rows = items
+    .map((i) => {
+      const when =
+        i.daysLeft < 0
+          ? `<span style="color:#b42318;font-weight:700">${Math.abs(i.daysLeft)} days overdue</span>`
+          : i.daysLeft === 0
+            ? `<span style="color:#b42318;font-weight:700">ends today</span>`
+            : `<b>${i.daysLeft}</b> days`;
+      const used =
+        i.monthsUsed === 0
+          ? `<span style="color:#9a6700;font-weight:700">unused for 12 months</span>`
+          : `${i.monthsUsed} of 12 months`;
+      return (
+        `<tr>` +
+        `<td style="padding:9px;border-bottom:1px solid #e5e7eb">${esc(i.description)}` +
+        `<div style="font-size:11px;color:#74837c;margin-top:2px">` +
+        `${i.assetRef ? esc(i.assetRef) + ' &middot; ' : ''}${esc(i.segment)} &middot; ${esc(i.supplierName)} &middot; ${esc(i.countryName)}` +
+        `</div></td>` +
+        `<td style="padding:9px;border-bottom:1px solid #e5e7eb;white-space:nowrap">${esc(i.dueOn)}</td>` +
+        `<td style="padding:9px;border-bottom:1px solid #e5e7eb;white-space:nowrap">${when}</td>` +
+        `<td style="padding:9px;border-bottom:1px solid #e5e7eb;white-space:nowrap">${used}</td>` +
+        `</tr>`
+      );
+    })
+    .join('');
+
+  return {
+    kind: 'renewal.reminder',
+    to: input.to,
+    cc: input.cc,
+    subject,
+    bodyHtml: SHELL(
+      `<p>${n === 1 ? 'This contract needs' : `These ${n} contracts need`} a renewal decision.</p>` +
+        `<table style="width:100%;border-collapse:collapse;font-size:14px;margin:18px 0">` +
+        `<tr style="background:#f4f7f5">` +
+        `<th style="padding:9px;text-align:left;border-bottom:2px solid #dde3df">Service</th>` +
+        `<th style="padding:9px;text-align:left;border-bottom:2px solid #dde3df">Ends</th>` +
+        `<th style="padding:9px;text-align:left;border-bottom:2px solid #dde3df">Left</th>` +
+        `<th style="padding:9px;text-align:left;border-bottom:2px solid #dde3df">Used</th>` +
+        `</tr>${rows}</table>` +
+        `<p style="margin:22px 0"><a href="${esc(input.url)}" ` +
+        `style="background:#307c4c;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:600;display:inline-block">` +
+        `Open in RRSM</a></p>` +
+        `<p style="color:#4a5852">Extending runs twelve months from the end date rather than from ` +
+        `the day it is decided, so a late decision does not move the anniversary. Declining ` +
+        `leaves the end date alone, so somebody still has to off-hire the line when it arrives.</p>`,
+    ),
+    meta: { renewals: n, soonestDueOn: soonest.dueOn, soonestDaysLeft: soonest.daysLeft },
   };
 }
 

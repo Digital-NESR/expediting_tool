@@ -273,8 +273,13 @@ export async function sessionEmailFor(
   return rows.length ? String(rows[0].email) : null;
 }
 
-/** The link's URL, as it goes into the invitation. */
-export function submissionUrl(token: string): string {
+/**
+ * Where this deployment lives, for anything that has to survive leaving the browser.
+ *
+ * Exported so that every RRSM link is built from the same fallback chain. A second copy of it
+ * somewhere else is how one mail ends up pointing at preview and another at production.
+ */
+export function appBase(): string {
   const base = (process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL ?? '')
     .trim()
     .replace(/\/+$/, '');
@@ -282,5 +287,17 @@ export function submissionUrl(token: string): string {
      the link is built rather than when a supplier cannot open it. */
   if (!base)
     throw new Error('NEXT_PUBLIC_APP_URL is not set, so the submission link would not resolve.');
-  return `${base}/rrsm/submit/${token}`;
+  return base;
+}
+
+/** The link's URL, as it goes into the invitation. */
+export function submissionUrl(token: string): string {
+  return `${appBase()}/rrsm/submit/${token}`;
+}
+
+/** The staff board, opened on a given country and view. What a reminder email points at. */
+export function boardUrl(countryCode: string, view?: 'ops' | 'buyer' | 'invite' | 'renew'): string {
+  const q = new URLSearchParams({ country: String(countryCode ?? '').trim() });
+  if (view) q.set('view', view);
+  return `${appBase()}/rrsm?${q.toString()}`;
 }

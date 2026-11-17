@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   REMINDER_DAYS,
+  REMINDER_LABEL,
   canChange,
   canDecide,
   daysUntil,
@@ -8,6 +9,7 @@ import {
   extendedTo,
   isDue,
   isoDate,
+  reachedSteps,
   urgencyOf,
 } from '@/lib/rrsm/renewals';
 
@@ -87,6 +89,76 @@ describe('dueReminder', () => {
   it('treats the expiry day itself as loud, not silent', () => {
     expect(REMINDER_DAYS).toContain(0);
     expect(dueReminder(TODAY, TODAY, [90, 60, 30, 14, 7])).toBe(0);
+  });
+});
+
+describe('reachedSteps — what the daily job marks spent', () => {
+  it('is empty before the window opens', () => {
+    expect(reachedSteps(d('2027-06-01'), TODAY)).toEqual([]);
+  });
+
+  it('is every step the clock has passed, not just the closest', () => {
+    expect(reachedSteps(d('2026-12-10'), TODAY)).toEqual([90, 60, 30]); // 24 days out
+  });
+
+  it('includes the expiry step once the date has gone', () => {
+    expect(reachedSteps(d('2026-11-01'), TODAY)).toEqual([90, 60, 30, 14, 7, 0]);
+  });
+
+  it('has a label for every step, so no subject line reads "undefined"', () => {
+    for (const step of REMINDER_DAYS) expect(REMINDER_LABEL[step]).toBeTruthy();
+  });
+});
+
+describe('the daily run, walked day by day', () => {
+  /* The property that matters operationally. `dueReminder` returns the earliest MISSED step, so
+     a job that stamped only the step it sent would mail the 90-day notice today, the 60-day
+     tomorrow and the 30-day the day after: three emails in three days about one contract. That
+     is the ProcureGuard mistake. Stamping `reachedSteps` is what prevents it, and this walks the
+     clock to prove it. */
+  function walk(due: Date, days: number): string[] {
+    let sent: number[] = [];
+    const sentOn: string[] = [];
+    for (let i = 0; i < days; i += 1) {
+      const today = new Date(TODAY.getTime() + i * 86_400_000);
+      const step = dueReminder(due, today, sent);
+      if (step === null) continue;
+      sentOn.push(`${isoDate(today)}:${step}`);
+      sent = [...new Set([...sent, ...reachedSteps(due, today)])];
+    }
+    return sentOn;
+  }
+
+  it('sends one email, not three, for a renewal nobody has looked at', () => {
+    /* 24 days out with nothing sent: steps 90, 60 and 30 have all been missed. */
+    expect(walk(d('2026-12-10'), 10)).toEqual(['2026-11-16:90']);
+  });
+
+  it('still says 90 rather than quietly starting at 30', () => {
+    /* The subject line is the only thing that tells a reader how late the process is. */
+    expect(walk(d('2026-12-10'), 1)[0]).toContain(':90');
+  });
+
+  it('speaks again only when the clock reaches a step it has not used', () => {
+    // Ten more days takes it to 14 days out, which is the next unreached step.
+    expect(walk(d('2026-12-10'), 15)).toEqual(['2026-11-16:90', '2026-11-26:14']);
+  });
+
+  it('runs the full schedule for a renewal caught at the start of the window', () => {
+    const due = d('2027-02-14'); // exactly 90 days away
+    expect(walk(due, 95)).toEqual([
+      '2026-11-16:90',
+      '2026-12-16:60',
+      '2027-01-15:30',
+      '2027-01-31:14',
+      '2027-02-07:7',
+      '2027-02-14:0',
+    ]);
+  });
+
+  it('chases an expired contract once and then stops', () => {
+    /* Everything is missed at once; it says so, and never mails again. */
+    expect(walk(d('2026-11-10'), 30)).toEqual(['2026-11-16:90']);
   });
 });
 
