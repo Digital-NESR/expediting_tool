@@ -15,6 +15,7 @@ import { getDelegatorsForApp } from '@/lib/delegation';
 import { uploadMimeTypeFor, validateUploadSignature } from '@/lib/documents';
 import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy.server';
 import { SERVICE_ACTIVITIES } from '@/lib/catalog-service-activities';
+import { masterDataFingerprint } from '@/lib/catalog-seed-fingerprint';
 import {
   SEED_COUNTRIES,
   SEED_CURRENCIES,
@@ -153,12 +154,49 @@ function dbOn(client: PoolClient): CatalogDb {
  */
 let seedPromise: Promise<void> | null = null;
 
+/**
+ * Has this database already been seeded from exactly these constants?
+ *
+ * Tolerant on purpose. If `seed_state` is not there -- code deployed ahead of migration 006 --
+ * this answers "no" and the caller does the full seed, which is what it always did. A faster
+ * cold start must not be able to take the tool down.
+ */
+async function masterDataIsCurrent(fingerprint: string): Promise<boolean> {
+  try {
+    const rows = await sql<{ fingerprint: string }[]>(
+      `SELECT fingerprint FROM seed_state WHERE key = 'master-data'`,
+    );
+    return rows[0]?.fingerprint === fingerprint;
+  } catch (err) {
+    if ((err as { code?: string } | null)?.code !== '42P01')
+      catalogLog.error('schema.seedStateUnreadable', err);
+    return false;
+  }
+}
+
 function ensureCatalogSeedData(): Promise<void> {
   if (!seedPromise) {
     seedPromise = (async () => {
       await requireSchema(catalogManagerPool, 'catalog-manager', '001_baseline');
-      await seedMasterData();
-      await seedSupplierDirectory();
+
+      /* The reference data is built from TypeScript constants, so it only needs writing when
+         those constants have changed. Re-upserting them on every cold instance cost seven round
+         trips to write rows that were already correct, and `loadCatalogActor` awaits this, so
+         the bill landed on whoever loaded the first page on a new instance. */
+      const fingerprint = masterDataFingerprint(SPEND_TAXONOMY);
+      if (!(await masterDataIsCurrent(fingerprint))) {
+        await seedMasterData();
+        await seedSupplierDirectory();
+        await exec(
+          `INSERT INTO seed_state (key, fingerprint) VALUES ('master-data', ?)
+           ON CONFLICT (key) DO UPDATE SET fingerprint = EXCLUDED.fingerprint, applied_at = NOW()`,
+          [fingerprint],
+        ).catch((err) => {
+          /* The seed itself succeeded; only the note that it did has failed. Worth knowing, but
+             not worth failing a page over -- the next cold start simply seeds again. */
+          catalogLog.error('schema.seedStateUnwritable', err);
+        });
+      }
     })().catch((err) => {
       seedPromise = null; // let a later request retry if seeding failed
       catalogLog.error('schema.seedFailed', err);
@@ -406,18 +444,41 @@ const loadCatalogActor = cache(async (): Promise<CatalogActor> => {
   let countryCode: string | null;
   const userId: number | null = userRow?.id ?? null;
 
-  if (userRow) {
-    role = userRow.role;
-    countryCode = userRow.country_code;
-  } else if (isPlatformAdminEmail(email)) {
-    // Admin-preview AND the bootstrap path: a platform admin configured in ADMIN_EMAILS acts as
-    // Admin with no app_user row, which is what lets the first real admin sign in to an empty
-    // database and grant everyone else a role. (Demo accounts used to be seeded for this.)
+  /* Admin is ADMIN_EMAILS membership, never a stored role. Every other tool in this app reads it
+     from there, and keeping it out of the table means an `app_user` row can grant access without
+     being able to grant administration of the tool -- which matters while seeded demo accounts
+     with role = 'Admin' are still sitting in it. */
+  const platformAdmin = isPlatformAdminEmail(email);
+  let hasAccess: boolean;
+  let countries: string[];
+
+  if (platformAdmin) {
     role = 'Admin';
-    countryCode = (process.env.CATALOG_HOME_COUNTRY ?? '').trim().toUpperCase() || null;
+    countryCode =
+      userRow?.country_code ??
+      ((process.env.CATALOG_HOME_COUNTRY ?? '').trim().toUpperCase() || null);
+    countries = []; // empty = every country, resolved where scoping is applied
+    hasAccess = true;
+  } else if (userRow) {
+    /* A stored 'Admin' is not one. It grants access at Approver level -- the most a row can
+       confer -- so the demo accounts keep working without administering anything. */
+    role = userRow.role === 'Admin' ? 'Approver' : userRow.role;
+    countryCode = userRow.country_code;
+    countries =
+      Array.isArray(userRow.countries) && userRow.countries.length
+        ? userRow.countries
+        : userRow.country_code
+          ? [userRow.country_code]
+          : [];
+    hasAccess = true;
   } else {
+    /* No grant. This used to fall through to Viewer, which made the tool open to anyone signed
+       in the moment the ADMIN_EMAILS redirect came off its layout. The layout now renders the
+       request page instead, and every guard below refuses. */
     role = 'Viewer';
     countryCode = null;
+    countries = [];
+    hasAccess = false;
   }
 
   const canCreate = role === 'Contributor' || role === 'Approver' || role === 'Admin';
@@ -444,6 +505,8 @@ const loadCatalogActor = cache(async (): Promise<CatalogActor> => {
     email,
     name,
     role,
+    hasAccess,
+    countries,
     country_code: countryCode,
     canCreate,
     canApprove: canApprove || delegatedFrom.length > 0,
@@ -483,6 +546,11 @@ function meetsCatalogRole(actor: CatalogActor, min: CatalogRole): boolean {
 async function requireCatalogActor(min: CatalogRole = 'Viewer'): Promise<CatalogActor> {
   const actor = await getCatalogActor();
   if (!actor.email) throw new AccessError('Sign in required.', 401);
+  /* The grant check, and it has to be here rather than only on the layout: every export of this
+     file is a public POST endpoint, so a page gate stops people browsing in and stops nothing
+     else. Before this, an employee with no grant resolved to Viewer and every read in the tool
+     answered them. */
+  if (!actor.hasAccess) throw new AccessError('You do not have access to Catalog Repo.');
   if (!meetsCatalogRole(actor, min)) throw new AccessError(`This action requires the ${min} role.`);
   return actor;
 }
@@ -908,24 +976,57 @@ function mapPirRow(r: QueryResultRow): PirEntry {
 }
 
 export type PirSort = 'supplier' | 'priceHi' | 'priceLo' | 'record';
+/** Validity, measured against today rather than stored: '' means do not filter on it. */
+export type PirStatus = '' | 'active' | 'expired';
+/** Expiring within N days. Implies active — an expired record is not "expiring". */
+export type PirExpiring = '' | '30' | '60' | '90' | '180';
+/* NOT exported. Every export of a `'use server'` file must be an async function -- a type is
+   erased and survives, a runtime const does not, and Next refuses the build with "Only async
+   functions are allowed to be exported in a 'use server' file". Nothing outside this module
+   needs the mapping, so it stays module-local. */
+const PIR_EXPIRING_DAYS: Record<Exclude<PirExpiring, ''>, number> = {
+  '30': 30,
+  '60': 60,
+  '90': 90,
+  '180': 180,
+};
+
 export interface PirQuery {
   q?: string;
   country?: string;
   porg?: string;
   plant?: string;
   mgroup?: string;
+  status?: PirStatus;
+  expiring?: PirExpiring;
   sort?: PirSort;
   page?: number;
   pageSize?: number;
+}
+/** The four figures on the PIR stat cards. One shape, whether filtered or whole-mirror. */
+export interface PirStats {
+  total: number;
+  suppliers: number;
+  plants: number;
+  countries: number;
 }
 export interface PirListResult {
   rows: PirEntry[];
   total: number;
   page: number;
   pageSize: number;
+  /**
+   * The same four figures the cards show, for THIS query's filters.
+   *
+   * Computed in the very statement that counts the rows, not a query of its own, so the cards
+   * and the table below them cannot drift apart: one WHERE clause, one pass, one answer. The
+   * cost is three extra aggregates on a count that was already being run.
+   */
+  stats: PirStats;
 }
 export interface PirMeta {
-  stats: { total: number; suppliers: number; plants: number; countries: number };
+  /** The whole mirror, unfiltered. The cards use it as the denominator, never as the value. */
+  stats: PirStats;
   facets: { countries: string[]; porgs: string[]; plants: string[]; mgroups: string[] };
 }
 
@@ -933,6 +1034,23 @@ export interface PirMeta {
 // columns are qualified to avoid ambiguity, and the effective name is COALESCE(loaded, cached).
 const PIR_DESC_EXPR = `COALESCE(NULLIF(p.material_description, ''), nc.material_description)`;
 const PIR_FROM = `FROM pir_catalog p LEFT JOIN pir_name_cache nc ON nc.product_number = p.product_number`;
+
+/**
+ * `valid_till_expiry_date` as a date, or NULL when it is not one.
+ *
+ * The column is TEXT, not a date: the Power BI mirror lands it as `YYYY-MM-DDTHH:MM:SS`, and
+ * every one of the 5,268 rows is currently that exact 19-character shape. The regex guard is
+ * there because this table is truncated and reloaded nightly from a feed nobody here controls,
+ * and a bare `::date` on a row that arrives in some other spelling does not return NULL — it
+ * raises, and takes the whole page down with it. A row that cannot be read as a date falls
+ * outside every validity filter instead, which is the honest answer for a date we cannot read.
+ *
+ * SAP writes 9999-12-31 for "no end date" (24 rows today). Nothing special is done with it: it
+ * is genuinely in the future, so it reads as Active and never enters an expiring-soon bucket,
+ * which is exactly right.
+ */
+const PIR_VALID_TO_EXPR = `(CASE WHEN p.valid_till_expiry_date ~ '^\\d{4}-\\d{2}-\\d{2}'
+    THEN LEFT(p.valid_till_expiry_date, 10)::date END)`;
 const PIR_SORT_SQL: Record<PirSort, string> = {
   supplier: 'p.supplier_name ASC NULLS LAST, p.product_number ASC NULLS LAST',
   priceHi: 'p.unit_price DESC NULLS LAST',
@@ -968,6 +1086,29 @@ function pirWhere(query: PirQuery): { where: string; params: QueryParams } {
     clauses.push('p.material_group = ?');
     params.push(query.mgroup);
   }
+
+  /* Validity is computed against today, never stored, so "active" means the same thing on every
+     page load rather than whatever the last sync decided. A record is active while its valid-to
+     date has not passed; CURRENT_DATE makes the boundary day itself still valid, which is how a
+     contract that runs "until 31 December" is read by the people who signed it. */
+  if (query.status === 'active') {
+    clauses.push(`${PIR_VALID_TO_EXPR} >= CURRENT_DATE`);
+  } else if (query.status === 'expired') {
+    clauses.push(`${PIR_VALID_TO_EXPR} < CURRENT_DATE`);
+  }
+
+  /* Expiring-within is deliberately a window with BOTH ends: an expired record is not expiring,
+     it has expired. Without the lower bound this would return all 3,947 dead records alongside
+     the 42 that actually need attention, which is the opposite of what the filter is for. It
+     therefore implies active and does not need the status filter set alongside it. */
+  const days = query.expiring ? PIR_EXPIRING_DAYS[query.expiring] : undefined;
+  if (days !== undefined) {
+    clauses.push(
+      `${PIR_VALID_TO_EXPR} >= CURRENT_DATE AND ${PIR_VALID_TO_EXPR} <= CURRENT_DATE + ?::int`,
+    );
+    params.push(days);
+  }
+
   return { where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
 }
 
@@ -975,20 +1116,49 @@ function pirWhere(query: PirQuery): { where: string; params: QueryParams } {
 export async function listPirEntries(query: PirQuery = {}): Promise<PirListResult> {
   const page = Math.max(1, Math.floor(query.page ?? 1));
   const pageSize = Math.min(200, Math.max(10, Math.floor(query.pageSize ?? 50)));
-  if (!(await optionalCatalogActor())) return { rows: [], total: 0, page, pageSize };
+  if (!(await optionalCatalogActor()))
+    return {
+      rows: [],
+      total: 0,
+      page,
+      pageSize,
+      stats: { total: 0, suppliers: 0, plants: 0, countries: 0 },
+    };
   await ensurePirNamesFresh();
   const sort = PIR_SORT_SQL[query.sort ?? 'supplier'] ?? PIR_SORT_SQL.supplier;
   const { where, params } = pirWhere(query);
 
   const [countRows, rows] = await Promise.all([
-    sql<{ n: number }[]>(`SELECT COUNT(*)::int AS n ${PIR_FROM} ${where}`, params),
+    /* The stat-card figures ride along with the row count rather than being asked for
+       separately. They are the same question about the same filtered set, and asking twice is
+       how a card ends up contradicting the table underneath it. */
+    sql<{ n: number; suppliers: number; plants: number; countries: number }[]>(
+      `SELECT COUNT(*)::int                          AS n,
+              COUNT(DISTINCT p.supplier_name)::int   AS suppliers,
+              COUNT(DISTINCT p.plant)::int           AS plants,
+              COUNT(DISTINCT p.country)::int         AS countries
+       ${PIR_FROM} ${where}`,
+      params,
+    ),
     sql<QueryResultRow[]>(
       `SELECT p.*, nc.material_description AS cached_material_description
        ${PIR_FROM} ${where} ORDER BY ${sort} LIMIT ? OFFSET ?`,
       [...params, pageSize, (page - 1) * pageSize],
     ),
   ]);
-  return { rows: rows.map(mapPirRow), total: Number(countRows[0]?.n ?? 0), page, pageSize };
+  const c = countRows[0];
+  return {
+    rows: rows.map(mapPirRow),
+    total: Number(c?.n ?? 0),
+    page,
+    pageSize,
+    stats: {
+      total: Number(c?.n ?? 0),
+      suppliers: Number(c?.suppliers ?? 0),
+      plants: Number(c?.plants ?? 0),
+      countries: Number(c?.countries ?? 0),
+    },
+  };
 }
 
 /** All rows matching the filters (no paging) — for CSV export. Bounded to keep the payload sane. */
@@ -2357,6 +2527,25 @@ export async function getCountries(): Promise<CountryRow[]> {
     `SELECT code, name, default_currency, flag, status FROM country ORDER BY name`,
   );
 }
+
+/**
+ * The country list for the request-access form, for people who have no access yet.
+ *
+ * `getCountries` is guarded, and after the grant check that now means it returns nothing to
+ * exactly the people who need to pick countries -- the form would have offered an empty list and
+ * no way to ask for anything. Signed in is the only requirement here: a list of NESR operating
+ * countries is not what Catalog Repo is protecting, and the request form is reachable precisely
+ * because someone has no grant yet.
+ */
+export async function getCountriesForAccessRequest(): Promise<CountryRow[]> {
+  const sessionUser = await getProcureGuardUser();
+  if (!sessionUser?.email) return [];
+  await requireSchema(catalogManagerPool, 'catalog-manager', '001_baseline');
+  return sql<CountryRow[]>(
+    `SELECT code, name, default_currency, flag, status FROM country
+      WHERE status = 'Active' ORDER BY name`,
+  );
+}
 export async function getCurrencies(): Promise<CurrencyRow[]> {
   if (!(await optionalCatalogActor())) return [];
   const rows = await sql<QueryResultRow[]>(
@@ -2503,10 +2692,156 @@ export async function setUserRole(userId: number, role: CatalogRole): Promise<vo
 }
 
 /* ============================================================================
-   ACCESS REQUESTS — self-service role-upgrade queue, reviewed from the
-   platform /admin console (mirrors the ProcureGuard/TI-TE/SourceGuide pattern).
-   New users always land as Viewer automatically (see getCatalogActor); this
-   queue is only for requesting an UPGRADE beyond that default.
+   COUNTRY APPROVER MATRIX — one approver per country, the way ProcureGuard's
+   approval-access screen works. `country_approver` already stored this; what was
+   missing was a way to read it as a grid and set a cell from the employee
+   directory rather than from the handful of people who already had an app_user
+   row.
+============================================================================ */
+
+export interface CatalogApproverCell {
+  countryCode: string;
+  countryName: string;
+  /** Null when nobody approves for this country yet. */
+  email: string | null;
+  name: string | null;
+}
+
+/** Every country with its approver, countries without one included. */
+export async function getCatalogApproverMatrix(): Promise<CatalogApproverCell[]> {
+  if (!(await optionalCatalogActor('Admin'))) return [];
+  const rows = await sql<QueryResultRow[]>(
+    `SELECT c.code, c.name, au.email, au.full_name
+       FROM country c
+       LEFT JOIN country_approver ca
+         ON ca.country_code = c.code AND ca.is_active AND ca.spend_category_id IS NULL
+       LEFT JOIN app_user au ON au.id = ca.user_id
+      WHERE c.status = 'Active'
+      ORDER BY c.name`,
+  );
+  return rows.map((r) => ({
+    countryCode: String(r.code),
+    countryName: String(r.name),
+    email: r.email ? String(r.email).toLowerCase() : null,
+    name: r.full_name ? String(r.full_name) : null,
+  }));
+}
+
+/**
+ * Put someone in a country's approver cell, creating their access if they have none.
+ *
+ * Being a country's approver IS the grant for that country, which is why this writes `app_user`
+ * as well: naming somebody here and then finding they cannot open the tool would be the same
+ * split the old UI had, where the role was set in one screen and the country scope in another.
+ * Their countries gain this one rather than being replaced, so making an existing Contributor
+ * the approver for Oman does not quietly remove the rest of their access.
+ */
+export async function setCatalogCountryApprover(input: {
+  countryCode: string;
+  email: string;
+  name: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const actor = await optionalCatalogActor('Admin');
+  if (!actor) return { success: false, error: 'Admin only.' };
+
+  const email = normalizeEmail(input.email);
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    return { success: false, error: 'That is not a valid email address.' };
+  const [country] = await resolveCountryCodes([input.countryCode]);
+  if (!country) return { success: false, error: 'Unknown country.' };
+
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    const ins = await db.exec(
+      `INSERT INTO app_user (full_name, email, country_code, countries, role)
+       VALUES (?, ?, ?, ARRAY[?]::text[], 'Approver')
+       ON CONFLICT (email) DO UPDATE SET
+         full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), app_user.full_name),
+         role = 'Approver',
+         country_code = COALESCE(app_user.country_code, EXCLUDED.country_code),
+         /* Add, never replace: an approver for Oman who is also a Contributor for Kuwait keeps
+            Kuwait. */
+         countries = ARRAY(SELECT DISTINCT unnest(app_user.countries || EXCLUDED.countries))
+       RETURNING id`,
+      [input.name || email, email, country, country],
+    );
+    const userId = ins.insertId;
+
+    /* One approver per country for now, which is what the matrix shows. Anyone previously in
+       the cell is deactivated rather than deleted, so the history of who could sign off when
+       survives in the table. */
+    await db.exec(
+      `UPDATE country_approver SET is_active = FALSE
+        WHERE country_code = ? AND spend_category_id IS NULL AND is_active AND user_id <> ?`,
+      [country, userId],
+    );
+    /* Reactivate the row if this person has held the cell before, otherwise create it. Not an
+       ON CONFLICT: spend_category_id is nullable and Postgres counts NULLs as distinct, so the
+       constraint that would have to back it cannot be written as a plain UNIQUE. Inside a
+       transaction the two statements are equivalent and need no new index. */
+    const touched = await db.exec(
+      `UPDATE country_approver
+          SET is_active = TRUE
+        WHERE user_id = ? AND country_code = ? AND spend_category_id IS NULL`,
+      [userId, country],
+    );
+    if (!touched.rowCount) {
+      await db.exec(
+        `INSERT INTO country_approver
+           (user_id, country_code, spend_category_id, tier, is_active)
+         VALUES (?, ?, NULL, 2, TRUE)`,
+        [userId, country],
+      );
+    }
+    await writeAudit(
+      'Master data',
+      'Country approvers',
+      actor.name,
+      actor.email,
+      `Set ${country} approver to ${email}`,
+      db,
+    );
+  });
+  return { success: true };
+}
+
+/** Empty a country's cell. The person keeps their access; they just stop approving. */
+export async function clearCatalogCountryApprover(
+  countryCode: string,
+): Promise<{ success: boolean; error?: string }> {
+  const actor = await optionalCatalogActor('Admin');
+  if (!actor) return { success: false, error: 'Admin only.' };
+  const [country] = await resolveCountryCodes([countryCode]);
+  if (!country) return { success: false, error: 'Unknown country.' };
+
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    await db.exec(
+      `UPDATE country_approver SET is_active = FALSE
+        WHERE country_code = ? AND spend_category_id IS NULL AND is_active`,
+      [country],
+    );
+    await writeAudit(
+      'Master data',
+      'Country approvers',
+      actor.name,
+      actor.email,
+      `Cleared the ${country} approver`,
+      db,
+    );
+  });
+  return { success: true };
+}
+
+/* ============================================================================
+   ACCESS REQUESTS — the only way into Catalog Repo, reviewed from the platform
+   /admin console (mirrors the ProcureGuard/TI-TE/SourceGuide pattern).
+
+   This was a role-UPGRADE queue while every signed-in employee landed as Viewer
+   automatically. That default is gone (see getCatalogActor): no grant means no
+   access, so a request is now how someone gets in at all, and the role they ask
+   for is Viewer or Contributor. Approver comes from the country matrix and Admin
+   from ADMIN_EMAILS; neither is requestable.
 ============================================================================ */
 
 function mapAccessRequest(row: QueryResultRow): CatalogAccessRequestRow {
@@ -2515,6 +2850,8 @@ function mapAccessRequest(row: QueryResultRow): CatalogAccessRequestRow {
     display_name: row.display_name ?? null,
     job_title: row.job_title ?? null,
     country_code: row.country_code ?? null,
+    requested_countries: Array.isArray(row.requested_countries) ? row.requested_countries : [],
+    approved_countries: Array.isArray(row.approved_countries) ? row.approved_countries : [],
     status: row.status as CatalogAccessRequestStatus,
     requested_role: row.requested_role as CatalogRole,
     approved_role: (row.approved_role as CatalogRole) ?? null,
@@ -2544,23 +2881,46 @@ export async function getMyCatalogAccessRequest(): Promise<CatalogAccessRequestR
  * by a platform admin via "Users & roles", never through this queue.
  */
 export async function submitCatalogAccessRequest(input: {
-  requestedRole: 'Contributor' | 'Approver';
-  countryCode?: string | null;
+  requestedRole: 'Viewer' | 'Contributor';
+  countries: string[];
   reason?: string | null;
 }): Promise<{ success: boolean; error?: string }> {
-  await requireSchema(catalogManagerPool, 'catalog-manager', '001_baseline');
+  await requireSchema(catalogManagerPool, 'catalog-manager', '003_access_countries');
   const sessionUser = await getProcureGuardUser();
   const email = normalizeEmail(sessionUser?.email);
   if (!email) return { success: false, error: 'You must be signed in to request access.' };
 
+  /* Viewer or Contributor, and nothing else. Approver is conferred by the country matrix on the
+     admin page -- being a country's approver IS the grant -- and Admin is membership of
+     ADMIN_EMAILS. Neither can be asked for here, so neither is accepted here: this is a public
+     POST endpoint and the role lands in a column the gate reads. */
+  const role = input.requestedRole === 'Contributor' ? 'Contributor' : 'Viewer';
+
+  /* Countries are checked against the table rather than trusted. Anything else would let a
+     request name a country that does not exist, which an admin would then approve without
+     noticing, granting access scoped to nothing. */
+  const valid = await sql<{ code: string }[]>(`SELECT code FROM country WHERE status = 'Active'`);
+  const allowed = new Set(valid.map((c) => c.code));
+  const countries = [...new Set((input.countries ?? []).map((c) => String(c).trim()))].filter((c) =>
+    allowed.has(c),
+  );
+  if (!countries.length)
+    return { success: false, error: 'Choose at least one country you need access to.' };
+
   await exec(
     `INSERT INTO catalog_access_requests
-      (user_email, display_name, job_title, country_code, status, requested_role, approved_role, reason, requested_at, reviewed_at, reviewed_by)
-     VALUES (?, ?, ?, ?, 'Pending', ?, NULL, ?, CURRENT_TIMESTAMP, NULL, NULL)
+      (user_email, display_name, job_title, country_code, requested_countries, approved_countries,
+       status, requested_role, approved_role, reason, requested_at, reviewed_at, reviewed_by)
+     VALUES (?, ?, ?, ?, ?, '{}', 'Pending', ?, NULL, ?, CURRENT_TIMESTAMP, NULL, NULL)
      ON CONFLICT (user_email) DO UPDATE SET
        display_name = EXCLUDED.display_name,
        job_title = EXCLUDED.job_title,
        country_code = EXCLUDED.country_code,
+       requested_countries = EXCLUDED.requested_countries,
+       /* A re-request clears the previous decision: approved_countries is what the grant was,
+          and leaving it in place beside a Pending status would read as access this person does
+          not currently have. */
+       approved_countries = '{}',
        status = 'Pending',
        requested_role = EXCLUDED.requested_role,
        approved_role = NULL,
@@ -2572,8 +2932,9 @@ export async function submitCatalogAccessRequest(input: {
       email,
       sessionUser?.name ?? email,
       sessionUser?.jobTitle ?? null,
-      input.countryCode || null,
-      input.requestedRole,
+      countries[0], // home country: the first they picked, kept for attribution
+      countries,
+      role,
       input.reason || null,
     ],
   );
@@ -2600,15 +2961,48 @@ export async function getCatalogAccessPendingCount(): Promise<number> {
 }
 
 /** Approve a request: marks it Approved and grants the role on app_user (creating the row if needed). */
+/**
+ * The roles an admin may grant from this queue.
+ *
+ * Approver is absent on purpose: it comes from the country matrix, where being a country's
+ * approver IS the grant for that country, so granting it here as well would be two routes to
+ * one state that can disagree. Admin is absent because it is ADMIN_EMAILS and not a row.
+ */
+const GRANTABLE_ROLES: CatalogRole[] = ['Viewer', 'Contributor'];
+
+/** Validate and de-duplicate a set of country codes against the ones that actually exist. */
+async function resolveCountryCodes(codes: string[], db: CatalogDb = poolDb): Promise<string[]> {
+  const wanted = [...new Set((codes ?? []).map((c) => String(c).trim()).filter(Boolean))];
+  if (!wanted.length) return [];
+  const rows = await db.sql<{ code: string }[]>(
+    `SELECT code FROM country WHERE code IN (${wanted.map(() => '?').join(', ')})`,
+    wanted,
+  );
+  const real = new Set(rows.map((r) => r.code));
+  return wanted.filter((c) => real.has(c));
+}
+
 export async function approveCatalogAccessRequest(input: {
   userEmail: string;
   approvedRole: CatalogRole;
-  countryCode?: string | null;
+  countries: string[];
 }): Promise<{ success: boolean; error?: string }> {
   // The reviewer is the AUTHENTICATED actor — never a value the client sent.
   const actor = await optionalCatalogActor('Admin');
   if (!actor) return { success: false, error: 'Admin only.' };
   const email = normalizeEmail(input.userEmail);
+
+  /* The admin decides, not the requester: what they picked on the review row is what is granted,
+     which is the whole point of letting them re-select. Both values are still checked here
+     rather than trusted, because this is a public POST endpoint. */
+  if (!GRANTABLE_ROLES.includes(input.approvedRole))
+    return {
+      success: false,
+      error: 'Grant View or Contributor. Approver comes from the country matrix.',
+    };
+
+  const countries = await resolveCountryCodes(input.countries);
+  if (!countries.length) return { success: false, error: 'Grant at least one country.' };
 
   // Marking the request Approved and actually granting the role on app_user must land together —
   // a failure between them used to leave a request that reads "Approved" with no role granted.
@@ -2619,26 +3013,98 @@ export async function approveCatalogAccessRequest(input: {
       [email],
     );
     const displayName = existing[0]?.display_name ?? email;
-    const countryCode = input.countryCode || existing[0]?.country_code || null;
+    const homeCountry = countries[0];
 
     await db.exec(
       `UPDATE catalog_access_requests
-       SET status = 'Approved', approved_role = ?, country_code = COALESCE(?, country_code), reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?
+       SET status = 'Approved', approved_role = ?, approved_countries = ?, country_code = ?,
+           reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?
        WHERE LOWER(user_email) = ?`,
-      [input.approvedRole, countryCode, actor.email, email],
+      [input.approvedRole, countries, homeCountry, actor.email, email],
     );
+    /* The grant is REPLACED, not merged. An admin who removes a country on the review row means
+       to remove it; COALESCEing the old value back in -- which this did for country_code -- made
+       the narrowing silently fail. */
     await db.exec(
-      `INSERT INTO app_user (full_name, email, country_code, role)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT (email) DO UPDATE SET role = EXCLUDED.role, country_code = COALESCE(app_user.country_code, EXCLUDED.country_code)`,
-      [displayName, email, countryCode, input.approvedRole],
+      `INSERT INTO app_user (full_name, email, country_code, countries, role)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (email) DO UPDATE SET
+         role = EXCLUDED.role,
+         countries = EXCLUDED.countries,
+         country_code = EXCLUDED.country_code`,
+      [displayName, email, homeCountry, countries, input.approvedRole],
     );
     await writeAudit(
       'Master data',
       'Access requests',
       actor.name,
       actor.email,
-      `Approved ${email} → ${input.approvedRole}`,
+      `Approved ${email} → ${input.approvedRole} for ${countries.join(', ')}`,
+      db,
+    );
+  });
+  return { success: true };
+}
+
+/**
+ * Change a live grant without revoking it first.
+ *
+ * Revoke-and-ask-again was the only way to correct a grant, which costs the person their access
+ * and the admin a second round trip for what is usually "they also cover Kuwait now". This edits
+ * the same two rows the approval wrote, so the request record keeps matching the grant rather
+ * than drifting into a historical curiosity.
+ */
+export async function updateCatalogAccessGrant(input: {
+  userEmail: string;
+  role: CatalogRole;
+  countries: string[];
+}): Promise<{ success: boolean; error?: string }> {
+  const actor = await optionalCatalogActor('Admin');
+  if (!actor) return { success: false, error: 'Admin only.' };
+  const email = normalizeEmail(input.userEmail);
+
+  if (!GRANTABLE_ROLES.includes(input.role))
+    return {
+      success: false,
+      error: 'Set View or Contributor. Approver comes from the country matrix.',
+    };
+  const countries = await resolveCountryCodes(input.countries);
+  if (!countries.length)
+    return { success: false, error: 'Keep at least one country, or revoke instead.' };
+
+  await withTransaction(catalogManagerPool, async (client) => {
+    const db = dbOn(client);
+    const existing = await db.sql<QueryResultRow[]>(
+      `SELECT full_name FROM app_user WHERE LOWER(email) = ?`,
+      [email],
+    );
+    const displayName = existing[0]?.full_name ?? email;
+    const homeCountry = countries[0];
+
+    await db.exec(
+      `INSERT INTO app_user (full_name, email, country_code, countries, role)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (email) DO UPDATE SET
+         role = EXCLUDED.role,
+         countries = EXCLUDED.countries,
+         country_code = EXCLUDED.country_code`,
+      [displayName, email, homeCountry, countries, input.role],
+    );
+    /* Only if there is a request to keep in step. Someone granted access directly has no row
+       here and does not need one invented. */
+    await db.exec(
+      `UPDATE catalog_access_requests
+       SET approved_role = ?, approved_countries = ?, country_code = ?,
+           reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?
+       WHERE LOWER(user_email) = ? AND status = 'Approved'`,
+      [input.role, countries, homeCountry, actor.email, email],
+    );
+    await writeAudit(
+      'Master data',
+      'Access requests',
+      actor.name,
+      actor.email,
+      `Changed ${email} → ${input.role} for ${countries.join(', ')}`,
       db,
     );
   });

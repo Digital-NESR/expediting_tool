@@ -1,31 +1,14 @@
-import type { Metadata } from 'next';
-import {
-  getCatalogActor,
-  getCountries,
-  getMyCatalogAccessRequest,
-  getPendingApprovalCount,
-} from '@/app/actions/catalog-manager';
-import { getPermissionProfile } from '@/lib/catalog-manager-utils';
-import RequestAccessClient from './RequestAccessClient';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = { title: 'Request Access | NESR Catalog Repo' };
-export const dynamic = 'force-dynamic';
-
-export default async function CatalogRequestAccessPage() {
-  const [actor, countries, myRequest, pendingCount] = await Promise.all([
-    getCatalogActor(),
-    getCountries(),
-    getMyCatalogAccessRequest(),
-    getPendingApprovalCount(),
-  ]);
-
-  return (
-    <RequestAccessClient
-      actor={actor}
-      countries={countries.map((c) => ({ code: c.code, name: c.name, flag: c.flag }))}
-      myRequest={myRequest}
-      roleLabel={getPermissionProfile(actor.role).description}
-      pendingCount={pendingCount}
-    />
-  );
+/**
+ * Kept as a redirect because the URL is in circulation — it was linked from the admin console and
+ * from earlier emails — and a 404 is a poor answer to someone trying to ask for access.
+ *
+ * The form itself moved into the layout's gate (`CatalogAccessGate`), which is what anyone
+ * without a grant now sees at /catalog-manager. Having it in two places meant two forms to keep
+ * in step, and the one here offered a single country and an Approver option that is no longer
+ * requestable at all.
+ */
+export default function CatalogRequestAccessPage() {
+  redirect('/catalog-manager');
 }

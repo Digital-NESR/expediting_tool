@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  buildChannelBand,
-  type ChannelSignals,
-  type ScopedBooking,
-} from '@/lib/travel-analytics/queries';
+import { type ChannelSignals, type ScopedBooking } from '@/lib/travel-analytics/queries';
+import { buildChannelBand } from '@/lib/travel-analytics/bands';
 
 /**
  * BTO (booked in the portal) against OFF (arranged offline, entered afterwards).

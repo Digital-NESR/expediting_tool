@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { parseAmountText, parseDayCount } from './parse-amount';
 
 /**
  * Reading a supplier's returned statement.
@@ -98,32 +99,19 @@ function cellText(value: ExcelJS.CellValue): string {
 /**
  * Read a number a supplier typed.
  *
- * Statements arrive with thousands separators, currency prefixes, trailing minus signs and
- * accounting parentheses for negatives. A value that is genuinely not a number returns null and
- * the caller records an issue rather than storing a zero, which would read as "nothing owed".
+ * A cell Excel already holds as a number needs no interpretation. Everything else is text the
+ * supplier typed, and goes to `parseAmountText`, which decides between the two decimal
+ * conventions from the digits rather than assuming the English one -- see the long note there.
+ * A value that is genuinely not a number returns null and the caller records an issue rather
+ * than storing a zero, which would read as "nothing owed".
  */
 export function parseAmount(raw: ExcelJS.CellValue): number | null {
   if (raw === null || raw === undefined || raw === '') return null;
   if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
 
-  let text = cellText(raw).trim();
+  const text = cellText(raw).trim();
   if (!text) return null;
-
-  const negative = /^\(.*\)$/.test(text) || /-\s*$/.test(text);
-  text = text
-    .replace(/^\(|\)$/g, '')
-    .replace(/[^\d.,-]/g, '')
-    .replace(/-\s*$/, '')
-    .trim();
-
-  // A comma is a thousands separator here; a decimal comma would need the locale, which a
-  // spreadsheet cell does not carry.
-  text = text.replace(/,/g, '');
-  if (!text || !/\d/.test(text)) return null;
-
-  const n = Number(text);
-  if (!Number.isFinite(n)) return null;
-  return negative && n > 0 ? -n : n;
+  return parseAmountText(text).value;
 }
 
 /** Read a date, accepting what Excel gives and the common typed forms. */
@@ -326,6 +314,14 @@ export async function parseSupplierWorkbook(bytes: Buffer): Promise<ParseResult>
     if (cellText(totalCell).trim() && totalAmount === null)
       issues.push(`Total amount "${cellText(totalCell).trim()}" could not be read`);
 
+    /* Tax is reported like the other two. It used to be parsed silently, so a tax cell holding
+       something unreadable produced a blank with no explanation anywhere -- which is also why
+       the backfill over stored statements could not say what had been in those cells. */
+    const taxCell = get(row, 'taxAmount');
+    const taxAmount = parseAmount(taxCell);
+    if (cellText(taxCell).trim() && taxAmount === null)
+      issues.push(`Tax amount "${cellText(taxCell).trim()}" could not be read`);
+
     const outstandingCell = get(row, 'outstandingAmount');
     const outstandingAmount = parseAmount(outstandingCell);
     if (cellText(outstandingCell).trim() && outstandingAmount === null)
@@ -342,12 +338,15 @@ export async function parseSupplierWorkbook(bytes: Buffer): Promise<ParseResult>
       poNumber,
       serviceType: str(get(row, 'serviceType')),
       currency: str(get(row, 'currency'))?.toUpperCase() ?? null,
-      taxAmount: parseAmount(get(row, 'taxAmount')),
+      taxAmount: taxAmount,
       totalAmount,
       outstandingAmount,
       outstandingDays: (() => {
-        const n = parseAmount(get(row, 'outstandingDays'));
-        return n === null ? null : Math.round(n);
+        // A number cell goes through as a number; only typed text needs the text reading.
+        const cell = get(row, 'outstandingDays');
+        return typeof cell === 'number'
+          ? parseDayCount(cell)
+          : parseDayCount(cellText(cell).trim());
       })(),
       remarks: str(get(row, 'remarks')),
       issues,

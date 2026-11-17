@@ -18,6 +18,7 @@ import type {
   LaptopDashboardData,
   LaptopDelegationRow,
   LaptopDeviceCatalogRow,
+  LaptopDevicePriceRow,
   LaptopDocument,
   LaptopPermissionRow,
   LaptopRequest,
@@ -227,6 +228,7 @@ export async function getLaptopAdminData(
       deviceRows,
       matrixRows,
       stats,
+      devicePriceRows,
     ] = await Promise.all([
       // Only the current page — the table only ever shows ADMIN_REQUESTS_PAGE_SIZE
       // rows at a time, so there's no reason to pull the entire (and ever-growing)
@@ -246,6 +248,10 @@ export async function getLaptopAdminData(
       sql<QueryResultRow[]>(`SELECT * FROM laptop_device_catalog ORDER BY type_of_device, model`),
       sql<QueryResultRow[]>(`SELECT * FROM laptop_approver_matrix WHERE is_active = TRUE`),
       computeLaptopStats(actor, '', []),
+      sql<QueryResultRow[]>(
+        `SELECT id, model, country, unit_price_usd, updated_at, updated_by
+           FROM laptop_device_prices ORDER BY model, country`,
+      ),
     ]);
     const delegations = applyLaptopDelegationExpiry(
       asSerialised<LaptopDelegationRow[]>(delegationRows),
@@ -258,6 +264,12 @@ export async function getLaptopAdminData(
       permissions: asSerialised<LaptopPermissionRow[]>(permissionRows),
       delegations,
       deviceCatalog: asSerialised<LaptopDeviceCatalogRow[]>(deviceRows),
+      // NUMERIC arrives as a string; coerced here so the admin screen can compare
+      // and render it as the number its type claims.
+      devicePrices: devicePriceRows.map((r) => ({
+        ...r,
+        unit_price_usd: Number(r.unit_price_usd),
+      })) as LaptopDevicePriceRow[],
       stats,
       delegatableRoles: buildDelegatableRoles(matrixRows),
       permissionsList: buildMergedPermissionsList(permissionRows, matrixRows),

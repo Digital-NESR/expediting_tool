@@ -483,6 +483,15 @@ export interface ProcureGuardAnalyticsRequest {
   amount_usd: number;
   currency: string;
   created_at: string;
+  /* The analytics page filters on these and recomputes every card and table from the result, so
+     they travel with the row rather than only feeding the server-side aggregates. All four are
+     already in the query's column list -- this costs nothing to send. `reviewed_at` and
+     `spend_value_usd` are what let the review-aging table be rebuilt client-side, so it responds
+     to the filters like everything else on the page instead of silently ignoring them. */
+  priority: string | null;
+  country: string | null;
+  reviewed_at: string | null;
+  spend_value_usd: number | string | null;
 }
 
 export interface ProcureGuardAnalyticsData {

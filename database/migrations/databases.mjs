@@ -47,6 +47,11 @@ export const DATABASES = [
     envStyle: 'standard',
   },
   {
+    key: 'icsa',
+    database: () => process.env.ICSA_DB_NAME || 'ICSA_portal',
+    envStyle: 'sns',
+  },
+  {
     key: 'laptop-procurement',
     database: () => process.env.LAPTOP_PROCUREMENT_DB_NAME || 'laptop_procurement_db',
     envStyle: 'standard',
@@ -60,6 +65,13 @@ export const DATABASES = [
     key: 'procureguard',
     database: () => process.env.PROCURE_GUARD_DB_NAME || 'procureguard_db',
     envStyle: 'standard',
+  },
+  {
+    /* RRSM. Same server and same credentials as SourceGuide, so the same env style; the name is
+       overridable because every other database here is. */
+    key: 'rrsm',
+    database: () => process.env.RRSM_DB_NAME || 'rrsm_db',
+    envStyle: 'sourceguide',
   },
   {
     key: 'sns',

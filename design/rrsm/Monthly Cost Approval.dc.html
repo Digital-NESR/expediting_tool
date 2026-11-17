@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/modernist-a2944fd0-2676-4b80-86b2-5b0988c11cf9/styles.css">
+<style>:root{--color-bg:#FFFFFF;--color-surface:#F2F4F3;--color-text:#1F1F1D;--color-accent:#2A7E4F;--color-divider:color-mix(in srgb,#1F1F1D 30%,transparent);--color-accent-100:#EEF6F1;--color-accent-200:#C5E0D2;--color-accent-300:#9CCAB2;--color-accent-700:#1F5C3A;--color-neutral-100:#F5F6F5;--color-neutral-200:#E6E7E8;--color-neutral-500:#939597;--color-neutral-700:#58595B;--color-neutral-800:#3F4042;--font-heading:Arial,Helvetica,sans-serif;--font-body:Arial,Helvetica,sans-serif}body{margin:0}a{color:var(--color-accent-700)}a:hover{color:var(--color-accent)}input,select,textarea,button{font-family:inherit}</style>
+</helmet>
+<div style="min-height:{{ rootMinH }};display:flex;flex-direction:column;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body)">
+  <sc-if value="{{ showChrome }}" hint-placeholder-val="{{ true }}"><header style="min-height:60px;padding:8px 20px;background:var(--color-accent);color:#fff;display:flex;align-items:center;gap:18px;flex-wrap:wrap;row-gap:8px">
+    <span style="font-weight:900;font-size:20px;letter-spacing:2px;padding-right:18px;border-right:2px solid rgba(255,255,255,.45)">NESR</span>
+    <div style="display:flex;flex-direction:column;line-height:1.15"><span style="font-weight:700;font-size:15px;white-space:nowrap">Monthly Cost Approval</span><span style="font-size:11px;opacity:.85;white-space:nowrap">Recurrent Services portal</span></div>
+    <nav style="display:flex;gap:2px">
+      <sc-for list="{{ views }}" as="v" hint-placeholder-count="3">
+        <button onClick="{{ v.go }}" style="height:36px;padding:0 14px;border:none;background:{{ v.bg }};color:{{ v.color }};font-size:13px;font-weight:700;cursor:pointer;text-align:left;white-space:nowrap">{{ v.label }}</button>
+      </sc-for>
+    </nav>
+    <div style="margin-left:auto;display:flex;gap:12px;align-items:center">
+      <label style="display:flex;gap:6px;align-items:center;font-size:12px;white-space:nowrap">Role
+        <select value="{{ role }}" onChange="{{ setRole }}" style="height:34px;border:none;padding:0 8px;font-size:13px;font-weight:700;color:var(--color-text)">
+          <option value="buyer">Buyer — Supply Chain</option><option value="owner">Ops — validation, approval &amp; GRN</option>
+        </select>
+      </label>
+      <div style="flex:none;width:34px;height:34px;background:var(--color-text);display:grid;place-items:center;font-size:12px;font-weight:700">{{ initials }}</div>
+    </div>
+  </header></sc-if>
+  <sc-if value="{{ embedded }}"><div style="display:flex;gap:2px;border-bottom:2px solid var(--color-text)"><sc-for list="{{ views }}" as="v" hint-placeholder-count="3"><button onClick="{{ v.go }}" style="height:36px;padding:0 14px;border:none;background:{{ v.ebg }};color:{{ v.ecolor }};font-size:13px;font-weight:700;cursor:pointer;text-align:left;white-space:nowrap">{{ v.label }}</button></sc-for></div></sc-if>
+
+  <sc-if value="{{ isRequests }}" hint-placeholder-val="{{ true }}">
+    <div style="flex:1;display:grid;grid-template-columns:minmax(260px,320px) minmax(0,1fr);min-height:0">
+      <aside style="border-right:2px solid var(--color-divider);display:flex;flex-direction:column;min-width:0">
+        <div style="padding:14px;display:flex;flex-direction:column;gap:10px;border-bottom:2px solid var(--color-text)">
+          <div style="display:flex;border:1px solid var(--color-divider)">
+            <sc-for list="{{ listTabs }}" as="t" hint-placeholder-count="2">
+              <button onClick="{{ t.go }}" style="flex:1;height:34px;border:none;border-right:1px solid var(--color-divider);background:{{ t.bg }};color:{{ t.color }};font-size:12px;font-weight:700;cursor:pointer;text-align:left;padding:0 10px">{{ t.label }}</button>
+            </sc-for>
+          </div>
+          <span style="font-size:11px;color:var(--color-neutral-700)">Cycle 26 Sep – 25 Oct 26 · one request per PO and segment</span>
+        </div>
+        <sc-for list="{{ list }}" as="r" hint-placeholder-count="5">
+          <button onClick="{{ r.pick }}" style="text-align:left;border:none;border-bottom:1px solid var(--color-divider);border-left:4px solid {{ r.edge }};background:{{ r.bg }};padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:5px">
+            <span style="font-size:10px;font-weight:700;color:var(--color-neutral-700);letter-spacing:.02em;word-break:break-all">{{ r.code }}</span>
+            <span style="font-size:13px;font-weight:700;line-height:1.25">{{ r.supplier }} · {{ r.service }}</span>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+              <span style="font-size:10px;font-weight:700;padding:2px 6px;background:{{ r.stBg }};color:{{ r.stFg }}">{{ r.status }}</span>
+              <span style="font-size:12px;font-weight:700;white-space:nowrap">{{ r.totalF }}</span>
+            </div>
+          </button>
+        </sc-for>
+        <sc-if value="{{ listEmpty }}"><div style="padding:24px 14px;font-size:13px;color:var(--color-neutral-700)">Nothing waiting on you.</div></sc-if>
+      </aside>
+
+      <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ true }}">
+        <main style="min-width:0;display:flex;flex-direction:column;overflow:auto">
+          <div style="padding:20px 28px 16px;border-bottom:2px solid var(--color-text);display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap">
+              <div style="display:flex;flex-direction:column;gap:4px;min-width:0">
+                <span style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent-700);font-weight:700">{{ sel.tplName }} · request ID kept from email subject</span>
+                <span style="font-weight:700;font-size:22px;line-height:1.15;word-break:break-word">{{ sel.code }}</span>
+              </div>
+              <span style="font-size:12px;font-weight:700;padding:6px 10px;background:{{ sel.stBg }};color:{{ sel.stFg }}">{{ sel.status }}</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px 20px">
+              <sc-for list="{{ sel.facts }}" as="f" hint-placeholder-count="6"><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;color:var(--color-neutral-700)">{{ f.k }}</span><span style="font-size:13px;font-weight:700">{{ f.v }}</span></div></sc-for>
+            </div>
+          </div>
+
+          <div style="padding:10px 28px;background:{{ sel.varBg }};color:{{ sel.varFg }};font-size:13px;font-weight:700;display:flex;gap:12px;flex-wrap:wrap;justify-content:space-between">
+            <span>{{ sel.varText }}</span><span style="font-weight:400">{{ sel.varWhy }}</span>
+          </div>
+
+          <div style="padding:18px 28px 0;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap">
+              <div style="display:flex;border:1px solid var(--color-divider);flex-wrap:wrap">
+                <sc-for list="{{ sel.segTabs }}" as="sg" hint-placeholder-count="2">
+                  <button onClick="{{ sg.go }}" style="border:none;border-right:1px solid var(--color-divider);background:{{ sg.bg }};color:{{ sg.color }};padding:8px 14px;cursor:pointer;display:flex;flex-direction:column;gap:2px;text-align:left">
+                    <span style="font-size:12px;font-weight:700">{{ sg.seg }} utilization</span><span style="font-size:11px;opacity:.85">{{ sg.cc }} · {{ sg.totalF }}</span>
+                  </button>
+                </sc-for>
+              </div>
+              <span style="font-size:12px;color:var(--color-neutral-700)">{{ sel.editHint }}</span>
+            </div>
+            <div style="overflow:auto;border-top:2px solid var(--color-text)">
+              <table style="border-collapse:collapse;width:100%;min-width:820px;font-size:13px">
+                <thead><tr style="text-align:left;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--color-neutral-700)">
+                  <th style="padding:9px 8px;border-bottom:2px solid var(--color-divider);width:36px">SN</th>
+                  <sc-if value="{{ sel.multiPO }}"><th style="padding:9px 8px;border-bottom:2px solid var(--color-divider)">PO</th></sc-if>
+                  <th style="padding:9px 8px;border-bottom:2px solid var(--color-divider)">{{ sel.colItem }}</th>
+                  <th style="padding:9px 8px;border-bottom:2px solid var(--color-divider);text-align:right">{{ sel.colQty }}</th>
+                  <th style="padding:9px 8px;border-bottom:2px solid var(--color-divider)">UoM</th>
+                  <th style="padding:9px 8px;border-bottom:2px solid var(--color-divider);text-align:right">Last month</th>
+                  <th style="padding:9px 8px;border-bottom:2px solid var(--color-divider);text-align:right">Δ qty</th>
+                  <th style="padding:9px 8px;border-bottom:2px solid var(--color-divider);text-align:right">{{ sel.colRate }}</th>
+                  <th style="padding:9px 8px;border-bottom:2px solid var(--color-divider);text-align:right">% split</th>
+                  <th style="padding:9px 8px;border-bottom:2px solid var(--color-divider);text-align:right">Total / {{ sel.cur }}</th>
+                </tr></thead>
+                <tbody>
+                  <sc-for list="{{ sel.lines }}" as="ln" hint-placeholder-count="8">
+                    <tr style="border-bottom:1px solid var(--color-divider);background:{{ ln.bg }}">
+                      <td style="padding:7px 8px;color:var(--color-neutral-700)">{{ ln.sn }}</td>
+                      <sc-if value="{{ sel.multiPO }}"><td style="padding:7px 8px;font-size:12px;color:var(--color-neutral-700)">{{ ln.po }}</td></sc-if>
+                      <td style="padding:7px 8px"><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span>{{ ln.item }}</span><sc-if value="{{ ln.isNew }}"><span style="font-size:10px;font-weight:700;padding:1px 5px;background:#B9770E;color:#fff">NEW</span></sc-if></div></td>
+                      <td style="padding:4px 8px;text-align:right">
+                        <sc-if value="{{ ln.editable }}"><input value="{{ ln.qty }}" onChange="{{ ln.setQty }}" style="height:32px;width:80px;border:2px solid var(--color-accent);background:var(--color-bg);padding:0 8px;font-size:13px;font-weight:700;text-align:right"></input></sc-if>
+                        <sc-if value="{{ ln.readOnly }}"><span style="font-weight:700">{{ ln.qtyF }}</span></sc-if>
+                      </td>
+                      <td style="padding:7px 8px;color:var(--color-neutral-700)">{{ ln.uom }}</td>
+                      <td style="padding:7px 8px;text-align:right;color:var(--color-neutral-700)">{{ ln.prevF }}</td>
+                      <td style="padding:7px 8px;text-align:right;font-weight:700;color:{{ ln.dColor }}">{{ ln.delta }}</td>
+                      <td style="padding:7px 8px;text-align:right">{{ ln.rateF }}</td>
+                      <td style="padding:7px 8px;text-align:right;color:var(--color-neutral-700)">{{ ln.splitF }}</td>
+                      <td style="padding:7px 8px;text-align:right;font-weight:700">{{ ln.totalF }}</td>
+                    </tr>
+                  </sc-for>
+                  <tr><td colspan="{{ sel.colspan }}" style="padding:10px 8px">
+                    <sc-if value="{{ sel.canAddLine }}"><button onClick="{{ addLine }}" style="height:30px;padding:0 12px;border:1px solid var(--color-divider);background:transparent;font-size:12px;font-weight:700;cursor:pointer;text-align:left">+ Add line</button></sc-if>
+                  </td><td style="padding:10px 8px;text-align:right;font-weight:700;border-top:2px solid var(--color-text);white-space:nowrap">{{ sel.viewTotalF }}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style="padding:20px 28px;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:28px">
+            <section style="display:flex;flex-direction:column;gap:10px;border-top:2px solid var(--color-text);padding-top:12px">
+              <span style="font-size:14px;font-weight:700">Last 3 months vs this cycle</span>
+              <div style="display:flex;align-items:flex-end;gap:12px;height:130px;border-bottom:2px solid var(--color-text)">
+                <sc-for list="{{ sel.bars }}" as="b" hint-placeholder-count="4">
+                  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;height:100%"><span style="font-size:10px;font-weight:700;white-space:nowrap">{{ b.vF }}</span><div style="width:100%;max-width:52px;height:{{ b.px }}px;background:{{ b.c }}"></div></div>
+                </sc-for>
+              </div>
+              <div style="display:flex;gap:12px"><sc-for list="{{ sel.bars }}" as="b" hint-placeholder-count="4"><span style="flex:1;text-align:center;font-size:11px;color:var(--color-neutral-700);font-weight:{{ b.w }}">{{ b.m }}</span></sc-for></div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;padding-top:4px"><span style="color:var(--color-neutral-700)">3-month average</span><span style="font-weight:700">{{ sel.avgF }}</span></div>
+            </section>
+            <section style="display:flex;flex-direction:column;gap:6px;border-top:2px solid var(--color-text);padding-top:12px">
+              <span style="font-size:14px;font-weight:700">Supporting documents</span>
+              <sc-for list="{{ sel.docs }}" as="d" hint-placeholder-count="4">
+                <button onClick="{{ d.toggle }}" style="display:flex;justify-content:space-between;align-items:center;gap:10px;border:none;border-bottom:1px solid var(--color-divider);background:transparent;padding:8px 0;cursor:{{ d.cursor }};text-align:left;font-size:13px;color:var(--color-text)">
+                  <span>{{ d.name }}</span><span style="font-size:11px;font-weight:700;padding:2px 6px;background:{{ d.bg }};color:{{ d.fg }}">{{ d.state }}</span>
+                </button>
+              </sc-for>
+              <span style="font-size:11px;color:var(--color-neutral-700)">Required list comes from the {{ sel.tplName }} template.</span>
+            </section>
+            <section style="display:flex;flex-direction:column;gap:6px;border-top:2px solid var(--color-text);padding-top:12px">
+              <span style="font-size:14px;font-weight:700">Approval routing</span>
+              <sc-for list="{{ sel.route }}" as="rt" hint-placeholder-count="3">
+                <div style="display:grid;grid-template-columns:14px 1fr auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--color-divider)">
+                  <span style="width:10px;height:10px;background:{{ rt.dot }}"></span>
+                  <div style="display:flex;flex-direction:column"><span style="font-size:13px;font-weight:700">{{ rt.who }}</span><span style="font-size:11px;color:var(--color-neutral-700)">{{ rt.role }}</span></div>
+                  <sc-if value="{{ rt.canApprove }}"><button onClick="{{ rt.approve }}" style="height:30px;padding:0 10px;border:none;background:var(--color-accent);color:#fff;font-size:12px;font-weight:700;cursor:pointer;text-align:left">Approve</button></sc-if>
+                  <sc-if value="{{ rt.showState }}"><span style="font-size:11px;font-weight:700;color:{{ rt.stColor }}">{{ rt.state }}</span></sc-if>
+                </div>
+              </sc-for>
+              <span style="font-size:11px;color:var(--color-neutral-700);line-height:1.45">Cc: {{ sel.cc }}</span>
+            </section>
+          </div>
+
+          <div style="padding:0 28px 20px;display:flex;flex-direction:column;gap:8px">
+            <span style="font-size:14px;font-weight:700;border-top:2px solid var(--color-text);padding-top:12px">Activity</span>
+            <sc-for list="{{ sel.log }}" as="g" hint-placeholder-count="3">
+              <div style="display:grid;grid-template-columns:10px 1fr;gap:10px;font-size:12px;line-height:1.45;padding:6px 10px;background:{{ g.bg }};border-left:3px solid {{ g.bar }}"><span></span><div style="display:flex;flex-direction:column"><span>{{ g.t }}</span><span style="color:var(--color-neutral-700)">{{ g.w }}</span></div></div>
+            </sc-for>
+          </div>
+
+          <div style="position:sticky;bottom:0;margin-top:auto;padding:14px 28px;border-top:2px solid var(--color-text);background:var(--color-surface);display:flex;flex-direction:column;gap:10px">
+            <sc-if value="{{ showQuery }}">
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                  <sc-for list="{{ reasons }}" as="rs" hint-placeholder-count="4">
+                    <button onClick="{{ rs.go }}" style="height:28px;padding:0 10px;font-size:12px;cursor:pointer;border:1px solid {{ rs.border }};background:{{ rs.bg }};color:{{ rs.color }}">{{ rs.label }}</button>
+                  </sc-for>
+                </div>
+                <textarea value="{{ note }}" onChange="{{ setNote }}" placeholder="Comment — goes to the buyer and is kept on the request" style="min-height:52px;border:1px solid var(--color-divider);background:var(--color-bg);padding:8px;font-size:13px;resize:vertical"></textarea>
+              </div>
+            </sc-if>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+              <span style="font-size:12px;color:var(--color-neutral-700)">{{ sel.actHint }}</span>
+              <div style="display:flex;gap:10px;flex-wrap:wrap">
+                <sc-for list="{{ sel.actions }}" as="a" hint-placeholder-count="2">
+                  <button onClick="{{ a.go }}" style="height:38px;padding:0 16px;border:2px solid {{ a.border }};background:{{ a.bg }};color:{{ a.color }};font-size:13px;font-weight:700;cursor:pointer;text-align:left">{{ a.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </main>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ isTracker }}">
+    <main style="padding:{{ pad }};display:flex;flex-direction:column;gap:18px">
+      <div style="display:flex;flex-direction:column;gap:4px;border-bottom:2px solid var(--color-text);padding-bottom:14px">
+        <span style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent-700);font-weight:700">Replaces Monthly PO Analysis.xlsx</span>
+        <span style="font-weight:700;font-size:28px;line-height:1.1">Monthly PO Tracker · Oct 26</span>
+        <span style="font-size:13px;color:var(--color-neutral-700)">One row per PO. Segment split and status update automatically from the approval requests.</span>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <sc-for list="{{ stChips }}" as="c" hint-placeholder-count="8">
+          <button onClick="{{ c.go }}" style="height:30px;padding:0 10px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid {{ c.border }};background:{{ c.bg }};color:{{ c.color }};display:flex;gap:6px;align-items:center"><span>{{ c.label }}</span><span style="opacity:.7">{{ c.n }}</span></button>
+        </sc-for>
+      </div>
+      <div style="overflow:auto;border-top:2px solid var(--color-text)">
+        <table style="border-collapse:collapse;width:100%;min-width:1300px;font-size:12px">
+          <thead><tr style="text-align:left;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--color-neutral-700)">
+            <th style="padding:9px 8px;border-bottom:2px solid var(--color-divider)">Buyer</th><th style="padding:9px 8px;border-bottom:2px solid var(--color-divider)">Category</th><th style="padding:9px 8px;border-bottom:2px solid var(--color-divider)">Supplier</th><th style="padding:9px 8px;border-bottom:2px solid var(--color-divider)">Description</th><th style="padding:9px 8px;border-bottom:2px solid var(--color-divider)">PO</th><th style="padding:9px 8px;border-bottom:2px solid var(--color-divider);text-align:right">Estimate</th>
+            <sc-for list="{{ segCols }}" as="sc" hint-placeholder-count="6"><th style="padding:9px 8px;border-bottom:2px solid var(--color-divider);text-align:right">{{ sc }}</th></sc-for>
+            <th style="padding:9px 8px;border-bottom:2px solid var(--color-divider);text-align:right">Total</th><th style="padding:9px 8px;border-bottom:2px solid var(--color-divider)">Status</th>
+          </tr></thead>
+          <tbody>
+            <sc-for list="{{ trRows }}" as="r" hint-placeholder-count="10">
+              <tr onClick="{{ r.open }}" style="border-bottom:1px solid var(--color-divider);cursor:{{ r.cursor }}">
+                <td style="padding:8px">{{ r.buyer }}</td><td style="padding:8px">{{ r.cat }}</td><td style="padding:8px;font-weight:700">{{ r.supplier }}</td><td style="padding:8px">{{ r.desc }}</td><td style="padding:8px;color:var(--color-neutral-700)">{{ r.po }}</td><td style="padding:8px;text-align:right">{{ r.estF }}</td>
+                <sc-for list="{{ r.segs }}" as="v" hint-placeholder-count="6"><td style="padding:8px;text-align:right;color:var(--color-neutral-800)">{{ v }}</td></sc-for>
+                <td style="padding:8px;text-align:right;font-weight:700">{{ r.totalF }}</td>
+                <td style="padding:6px 8px"><span style="font-size:10px;font-weight:700;padding:2px 6px;background:{{ r.stBg }};color:{{ r.stFg }};white-space:nowrap">{{ r.status }}</span></td>
+              </tr>
+            </sc-for>
+          </tbody>
+        </table>
+      </div>
+      <span style="font-size:12px;color:var(--color-neutral-700)">Rows linked to an approval request open it. Status values match the existing tracker list.</span>
+    </main>
+  </sc-if>
+
+  <sc-if value="{{ isTemplates }}">
+    <main style="padding:{{ pad }};display:flex;flex-direction:column;gap:18px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;border-bottom:2px solid var(--color-text);padding-bottom:14px">
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <span style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent-700);font-weight:700">Keep it agile</span>
+          <span style="font-weight:700;font-size:28px;line-height:1.1">Request Templates</span>
+          <span style="font-size:13px;color:var(--color-neutral-700);max-width:720px">Every service type uses the same request, with its own columns, units, required documents and validator. Add a template when a new service type appears; no development needed.</span>
+        </div>
+        <button onClick="{{ newTpl }}" style="height:38px;padding:0 16px;border:2px solid var(--color-text);background:transparent;font-size:13px;font-weight:700;cursor:pointer;text-align:left">+ New template</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));border-top:2px solid var(--color-text);border-left:1px solid var(--color-divider)">
+        <sc-for list="{{ tpls }}" as="t" hint-placeholder-count="4">
+          <div style="padding:18px;border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;justify-content:space-between;gap:8px"><span style="font-size:16px;font-weight:700">{{ t.name }}</span><span style="font-size:11px;color:var(--color-neutral-700);white-space:nowrap">{{ t.used }}</span></div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <span style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--color-neutral-700)">Columns</span>
+              <div style="display:flex;gap:4px;flex-wrap:wrap"><sc-for list="{{ t.cols }}" as="c" hint-placeholder-count="5"><span style="font-size:11px;padding:2px 6px;border:1px solid var(--color-divider)">{{ c }}</span></sc-for></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <span style="font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--color-neutral-700)">Required documents</span>
+              <sc-for list="{{ t.docs }}" as="d" hint-placeholder-count="3"><span style="font-size:12px">{{ d }}</span></sc-for>
+            </div>
+            <div style="display:grid;grid-template-columns:90px 1fr;gap:4px 8px;font-size:12px;border-top:1px solid var(--color-divider);padding-top:10px">
+              <span style="color:var(--color-neutral-700)">Validates</span><span style="font-weight:700">{{ t.val }}</span>
+              <span style="color:var(--color-neutral-700)">Approves</span><span style="font-weight:700">Segment Ops manager</span>
+              <span style="color:var(--color-neutral-700)">% split</span><span style="font-weight:700">{{ t.splitF }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </main>
+  </sc-if>
+
+  <sc-if value="{{ hasToast }}">
+    <div style="position:fixed;right:24px;top:72px;background:var(--color-text);color:#fff;padding:12px 18px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:6">{{ toast }}</div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;varianceThreshold&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:10,&quot;min&quot;:5,&quot;max&quot;:30,&quot;step&quot;:1,&quot;unit&quot;:&quot;%&quot;,&quot;tsType&quot;:&quot;number&quot;}}">
+const TPL = {
+  catering: { name: 'Catering & camp', item: 'Meal / item', qty: 'Total qty', rate: 'Unit rate', split: true, docs: ['Verified timesheet', 'Utilization split by operation', 'NESR contract agreement', 'Proforma invoice'], val: 'Camp boss / service leader' },
+  transport: { name: 'Transport & heavy vehicles', item: 'Description', qty: 'No. of trucks', rate: 'Monthly charge', split: false, docs: ['Verified timesheet', 'Utilization file'], val: 'Segment transport coordinator' },
+  equipment: { name: 'Equipment rental', item: 'Equipment', qty: 'Units on hire', rate: 'Monthly rate', split: false, docs: ['Verified timesheet', 'On/off-hire log', 'Proforma invoice'], val: 'Site / service owner' },
+  manpower: { name: 'Manpower & medical', item: 'Role', qty: 'Headcount', rate: 'Monthly rate', split: false, docs: ['Signed attendance sheet', 'Proforma invoice'], val: 'Site supervisor' }
+};
+const ST = {
+  'Draft': ['#E6E7E8', '#1F1F1D'],
+  'Pending supplier time sheet': ['#E6E7E8', '#1F1F1D'],
+  'Pending supplier PFI': ['#E6E7E8', '#1F1F1D'],
+  'Pending Ops team validation': ['#FFF4E5', '#8A5A00'],
+  'Pending Ops Manager Approval': ['#FFF4E5', '#8A5A00'],
+  'Rejected/Disputed': ['#C0392B', '#fff'],
+  'Pending GRN': ['#C5E0D2', '#1F5C3A'],
+  'Closed/GRN Posted': ['#2A7E4F', '#fff'],
+  'No service': ['#F5F6F5', '#58595B']
+};
+const ROLES = { buyer: ['TA', 'Tariq A.', 'Buyer'], owner: ['RM', 'Rashid M.', 'Ops'], opsmgr: ['BS', 'Basil S.', 'Ops'] };
+const SEGCOLS = ['CMT', 'CT', 'WT', 'PL', 'SUP', 'MNGT'];
+const L = (item, qty, uom, rate, split, prev, po) => ({ item, qty, uom, rate, split: split ?? null, prev: prev ?? qty, po: po || '' });
+const shared = [['Housekeeping', 4680, 'Kg', 2.75], ['Laundry', 7196, 'Nos.', 1.5], ['Office boy', 2, 'Nos.', 2750], ['S.O boy', 1, 'Nos.', 3000], ['Camp boss', 1, 'Nos.', 5500], ['Coffee / tea bar supplies', 1, 'Nos.', 3186]];
+const SEED = [
+  { id: 1, code: 'Monthly_CT_Oct26_5150009192_GCC_HABSHAN', tpl: 'catering', supplier: 'Gulf Camp Catering', service: 'Catering — Habshan camp', cat: 'Office & camp', site: 'Habshan', pos: ['5150009192'], est: 170000, cur: 'AED', status: 'Pending Ops Manager Approval', buyer: 'Tariq A.', cc: 'Ops support lead, Supply Chain manager, Warehouse AUH',
+    docs: [true, true, true, true], hist: [['Jul', 164585.47], ['Aug', 167163.45], ['Sep', 162933.49]],
+    segs: [
+      { seg: 'CT', cc: 'CC-1050', approver: 'Basil S.', ok: false, lines: [L('Breakfast', 1733, 'Nos.', 3.75, null, 1690), L('Lunch', 3711, 'Nos.', 19, null, 3655), L('Dinner', 2751, 'Nos.', 19, null, 2702), L('Parcel charges', 3204, 'Nos.', 2.75, null, 3118), ...shared.map(([a, q, u, r]) => L(a, q, u, r, 48.3))] },
+      { seg: 'PL', segName: 'Pipeline', cc: 'CC-2210', approver: 'Basil S.', ok: false, lines: [L('Breakfast', 207, 'Nos.', 3.75, null, 241), L('Lunch', 210, 'Nos.', 19, null, 236), L('Dinner', 177, 'Nos.', 19, null, 199), L('Parcel charges', 132, 'Nos.', 2.75, null, 150), ...shared.map(([a, q, u, r]) => L(a, q, u, r, 1.7))] }
+    ],
+    log: [{ t: 'Request created from Sep cycle; supplier timesheet & PFI attached', w: 'Tariq A. · 26 Oct' }, { t: 'Utilization confirmed by camp boss — CT 1,733 breakfasts, Pipeline 207', w: 'Rashid M. · Ops team · 27 Oct' }, { t: 'Sent to Ops manager for approval', w: 'Portal · 28 Oct 15:26' }] },
+  { id: 2, code: 'Monthly_CT_Oct26_5150009246+9244_DELTA', tpl: 'transport', supplier: 'Delta Heavy Transport', service: 'Monthly transportation + base crane', cat: 'Transportation', site: 'Habshan / Base', pos: ['5150009246', '5150009244'], est: 410000, cur: 'AED', status: 'Pending Ops team validation', buyer: 'Tariq A.', cc: 'Ops support lead, Warehouse AUH, Fleet coordinator, Finance AP',
+    docs: [true, true], hist: [['Jul', 311710.0], ['Aug', 384192.9], ['Sep', 400825.91]],
+    segs: [{ seg: 'CT', cc: 'CC-1050', approver: 'Basil S.', ok: false, lines: [
+      L('6X6 sand tyre', 1, 'Truck', 62816.67, null, 1, '5150009246'), L('Buffer driver', 1, 'Person', 5000, null, 1, '5150009246'), L('Hiab 7 ton', 1, 'Truck', 22966.58, null, 1, '5150009246'), L('Hiab 10 ton', 1, 'Truck', 26549.91, null, 1, '5150009246'),
+      L('6X6 prime mover with driver', 1, 'Truck', 90000, null, 1, '5150009246'), L('6X6 sand flatbed trailer with Haz', 1, 'Trailer', 73150, null, 1, '5150009246'), L('Food bills', 1, 'Lot', 1942, null, 1, '5150009246'),
+      L('Lowbed sand tyre', 1, 'Truck', 61133.33, null, 0, '5150009246'), L('DB cabin pick-up w/o driver', 1, 'Vehicle', 81600, null, 0, '5150009246'), L('150T crane shared', 1, 'Crane', 27000, null, 1, '5150009244'), L('Base crane operator overtime', 1, 'Lot', 1000, null, 1, '5150009244')] }],
+    log: [{ t: 'Request created; verified timesheet & utilization file attached', w: 'Tariq A. · 30 Oct 12:27' }, { t: 'Sent to Ops team to confirm truck count', w: 'Portal · 30 Oct' }] },
+  { id: 3, code: 'Monthly_CT_Oct26_5150009301_MIRFA', tpl: 'equipment', supplier: 'Mirfa Tanks & Cabins', service: 'Frac tanks & caravans', cat: 'Equipment rental', site: 'Habshan', pos: ['5150009301'], est: 160500, cur: 'AED', status: 'Pending supplier PFI', buyer: 'Tariq A.', cc: 'Ops support lead, Warehouse AUH',
+    docs: [true, true, false], hist: [['Jul', 153725.8], ['Aug', 151200], ['Sep', 148500]],
+    segs: [
+      { seg: 'CT', cc: 'CC-1050', approver: 'Basil S.', ok: false, lines: [L('Frac tank 500 bbl', 9, 'Units', 6500), L('Acid tank', 2, 'Units', 8000), L('Office caravan', 2, 'Units', 4250)] },
+      { seg: 'WT', cc: 'CC-3053', approver: 'Laila K.', ok: false, lines: [L('Frac tank 500 bbl', 5, 'Units', 6500, null, 6), L('Office caravan', 1, 'Units', 4250)] }
+    ],
+    log: [{ t: 'Timesheet and off-hire log received; waiting for proforma invoice', w: 'Tariq A. · 27 Oct' }] },
+  { id: 4, code: 'Monthly_WT_Oct26_5150009250_CARDIFF', tpl: 'transport', supplier: 'Cardiff Fleet Services', service: 'Light vehicles', cat: 'Transportation', site: 'Ruwais', pos: ['5150009250'], est: 248500, cur: 'AED', status: 'Rejected/Disputed', buyer: 'Tariq A.', cc: 'Ops support lead, Fleet coordinator',
+    docs: [true, true], hist: [['Jul', 261266.17], ['Aug', 257924.88], ['Sep', 262542.69]],
+    segs: [{ seg: 'WT', cc: 'CC-3053', approver: 'Laila K.', ok: false, lines: [L('Land cruiser with driver', 2, 'Vehicle', 14500), L('Pick-up without driver', 26, 'Vehicle', 5650, null, 24), L('Pick-up with driver', 9, 'Vehicle', 8750)] }],
+    log: [{ t: 'Sent to Ops team to confirm vehicle count', w: 'Portal · 29 Oct' }, { t: 'Queried — Quantity: site shows 24 pick-ups without driver; 2 returned on 9 Oct', w: 'Rashid M. · Ops team · 30 Oct', q: true }] },
+  { id: 5, code: 'Monthly_SUP_Oct26_5150009288_EXCELMED', tpl: 'manpower', supplier: 'Excel Medical Services', service: 'Ambulance & nurse', cat: 'Payroll services', site: 'Habshan', pos: ['5150009288'], est: 18500, cur: 'AED', status: 'Closed/GRN Posted', buyer: 'Tariq A.', cc: 'HSE lead',
+    docs: [true, true], hist: [['Jul', 18500], ['Aug', 18500], ['Sep', 18500]],
+    segs: [{ seg: 'SUP', cc: 'CC-9001', approver: 'Basil S.', ok: true, lines: [L('Ambulance with driver', 1, 'Unit', 11000), L('Site nurse', 1, 'Person', 7500)] }],
+    log: [{ t: 'Utilization confirmed', w: 'Ops team · 27 Oct' }, { t: 'Approved', w: 'Basil S. · 28 Oct' }, { t: 'GRN posted in SAP', w: 'Ops · 29 Oct' }] }
+];
+const STATIC = [
+  ['Tariq A.', 'Transportation', 'MFT Logistics', 'Kenworth flat × 8', '5150009210', 356000, { CMT: 44500, CT: 311500 }, 'Closed/GRN Posted'],
+  ['Tariq A.', 'Transportation', 'MFT Logistics', 'Kenworth head × 14', '5150009211', 609000, { CT: 652500 }, 'Pending GRN'],
+  ['Tariq A.', 'Transportation', 'SMG Cranes', 'Hiab + 50/70/80T cranes', '5150009214', 410000, { CT: 396161.23 }, 'Pending Ops Manager Approval'],
+  ['Susil P.', 'Office & camp', 'Byrne Camps', 'Habshan camp + additional rooms', '5150009220', 260000, { CT: 28620, WT: 226500, SUP: 3300 }, 'Pending supplier time sheet'],
+  ['Susil P.', 'Equipment rental', 'Green Life Power', 'Compressors + generators', '5150009230', 135963.84, { CT: 99415, WT: 42000 }, 'Pending Ops team validation'],
+  ['Ahmad R.', 'Equipment rental', 'Master Field Pumps', 'C-pump 5×6 + 6×8', '5150009233', 14400, {}, 'No service'],
+  ['Tariq A.', 'Equipment rental', 'Kanoo Lift', 'Base forklift × 2', '5150009236', 9000, { CMT: 4000, SUP: 5000 }, 'Closed/GRN Posted']
+];
+const REASONS = ['Quantity', 'Rate not per contract', 'Missing document', 'Wrong cost center'];
+const n2 = v => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const n0 = v => Math.round(v).toLocaleString('en-US');
+const lineTot = l => (parseFloat(l.qty) || 0) * l.rate * (l.split != null ? l.split / 100 : 1);
+const segTot = s => s.lines.reduce((a, l) => a + lineTot(l), 0);
+const reqTot = r => r.segs.reduce((a, s) => a + segTot(s), 0);
+
+class Component extends DCLogic {
+  componentDidUpdate(pp) { const p = this.props; if (p.role && p.role !== pp.role) this.setState({ role: p.role, reason: null, note: '' }); if (p.view && p.view !== pp.view) this.setState({ view: p.view }); }
+  state = { reqs: SEED.map(r => ({ ...r, segs: r.segs.map(s => ({ ...s, lines: s.lines.map(l => ({ ...l })) })), log: [...r.log] })), role: this.props.role || 'owner', view: this.props.view || 'requests', sel: 1, seg: {}, mine: false, reason: null, note: '', stFilter: 'All', toast: '' };
+  flash(t) { this.setState({ toast: t }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: '' }), 2600); }
+  upd(id, fn) { this.setState(s => ({ reqs: s.reqs.map(r => r.id === id ? fn({ ...r, segs: r.segs.map(x => ({ ...x, lines: x.lines.map(l => ({ ...l })) })), log: [...r.log] }) : r) })); }
+  who() { const r = ROLES[this.state.role]; return `${r[1]} · ${r[2]}`; }
+  move(id, status, msg, extra) { this.upd(id, r => { r.status = status; r.log.push({ t: msg, w: this.who() + ' · 4 Nov', q: extra?.q }); if (extra?.fn) extra.fn(r); return r; }); this.flash(msg); this.setState({ reason: null, note: '' }); }
+  actionsFor(r) {
+    const role = this.state.role, A = (label, go, kind) => ({ label, go, kind }), id = r.id;
+    const tpl = TPL[r.tpl], docsOk = r.docs.every(Boolean);
+    const query = () => { if (!this.state.reason) return this.flash('Pick a query reason'); this.move(id, 'Rejected/Disputed', `Queried — ${this.state.reason}${this.state.note ? ': ' + this.state.note : ''}`, { q: true }); };
+    if (role === 'owner' && r.status === 'Pending GRN') return { hint: 'All segments approved. Ops post the GRN in SAP.', list: [A('Mark GRN posted', () => this.move(id, 'Closed/GRN Posted', 'GRN posted in SAP by Ops'), 'p')] };
+    if (role === 'buyer') {
+      if (r.status === 'Pending supplier PFI' || r.status === 'Pending supplier time sheet') return { hint: 'Click a missing document to mark it received.', list: [A('Send for Ops validation', () => docsOk ? this.move(id, 'Pending Ops team validation', 'Sent to Ops team for utilization check') : this.flash('Required documents missing'), docsOk ? 'p' : 'd')] };
+      if (r.status === 'Draft') return { hint: 'Edit quantities, attach documents, then send.', list: [A('Send for Ops validation', () => docsOk ? this.move(id, 'Pending Ops team validation', 'Sent to Ops team for utilization check') : this.flash('Required documents missing'), 'p')] };
+      if (r.status === 'Rejected/Disputed') return { hint: 'Correct the quantity or documents, then resubmit.', list: [A('Resubmit to Ops team', () => this.move(id, 'Pending Ops team validation', 'Resubmitted with corrected utilization'), 'p')] };
+      if (r.status === 'Closed/GRN Posted') return { hint: 'Next cycle starts from this request.', list: [A('Start Nov cycle from this', () => this.cloneNext(r), 's')] };
+    }
+    if (role === 'owner' && r.status === 'Pending Ops team validation') return { hint: `Confirm the ${tpl.qty.toLowerCase()} against site records. Edit any line before confirming.`, query: true, list: [A('Query', query, 'q'), A('Confirm utilization', () => this.move(id, 'Pending Ops Manager Approval', 'Utilization confirmed by Ops team'), 'p')] };
+    if (role === 'owner' && r.status === 'Pending Ops Manager Approval') return { hint: 'Approve each segment, or all at once. Queries go back to the buyer.', query: true, list: [A('Query', query, 'q'), A(r.segs.length > 1 ? 'Approve all segments' : 'Approve', () => this.move(id, 'Pending GRN', 'Approved — all segments', { fn: x => x.segs.forEach(s => s.ok = true) }), 'p')] };
+    const waiting = { 'Pending Ops team validation': 'Ops team', 'Pending Ops Manager Approval': 'Ops manager', 'Pending supplier PFI': 'Buyer (supplier PFI)', 'Pending supplier time sheet': 'Buyer (supplier timesheet)', 'Rejected/Disputed': 'Buyer', 'Pending GRN': 'Ops (GRN)', 'Draft': 'Buyer' }[r.status];
+    return { hint: waiting ? `Waiting on ${waiting}. Switch role to act.` : 'No action needed.', list: [] };
+  }
+  cloneNext(r) {
+    const id = Date.now();
+    const nr = { ...r, id, code: r.code.replace('Oct26', 'Nov26'), status: 'Draft', hist: [...r.hist.slice(1), ['Oct', reqTot(r)]], docs: r.docs.map(() => false), segs: r.segs.map(s => ({ ...s, ok: false, lines: s.lines.map(l => ({ ...l, prev: parseFloat(l.qty) || 0 })) })), log: [{ t: 'Created from Oct cycle — lines, rates and routing copied', w: this.who() + ' · 4 Nov' }] };
+    this.setState(s => ({ reqs: [nr, ...s.reqs], sel: id }));
+    this.flash('Nov draft created from Oct request');
+  }
+  renderVals() {
+    const s = this.state, thr = this.props.varianceThreshold ?? 10;
+    const views = [['requests', 'Approval requests'], ['tracker', 'Monthly tracker'], ['templates', 'Templates']].map(([k, label]) => ({ label, go: () => this.setState({ view: k }), bg: s.view === k ? '#fff' : 'transparent', color: s.view === k ? 'var(--color-accent-700)' : '#fff', ebg: s.view === k ? 'var(--color-text)' : 'transparent', ecolor: s.view === k ? '#fff' : 'var(--color-text)' }));
+    const emb = !!this.props.embedded;
+    const mineOf = r => this.actionsFor(r).list.length > 0;
+    const mineN = s.reqs.filter(mineOf).length;
+    const listTabs = [[false, `All · ${s.reqs.length}`], [true, `Needs my action · ${mineN}`]].map(([k, label]) => ({ label, go: () => this.setState({ mine: k }), bg: s.mine === k ? 'var(--color-text)' : 'transparent', color: s.mine === k ? '#fff' : 'var(--color-text)' }));
+    const shown = s.reqs.filter(r => !s.mine || mineOf(r));
+    const list = shown.map(r => ({ ...r, totalF: `${r.cur} ${n2(reqTot(r))}`, stBg: ST[r.status][0], stFg: ST[r.status][1], pick: () => this.setState({ sel: r.id, reason: null, note: '' }), bg: r.id === s.sel ? 'var(--color-accent-100)' : 'transparent', edge: r.id === s.sel ? 'var(--color-accent)' : 'transparent' }));
+    const r = s.reqs.find(x => x.id === s.sel);
+    let sel = null, act = { list: [] };
+    if (r) {
+      const tpl = TPL[r.tpl];
+      const segIdx = s.seg[r.id] ?? 0;
+      const all = segIdx === -1;
+      const editable = (s.role === 'buyer' && r.status === 'Draft') || (s.role === 'owner' && r.status === 'Pending Ops team validation') || (s.role === 'buyer' && r.status === 'Rejected/Disputed');
+      const visSegs = all ? r.segs.map((x, i) => [x, i]) : [[r.segs[segIdx] || r.segs[0], Math.min(segIdx, r.segs.length - 1)]];
+      let sn = 0;
+      const lines = visSegs.flatMap(([sg, si]) => sg.lines.map((l, li) => {
+        sn++; const q = parseFloat(l.qty) || 0, d = q - l.prev, pct = l.prev ? d / l.prev * 100 : null;
+        return { sn, po: l.po, item: all && r.segs.length > 1 ? `${l.item} · ${sg.segName || sg.seg}` : l.item, isNew: l.prev === 0 && q > 0, uom: l.uom, qty: String(l.qty), qtyF: n0(q), prevF: n0(l.prev), rateF: n2(l.rate), splitF: l.split != null ? `${l.split}%` : '—', totalF: n2(lineTot(l)),
+          delta: d === 0 ? '—' : l.prev === 0 ? `+${n0(d)}` : `${d > 0 ? '+' : ''}${n0(d)} (${pct > 0 ? '+' : ''}${Math.round(pct)}%)`,
+          dColor: d === 0 ? 'var(--color-neutral-700)' : Math.abs(pct ?? 100) > 15 ? '#C0392B' : '#8A5A00',
+          bg: l.prev === 0 && q > 0 ? '#FFF8EC' : 'transparent', editable, readOnly: !editable,
+          setQty: e => { const v = e.target.value; this.upd(r.id, x => { x.segs[si].lines[li].qty = v; return x; }); } };
+      }));
+      const total = reqTot(r), avg = r.hist.reduce((a, h) => a + h[1], 0) / r.hist.length, vp = (total - avg) / avg * 100;
+      const newLines = r.segs.flatMap(x => x.lines).filter(l => l.prev === 0 && (parseFloat(l.qty) || 0) > 0);
+      const mx = Math.max(total, ...r.hist.map(h => h[1]));
+      const av = Math.abs(vp);
+      act = this.actionsFor(r);
+      const isApprover = s.role === 'owner' && r.status === 'Pending Ops Manager Approval';
+      sel = { ...r, tplName: tpl.name, colItem: tpl.item, colQty: tpl.qty, colRate: tpl.rate, multiPO: r.pos.length > 1, colspan: r.pos.length > 1 ? 9 : 8, lines, stBg: ST[r.status][0], stFg: ST[r.status][1],
+        facts: [{ k: 'Supplier', v: r.supplier }, { k: 'Service', v: r.service }, { k: 'Period', v: '26 Sep – 25 Oct 26' }, { k: r.pos.length > 1 ? 'POs' : 'PO', v: r.pos.join(' + ') }, { k: 'Total cost', v: `${r.cur} ${n2(total)}` }, { k: 'Estimate PO', v: `${r.cur} ${n0(r.est)}` }],
+        varText: `${vp >= 0 ? '+' : ''}${vp.toFixed(1)}% vs 3-month average (${r.cur} ${n2(avg)})`,
+        varWhy: newLines.length ? `New this month: ${newLines.map(l => l.item).join(', ')}` : av > thr ? 'Utilization changed — check Δ qty column' : 'Within normal range',
+        varBg: av > thr * 2 ? '#FBEAE8' : av > thr ? '#FFF4E5' : 'var(--color-accent-100)', varFg: av > thr * 2 ? '#C0392B' : av > thr ? '#8A5A00' : 'var(--color-accent-700)',
+        segTabs: [...r.segs.map((sg, i) => ({ seg: sg.segName || sg.seg, cc: sg.cc, totalF: `${r.cur} ${n2(segTot(sg))}`, go: () => this.setState(st => ({ seg: { ...st.seg, [r.id]: i } })), on: !all && i === segIdx })), ...(r.segs.length > 1 ? [{ seg: 'All', cc: `${r.segs.length} segments`, totalF: `${r.cur} ${n2(total)}`, go: () => this.setState(st => ({ seg: { ...st.seg, [r.id]: -1 } })), on: all }] : [])].map(t => ({ ...t, bg: t.on ? 'var(--color-text)' : 'transparent', color: t.on ? '#fff' : 'var(--color-text)' })),
+        viewTotalF: `${r.cur} ${n2(visSegs.reduce((a, [sg]) => a + segTot(sg), 0))}`,
+        editHint: editable ? 'Quantities are editable. Rates come from the contract.' : 'Rates from contract · Δ compares with last month’s confirmed quantity',
+        canAddLine: s.role === 'buyer' && r.status === 'Draft',
+        bars: [...r.hist.map(([m, v]) => ({ m, vF: n0(v / 1000) + 'k', px: Math.round(v / mx * 100), c: 'var(--color-accent-300)', w: 400 })), { m: 'Oct (this)', vF: n0(total / 1000) + 'k', px: Math.round(total / mx * 100), c: av > thr ? '#B9770E' : 'var(--color-accent)', w: 700 }],
+        avgF: `${r.cur} ${n2(avg)}`,
+        docs: tpl.docs.map((name, i) => { const ok = r.docs[i]; const can = s.role === 'buyer' && !['Closed/GRN Posted', 'Pending GRN'].includes(r.status); return { name, state: ok ? 'Attached' : 'Missing', bg: ok ? 'var(--color-accent-100)' : '#FBEAE8', fg: ok ? 'var(--color-accent-700)' : '#C0392B', cursor: can ? 'pointer' : 'default',
+          toggle: () => { if (!can) return; this.upd(r.id, x => { x.docs = x.docs.map((d, j) => j === i ? !d : d); if (j0(x)) {} return x; }); } }; }),
+        route: [
+          { who: 'Tariq A.', role: 'Buyer · prepared request', dot: 'var(--color-accent)', showState: true, state: 'Submitted', stColor: 'var(--color-accent-700)', canApprove: false },
+          { who: 'Rashid M.', role: `Ops team · ${tpl.val}`, dot: ['Pending Ops Manager Approval', 'Pending GRN', 'Closed/GRN Posted'].includes(r.status) ? 'var(--color-accent)' : 'var(--color-neutral-200)', showState: true, state: ['Pending Ops Manager Approval', 'Pending GRN', 'Closed/GRN Posted'].includes(r.status) ? 'Utilization confirmed' : r.status === 'Pending Ops team validation' ? 'Pending · 48h SLA' : r.status === 'Rejected/Disputed' ? 'Queried' : '—', stColor: r.status === 'Rejected/Disputed' ? '#C0392B' : 'var(--color-neutral-700)', canApprove: false },
+          ...r.segs.map((sg, i) => { const ok = sg.ok || ['Pending GRN', 'Closed/GRN Posted'].includes(r.status); const can = isApprover && !ok;
+            return { who: sg.approver, role: `Ops manager · ${sg.segName || sg.seg} · ${r.cur} ${n2(segTot(sg))}`, dot: ok ? 'var(--color-accent)' : 'var(--color-neutral-200)', canApprove: can, showState: !can, state: ok ? 'Approved' : r.status === 'Pending Ops Manager Approval' ? 'Pending' : '—', stColor: ok ? 'var(--color-accent-700)' : 'var(--color-neutral-700)',
+              approve: () => { const allOk = r.segs.every((x, j) => j === i || x.ok); if (allOk) this.move(r.id, 'Pending GRN', `Approved — ${sg.segName || sg.seg}; all segments approved`, { fn: x => x.segs[i].ok = true }); else { this.upd(r.id, x => { x.segs[i].ok = true; x.log.push({ t: `Approved — ${sg.segName || sg.seg} (${r.cur} ${n2(segTot(sg))})`, w: this.who() + ' · 4 Nov' }); return x; }); this.flash(`${sg.segName || sg.seg} approved`); } } }; })
+        ],
+        log: [...r.log].reverse().map(g => ({ ...g, bg: g.q ? '#FBEAE8' : 'var(--color-surface)', bar: g.q ? '#C0392B' : 'var(--color-accent)' })),
+        actHint: act.hint,
+        actions: act.list.map(a => ({ ...a, bg: a.kind === 'p' ? 'var(--color-accent)' : 'transparent', color: a.kind === 'p' ? '#fff' : a.kind === 'q' ? '#C0392B' : a.kind === 'd' ? 'var(--color-neutral-500)' : 'var(--color-text)', border: a.kind === 'p' ? 'var(--color-accent)' : a.kind === 'q' ? '#C0392B' : 'var(--color-text)' }))
+      };
+    }
+    function j0() { return false; }
+    const reasons = REASONS.map(x => ({ label: x, go: () => this.setState({ reason: x }), bg: s.reason === x ? '#C0392B' : 'transparent', color: s.reason === x ? '#fff' : 'var(--color-text)', border: s.reason === x ? '#C0392B' : 'var(--color-divider)' }));
+    // tracker
+    const reqRows = s.reqs.map(q => { const segVals = {}; q.segs.forEach(sg => { segVals[sg.seg] = (segVals[sg.seg] || 0) + segTot(sg); }); return { buyer: q.buyer, cat: q.cat, supplier: q.supplier, desc: q.service, po: q.pos.join(' + '), est: q.est, segVals, status: q.status, id: q.id }; });
+    const stRows = STATIC.map(([buyer, cat, supplier, desc, po, est, segVals, status]) => ({ buyer, cat, supplier, desc, po, est, segVals, status }));
+    const allRows = [...reqRows, ...stRows];
+    const stNames = ['All', ...Object.keys(ST)];
+    const stChips = stNames.map(k => ({ label: k, n: k === 'All' ? allRows.length : allRows.filter(x => x.status === k).length, go: () => this.setState({ stFilter: k }), bg: s.stFilter === k ? 'var(--color-text)' : 'transparent', color: s.stFilter === k ? '#fff' : 'var(--color-text)', border: s.stFilter === k ? 'var(--color-text)' : 'var(--color-divider)' })).filter(c => c.n > 0 || c.label === 'All');
+    const trRows = allRows.filter(x => s.stFilter === 'All' || x.status === s.stFilter).map(x => { const tot = Object.values(x.segVals).reduce((a, b) => a + b, 0); return { ...x, estF: n0(x.est), segs: SEGCOLS.map(c => x.segVals[c] ? n0(x.segVals[c]) : ''), totalF: tot ? n0(tot) : '0', stBg: ST[x.status][0], stFg: ST[x.status][1], cursor: x.id ? 'pointer' : 'default', open: () => x.id && this.setState({ view: 'requests', sel: x.id, mine: false }) }; });
+    const tpls = Object.entries(TPL).map(([k, t]) => ({ ...t, used: `${s.reqs.filter(q => q.tpl === k).length} requests`, cols: ['SN', t.item, t.qty, 'UoM', t.rate, ...(t.split ? ['% split'] : []), 'Total'], splitF: t.split ? 'Yes — shared items split by operation' : 'No — direct per segment' }));
+    return {
+      embedded: emb, showChrome: !emb, rootMinH: emb ? '640px' : '100vh', pad: emb ? '20px 0' : '24px 28px',
+      views, role: s.role, initials: ROLES[s.role][0],
+      setRole: e => this.setState({ role: e.target.value, reason: null, note: '' }),
+      isRequests: s.view === 'requests', isTracker: s.view === 'tracker', isTemplates: s.view === 'templates',
+      listTabs, list, listEmpty: !list.length, hasSel: !!sel, sel,
+      showQuery: !!act.query, reasons, note: s.note, setNote: e => this.setState({ note: e.target.value }),
+      addLine: () => { const si = Math.max(0, s.seg[r.id] ?? 0); this.upd(r.id, x => { x.segs[si].lines.push(L('New item', 1, 'Nos.', 0, null, 0)); return x; }); },
+      segCols: SEGCOLS, stChips, trRows, tpls,
+      newTpl: () => this.flash('Template builder: name, columns, units, required documents, validator'),
+      hasToast: !!s.toast, toast: s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

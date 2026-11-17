@@ -27,11 +27,23 @@ const PUBLIC_PATHS = [
      sent to an address the request itself went to -- both checked inside the page's own actions,
      which is where the enforcement has to live for a route this gate lets through. */
   '/soa-upload',
+  /* The RRSM supplier submission, public for the same reason and gated the same way: a per-link
+     token in the path, plus a one-time code sent to an address the invitation itself went to.
+     Both are checked inside src/app/actions/rrsm/supplier.ts, which is where enforcement has to
+     live for a route this gate waves through -- and which re-checks every line id against the
+     link rather than trusting one from a browser. */
+  '/rrsm/submit',
   '/help',
   /* The chain view's dev preview. Outside production only, and the page itself calls
      notFound() in a production build, so this cannot open a hole in a deployed app --
      see src/app/dev-preview/chain/page.tsx for why it exists at all. */
   ...(process.env.NODE_ENV === 'production' ? [] : ['/dev-preview']),
+  /* ICSA while its demo login is switched on (ICSA_DEMO_LOGIN=true). A demo person has no
+     NextAuth cookie, so this gate would bounce them to SSO. Every ICSA page, action and route
+     checks its own actor through getIcsaActor (src/lib/icsa/access.ts), which accepts a signed
+     demo cookie or a real session and nothing else -- that is the gate for these paths. With the
+     demo off, /icsa is gated here like every other tool. */
+  ...(process.env.ICSA_DEMO_LOGIN === 'true' ? ['/icsa', '/api/icsa'] : []),
 ];
 
 // Machine-to-machine API endpoints. Their callers (Vercel Cron, n8n) never carry a
@@ -41,6 +53,7 @@ const PUBLIC_PATHS = [
 // past the cookie check; the laptop path has a dynamic <id> segment.
 const MACHINE_PATHS = [
   /^\/api\/procure-guard\/reminders\/?$/,
+  /^\/api\/rrsm\/reminders\/?$/,
   /^\/api\/laptop-procurement\/requests\/[^/]+\/status\/?$/,
   /^\/api\/catalog-manager\/revalidate\/?$/,
 ];

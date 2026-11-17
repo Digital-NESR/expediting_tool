@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/modernist-a2944fd0-2676-4b80-86b2-5b0988c11cf9/styles.css">
+<style>:root{--color-bg:#FFFFFF;--color-surface:#F2F4F3;--color-text:#1F1F1D;--color-accent:#2A7E4F;--color-divider:color-mix(in srgb,#1F1F1D 30%,transparent);--color-accent-100:#EEF6F1;--color-accent-200:#C5E0D2;--color-accent-700:#1F5C3A;--color-neutral-200:#E6E7E8;--color-neutral-500:#939597;--color-neutral-700:#58595B}body{margin:0}a{color:var(--color-accent-700)}a:hover{color:var(--color-accent)}input,select,button{font-family:inherit}</style>
+</helmet>
+<div style="display:flex;flex-direction:column;gap:16px;padding:{{ pad }};background:var(--color-bg);color:var(--color-text);font-family:Arial,Helvetica,sans-serif;min-height:{{ minH }}">
+  <sc-if value="{{ standalone }}">
+    <div style="display:flex;flex-direction:column;gap:4px;border-bottom:2px solid var(--color-text);padding-bottom:14px">
+      <span style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent-700);font-weight:700">All countries · one standard workflow</span>
+      <span style="font-weight:700;font-size:28px;line-height:1.1">Monthly Rental &amp; Service Tracker</span>
+    </div>
+  </sc-if>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:2px">
+    <sc-for list="{{ steps }}" as="st" hint-placeholder-count="6">
+      <div style="padding:10px 12px;background:{{ st.bg }};color:{{ st.fg }};display:flex;flex-direction:column;gap:3px;border-top:4px solid {{ st.edge }}">
+        <div style="display:flex;justify-content:space-between;gap:6px"><span style="font-size:11px;font-weight:700;opacity:.8">{{ st.n }}</span><span style="font-size:11px;font-weight:700">{{ st.count }}</span></div>
+        <span style="font-size:13px;font-weight:700">{{ st.name }}</span>
+        <span style="font-size:11px;line-height:1.35;opacity:.85">{{ st.who }}</span>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <sc-if value="{{ showCtry }}"><select value="{{ ctry }}" onChange="{{ setCtry }}" style="height:34px;border:2px solid var(--color-text);background:var(--color-bg);padding:0 8px;font-size:13px;font-weight:700"><sc-for list="{{ ctryOpts }}" as="co" hint-placeholder-count="2"><option value="{{ co.k }}">{{ co.label }}</option></sc-for></select></sc-if>
+    <div style="display:flex;border:1px solid var(--color-divider)">
+      <sc-for list="{{ months }}" as="m" hint-placeholder-count="4">
+        <button onClick="{{ m.go }}" style="height:34px;padding:0 14px;border:none;border-right:1px solid var(--color-divider);background:{{ m.bg }};color:{{ m.color }};font-size:12px;font-weight:700;cursor:pointer;text-align:left;white-space:nowrap">{{ m.label }}</button>
+      </sc-for>
+    </div>
+    <input value="{{ q }}" onChange="{{ setQ }}" placeholder="Search plate, asset, supplier, PO" style="height:34px;flex:1;min-width:200px;max-width:340px;border:1px solid var(--color-divider);background:var(--color-surface);padding:0 10px;font-size:13px"></input>
+    <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--color-neutral-700)"><input type="checkbox" checked="{{ onlyChanges }}" onChange="{{ toggleChanges }}"></input>Only changes</label>
+    <sc-if value="{{ showRoles }}"><div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+      <span style="font-size:12px;color:var(--color-neutral-700)">Acting as</span>
+      <div style="display:flex;border:1px solid var(--color-text)">
+        <sc-for list="{{ roles }}" as="r" hint-placeholder-count="3">
+          <button onClick="{{ r.go }}" style="height:32px;padding:0 12px;border:none;background:{{ r.bg }};color:{{ r.color }};font-size:12px;font-weight:700;cursor:pointer;text-align:left">{{ r.label }}</button>
+        </sc-for>
+      </div>
+    </div></sc-if>
+  </div>
+
+  <sc-if value="{{ noData }}"><div style="padding:28px 22px;background:var(--color-surface);display:flex;flex-direction:column;gap:6px"><span style="font-size:16px;font-weight:700">{{ noDataTitle }}</span><span style="font-size:13px;color:var(--color-neutral-700);line-height:1.45;max-width:640px">Same six-stage cycle as Kuwait and UAE. Load the country's current monthly sheet (segment, supplier, asset, licence, qty, rate, PR, PO) and Ops start the first cycle from it.</span></div></sc-if>
+  <sc-if value="{{ hasData }}">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));border-top:2px solid var(--color-text);border-left:1px solid var(--color-divider)">
+    <sc-for list="{{ segTabs }}" as="t" hint-placeholder-count="7">
+      <button onClick="{{ t.go }}" style="border:none;border-right:1px solid var(--color-divider);border-bottom:1px solid var(--color-divider);border-top:4px solid {{ t.edge }};background:{{ t.bg }};padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;gap:3px;text-align:left;color:var(--color-text)">
+        <span style="font-size:13px;font-weight:700">{{ t.label }}</span>
+        <span style="font-size:12px">{{ t.totF }}</span>
+        <span style="font-size:11px;color:{{ t.dColor }};font-weight:700">{{ t.delta }}</span>
+      </button>
+    </sc-for>
+  </div>
+
+  <sc-if value="{{ needStart }}">
+    <div style="padding:22px;background:var(--color-surface);display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap">
+      <div style="display:flex;flex-direction:column;gap:4px;max-width:640px">
+        <span style="font-size:16px;font-weight:700">{{ startTitle }}</span>
+        <span style="font-size:13px;color:var(--color-neutral-700);line-height:1.45">Copies every asset from {{ prevLabel }} for this segment. Ops then confirm each one (still on hire, days, quantity) before raising the PR.</span>
+      </div>
+      <sc-if value="{{ canStart }}"><button onClick="{{ startCycle }}" style="height:40px;padding:0 18px;border:none;background:var(--color-accent);color:#fff;font-size:13px;font-weight:700;cursor:pointer;text-align:left">Copy {{ prevLabel }} assets</button></sc-if>
+      <sc-if value="{{ cantStart }}"><span style="font-size:12px;font-weight:700;color:var(--color-neutral-700)">Waiting on Ops to start the cycle</span></sc-if>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ showList }}">
+    <div style="display:flex;gap:28px;flex-wrap:wrap;font-size:13px">
+      <sc-for list="{{ summary }}" as="x" hint-placeholder-count="4">
+        <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:11px;color:var(--color-neutral-700)">{{ x.k }}</span><span style="font-size:18px;font-weight:700;color:{{ x.c }}">{{ x.v }}</span></div>
+      </sc-for>
+    </div>
+    <div style="overflow:auto;border-top:2px solid var(--color-text)">
+      <table style="border-collapse:collapse;width:100%;min-width:1080px;font-size:12px">
+        <thead><tr style="text-align:left;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--color-neutral-700)">
+          <th style="padding:8px;border-bottom:2px solid var(--color-divider)">Asset / service</th><th style="padding:8px;border-bottom:2px solid var(--color-divider)">Licence</th><th style="padding:8px;border-bottom:2px solid var(--color-divider)">On hire</th><th style="padding:8px;border-bottom:2px solid var(--color-divider);text-align:right">Days</th><th style="padding:8px;border-bottom:2px solid var(--color-divider);text-align:right">Qty</th><th style="padding:8px;border-bottom:2px solid var(--color-divider);text-align:right">Rate</th><th style="padding:8px;border-bottom:2px solid var(--color-divider);text-align:right">Total {{ cur }}</th><th style="padding:8px;border-bottom:2px solid var(--color-divider)">vs last month</th><th style="padding:8px;border-bottom:2px solid var(--color-divider)"></th>
+        </tr></thead>
+        <sc-for list="{{ groups }}" as="g" hint-placeholder-count="4">
+          <tbody>
+            <tr style="background:var(--color-surface);border-top:2px solid var(--color-text)">
+              <td colspan="6" style="padding:9px 8px">
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                  <span style="font-size:13px;font-weight:700">{{ g.sup }}</span>
+                  <span style="font-size:11px;color:var(--color-neutral-700)">PO {{ g.po }} · PR {{ g.pr }} · {{ g.cc }} · {{ g.terms }}</span>
+                  <span style="font-size:10px;font-weight:700;padding:2px 6px;background:{{ g.stBg }};color:{{ g.stFg }};white-space:nowrap">{{ g.stage }}</span>
+                  <span style="font-size:11px;color:var(--color-neutral-700)">{{ g.note }}</span>
+                </div>
+              </td>
+              <td style="padding:9px 8px;text-align:right;font-weight:700;font-size:13px">{{ g.totF }}</td>
+              <td colspan="2" style="padding:6px 8px">
+                <div style="display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap">
+                  <sc-for list="{{ g.actions }}" as="a" hint-placeholder-count="1">
+                    <button onClick="{{ a.go }}" style="height:28px;padding:0 10px;border:1px solid {{ a.border }};background:{{ a.bg }};color:{{ a.color }};font-size:11px;font-weight:700;cursor:pointer;text-align:left;white-space:nowrap">{{ a.label }}</button>
+                  </sc-for>
+                </div>
+              </td>
+            </tr>
+            <sc-if value="{{ g.showInvoice }}">
+              <tr style="background:#FFF8EC">
+                <td colspan="9" style="padding:10px 8px">
+                  <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:12px">
+                    <span style="font-weight:700">GRN check: invoice must match validated</span>
+                    <label style="display:flex;gap:6px;align-items:center">Supplier invoice {{ cur }} <input readOnly="{{ g.invRO }}" value="{{ g.invoice }}" onChange="{{ g.setInvoice }}" placeholder="0.000" style="height:30px;width:110px;border:2px solid var(--color-accent);padding:0 8px;font-size:13px;font-weight:700;text-align:right"></input></label>
+                    <span>Validated {{ cur }} <strong>{{ g.validF }}</strong></span>
+                    <span style="font-weight:700;color:{{ g.matchColor }}">{{ g.matchText }}</span>
+                  </div>
+                </td>
+              </tr>
+            </sc-if>
+            <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="3">
+              <tr style="border-bottom:1px solid var(--color-divider);color:{{ r.fg }};background:{{ r.bg }}">
+                <td style="padding:6px 8px 6px 18px"><div style="display:flex;flex-direction:column;gap:2px"><span>{{ r.desc }}</span><sc-if value="{{ r.hasNote }}"><span style="font-size:11px;color:{{ r.noteColor }}">{{ r.note }}</span></sc-if></div></td>
+                <td style="padding:6px 8px;color:var(--color-neutral-700)">{{ r.lic }}</td>
+                <td style="padding:4px 8px">
+                  <sc-if value="{{ r.edit }}"><button onClick="{{ r.toggleHire }}" style="height:26px;padding:0 8px;border:1px solid {{ r.hireBorder }};background:{{ r.hireBg }};color:{{ r.hireFg }};font-size:11px;font-weight:700;cursor:pointer;text-align:left">{{ r.hireLabel }}</button></sc-if>
+                  <sc-if value="{{ r.ro }}"><span style="font-size:11px">{{ r.hireLabel }}</span></sc-if>
+                </td>
+                <td style="padding:4px 8px;text-align:right">
+                  <sc-if value="{{ r.edit }}"><input value="{{ r.days }}" onChange="{{ r.setDays }}" style="height:26px;width:46px;border:1px solid var(--color-accent);padding:0 6px;font-size:12px;text-align:right"></input></sc-if>
+                  <sc-if value="{{ r.ro }}"><span>{{ r.days }}</span></sc-if>
+                </td>
+                <td style="padding:4px 8px;text-align:right">
+                  <sc-if value="{{ r.edit }}"><input value="{{ r.qty }}" onChange="{{ r.setQty }}" style="height:26px;width:46px;border:1px solid var(--color-accent);padding:0 6px;font-size:12px;text-align:right"></input></sc-if>
+                  <sc-if value="{{ r.ro }}"><span>{{ r.qty }}</span></sc-if>
+                </td>
+                <td style="padding:6px 8px;text-align:right">{{ r.rateF }}</td>
+                <td style="padding:6px 8px;text-align:right;font-weight:700">{{ r.totF }}</td>
+                <td style="padding:5px 8px"><sc-if value="{{ r.hasFlag }}"><span style="font-size:10px;font-weight:700;padding:2px 6px;background:{{ r.flBg }};color:{{ r.flFg }};white-space:nowrap">{{ r.flag }}</span></sc-if></td>
+                <td style="padding:4px 8px;text-align:right"><sc-if value="{{ r.hasAct }}"><button onClick="{{ r.act }}" style="height:26px;padding:0 8px;border:1px solid {{ r.actColor }};background:transparent;color:{{ r.actColor }};font-size:11px;font-weight:700;cursor:pointer;text-align:left;white-space:nowrap">{{ r.actLabel }}</button></sc-if></td>
+              </tr>
+            </sc-for>
+            <sc-if value="{{ g.canAddAsset }}">
+              <tr><td colspan="9" style="padding:6px 8px 10px 18px"><button onClick="{{ g.addAsset }}" style="height:26px;padding:0 10px;border:1px dashed var(--color-divider);background:transparent;font-size:11px;font-weight:700;cursor:pointer;text-align:left">+ Record on-hire (Ops informed supplier)</button></td></tr>
+            </sc-if>
+          </tbody>
+        </sc-for>
+      </table>
+    </div>
+    <sc-if value="{{ empty }}"><span style="font-size:13px;color:var(--color-neutral-700)">Nothing matches.</span></sc-if>
+  </sc-if>
+
+  </sc-if>
+  <sc-if value="{{ hasData }}"><details style="border-top:2px solid var(--color-text);padding-top:10px">
+    <summary style="font-size:13px;font-weight:700;cursor:pointer">{{ masterTitle }}</summary>
+    <div style="overflow:auto;margin-top:8px">
+      <table style="border-collapse:collapse;width:100%;min-width:620px;font-size:12px">
+        <thead><tr style="text-align:left;font-size:11px;text-transform:uppercase;color:var(--color-neutral-700)"><th style="padding:6px 8px;border-bottom:1px solid var(--color-divider)">Entity</th><th style="padding:6px 8px;border-bottom:1px solid var(--color-divider)">Purch. group</th><th style="padding:6px 8px;border-bottom:1px solid var(--color-divider)">Plant</th><th style="padding:6px 8px;border-bottom:1px solid var(--color-divider)">Segment</th><th style="padding:6px 8px;border-bottom:1px solid var(--color-divider)">Cost centre</th></tr></thead>
+        <tbody><sc-for list="{{ master }}" as="m" hint-placeholder-count="11"><tr style="border-bottom:1px solid var(--color-divider)"><td style="padding:6px 8px;font-weight:700">{{ m.e }}</td><td style="padding:6px 8px">{{ m.pg }}</td><td style="padding:6px 8px">{{ m.pl }}</td><td style="padding:6px 8px">{{ m.s }}</td><td style="padding:6px 8px">{{ m.cc }}</td></tr></sc-for></tbody>
+      </table>
+    </div>
+  </details></sc-if>
+
+  <sc-if value="{{ hasToast }}"><div style="position:fixed;right:24px;top:72px;background:var(--color-text);color:#fff;padding:12px 18px;font-size:13px;z-index:6">{{ toast }}</div></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const CTRY = {
+  KWT: { name: 'Kuwait', cur: 'KWD', tabs: [['CPVEN_CT', 'CPVEN · Coiled Tubing'], ['CPVEN_CMT', 'CPVEN · Cementing'], ['CPVEN MUD', 'CPVEN · Mud / Drilling'], ['NPS_CMT', 'NPS · Cementing & DHT'], ['Well testing', 'SAPESCO · Well Testing'], ['SLICK LINE', 'SAPESCO · Slickline'], ['SINO', 'SINO · TRS / DHT / Fishing']],
+    master: [['NPS', 'NPS', '1050', 'NPS Cementing', 'C501100101'], ['NPS', 'NPS', '4350', 'Down Hole Tools', 'C501100201'], ['SINO', 'SINO', '4251', 'Tubular Running Service', 'C513420101'], ['SINO', 'SINO', '4351', 'Down Hole Tools', 'C502300101'], ['SINO', 'SINO', '4551', 'Fishing', 'C513450101'], ['SINO', 'SINO', '5051', 'Through Tubing', 'C513500101'], ['SAPESCO', 'SAPESCO', '3053', 'Surface / Well Testing', 'C532300101'], ['SAPESCO', 'SAPESCO', '3253', 'Slickline', 'C532320101'], ['CPVEN', 'CTU', '1154', 'Coiled Tubing', 'C541110101'], ['CPVEN', 'CMT', '1054', 'Cementing', 'C541100101'], ['CPVEN', 'MUD', '3454', 'Mud / Drilling', 'C543440101']] },
+  UAE: { name: 'UAE', cur: 'AED', tabs: [['UAE_CT', 'Coiled Tubing'], ['UAE_PL', 'Pipeline'], ['UAE_WT', 'Well Testing'], ['UAE_SUP', 'Ops Support']],
+    master: [['NESR UAE', 'UAE', 'OPS1', 'Ops Support (shared)', 'CC-9001'], ['NESR UAE', 'UAE', 'AE11', 'Coiled Tubing', 'CC-1050'], ['NESR UAE', 'UAE', 'AE22', 'Pipeline', 'CC-2210'], ['NESR UAE', 'UAE', 'AE21', 'Well Testing', 'CC-3053']] }
+};
+const MON = ['SEP', 'OCT', 'NOV', 'DEC'], MONL = { SEP: 'Sep 26', OCT: 'Oct 26', NOV: 'Nov 26', DEC: 'Dec 26' }, DAYS = { SEP: 30, OCT: 31, NOV: 30, DEC: 31 };
+const STEPS = [['PR to raise', 'Ops · confirm copied assets, raise PR'], ['PR in approval', 'SAP release strategy'], ['PO in approval', 'Buyer · SAP'], ['Ops validation', 'Ops · on hire, days, qty per asset'], ['Pending GRN', 'Buyer attaches invoice · must equal validated'], ['GRN posted', 'Ops · SAP']];
+const STC = [['#E6E7E8', '#1F1F1D'], ['#FFF4E5', '#8A5A00'], ['#FFF4E5', '#8A5A00'], ['#C5E0D2', '#1F5C3A'], ['#C5E0D2', '#1F5C3A'], ['#2A7E4F', '#fff']];
+const STAGE = r => { const k = (r.st || '').toLowerCase(); if (!k) return r.po ? 2 : r.pr ? 1 : 0; if (k.includes('pr under')) return 1; if (k.includes('po under')) return 2; if (k === 'approved') return 3; if (k.includes('pending grn')) return 4; if (k.includes('grn')) return 5; return 0; };
+const ROLES = [['ops', 'Ops & validator'], ['buyer', 'Buyer']];
+const f3 = v => v.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+const f0 = v => Math.round(v).toLocaleString('en-US');
+const key = r => `${r.tab}|${r.sup}|${r.lic || r.desc}`;
+const lineVal = l => l.onHire && !l.disputed ? (parseFloat(l.qty) || 0) * l.rate : 0;
+
+class Component extends DCLogic {
+  state = { rows: [], loaded: false, ctry: 'KWT', mon: 'DEC', tab: 'CPVEN_CT', q: '', onlyChanges: false, grn: {}, cyc: {}, role: this.props.role === 'buyer' ? 'buyer' : 'ops', toast: '' };
+  componentDidMount() {
+    fetch('monthly-assets.json').then(r => r.json()).then(a => this.setState({ loaded: true, rows: a.map(([tab, sup, desc, lic, seg, cc, qty, rate, tot, mon, pr, po, st, cm, terms, ctry]) => ({ tab, sup, desc, lic, seg, cc, qty, rate, tot, mon, pr, po, st, cm, terms, ctry })) }));
+  }
+  
+  flash(t) { this.setState({ toast: t }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: '' }), 2600); }
+  updG(tab, gi, fn) { this.setState(s => { const c = { ...s.cyc }; const groups = c[tab].map((g, i) => i === gi ? fn({ ...g, lines: g.lines.map(l => ({ ...l })), log: [...g.log] }) : g); c[tab] = groups; return { cyc: c }; }); }
+  startCycle() {
+    const s = { ...this.state, tab: this._tab || this.state.tab }, src = s.rows.filter(r => r.tab === s.tab && r.mon === 'NOV'), by = {};
+    src.forEach(r => { (by[r.sup] = by[r.sup] || { sup: r.sup, cc: r.cc, terms: r.terms, pr: '', po: '', stage: 0, invoice: '', lines: [], log: [] }).lines.push({ desc: r.desc, lic: r.lic, rate: r.rate, qty: r.qty, prevQty: r.qty, prevTot: r.tot, days: DAYS.DEC, onHire: true, disputed: false, resolved: false, isNew: false }); });
+    this.setState(st => ({ tab: s.tab, cyc: { ...st.cyc, [s.tab]: Object.values(by) } }));
+    this.flash(`${src.length} assets copied from Nov 26 · confirm each one, then raise PR`);
+  }
+  renderVals() {
+    const st0 = this.state, emb = !!this.props.embedded, pc = this.props.country;
+    const lockC = emb && pc && pc !== 'ALL', ctryK = lockC ? pc : st0.ctry, noData = !CTRY[ctryK];
+    const C = CTRY[ctryK] || CTRY.KWT, TABS = C.tabs;
+    const role = emb ? ({ owner: 'ops', buyer: 'buyer' }[this.props.role] || 'view') : st0.role;
+    const s = { ...st0, ctry: ctryK, tab: TABS.some(t => t[0] === st0.tab) ? st0.tab : TABS[0][0] };
+    this._tab = s.tab;
+    const prevM = MON[MON.indexOf(s.mon) - 1];
+    const sum = rs => rs.reduce((a, r) => a + r.tot, 0);
+    const cycTot = tab => (s.cyc[tab] || []).reduce((a, g) => a + g.lines.reduce((b, l) => b + lineVal(l), 0), 0);
+    const tabTot = (tab, m) => m === 'DEC' ? cycTot(tab) : sum(s.rows.filter(r => r.tab === tab && r.mon === m));
+    const months = MON.map(m => ({ label: m === 'DEC' ? 'Dec 26 · current' : MONL[m], go: () => this.setState({ mon: m }), bg: s.mon === m ? 'var(--color-text)' : 'transparent', color: s.mon === m ? '#fff' : 'var(--color-text)' }));
+    const roles = ROLES.map(([k, label]) => ({ label, go: () => this.setState({ role: k }), bg: role === k ? 'var(--color-text)' : 'transparent', color: role === k ? '#fff' : 'var(--color-text)' }));
+    const segTabs = TABS.map(([k, label]) => { const started = s.mon !== 'DEC' || s.cyc[k]; const cur = tabTot(k, s.mon), pv = prevM ? tabTot(k, prevM) : null, d = pv != null ? cur - pv : null;
+      return { label, totF: started ? `${C.cur} ${f0(cur)}` : 'Not started', delta: !started ? 'Copy Nov to begin' : d == null ? 'First month in file' : Math.abs(d) < 0.5 ? 'No change' : `${d > 0 ? '+' : ''}${f0(d)} vs ${MONL[prevM]}`, dColor: !started ? 'var(--color-neutral-700)' : d > 0 ? '#C0392B' : d < 0 ? 'var(--color-accent-700)' : 'var(--color-neutral-700)', go: () => this.setState({ tab: k }), on: s.tab === k }; })
+      .map(t => ({ ...t, bg: t.on ? 'var(--color-accent-100)' : 'transparent', edge: t.on ? 'var(--color-accent)' : 'transparent' }));
+    const q = s.q.toLowerCase(), match = r => !q || [r.desc, r.lic, r.sup, r.po, r.pr].join(' ').toLowerCase().includes(q);
+    const isCur = s.mon === 'DEC', cyc = s.cyc[s.tab];
+    let groups = [], stageCounts = [0, 0, 0, 0, 0, 0], summary = [];
+    const A = (label, go, kind) => ({ label, go, bg: kind === 'p' ? 'var(--color-accent)' : 'transparent', color: kind === 'p' ? '#fff' : kind === 'q' ? '#C0392B' : 'var(--color-text)', border: kind === 'p' ? 'var(--color-accent)' : kind === 'q' ? '#C0392B' : 'var(--color-text)' });
+    if (isCur && cyc) {
+      cyc.forEach(g => stageCounts[g.stage]++);
+      groups = cyc.map((g, gi) => {
+        const edit = role === 'ops' && (g.stage === 0 || g.stage === 3);
+        const valid = g.lines.reduce((a, l) => a + lineVal(l), 0);
+        const disputed = g.lines.filter(l => l.disputed).length;
+        const inv = parseFloat(g.invoice), matches = !isNaN(inv) && Math.abs(inv - valid) < 0.001;
+        const acts = [];
+        if (g.stage === 0 && role === 'ops') acts.push(A('Raise PR', () => { this.updG(s.tab, gi, x => ({ ...x, stage: 1, pr: '10' + Math.floor(37008000 + Math.random() * 900) })); this.flash(`PR raised for ${g.sup}`); }, 'p'));
+        if (g.stage === 1) acts.push(A('PR released in SAP', () => this.updG(s.tab, gi, x => ({ ...x, stage: 2 })), 's'));
+        if (g.stage === 2 && role === 'buyer') acts.push(A('PO approved', () => { this.updG(s.tab, gi, x => ({ ...x, stage: 3, po: '52000' + Math.floor(10600 + Math.random() * 300) })); this.flash(`PO issued to ${g.sup}`); }, 'p'));
+        if (g.stage === 3 && role === 'ops') acts.push(A(disputed ? `Validate (${disputed} disputed held back)` : 'Validate utilization', () => { this.updG(s.tab, gi, x => ({ ...x, stage: 4 })); this.flash('Validated · Buyer to attach supplier invoice'); }, 'p'));
+        if (g.stage === 4 && role === 'ops') acts.push(A('Post GRN', () => { if (!matches) return this.flash('Invoice must match validated total'); this.updG(s.tab, gi, x => ({ ...x, stage: 5 })); this.flash(`GRN posted · KWD ${f3(valid)}`); }, matches ? 'p' : 's'));
+        if (g.stage === 4 && role === 'ops' && !isNaN(inv) && !matches) acts.push(A('Send back to Buyer', () => { this.updG(s.tab, gi, x => ({ ...x, stage: 3, invoice: '' })); this.flash('Mismatch sent back for Ops / Buyer to resolve'); }, 'q'));
+        const waitWho = ['Ops', 'SAP release', 'Buyer', 'Ops', isNaN(inv) ? 'Buyer · invoice' : 'Ops · GRN', ''][g.stage];
+        const rows = g.lines.map((l, li) => {
+          const v = lineVal(l), chg = l.isNew ? ['On-hire', '#FFF4E5', '#8A5A00'] : !l.onHire ? ['Off-hire', '#E6E7E8', '#1F1F1D'] : (parseFloat(l.qty) || 0) !== l.prevQty ? [`Qty ${l.prevQty} → ${l.qty}`, '#FFF4E5', '#8A5A00'] : l.days != DAYS.DEC ? [`${l.days} of ${DAYS.DEC} days`, '#FFF4E5', '#8A5A00'] : null;
+          const canDispute = role === 'ops' && g.stage === 3 && !l.disputed && l.onHire;
+          const canResolve = role === 'buyer' && l.disputed;
+          return { desc: l.desc, lic: l.lic || '—', edit, ro: !edit, days: String(l.days), qty: String(l.qty), rateF: f3(l.rate), totF: f3(v),
+            hireLabel: l.onHire ? 'Yes' : 'Off-hire', hireBg: l.onHire ? 'var(--color-accent-100)' : '#E6E7E8', hireFg: l.onHire ? 'var(--color-accent-700)' : '#1F1F1D', hireBorder: l.onHire ? 'var(--color-accent)' : 'var(--color-divider)',
+            toggleHire: () => this.updG(s.tab, gi, x => { x.lines[li].onHire = !x.lines[li].onHire; return x; }),
+            setDays: e => { const val = e.target.value; this.updG(s.tab, gi, x => { x.lines[li].days = val; return x; }); },
+            setQty: e => { const val = e.target.value; this.updG(s.tab, gi, x => { x.lines[li].qty = val; return x; }); },
+            hasFlag: !!chg, flag: chg?.[0], flBg: chg?.[1], flFg: chg?.[2],
+            hasNote: l.disputed || l.resolved, note: l.disputed ? 'Disputed by Ops · Buyer to resolve with supplier' : 'Resolved by Buyer', noteColor: l.disputed ? '#C0392B' : 'var(--color-accent-700)',
+            fg: l.onHire ? 'var(--color-text)' : 'var(--color-neutral-500)', bg: l.disputed ? '#FBEAE8' : 'transparent',
+            hasAct: canDispute || canResolve, actLabel: canDispute ? 'Dispute' : 'Resolve', actColor: canDispute ? '#C0392B' : 'var(--color-accent-700)',
+            act: () => { this.updG(s.tab, gi, x => { x.lines[li].disputed = !canResolve; x.lines[li].resolved = canResolve; return x; }); this.flash(canResolve ? (g.stage >= 4 ? 'Resolved · goes on a follow-up GRN' : 'Resolved · back in this GRN') : 'Line disputed · rest of the PO goes ahead'); },
+            ch: !!chg || l.disputed, m: match({ ...l, sup: g.sup, po: g.po, pr: g.pr }) };
+        }).filter(r => r.m && (!s.onlyChanges || r.ch));
+        return { sup: g.sup, po: g.po || 'pending', pr: g.pr || 'pending', cc: g.cc, terms: g.terms, stage: STEPS[g.stage][0], stBg: STC[g.stage][0], stFg: STC[g.stage][1],
+          note: g.stage === 5 ? 'Closed' : `Waiting on ${waitWho}${disputed ? ` · ${disputed} disputed` : ''}`, totF: f3(valid), actions: acts, rows,
+          showInvoice: g.stage === 4, invRO: role !== 'buyer', invoice: g.invoice, validF: f3(valid), setInvoice: e => { const val = e.target.value; this.updG(s.tab, gi, x => ({ ...x, invoice: val })); },
+          matchText: isNaN(inv) ? (role === 'buyer' ? 'Enter invoice total' : 'Waiting on Buyer to enter invoice') : matches ? 'Match · GRN can be posted' : `Mismatch ${inv > valid ? '+' : ''}${f3(inv - valid)}`, matchColor: isNaN(inv) ? 'var(--color-neutral-700)' : matches ? 'var(--color-accent-700)' : '#C0392B',
+          canAddAsset: role === 'ops' && g.stage === 0, addAsset: () => this.updG(s.tab, gi, x => { x.lines.push({ desc: 'New asset (describe)', lic: '', rate: 0, qty: 1, prevQty: 0, prevTot: 0, days: DAYS.DEC, onHire: true, disputed: false, isNew: true }); x.log.push('On-hire recorded'); return x; }) };
+      }).filter(g => g.rows.length || !q);
+      const lines = cyc.flatMap(g => g.lines);
+      summary = [{ k: 'Dec 26 validated', v: `${C.cur} ${f3(cycTot(s.tab))}`, c: 'var(--color-text)' }, { k: 'Assets on hire', v: String(lines.filter(l => l.onHire).length), c: 'var(--color-text)' }, { k: 'Off-hire / on-hire', v: `${lines.filter(l => !l.onHire).length} / ${lines.filter(l => l.isNew).length}`, c: 'var(--color-text)' }, { k: 'Disputed lines', v: String(lines.filter(l => l.disputed).length), c: lines.some(l => l.disputed) ? '#C0392B' : 'var(--color-accent-700)' }];
+    } else if (!isCur) {
+      const cur = s.rows.filter(r => r.tab === s.tab && r.mon === s.mon), prev = prevM ? s.rows.filter(r => r.tab === s.tab && r.mon === prevM) : [];
+      const pm = {}; prev.forEach(r => pm[key(r)] = r); const ck = new Set(cur.map(key));
+      const off = prev.filter(r => !ck.has(key(r)));
+      const by = {}; cur.forEach(r => { const k = r.po || `x|${r.sup}`; (by[k] = by[k] || { po: r.po || '—', pr: r.pr || '—', sup: r.sup, cc: r.cc, terms: r.terms, rows: [], off: [] }).rows.push(r); });
+      off.forEach(r => { const g = Object.values(by).find(g => g.sup === r.sup); if (g) g.off.push(r); });
+      const flag = r => { if (!prevM) return null; const p = pm[key(r)]; if (!p) return ['On-hire', '#FFF4E5', '#8A5A00']; if (p.rate !== r.rate) return [`Rate ${f3(p.rate)} → ${f3(r.rate)}`, '#FBEAE8', '#C0392B']; if (p.qty !== r.qty) return [`Qty ${p.qty} → ${r.qty}`, '#FFF4E5', '#8A5A00']; return null; };
+      groups = Object.values(by).map(g => { const st = s.grn[`${s.mon}|${g.po}`] ? 5 : Math.min(...g.rows.map(STAGE)); stageCounts[st]++;
+        const rows = [...g.rows.filter(match).map(r => { const fl = flag(r); return { desc: r.desc, lic: r.lic || '—', ro: true, edit: false, hireLabel: 'Yes', days: '—', qty: String(r.qty), rateF: f3(r.rate), totF: f3(r.tot), hasFlag: !!fl, flag: fl?.[0], flBg: fl?.[1], flFg: fl?.[2], hasNote: !!r.cm, note: r.cm, noteColor: 'var(--color-neutral-700)', fg: 'var(--color-text)', bg: 'transparent', hasAct: false, ch: !!fl }; }),
+          ...g.off.filter(match).map(r => ({ desc: r.desc, lic: r.lic || '—', ro: true, edit: false, hireLabel: 'Off-hire', days: '—', qty: '0', rateF: f3(r.rate), totF: '0', hasFlag: true, flag: 'Off-hire', flBg: '#E6E7E8', flFg: '#1F1F1D', hasNote: true, note: `Was ${f3(r.tot)} in ${MONL[prevM]}`, noteColor: 'var(--color-neutral-700)', fg: 'var(--color-neutral-500)', bg: 'transparent', hasAct: false, ch: true }))].filter(r => !s.onlyChanges || r.ch);
+        const raw = g.rows.map(r => r.st).find(Boolean);
+        const acts = role === 'ops' && [3, 4].includes(st) ? [A('Post GRN', () => { this.setState(x => ({ grn: { ...x.grn, [`${s.mon}|${g.po}`]: true } })); this.flash(`GRN posted on PO ${g.po}`); }, 'p')] : [];
+        return { ...g, rows, stage: STEPS[st][0], stBg: STC[st][0], stFg: STC[st][1], note: `Sheet: “${raw || 'blank'}”`, totF: f3(sum(g.rows)), actions: acts, showInvoice: false, canAddAsset: false };
+      }).filter(g => g.rows.length);
+      summary = [{ k: `${MONL[s.mon]} total`, v: `${C.cur} ${f3(sum(cur))}`, c: 'var(--color-text)' }, { k: 'Assets on hire', v: String(cur.length), c: 'var(--color-text)' }, { k: 'On-hire / off-hire', v: prevM ? `${cur.filter(r => !pm[key(r)]).length} / ${off.length}` : '—', c: 'var(--color-text)' }, { k: 'Lines without GRN', v: String(cur.filter(r => STAGE(r) < 5 && !s.grn[`${s.mon}|${r.po}`]).length), c: '#C0392B' }];
+    }
+    const steps = STEPS.map(([name, who], i) => { const n = stageCounts[i]; return { n: `0${i + 1}`, name, who, count: n ? `${n} PO${n > 1 ? 's' : ''}` : '', bg: n ? STC[i][0] : 'var(--color-surface)', fg: n ? STC[i][1] : 'var(--color-text)', edge: n ? (i === 5 ? '#1F5C3A' : 'var(--color-accent)') : 'transparent' }; });
+    const needStart = isCur && !cyc && s.loaded;
+    return {
+      standalone: !emb, pad: emb ? '20px 0' : '24px 28px', minH: emb ? '600px' : '100vh',
+      steps, months, roles, segTabs, summary, groups, empty: s.loaded && !needStart && !groups.length,
+      needStart, showList: !needStart, canStart: role === 'ops', cantStart: role !== 'ops', startCycle: () => this.startCycle(),
+      startTitle: `Start Dec 26 for ${(TABS.find(t => t[0] === s.tab) || TABS[0])[1]}`, prevLabel: 'Nov 26',
+      q: s.q, setQ: e => this.setState({ q: e.target.value }), onlyChanges: s.onlyChanges, toggleChanges: () => this.setState(st => ({ onlyChanges: !st.onlyChanges })),
+      noData, hasData: !noData, noDataTitle: `${({ OMN: 'Oman', KSA: 'KSA' })[ctryK] || ctryK} isn't onboarded yet`, showCtry: !lockC, showRoles: !emb, cur: C.cur, masterTitle: `Segment → plant → cost centre (${C.name} master)`, ctry: s.ctry, ctryOpts: Object.entries(CTRY).map(([k, x]) => ({ k, label: x.name })), setCtry: e => { const k = e.target.value; this.setState({ ctry: k, tab: CTRY[k].tabs[0][0] }); },
+      master: C.master.map(([e, pg, pl, sg, cc]) => ({ e, pg, pl, s: sg, cc })),
+      hasToast: !!s.toast, toast: s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

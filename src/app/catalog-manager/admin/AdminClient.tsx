@@ -16,13 +16,12 @@ import {
   EmptyState,
 } from '../components/CatalogManagerUI';
 import BulkImportPanel from '../catalog/import/BulkImportPanel';
+import ApproverMatrix from './ApproverMatrix';
 import {
   toggleCountryStatus,
   toggleCategoryStatus,
   addUom,
   setUserRole,
-  addCountryApprover,
-  removeCountryApprover,
   setApprovalThreshold,
   removeApprovalThreshold,
   deleteDemoCatalogData,
@@ -146,9 +145,6 @@ export default function AdminClient({
   const [thrAmt, setThrAmt] = useState('');
 
   // country-approver form state
-  const [caUser, setCaUser] = useState<number | ''>('');
-  const [caCountry, setCaCountry] = useState('');
-  const [caCategory, setCaCategory] = useState<number | ''>('');
 
   const refresh = (fn: () => Promise<void>) =>
     startTransition(async () => {
@@ -655,126 +651,7 @@ export default function AdminClient({
             </table>
           )}
 
-          {tab === 'Country approvers' && (
-            <div>
-              <p className="mb-4 text-[13px] text-slate-500">
-                Define who may approve catalog entries for each country. An approver only sees the
-                approval queue and can sign off for the countries assigned here. Leave the category
-                blank to authorize <strong>all</strong> spend categories.
-              </p>
-
-              {/* add form */}
-              <div className="mb-5 grid grid-cols-1 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[1fr_140px_1fr_auto]">
-                <select
-                  value={caUser}
-                  onChange={(e) => setCaUser(e.target.value ? Number(e.target.value) : '')}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-[13px] outline-none focus:border-[#307c4c]"
-                >
-                  <option value="">Select user…</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.full_name}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={caCountry}
-                  onChange={(e) => setCaCountry(e.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-[13px] outline-none focus:border-[#307c4c]"
-                >
-                  <option value="">Country…</option>
-                  {countries.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.flag} {c.code}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={caCategory}
-                  onChange={(e) => setCaCategory(e.target.value ? Number(e.target.value) : '')}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-[13px] outline-none focus:border-[#307c4c]"
-                >
-                  <option value="">All spend categories</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  disabled={!caUser || !caCountry}
-                  onClick={() => {
-                    if (!caUser || !caCountry) return;
-                    refresh(() =>
-                      addCountryApprover(
-                        Number(caUser),
-                        caCountry,
-                        caCategory ? Number(caCategory) : null,
-                      ),
-                    );
-                    setCaUser('');
-                    setCaCountry('');
-                    setCaCategory('');
-                  }}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#307c4c] px-4 py-2 text-sm font-semibold text-white hover:bg-[#2b6f44] disabled:opacity-50"
-                >
-                  <Icon name="plus" className="h-4 w-4" /> Assign
-                </button>
-              </div>
-
-              <table className="w-full text-[13px]">
-                <thead>
-                  <tr className="border-b border-slate-200">
-                    <th className={thCls}>Approver</th>
-                    <th className={thCls}>Country</th>
-                    <th className={thCls}>Spend category</th>
-                    <th className={thCls}>Tier</th>
-                    <th className={`${thCls} text-right`}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {approvers.map((a) => (
-                    <tr key={a.id} className="border-b border-slate-100">
-                      <td className={tdCls}>
-                        <div className="flex items-center gap-2.5">
-                          <Avatar name={a.user_name ?? '?'} size={26} />
-                          <span className="font-medium text-slate-900">{a.user_name}</span>
-                        </div>
-                      </td>
-                      <td className={tdCls}>
-                        <Chip>
-                          <Icon name="globe" className="h-3 w-3" />
-                          {a.country_code}
-                        </Chip>
-                      </td>
-                      <td className={`${tdCls} text-slate-600`}>
-                        {a.spend_category_name ?? (
-                          <span className="text-slate-400">All categories</span>
-                        )}
-                      </td>
-                      <td className={`${tdCls} text-slate-500`}>Tier {a.tier}</td>
-                      <td className={`${tdCls} text-right`}>
-                        <button
-                          onClick={() => refresh(() => removeCountryApprover(a.id))}
-                          title="Remove"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
-                        >
-                          <Icon name="trash" className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {approvers.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="px-3 py-8 text-center text-slate-400">
-                        No country approvers assigned yet.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {tab === 'Country approvers' && <ApproverMatrix />}
 
           {tab === 'Thresholds' && (
             <div className="space-y-5">

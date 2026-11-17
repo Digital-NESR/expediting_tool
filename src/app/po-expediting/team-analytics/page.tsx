@@ -25,6 +25,8 @@ import {
 } from '@/app/actions/adminAnalytics';
 import { formatDate, formatSessionDate, formatWeek, formatCurrency } from '@/lib/format';
 import {
+  ClosedPoBadge,
+  closedPoState,
   DSTooltipBadge,
   ResponseBadge,
   RateBadge,
@@ -780,6 +782,10 @@ function SupplierDetailModal({
           groups.map(({ po, lines: poLines }) => {
             const isOpen = expanded.has(po);
             const responded = poLines.filter((l) => l.workflow_state === 'Submitted').length;
+            /* A PO whose every line has left sap_open_po_master has closed since we
+               expedited it; see closedPoState for why that is not the same as having
+               nothing left to show. */
+            const { closed: poClosed, detailLost } = closedPoState(poLines);
             return (
               <div key={po} className="mb-3 border border-slate-200 rounded-xl overflow-hidden">
                 <button
@@ -801,6 +807,7 @@ function SupplierDetailModal({
                   <span className="text-xs text-slate-500 font-medium">
                     {poLines.length} line{poLines.length !== 1 ? 's' : ''}
                   </span>
+                  {poClosed && <ClosedPoBadge detailLost={detailLost} />}
                   <span className="ml-auto text-xs font-medium text-slate-500">
                     {responded} / {poLines.length} responded
                   </span>
@@ -813,7 +820,10 @@ function SupplierDetailModal({
                     <colgroup>
                       <col style={{ width: 60 }} />
                       <col style={{ width: 120 }} />
-                      <col style={{ width: 110 }} />
+                      {/* 18 fixed-width chars: "000001100000000108". At 110 it overflowed
+                          straight over Description, which has no business being readable
+                          through another column's text. */}
+                      <col style={{ width: 165 }} />
                       <col />
                       <col style={{ width: 80 }} />
                       <col style={{ width: 100 }} />
@@ -847,7 +857,10 @@ function SupplierDetailModal({
                           >
                             {line.buyer_display_name ?? line.buyer_email}
                           </td>
-                          <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">
+                          <td
+                            className="py-2.5 px-3 text-xs text-slate-600 overflow-hidden truncate"
+                            title={line.sap_mat_id ?? undefined}
+                          >
                             {line.sap_mat_id || '—'}
                           </td>
                           <td
@@ -989,6 +1002,9 @@ function SessionDetailModal({ session, onClose }: { session: RecentSession; onCl
                   <span className="text-xs text-slate-500 font-medium shrink-0">
                     {supplierLines.length} line{supplierLines.length !== 1 ? 's' : ''}
                   </span>
+                  {closedPoState(supplierLines).closed && (
+                    <ClosedPoBadge detailLost={closedPoState(supplierLines).detailLost} />
+                  )}
                   <span className="ml-auto text-xs font-medium text-slate-500 shrink-0">
                     {responded} / {supplierLines.length} responded
                   </span>
@@ -1001,7 +1017,8 @@ function SessionDetailModal({ session, onClose }: { session: RecentSession; onCl
                     <colgroup>
                       <col style={{ width: 110 }} />
                       <col style={{ width: 60 }} />
-                      <col style={{ width: 110 }} />
+                      {/* 18 fixed-width chars; 110 overflowed over Description. */}
+                      <col style={{ width: 165 }} />
                       <col />
                       <col style={{ width: 80 }} />
                       <col style={{ width: 100 }} />
@@ -1032,7 +1049,10 @@ function SessionDetailModal({ session, onClose }: { session: RecentSession; onCl
                           <td className="py-2.5 px-3 text-sm font-medium text-slate-700 whitespace-nowrap">
                             {line.po_line}
                           </td>
-                          <td className="py-2.5 px-3 text-xs text-slate-600 whitespace-nowrap">
+                          <td
+                            className="py-2.5 px-3 text-xs text-slate-600 overflow-hidden truncate"
+                            title={line.sap_mat_id ?? undefined}
+                          >
                             {line.sap_mat_id || '—'}
                           </td>
                           <td

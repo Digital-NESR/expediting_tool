@@ -61,6 +61,45 @@ export async function getAvlIndex(): Promise<{ code: string; name: string }[]> {
   return _avlCache.rows;
 }
 
+/**
+ * One row per active mapping — the whole supplier↔commodity relation.
+ *
+ * 10,976 rows, 283 KB serialised as compact arrays, which is the reason the Explorer needs no
+ * new SQL. Every "how many suppliers sit under this node" figure in the tool is a fold over
+ * this table joined to {@link getCommodityIndex} in memory, rather than a GROUP BY per node:
+ * there are 1,714 nodes across five levels and the alternative is either a query per expanded
+ * node or a materialised view of a table small enough to hold entirely.
+ *
+ * Deliberately narrow. The supplier's name, block status and the commodity's taxonomy all live
+ * in the other indexes and are joined by key, so this stays the one thing it is — the relation.
+ */
+export interface MappingFact {
+  commodityId: number;
+  country: string;
+  supplier: string;
+  preferred: boolean;
+}
+
+export let _factCache: { rows: MappingFact[]; at: number } | null = null;
+
+export async function getMappingFacts(): Promise<MappingFact[]> {
+  if (_factCache && Date.now() - _factCache.at < INDEX_TTL_MS) return _factCache.rows;
+  const { rows } = await sourceGuidePool.query(
+    `SELECT commodity_id, country_code, supplier_code, tier
+     FROM sg_mappings WHERE status = 'Active'`,
+  );
+  _factCache = {
+    rows: rows.map((r) => ({
+      commodityId: Number(r.commodity_id),
+      country: r.country_code,
+      supplier: r.supplier_code,
+      preferred: r.tier === 'Preferred',
+    })),
+    at: Date.now(),
+  };
+  return _factCache.rows;
+}
+
 export let _ctryCache: {
   rows: { code: string; name: string; tone: string | null }[];
   at: number;
@@ -84,6 +123,10 @@ export async function getCountriesLite(): Promise<
  */
 export function invalidateMappingCaches(): void {
   _supCache = null;
+  /* The fact table is derived from `sg_mappings` too. Without this a newly added mapping would
+     show in search -- which reads the supplier index -- while the Explorer's counts still said
+     it did not exist, for up to a minute. Two caches disagreeing is worse than one being stale. */
+  _factCache = null;
 }
 
 /** Extra searchable text for a commodity (weighted below the name in the fuzzy scorer). */

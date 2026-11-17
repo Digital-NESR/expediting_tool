@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { buildPath } from '@/lib/sourceguide/internals';
 import {
+  commodityLabel,
   familyLabel,
   familySql,
+  isCatchAllNode,
   isRedundantFamily,
   subCategorySql,
 } from '@/lib/sourceguide/taxonomy-levels';
@@ -122,5 +124,58 @@ describe('the SQL fragments', () => {
   it('treat an empty string as blank, not as a family', () => {
     expect(subCategorySql()).toContain("NULLIF(TRIM(sub_category), '')");
     expect(familySql()).toContain("NULLIF(TRIM(family), '')");
+  });
+});
+
+describe('isCatchAllNode', () => {
+  it('spots a node named after its own sub-category', () => {
+    // The real case: `Specialty Chemicals` is both the sub-category and a leaf inside it, and a
+    // reader who opened the leaf saw 5 Abu Dhabi suppliers where the sub-category holds 15.
+    expect(isCatchAllNode('Specialty Chemicals', 'Specialty Chemicals')).toBe(true);
+    expect(isCatchAllNode('  Lubricants ', 'Lubricants')).toBe(true);
+    expect(isCatchAllNode('SPECIALTY CHEMICALS', 'Specialty Chemicals')).toBe(true);
+  });
+
+  it('leaves an ordinary commodity alone', () => {
+    expect(isCatchAllNode('Anti gas migration additives', 'Specialty Chemicals')).toBe(false);
+    expect(isCatchAllNode('Corrosion Inhibitors', 'Specialty Chemicals')).toBe(false);
+  });
+
+  it('needs both halves before it will claim anything', () => {
+    // A node with no sub-category has no siblings to roll up, so it is not a catch-all.
+    expect(isCatchAllNode('Specialty Chemicals', null)).toBe(false);
+    expect(isCatchAllNode(null, 'Specialty Chemicals')).toBe(false);
+    expect(isCatchAllNode('', '')).toBe(false);
+    expect(isCatchAllNode('   ', '   ')).toBe(false);
+  });
+});
+
+describe('commodityLabel', () => {
+  it('calls a catch-all node General, so the hierarchy stops repeating itself', () => {
+    // Chemicals > Specialty Chemicals > General > General, rather than the sub-category's name
+    // appearing twice with no way to tell the bucket from the branch.
+    expect(commodityLabel('Specialty Chemicals', 'Specialty Chemicals')).toBe('General');
+    expect(commodityLabel('Lubricants', 'Lubricants')).toBe('General');
+    expect(commodityLabel('SPECIALTY CHEMICALS', 'Specialty Chemicals')).toBe('General');
+  });
+
+  it('leaves a real commodity with its own name', () => {
+    expect(commodityLabel('Anti gas migration additives', 'Specialty Chemicals')).toBe(
+      'Anti gas migration additives',
+    );
+    expect(commodityLabel('  Corrosion Inhibitors  ', 'Specialty Chemicals')).toBe(
+      'Corrosion Inhibitors',
+    );
+  });
+
+  it('agrees with the family level, which has always said General for the same reason', () => {
+    // One word for "this level carries nothing of its own", at both levels.
+    expect(familyLabel(null, 'Specialty Chemicals')).toBe('General');
+    expect(commodityLabel('Specialty Chemicals', 'Specialty Chemicals')).toBe('General');
+  });
+
+  it('does not relabel a node that has no sub-category to repeat', () => {
+    expect(commodityLabel('Specialty Chemicals', null)).toBe('Specialty Chemicals');
+    expect(commodityLabel('Specialty Chemicals', '')).toBe('Specialty Chemicals');
   });
 });

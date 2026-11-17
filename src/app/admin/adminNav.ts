@@ -86,6 +86,7 @@ export const ADMIN_APPS: AdminApp[] = [
       { id: 'admin', label: 'Admin Panel' },
       { id: 'sync', label: 'Sync Health' },
       { id: 'access', label: 'Access Approvals', countKey: 'catalog' },
+      { id: 'approvers', label: 'Country Approvers' },
     ],
   },
   {
@@ -130,6 +131,16 @@ export const ADMIN_APPS: AdminApp[] = [
     ],
   },
   {
+    id: 'rrsm',
+    label: 'RRSM',
+    color: '#307c4c',
+    activeBg: '#eaf4ef',
+    activeColor: '#1d4f31',
+    /* No countKey: RRSM has no access-request queue. Access is granted here directly, the way
+       Travel Portal's is, so there is nothing pending to badge. */
+    sections: [{ id: 'countries', label: 'Countries & Team' }],
+  },
+  {
     id: 'learning-hub',
     label: 'Learning Hub',
     color: '#059669',
@@ -149,6 +160,20 @@ export const ADMIN_APPS: AdminApp[] = [
     /* No countKey: Travel Portal access is granted here directly rather than requested, so
        there is no queue of pending requests to badge. */
     sections: [{ id: 'travel-access', label: 'Travel Access' }],
+  },
+  {
+    id: 'self-assessment',
+    label: 'Supply Chain Self-Assessment',
+    color: '#307c4c',
+    activeBg: '#eaf4ef',
+    activeColor: '#1d4f31',
+    /* Cycles, assignments and reviews stay in the tool itself (/icsa), where champions work too;
+       these are the administrator-only settings. */
+    sections: [
+      { id: 'questions', label: 'Questions' },
+      { id: 'champions', label: 'Champions' },
+      { id: 'extensions', label: 'Extension Requests' },
+    ],
   },
 ];
 
@@ -192,6 +217,7 @@ export const LEGACY_TOOL_MAP: Record<string, { app: string; section: string }> =
   'catalog-admin': { app: 'catalog', section: 'admin' },
   'catalog-sync': { app: 'catalog', section: 'sync' },
   'catalog-access': { app: 'catalog', section: 'access' },
+  'catalog-approvers': { app: 'catalog', section: 'approvers' },
   'sns-access': { app: 'sns', section: 'access' },
   'sns-approvers': { app: 'sns', section: 'approvers' },
   'sns-reference': { app: 'sns', section: 'reference' },

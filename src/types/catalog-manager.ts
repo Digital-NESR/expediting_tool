@@ -48,7 +48,10 @@ export interface AppUserRow {
   id: number;
   full_name: string;
   email: string;
+  /** Home country. `countries` is the grant; this is kept for attribution and defaults. */
   country_code: string | null;
+  /** Every country this grant covers (003_access_countries). Empty on a row predating it. */
+  countries: string[];
   role: CatalogRole;
 }
 export interface ApprovalThresholdRule {
@@ -224,7 +227,11 @@ export interface CatalogAccessRequestRow {
   user_email: string;
   display_name: string | null;
   job_title: string | null;
+  /** Home country: the first one asked for. `requested_countries` is the real ask. */
   country_code: string | null;
+  requested_countries: string[];
+  /** What the admin actually granted. Empty until approved, and cleared on a re-request. */
+  approved_countries: string[];
   status: CatalogAccessRequestStatus;
   requested_role: CatalogRole;
   approved_role: CatalogRole | null;
@@ -294,7 +301,20 @@ export interface CatalogActor {
   email: string;
   name: string;
   role: CatalogRole;
+  /**
+   * Whether this person may be in the tool at all.
+   *
+   * False means no grant: no `app_user` row and not a platform admin. Every signed-in employee
+   * used to resolve to Viewer instead, which is how the supplier price catalogue ended up
+   * readable by people who had never appeared in the approvals queue. `role` is still populated
+   * (as Viewer) so nothing downstream has to cope with null, but it means nothing while this is
+   * false -- the layout refuses to render and the guards refuse to act.
+   */
+  hasAccess: boolean;
+  /** Home country. Kept for attribution and defaults; `countries` is what they may see. */
   country_code: string | null;
+  /** Every country this grant covers. Empty for an admin, who sees all of them. */
+  countries: string[];
   canCreate: boolean;
   canApprove: boolean;
   canAdmin: boolean;

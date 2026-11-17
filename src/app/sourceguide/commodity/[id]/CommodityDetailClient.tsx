@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, User, Mail } from 'lucide-react';
 import { SG_BRAND, SG_BRAND_SOFT } from '../../constants';
-import { TierBadge, CountryFlag, SupAvatar, PathTrail, BlockedBadge } from '../../ui';
+import { TierBadge, CountryFlag, SupAvatar, PathTrail, BlockedBadge, SectionLabel } from '../../ui';
 import { recordView, BookmarkButton } from '../../pins';
 import type { SgCommodityDetail, SgCountry, SgMapping } from '@/types/sourceguide';
 
@@ -18,7 +18,7 @@ export default function CommodityDetailClient({
   initialCountry?: string | null;
 }) {
   const router = useRouter();
-  const { commodity: com, countries: cc, mappingsByCountry } = detail;
+  const { commodity: com, countries: cc, mappingsByCountry, relatedByCountry } = detail;
   // default to the country carried over from search/filters, if this commodity has it
   const defaultCountry =
     initialCountry && cc.includes(initialCountry) ? initialCountry : (cc[0] ?? null);
@@ -28,6 +28,20 @@ export default function CommodityDetailClient({
   const maps = country ? (mappingsByCountry[country] ?? []) : [];
   const pref = maps.filter((m) => m.tier === 'Preferred');
   const backups = maps.filter((m) => m.tier === 'Backup');
+
+  /* Suppliers approved for a particular commodity in this sub-category rather than for the
+     sub-category at large. Only ever populated on a catch-all node; see the loader. */
+  const related = country ? (relatedByCountry?.[country] ?? []) : [];
+
+  /* The chip the reader picked belongs in the URL. Without this a reload, a back navigation or
+     a shared link all reverted to the first country this commodity happens to carry, showing a
+     different supplier list than the one on screen when the link was copied. `replace` rather
+     than `push`, so changing country does not fill the back button with one entry per chip. */
+  useEffect(() => {
+    if (!country) return;
+    const url = `/sourceguide/commodity/${com.id}?country=${encodeURIComponent(country)}`;
+    router.replace(url, { scroll: false });
+  }, [country, com.id, router]);
 
   useEffect(() => {
     recordView({
@@ -138,6 +152,79 @@ export default function CommodityDetailClient({
                   </div>
                 </>
               )}
+              {related.length > 0 && (
+                <>
+                  <SectionLabel className="mt-6">
+                    Elsewhere in {com.subCategory} · {related.length}
+                  </SectionLabel>
+                  {/* Said plainly, because the distinction is the point: these people are
+                      approved for a specific commodity, not for the sub-category at large. */}
+                  <p className="-mt-1 mb-3 text-[12.5px] text-slate-500">
+                    Approved for one commodity under {com.subCategory} rather than for the
+                    sub-category generally. Open a commodity to see its own full list.
+                  </p>
+                  <div className="overflow-hidden rounded-xl border border-slate-200">
+                    <table className="w-full border-collapse text-left text-[13px]">
+                      <thead>
+                        <tr className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                          <th className="px-3 py-2">Supplier</th>
+                          <th className="px-3 py-2">Commodity</th>
+                          <th className="w-24 px-3 py-2">Tier</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {related.map((m) => (
+                          <tr key={m.id} className="border-t border-slate-100">
+                            <td className="px-3 py-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  m.supplierCode &&
+                                  router.push(
+                                    `/sourceguide/suppliers/${encodeURIComponent(m.supplierCode)}`,
+                                  )
+                                }
+                                className="text-left font-semibold text-slate-800 hover:text-[#2A7E4F] hover:underline"
+                              >
+                                {m.supplierName}
+                              </button>
+                              {m.supplierBlocked && (
+                                <span className="ml-2 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700">
+                                  Blocked
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  router.push(
+                                    `/sourceguide/commodity/${m.commodityId}?country=${encodeURIComponent(m.country)}`,
+                                  )
+                                }
+                                className="text-left text-slate-600 hover:text-[#2A7E4F] hover:underline"
+                              >
+                                {m.commodityName}
+                              </button>
+                            </td>
+                            <td className="px-3 py-2">
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                                  m.tier === 'Preferred'
+                                    ? 'bg-[#2A7E4F]/10 text-[#2A7E4F]'
+                                    : 'bg-slate-100 text-slate-600'
+                                }`}
+                              >
+                                {m.tier}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
               {backups.length > 0 && (
                 <>
                   <SectionLabel className="mt-6">Backup suppliers · {backups.length}</SectionLabel>
@@ -214,23 +301,6 @@ function Meta({ label, value }: { label: string; value: string }) {
         {label}
       </div>
       <div className="mt-0.5 text-[13.5px] font-medium">{value}</div>
-    </div>
-  );
-}
-
-function SectionLabel({
-  children,
-  className = '',
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`mb-3 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] ${className}`}
-      style={{ color: SG_BRAND }}
-    >
-      {children}
     </div>
   );
 }

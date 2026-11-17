@@ -3,7 +3,10 @@
 import pool from '@/lib/db';
 import { getCachedSession } from '@/lib/session';
 import { isPlatformAdminEmail, normalizeEmail } from '@/lib/require-access';
-import { ensurePoExpeditingSchema } from '@/lib/po-expediting-schema';
+import {
+  ensureExpeditingMatIdSnapshot,
+  ensurePoExpeditingSchema,
+} from '@/lib/po-expediting-schema';
 
 /* ─── Access ─────────────────────────────────────────────────── */
 
@@ -174,6 +177,13 @@ export interface AdminSupplierDetailLine {
   open_po_value_usd: number | null;
   original_delivery_date: string | null;
   sap_delivery_code: string | null;
+  /**
+   * False once the PO has left `sap_open_po_master` -- goods-received, cancelled or
+   * otherwise closed since we expedited it. Lines dispatched before the snapshot landed
+   * (14 Sep 2026) then have nothing left to show, and the screens say so rather than
+   * rendering a row of dashes that reads as a fault.
+   */
+  in_sap: boolean;
   buyer_email: string;
   buyer_display_name: string | null;
 }
@@ -189,11 +199,14 @@ export async function getAdminSupplierDetail(
   if (!(await hasPoTeamAccess())) return [];
   try {
     await ensurePoExpeditingSchema();
+    await ensureExpeditingMatIdSnapshot();
     /* Matched and read off the dispatch-time snapshot, with the master LEFT
-       JOINed only for the two fields that are not snapshotted (sap_mat_id and
-       the live SAP delivery code). Matching on s.supplier_name through an INNER
-       JOIN used to drop every line whose PO had since closed, so this drill-down
-       showed fewer lines than the supplier breakdown that opened it. */
+       JOINed for the live SAP delivery code and to tell whether the PO is still
+       open at all. sap_mat_id joined the snapshot in 005; before that it was
+       read from the master alone and went blank the moment a PO closed, beside
+       a description that had survived. Matching on s.supplier_name through an
+       INNER JOIN used to drop every line whose PO had since closed, so this
+       drill-down showed fewer lines than the supplier breakdown that opened it. */
     const res = await pool.query(
       `
       SELECT
@@ -209,11 +222,15 @@ export async function getAdminSupplierDetail(
         ae.dispatched_by         AS buyer_email,
         up.display_name          AS buyer_display_name,
         COALESCE(ae.item_description,  s.item_description)  AS item_description,
-        s.sap_mat_id,
+        COALESCE(ae.sap_mat_id,        s.sap_mat_id)        AS sap_mat_id,
         COALESCE(ae.open_qty,          s.open_qty)          AS open_qty,
         COALESCE(ae.open_po_value_usd, s.open_po_value_usd) AS open_po_value_usd,
         COALESCE(ae.delivery_date,     s.delivery_date)     AS original_delivery_date,
-        s.delivery_code          AS sap_delivery_code
+        s.delivery_code          AS sap_delivery_code,
+        /* The master holds only POs that are still open, so this is "the PO was
+           goods-received, cancelled or otherwise closed since we expedited it".
+           The screens need it to tell a closed PO apart from a rendering fault. */
+        (s.po_number IS NOT NULL) AS in_sap
       FROM active_expediting ae
       LEFT JOIN sap_open_po_master s
         ON ae.po_number = s.po_number AND ae.po_line = s.po_line
@@ -240,6 +257,7 @@ export async function getAdminSupplierDetail(
       open_po_value_usd: r.open_po_value_usd != null ? Number(r.open_po_value_usd) : null,
       original_delivery_date: toStr(r.original_delivery_date),
       sap_delivery_code: toStr(r.sap_delivery_code),
+      in_sap: r.in_sap === true,
       buyer_email: String(r.buyer_email ?? ''),
       buyer_display_name: toStr(r.buyer_display_name),
     }));
@@ -267,6 +285,13 @@ export interface AdminSessionDetailLine {
   open_po_value_usd: number | null;
   original_delivery_date: string | null;
   sap_delivery_code: string | null;
+  /**
+   * False once the PO has left `sap_open_po_master` -- goods-received, cancelled or
+   * otherwise closed since we expedited it. Lines dispatched before the snapshot landed
+   * (14 Sep 2026) then have nothing left to show, and the screens say so rather than
+   * rendering a row of dashes that reads as a fault.
+   */
+  in_sap: boolean;
 }
 
 export async function getAdminSessionDetail(sessionRef: string): Promise<AdminSessionDetailLine[]> {
@@ -278,6 +303,7 @@ export async function getAdminSessionDetail(sessionRef: string): Promise<AdminSe
   if (!(await hasPoTeamAccess())) return [];
   try {
     await ensurePoExpeditingSchema();
+    await ensureExpeditingMatIdSnapshot();
     const res = await pool.query(
       `
       SELECT
@@ -291,11 +317,15 @@ export async function getAdminSessionDetail(sessionRef: string): Promise<AdminSe
         ae.expedite_token,
         COALESCE(NULLIF(ae.supplier_name, ''), s.supplier_name, 'Unknown Supplier') AS supplier_name,
         COALESCE(ae.item_description,  s.item_description)  AS item_description,
-        s.sap_mat_id,
+        COALESCE(ae.sap_mat_id,        s.sap_mat_id)        AS sap_mat_id,
         COALESCE(ae.open_qty,          s.open_qty)          AS open_qty,
         COALESCE(ae.open_po_value_usd, s.open_po_value_usd) AS open_po_value_usd,
         COALESCE(ae.delivery_date,     s.delivery_date)     AS original_delivery_date,
-        s.delivery_code  AS sap_delivery_code
+        s.delivery_code  AS sap_delivery_code,
+        /* The master holds only POs that are still open, so this is "the PO was
+           goods-received, cancelled or otherwise closed since we expedited it".
+           The screens need it to tell a closed PO apart from a rendering fault. */
+        (s.po_number IS NOT NULL) AS in_sap
       FROM active_expediting ae
       LEFT JOIN sap_open_po_master s
         ON ae.po_number = s.po_number AND ae.po_line = s.po_line
@@ -321,6 +351,7 @@ export async function getAdminSessionDetail(sessionRef: string): Promise<AdminSe
       open_po_value_usd: r.open_po_value_usd != null ? Number(r.open_po_value_usd) : null,
       original_delivery_date: toStr(r.original_delivery_date),
       sap_delivery_code: toStr(r.sap_delivery_code),
+      in_sap: r.in_sap === true,
     }));
   } catch (err) {
     console.error('[getAdminSessionDetail]', err);

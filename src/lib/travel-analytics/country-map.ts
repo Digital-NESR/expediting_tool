@@ -81,6 +81,53 @@ const key = (value: string | null | undefined): string =>
   (value ?? '').replace(/ /g, ' ').trim().toUpperCase();
 
 /** Build the two lookup maps once, from the rows the laptop pool handed back. */
+/**
+ * The travel agency's own test bookings, which are not NESR travel.
+ *
+ * Satguru (the booking agency) books against company code 1000 "Satguru Test" on two invented
+ * cost centres. There are 17 such bookings, all through the portal, worth about $10,100 of
+ * fictitious spend: Dubai to Singapore, Bombay, Seattle, Istanbul, by "Satguru admin" and two
+ * agency staff. They were the whole of the "unmapped" population, which is why they resolved to
+ * no country -- neither the cost centre nor the company exists, because neither is real.
+ *
+ * Matched on the cost centre AND the company code rather than the company name, which is free
+ * text on the booking and would catch a genuine NESR row that happened to mention "test".
+ *
+ * Excluded from the figures rather than left to land in "unmapped", because an admin reading
+ * total spend should not be shown agency test flights as though they were a country whose
+ * mapping is missing. The count is reported so they are visibly removed, not silently dropped.
+ */
+const TEST_COMPANY_CODE = '1000';
+const TEST_COST_CENTRES = new Set(['C999999999', 'C999999997']);
+
+export function isTestBooking(
+  costCentre: string | null | undefined,
+  companyCode: string | null | undefined,
+): boolean {
+  return key(companyCode) === TEST_COMPANY_CODE && TEST_COST_CENTRES.has(key(costCentre));
+}
+
+/**
+ * How a country is written for a reader.
+ *
+ * SAP spells Jordan "Jordon", and that spelling flows through the cost-centre export into this
+ * mapping -- 24 rows of it in `data/source/cost-center-mapping.csv`. It is matched rather than
+ * corrected upstream, which is a decision already taken elsewhere in this codebase: SOA's country
+ * seed accepts both spellings and says plainly that correcting it at source is not its business,
+ * because SAP is the authority for this data.
+ *
+ * So the correction belongs here, at the point of display, where the next reseed cannot revert it
+ * and nothing upstream has to change. Applied to BOTH the resolved country on a booking and the
+ * list of grantable countries, so a grant, a filter and a chart label always say the same word --
+ * normalising one without the other would write grants that match no booking.
+ */
+const DISPLAY_SPELLING: Record<string, string> = { Jordon: 'Jordan' };
+
+export function displayCountry(country: string | null | undefined): string {
+  const trimmed = (country ?? '').trim();
+  return DISPLAY_SPELLING[trimmed] ?? trimmed;
+}
+
 export function buildCountryIndex(
   departments: readonly CostCentreDepartment[],
   companies: readonly CostCentreCompany[],
@@ -89,7 +136,7 @@ export function buildCountryIndex(
   for (const c of companies) {
     const code = key(c.code);
     if (!code) continue;
-    byCompanyCode.set(code, { name: (c.name ?? '').trim(), country: (c.country ?? '').trim() });
+    byCompanyCode.set(code, { name: (c.name ?? '').trim(), country: displayCountry(c.country) });
   }
 
   const byCostCentre = new Map<string, CostCentreEntry>();
@@ -164,7 +211,7 @@ export function resolveBookingCountry(
 export function countryOptions(companies: readonly CostCentreCompany[]): string[] {
   const seen = new Set<string>();
   for (const c of companies) {
-    const country = (c.country ?? '').trim();
+    const country = displayCountry(c.country);
     if (country) seen.add(country);
   }
   return [...seen].sort((a, b) => a.localeCompare(b));

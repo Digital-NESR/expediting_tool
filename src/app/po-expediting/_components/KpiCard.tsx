@@ -51,10 +51,7 @@ export function KpiCard({
             "$118.4M", but at text-3xl that is still 114px in a 106px box -- abbreviating and
             then overflowing anyway would have been the worst of both. At text-2xl it is 91px,
             with room for the eight characters a "$12.3B" total would need. */}
-        <p
-          className={`text-2xl sm:text-3xl font-bold tracking-tight ${valueColor}`}
-          title={value}
-        >
+        <p className={`text-2xl sm:text-3xl font-bold tracking-tight ${valueColor}`} title={value}>
           {compactValue ? (
             <>
               <span className="sm:hidden">{compactValue}</span>

@@ -19,6 +19,8 @@ import {
 } from '@/components/ToolMarks';
 import {
   Laptop,
+  Forklift,
+  BookMarked,
   Building2,
   GraduationCap,
   ClipboardCheck,
@@ -27,6 +29,7 @@ import {
   Receipt,
   ShieldCheck,
   BarChart3,
+  ListChecks,
 } from 'lucide-react';
 
 export type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
@@ -436,31 +439,25 @@ export const TOOLS: ToolDef[] = [
 
   {
     id: 'catalog-manager',
-    group: 'development',
+    group: 'online',
     keywords: 'catalog manager supplier service indirect item rates price catalog spend',
     name: 'Catalog Repo',
     subtitle: <>Supplier Service &amp; Indirect Item Rates</>,
     description:
       'Maintain country-segmented supplier price catalogs, route rate approvals, and keep an audit-ready record of agreed prices.',
-    icon: (
-      <svg
-        className="h-6 w-6 text-gray-400"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={1.75}
-      >
-        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-      </svg>
-    ),
-    logoClass: 'bg-gray-100',
-    hoverClass: HOVER_SOURCE,
-    accent: PREVIEW_GREY,
-    tone: 'preview',
+    icon: <BookMarked className="h-6 w-6 text-[#307c4c]" />,
+    logoClass: 'bg-[#307c4c]/10',
+    hoverClass: HOVER_GREEN,
+    accent: NESR_GREEN,
+    tone: 'live',
     route: '/catalog-manager',
-    access: { kind: 'adminPreview' },
-    badge: { kind: 'preview' },
-    openLabel: 'Open preview →',
+    /* `always`, like SOA Consolidation and for the same reason: the tool resolves any signed-in
+       employee to Viewer and has its own request-access page for Contributor and Approver, so
+       the gate that matters is inside the tool rather than on this card. An adminPreview card
+       would be inert for everybody else -- which is exactly what it was. */
+    access: { kind: 'always' },
+    badge: { kind: 'success', label: 'Open Access' },
+    openLabel: 'Open →',
   },
 
   {
@@ -480,6 +477,33 @@ export const TOOLS: ToolDef[] = [
     route: '/learning-hub',
     access: { kind: 'always' },
     badge: { kind: 'success', label: 'Open Access' },
+  },
+
+  {
+    id: 'rrsm',
+    group: 'development',
+    keywords:
+      'rrsm rental recurrent recurring services management hire lease equipment rental service agreement renewal off-hire',
+    name: 'RRSM',
+    subtitle: <>Rental &amp; Recurrent Services Management</>,
+    /* Description restates the name and stops there. The portal is not built and the design is
+       not readable from here yet, so anything about how it works would be invented -- and the
+       "Coming Soon" pill already carries the fact that it has not shipped, which is why the
+       Supply Chain Analytics entry does not say so in its description either. */
+    description: 'Manage NESR’s equipment rentals and recurring service agreements in one place.',
+    icon: <Forklift className="w-6 h-6 text-gray-400" />,
+    logoClass: 'bg-gray-100',
+    hoverClass: HOVER_GREEN,
+    accent: PREVIEW_GREY,
+    tone: 'preview',
+    route: '/rrsm',
+    /* Greyed and inert for everyone but a platform admin. The card is only the UI half of
+       that -- `src/app/rrsm/layout.tsx` carries the server-side gate, because this one is
+       bypassed by typing the URL. */
+    access: { kind: 'adminPreview' },
+    badge: { kind: 'preview' },
+    openLabel: 'Open preview →',
+    helpHref: '/help/rrsm',
   },
 
   {
@@ -527,6 +551,30 @@ export const TOOLS: ToolDef[] = [
     access: { kind: 'always' },
     badge: { kind: 'adminOrLock', label: 'Access Required' },
     openLabel: 'Open →',
+  },
+
+  {
+    id: 'icsa',
+    group: 'development',
+    keywords:
+      'supply chain self assessment scsa icsa internal control self-audit sox controls compliance governance champion cycle questionnaire',
+    name: 'Supply Chain Self-Assessment',
+    subtitle: 'Internal controls, aligned with SOX',
+    description:
+      'Run Supply Chain self-audit cycles aligned with SOX controls: champions nominate respondents, each answers their own role-based questionnaire, and reviewers track coverage and compliance by country.',
+    icon: <ListChecks className="h-6 w-6 text-gray-400" />,
+    logoClass: 'bg-gray-100',
+    hoverClass: HOVER_GREEN,
+    accent: PREVIEW_GREY,
+    tone: 'preview',
+    route: '/icsa',
+    /* Coming soon: greyed out for everybody, clickable for administrators only, the same as
+       Supply Chain Analytics. Once it ships this goes back to `always` with an `adminOrLock`
+       badge -- the tool's own layout is the real gate, since respondents are nominated and
+       champions appointed and there is nothing to request from the card. */
+    access: { kind: 'adminPreview' },
+    badge: { kind: 'preview' },
+    openLabel: 'Open preview →',
   },
 
   {

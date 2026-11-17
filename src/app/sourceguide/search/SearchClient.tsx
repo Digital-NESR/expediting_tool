@@ -74,7 +74,8 @@ export default function SearchClient({
     const t = setTimeout(async () => {
       const [com, sup] = await Promise.all([
         searchCommodities(query, filters as SgSearchFilters, 1000),
-        searchSuppliers(query, 5),
+        /* A list, not a strip: suppliers are now a tab of their own. */
+        searchSuppliers(query, 50),
       ]);
       if (id === seq.current) {
         setResults(com);
@@ -84,6 +85,10 @@ export default function SearchClient({
     }, 150);
     return () => clearTimeout(t);
   }, [query, filters]);
+
+  /* Roughly a third of what people type into SourceGuide search is a supplier name or a
+     pasted vendor code, and until now those got five cards above a commodity list. */
+  const [tab, setTab] = useState<'commodities' | 'suppliers'>('commodities');
 
   // usage logging: record a committed search (query only, deduped) — not filter tweaks.
   // Seed with the URL-hydrated initial query so opening a shared ?q= link does not log a phantom search.
@@ -276,135 +281,177 @@ export default function SearchClient({
             </div>
           </div>
 
-          {supHits.length > 0 && (
-            <div className="mb-6">
-              <div
-                className="mb-2.5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em]"
-                style={{ color: SG_BRAND }}
+          <div className="mb-4 flex items-center gap-1 border-b border-slate-200">
+            {(
+              [
+                ['commodities', 'Commodities', results.length],
+                ['suppliers', 'Suppliers', supHits.length],
+              ] as const
+            ).map(([id, label, n]) => (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                className="-mb-px border-b-2 px-3.5 py-2 text-[13.5px] font-semibold transition-colors"
+                style={
+                  tab === id
+                    ? { borderColor: SG_BRAND, color: SG_BRAND }
+                    : { borderColor: 'transparent', color: '#64748b' }
+                }
               >
-                Matching suppliers
-              </div>
-              <div className="flex flex-wrap gap-3">
-                {supHits.map((s) => (
+                {label}
+                <span className="ml-1.5 font-mono text-[11.5px] text-slate-400">{n}</span>
+              </button>
+            ))}
+          </div>
+
+          {tab === 'suppliers' && (
+            <div className="flex flex-col gap-2.5">
+              {supHits.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center text-[13.5px] text-slate-500">
+                  {query.trim().length < 2
+                    ? 'Type a supplier name, or paste a vendor code.'
+                    : 'No supplier matches that.'}
+                </div>
+              ) : (
+                supHits.map((sup) => (
                   <button
-                    key={s.code}
+                    key={sup.code}
                     onClick={() =>
-                      router.push(`/sourceguide/suppliers/${encodeURIComponent(s.code)}`)
+                      router.push(
+                        sup.unmapped
+                          ? '/sourceguide/mappings'
+                          : `/sourceguide/suppliers/${encodeURIComponent(sup.code)}`,
+                      )
                     }
                     className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left hover:border-[#6AAF8E]"
                   >
-                    <SupAvatar name={s.name} size={36} />
-                    <div className="min-w-0">
-                      <div className="max-w-[240px] truncate text-[13.5px] font-semibold">
-                        {s.name}
-                      </div>
-                      <div className="text-[12px] text-slate-500">
-                        {s.countries.length > 0 && (
-                          <span className="text-slate-400">Used in: </span>
+                    <SupAvatar name={sup.name} size={38} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="truncate text-[14px] font-semibold">{sup.name}</span>
+                        {sup.unmapped && (
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[10.5px] font-semibold"
+                            style={{ background: '#fef3c7', color: '#92400e' }}
+                            title="In the Approved Vendor List, but not mapped to any commodity in SourceGuide"
+                          >
+                            Not yet mapped
+                          </span>
                         )}
-                        {s.countries
-                          .map((c) => countryByCode.get(c)?.name)
-                          .filter(Boolean)
-                          .join(', ')}
+                      </div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-[12px] text-slate-400">
+                        <span className="font-mono">{sup.code}</span>
+                        {sup.unmapped ? (
+                          <span>In the AVL · no approval recorded here yet</span>
+                        ) : (
+                          sup.countries.length > 0 && (
+                            <span>
+                              Used in{' '}
+                              {sup.countries.map((c) => countryByCode.get(c)?.name ?? c).join(', ')}
+                            </span>
+                          )
+                        )}
                       </div>
                     </div>
                   </button>
-                ))}
-              </div>
+                ))
+              )}
             </div>
           )}
 
-          <div className="flex flex-col gap-2.5">
-            {shown.map((com) => {
-              const pref = com.preferred;
-              // carry the active country filter (or the displayed preferred country) into the detail page
-              const linkCountry =
-                filters.countries.find((c) => com.countries.includes(c)) || pref?.country || '';
-              return (
-                <button
-                  key={com.id}
-                  onClick={() =>
-                    router.push(
-                      `/sourceguide/commodity/${com.id}${linkCountry ? `?country=${encodeURIComponent(linkCountry)}` : ''}`,
-                    )
-                  }
-                  className="grid grid-cols-1 items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:-translate-y-px hover:border-[#6AAF8E] hover:shadow-sm sm:grid-cols-[1fr_auto]"
-                >
-                  <div className="min-w-0">
-                    <div className="mb-1 flex flex-wrap items-center gap-1.5 text-[12px] text-slate-400">
-                      {com.path.slice(0, 3).map((p, i) => (
-                        <span key={i} className="flex items-center gap-1.5">
-                          {i > 0 && <ChevronRight className="h-3 w-3 text-slate-300" />}
-                          <span
-                            className={
-                              i === Math.min(2, com.path.length - 1)
-                                ? 'font-semibold text-slate-600'
-                                : ''
-                            }
-                          >
-                            {p}
+          {tab === 'commodities' && (
+            <div className="flex flex-col gap-2.5">
+              {shown.map((com) => {
+                const pref = com.preferred;
+                // carry the active country filter (or the displayed preferred country) into the detail page
+                const linkCountry =
+                  filters.countries.find((c) => com.countries.includes(c)) || pref?.country || '';
+                return (
+                  <button
+                    key={com.id}
+                    onClick={() =>
+                      router.push(
+                        `/sourceguide/commodity/${com.id}${linkCountry ? `?country=${encodeURIComponent(linkCountry)}` : ''}`,
+                      )
+                    }
+                    className="grid grid-cols-1 items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 text-left transition-all hover:-translate-y-px hover:border-[#6AAF8E] hover:shadow-sm sm:grid-cols-[1fr_auto]"
+                  >
+                    <div className="min-w-0">
+                      <div className="mb-1 flex flex-wrap items-center gap-1.5 text-[12px] text-slate-400">
+                        {com.path.slice(0, 3).map((p, i) => (
+                          <span key={i} className="flex items-center gap-1.5">
+                            {i > 0 && <ChevronRight className="h-3 w-3 text-slate-300" />}
+                            <span
+                              className={
+                                i === Math.min(2, com.path.length - 1)
+                                  ? 'font-semibold text-slate-600'
+                                  : ''
+                              }
+                            >
+                              {p}
+                            </span>
                           </span>
-                        </span>
-                      ))}
+                        ))}
+                      </div>
+                      <div className="text-[16px] font-semibold tracking-tight">
+                        {com.name}
+                        {com.code && (
+                          <span
+                            className="ml-2 font-mono text-[11.5px] font-semibold"
+                            style={{ color: SG_BRAND }}
+                          >
+                            {com.code}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {com.countries.map((c) => {
+                          const cc = countryByCode.get(c);
+                          return cc ? <CountryFlag key={c} country={cc} /> : null;
+                        })}
+                      </div>
                     </div>
-                    <div className="text-[16px] font-semibold tracking-tight">
-                      {com.name}
-                      {com.code && (
-                        <span
-                          className="ml-2 font-mono text-[11.5px] font-semibold"
-                          style={{ color: SG_BRAND }}
-                        >
-                          {com.code}
+                    <div className="flex items-center gap-4">
+                      {pref && (
+                        <div className="text-right">
+                          <div className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                            Preferred · {pref.country}
+                          </div>
+                          <div className="mt-0.5 flex items-center justify-end gap-1.5 text-[13.5px] font-semibold">
+                            {pref.supplierName}
+                            {pref.blocked && <BlockedBadge compact />}
+                          </div>
+                        </div>
+                      )}
+                      {com.backupCount > 0 && (
+                        <span className="rounded-full bg-[#ececed] px-2.5 py-1 text-[11px] font-semibold text-slate-500">
+                          +{com.backupCount} backup
                         </span>
                       )}
+                      <ChevronRight className="h-4 w-4 text-slate-300" />
                     </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {com.countries.map((c) => {
-                        const cc = countryByCode.get(c);
-                        return cc ? <CountryFlag key={c} country={cc} /> : null;
-                      })}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    {pref && (
-                      <div className="text-right">
-                        <div className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-slate-400">
-                          Preferred · {pref.country}
-                        </div>
-                        <div className="mt-0.5 flex items-center justify-end gap-1.5 text-[13.5px] font-semibold">
-                          {pref.supplierName}
-                          {pref.blocked && <BlockedBadge compact />}
-                        </div>
-                      </div>
-                    )}
-                    {com.backupCount > 0 && (
-                      <span className="rounded-full bg-[#ececed] px-2.5 py-1 text-[11px] font-semibold text-slate-500">
-                        +{com.backupCount} backup
-                      </span>
-                    )}
-                    <ChevronRight className="h-4 w-4 text-slate-300" />
-                  </div>
-                </button>
-              );
-            })}
+                  </button>
+                );
+              })}
 
-            {!loading && results.length === 0 && (
-              <div className="rounded-2xl border border-slate-200 bg-white py-16 text-center">
-                <Search className="mx-auto h-8 w-8 text-slate-300" />
-                <div className="mt-3 text-[16px] font-semibold text-slate-900">
-                  No commodities match
+              {!loading && results.length === 0 && (
+                <div className="rounded-2xl border border-slate-200 bg-white py-16 text-center">
+                  <Search className="mx-auto h-8 w-8 text-slate-300" />
+                  <div className="mt-3 text-[16px] font-semibold text-slate-900">
+                    No commodities match
+                  </div>
+                  <div className="mt-1.5 text-[13.5px] text-slate-500">
+                    Try a broader term or clear your filters.
+                  </div>
                 </div>
-                <div className="mt-1.5 text-[13.5px] text-slate-500">
-                  Try a broader term or clear your filters.
-                </div>
-              </div>
-            )}
-            {loading && results.length === 0 && (
-              <div className="py-16 text-center text-[13.5px] text-slate-400">Searching…</div>
-            )}
-          </div>
+              )}
+              {loading && results.length === 0 && (
+                <div className="py-16 text-center text-[13.5px] text-slate-400">Searching…</div>
+              )}
+            </div>
+          )}
 
-          {results.length > limit && (
+          {tab === 'commodities' && results.length > limit && (
             <div className="mt-6 text-center">
               <button
                 onClick={() => setLimit((l) => l + 40)}

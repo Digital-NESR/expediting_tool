@@ -262,6 +262,7 @@ interface MasterLine {
   po_number: string;
   po_line: string | null;
   item_description: string | null;
+  sap_mat_id: string | null;
   open_qty: string | number | null;
   open_po_value_usd: string | number | null;
   delivery_date: Date | string | null;
@@ -419,7 +420,7 @@ export async function prepareAllExpediteDispatches(
   const masterByKey = new Map<string, MasterLine>();
   if (requestedPoNumbers.length > 0) {
     const masterRows = await pool.query<MasterLine>(
-      `SELECT s.po_number, s.po_line, s.item_description, s.open_qty,
+      `SELECT s.po_number, s.po_line, s.item_description, s.sap_mat_id, s.open_qty,
               s.open_po_value_usd, s.delivery_date, s.po_release_date,
               s.supplier_name, s.supplier_id, s.country, s.p_group
          FROM sap_open_po_master s
@@ -517,19 +518,24 @@ export async function prepareAllExpediteDispatches(
           await client.query(
             /* The master fields are SNAPSHOTTED here, not just referenced: n8n
                truncates and reloads sap_open_po_master nightly with only the POs
-               still open, so a line's country/segment/description/quantity/value/
-               date are gone from the master the moment the PO closes. Analytics
-               reads these columns so completed work keeps counting. */
+               still open, so a line's country/segment/description/material/
+               quantity/value/date are gone from the master the moment the PO
+               closes. Analytics reads these columns so completed work keeps
+               counting.
+
+               `sap_mat_id` was missing from this list until 005 and is the
+               reason a goods-received line showed a blank material number
+               beside a description that had survived. */
             `INSERT INTO active_expediting
                (po_number, po_line, expedite_token, workflow_state,
                 current_status, dispatched_by, dispatched_at,
                 session_ref, supplier_name, supplier_id,
-                country, p_group, item_description, open_qty,
+                country, p_group, item_description, sap_mat_id, open_qty,
                 open_po_value_usd, delivery_date, responded_at,
                 created_at, updated_at)
              VALUES ($1, $2, $3, 'Email Sent', 'Pending Supplier Response',
                      $4, NOW(), $5, $6, $7,
-                     $8, $9, $10, $11, $12, $13, NULL,
+                     $8, $9, $10, $11, $12, $13, $14, NULL,
                      NOW(), NOW())
              ON CONFLICT (po_number, po_line)
              DO UPDATE SET
@@ -547,6 +553,7 @@ export async function prepareAllExpediteDispatches(
                country           = EXCLUDED.country,
                p_group           = EXCLUDED.p_group,
                item_description  = EXCLUDED.item_description,
+               sap_mat_id        = EXCLUDED.sap_mat_id,
                open_qty          = EXCLUDED.open_qty,
                open_po_value_usd = EXCLUDED.open_po_value_usd,
                delivery_date     = EXCLUDED.delivery_date,
@@ -565,6 +572,7 @@ export async function prepareAllExpediteDispatches(
               item.country,
               item.p_group,
               item.item_description,
+              item.sap_mat_id,
               item.open_qty,
               item.open_po_value_usd,
               item.delivery_date,

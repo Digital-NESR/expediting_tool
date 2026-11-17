@@ -298,6 +298,41 @@ export const DEVICE_TYPE_OPTIONS = ['Laptop', 'Desktop'];
 
 export const DEVICE_AGE_OPTIONS = ['< 1 year', '1-3 years', '4-5 years', '5+ years'];
 
+/**
+ * The model a requester picks when no catalogued device fits.
+ *
+ * Lives here rather than beside the Freshservice code so the admin screen can
+ * name it without pulling a server-only module into the client bundle. It is
+ * priced by rule at a nominal dollar, never from the cost sheet — by definition
+ * nobody knows what the device is until the request exists — so the price
+ * editor excludes it rather than inviting an admin to key a figure that would
+ * be ignored.
+ */
+export const EXCEPTIONAL_DEVICE_MODEL = 'Other (Exceptional case only)';
+
+/**
+ * What an exceptional device is worth on the WIP: one dollar.
+ *
+ * Not zero, and not blank. The Freshservice field is a mandatory decimal, so it
+ * has to carry a number; zero would read as "this device was free" and is
+ * indistinguishable from an unfilled field. A dollar is obviously a
+ * placeholder, so it satisfies the form while telling whoever handles the WIP
+ * that the figure still has to be established.
+ */
+export const EXCEPTIONAL_DEVICE_PRICE_USD = 1;
+
+/**
+ * Stamped on prices seeded as placeholders rather than set by a person.
+ *
+ * The whole reason the $100 default moved out of the code: a figure nobody has
+ * reviewed now looks different from one an admin keyed, and the Devices tab can
+ * say how many are still guesses. Saving over a seeded row replaces this with
+ * the admin's address, so reviewing a price is what stops it counting as one.
+ *
+ * Repeated literally in 005_seed_placeholder_prices.sql — SQL cannot import it.
+ */
+export const PLACEHOLDER_PRICE_MARKER = 'seed:placeholder';
+
 export const COUNTRY_OPTIONS = [
   'Saudi Arabia',
   'Abu Dhabi',
@@ -463,6 +498,59 @@ export const LAPTOP_STATUS_ORDER: readonly LaptopRequestStatus[] = [
   'Rejected by SCD',
   'Cancelled',
 ];
+
+/**
+ * Statuses the tool no longer produces, and so no longer offers as a choice.
+ *
+ * 'Assign from Inventory & Closed' is written by nothing at all — every
+ * reference to it is a read. It looks like the remains of a design where
+ * assigning a device and handing it over were separate steps; the handover step
+ * went, the status stayed, and it has sat next to 'Assign from Inventory' ever
+ * since looking like a meaningful second choice.
+ *
+ * 'Approved' is produced only by the fallback in getNextApprovalStatus, for a
+ * request that finished with nothing procured and nothing assigned. The IT
+ * Manager's three decisions each set one or the other, so nothing reaches it —
+ * but the branch stays, because a defensive terminal status costs nothing and
+ * removing it would leave a request with nowhere to go.
+ *
+ * 'Procure New Details' and 'CM Confirm Device' are the remains of a longer
+ * route, where specifying the device and confirming it were waypoints of their
+ * own. Both were collapsed — `submitProcureNewDetails` forwards to 'CM Approval'
+ * and the Country Manager's send-back returns to 'IT Approval' — because the
+ * same two people were walking steps 1 and 2 twice over. Nothing writes either
+ * one now.
+ *
+ * These two matter more than the first pair, because they are not merely
+ * pointless: they are absorbing. `getNextApprovalStatus` and
+ * `getRejectStatusForStage` both return null for them, so a request put into
+ * one has no move out; and they are in neither APPROVAL_ACTIVE_STATUSES nor
+ * TERMINAL_STATUSES, so it also drops out of every pending queue and stat count
+ * built from those. Offering them in the override let an admin strand a request
+ * somewhere nothing could see it and nothing could move it.
+ *
+ * All four are kept in the type, the badges and the stat counts. The point is
+ * only to stop offering them: a legacy row must still render as itself rather
+ * than falling through as an unknown status.
+ */
+export const VESTIGIAL_STATUSES: readonly LaptopRequestStatus[] = [
+  'Approved',
+  'Assign from Inventory & Closed',
+  'Procure New Details',
+  'CM Confirm Device',
+];
+
+export function isOfferableLaptopStatus(status: LaptopRequestStatus): boolean {
+  return !VESTIGIAL_STATUSES.includes(status);
+}
+
+/** What the request list's status filter offers. */
+export const STATUS_FILTER_OPTIONS: readonly LaptopRequestStatus[] =
+  STATUS_OPTIONS.filter(isOfferableLaptopStatus);
+
+/** What the admin override offers — the only place a status is set by hand. */
+export const LAPTOP_OVERRIDE_STATUSES: readonly LaptopRequestStatus[] =
+  LAPTOP_STATUS_ORDER.filter(isOfferableLaptopStatus);
 
 /**
  * The stages a request passes through when an admin jumps it from one status to another.

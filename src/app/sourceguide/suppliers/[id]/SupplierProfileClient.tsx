@@ -69,8 +69,8 @@ export default function SupplierProfileClient({
             </div>
             {profile.blocked && (
               <p className="mt-1.5 text-[12.5px] font-medium" style={{ color: '#a1342a' }}>
-                SAP has this vendor centrally blocked for purchasing. Check with your
-                buyer before sourcing against the mappings below.
+                SAP has this vendor centrally blocked for purchasing. Check with your buyer before
+                sourcing against the mappings below.
               </p>
             )}
             <div className="mt-1.5 flex flex-wrap items-center gap-2.5 text-[13.5px] text-slate-500">
@@ -151,7 +151,14 @@ export default function SupplierProfileClient({
                 return (
                   <div
                     key={m.id}
-                    onClick={() => router.push(`/sourceguide/commodity/${m.commodityId}`)}
+                    /* The country of the card this row sits in. Without it the commodity page
+                       opened on whichever country happened to be first and showed a different
+                       set of suppliers than the one just clicked. */
+                    onClick={() =>
+                      router.push(
+                        `/sourceguide/commodity/${m.commodityId}?country=${encodeURIComponent(code)}`,
+                      )
+                    }
                     className={`flex cursor-pointer items-center gap-3 px-5 py-3 hover:bg-[#eaf4ef] ${i < rows.length - 1 ? 'border-b border-slate-100' : ''}`}
                   >
                     <div className="min-w-0 flex-1">

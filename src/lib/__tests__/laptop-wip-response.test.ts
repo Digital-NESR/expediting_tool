@@ -12,7 +12,7 @@ import { extractServiceRequestId } from '@/lib/laptop-procurement/wip';
  */
 describe('finding the service request id in the workflow response', () => {
   it('reads it from the Freshservice reply passed straight through', () => {
-    // The real shape, from SR-144437.
+    // The real shape, from INC-144437.
     const body = {
       service_request: {
         id: 144437,
@@ -53,7 +53,7 @@ describe('finding the service request id in the workflow response', () => {
 
   it('ignores a non-integer', () => {
     expect(extractServiceRequestId({ id: 1.5 })).toBeNull();
-    expect(extractServiceRequestId({ id: 'SR-144437' })).toBeNull();
+    expect(extractServiceRequestId({ id: 'INC-144437' })).toBeNull();
   });
 
   it('survives a self-referencing object without hanging', () => {

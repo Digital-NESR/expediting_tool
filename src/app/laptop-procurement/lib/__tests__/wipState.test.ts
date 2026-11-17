@@ -106,3 +106,113 @@ describe('the failure reason', () => {
     }
   });
 });
+
+describe('the moment just after approval', () => {
+  /* The WIP is raised in after(), so the response that renders the screen goes
+     back before it exists. The approver therefore sees the gap, and "not
+     raised" there was accurate but read as a fault — it resolves a second
+     later. */
+  const NOW = Date.parse('2026-11-05T10:00:00Z');
+  const ago = (ms: number) => new Date(NOW - ms).toISOString();
+
+  it('says it is being raised when the approval just happened', () => {
+    const s = wipState(request({ updated_at: ago(3_000) }), NOW);
+    expect(s).toEqual({ kind: 'raising' });
+  });
+
+  it('gives up on "raising" once too long has passed to still be in flight', () => {
+    // Longer than the tool's own 20s timeout by a wide margin, so nothing is
+    // still running — this one genuinely needs somebody to look.
+    const s = wipState(request({ updated_at: ago(5 * 60 * 1000) }), NOW);
+    expect(s).toEqual({ kind: 'pending' });
+  });
+
+  it('treats a clock slightly ahead of the browser as just now, not long ago', () => {
+    // The timestamp is the database's and the comparison the browser's; a few
+    // seconds of skew must not read as an ancient request.
+    const s = wipState(request({ updated_at: new Date(NOW + 5_000).toISOString() }), NOW);
+    expect(s).toEqual({ kind: 'raising' });
+  });
+
+  it('falls back to "not raised" when the timestamp is missing or unreadable', () => {
+    // The state that prompts someone to look, rather than a reassurance that
+    // would never resolve.
+    for (const updated_at of [null, undefined, '', 'not a date'] as unknown as string[]) {
+      expect(wipState(request({ updated_at }), NOW)).toEqual({ kind: 'pending' });
+    }
+  });
+
+  it('never calls a raised WIP "raising", however recent', () => {
+    const s = wipState(request({ updated_at: ago(1_000), freshservice_request_id: 145476 }), NOW);
+    expect(s).toEqual({ kind: 'raised', serviceRequestId: 145476 });
+  });
+
+  it('never calls a failed WIP "raising", however recent', () => {
+    // The dangerous confusion: a failure a second old must not be dressed up as
+    // work still in progress, or nobody ever acts on it.
+    const s = wipState(request({ updated_at: ago(1_000), freshservice_attempted_at: WHEN }), NOW);
+    expect(s?.kind).toBe('failed');
+  });
+
+  it('stays silent before the request is fully approved, however recent', () => {
+    const s = wipState(
+      request({ status: 'IT Approval' as LaptopRequest['status'], updated_at: ago(1_000) }),
+      NOW,
+    );
+    expect(s).toBeNull();
+  });
+});
+
+/* The switch the integration is turned off by. Without this the screen reads a
+   skipped WIP as one in flight, because the columns are identical: it promises
+   a WIP is coming, waits out the two-minute window, then reports it missing —
+   for every approved request, for as long as the switch is off. */
+describe('when the integration is switched off', () => {
+  const JUST_NOW = Date.parse(WHEN);
+
+  it('says so rather than claiming a WIP is on its way', () => {
+    const s = wipState(request({ updated_at: WHEN } as Partial<LaptopRequest>), JUST_NOW, false);
+    expect(s).toEqual({ kind: 'disabled' });
+  });
+
+  it('says so instead of reporting one missing once the window has passed', () => {
+    const s = wipState(
+      request({ updated_at: WHEN } as Partial<LaptopRequest>),
+      JUST_NOW + 10 * 60 * 1000,
+      false,
+    );
+    expect(s).toEqual({ kind: 'disabled' });
+  });
+
+  it('still reports a WIP raised before the switch was thrown', () => {
+    // Switching the integration off does not rewrite history.
+    const s = wipState(
+      request({ freshservice_request_id: 145476, freshservice_attempted_at: WHEN }),
+      JUST_NOW,
+      false,
+    );
+    expect(s).toEqual({ kind: 'raised', serviceRequestId: 145476 });
+  });
+
+  it('still reports a failure recorded before the switch was thrown', () => {
+    const s = wipState(
+      request({ freshservice_attempted_at: WHEN, freshservice_error: 'Freshservice unreachable' }),
+      JUST_NOW,
+      false,
+    );
+    expect(s).toEqual({ kind: 'failed', reason: 'Freshservice unreachable' });
+  });
+
+  it('stays silent on a request that never reached Procure New', () => {
+    const s = wipState(request({ status: 'CM Approval' }), JUST_NOW, false);
+    expect(s).toBeNull();
+  });
+
+  it('assumes the integration is on when the caller does not say', () => {
+    /* The default matters: a screen that wrongly says "raising" corrects itself
+       a second later, while one that wrongly says "switched off" would hide a
+       real failure behind a reassurance. */
+    const s = wipState(request({ updated_at: WHEN } as Partial<LaptopRequest>), JUST_NOW);
+    expect(s).toEqual({ kind: 'raising' });
+  });
+});

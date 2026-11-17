@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DEVICE_AGE_OPTIONS,
@@ -359,8 +359,43 @@ function fileBadgeLabel(mime: string | null) {
  * whose WIP succeeded. The three states are kept visually distinct for that
  * reason — "not raised" is a job for someone, "raised" is not.
  */
-function WipSection({ request }: { request: LaptopRequestDetailData['request'] }) {
-  const state = wipState(request);
+const WIP_POLL_MS = 2500;
+const WIP_POLL_ATTEMPTS = 12;
+
+function WipSection({
+  request,
+  wipEnabled,
+}: {
+  request: LaptopRequestDetailData['request'];
+  wipEnabled: boolean;
+}) {
+  const router = useRouter();
+  /* `now` left to wipState's own default rather than passed from here: reading
+     the clock in render is what it has always done, and doing it explicitly at
+     the call site only moves the impurity somewhere the compiler objects to. */
+  const state = wipState(request, undefined, wipEnabled);
+  const isRaising = state?.kind === 'raising';
+
+  /* The WIP is raised in after(), so it happens once the response that rendered
+     this screen has already gone. The approver therefore sees the moment before
+     it exists, and refreshing by hand was the only way to see it land. Polled
+     instead, and only while it is in flight — a handful of refreshes over half
+     a minute, which is longer than the whole round trip can take (n8n gives up
+     at 15s, the tool at 20s), then it stops rather than polling for ever. */
+  useEffect(() => {
+    if (!isRaising) return;
+    let attempts = 0;
+    const id = setInterval(() => {
+      attempts += 1;
+      if (attempts > WIP_POLL_ATTEMPTS) {
+        clearInterval(id);
+        return;
+      }
+      router.refresh();
+    }, WIP_POLL_MS);
+    return () => clearInterval(id);
+  }, [isRaising, router]);
+
   if (!state) return null;
 
   const boxClass =
@@ -368,13 +403,31 @@ function WipSection({ request }: { request: LaptopRequestDetailData['request'] }
       ? 'border-emerald-500/40 bg-emerald-500/10'
       : state.kind === 'failed'
         ? 'border-red-500/40 bg-red-500/10'
-        : 'border-amber-500/40 bg-amber-500/10';
+        : state.kind === 'raising'
+          ? 'border-sky-500/40 bg-sky-500/10'
+          : state.kind === 'disabled'
+            ? 'border-slate-400/40 bg-slate-400/10'
+            : 'border-amber-500/40 bg-amber-500/10';
   const textClass =
     state.kind === 'raised'
       ? 'text-emerald-900'
       : state.kind === 'failed'
         ? 'text-red-900'
-        : 'text-amber-900';
+        : state.kind === 'raising'
+          ? 'text-sky-900'
+          : state.kind === 'disabled'
+            ? 'text-slate-700'
+            : 'text-amber-900';
+  const headline =
+    state.kind === 'raised'
+      ? `INC-${state.serviceRequestId}`
+      : state.kind === 'failed'
+        ? 'Not raised'
+        : state.kind === 'raising'
+          ? 'Raising now…'
+          : state.kind === 'disabled'
+            ? 'Not raised — switched off'
+            : 'Not raised yet';
 
   return (
     <Section title="SAP WIP">
@@ -382,12 +435,13 @@ function WipSection({ request }: { request: LaptopRequestDetailData['request'] }
         <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
           {state.kind === 'raised' ? 'Service Request' : 'Status'}
         </p>
-        <p className={`mt-1 break-words text-sm font-semibold ${textClass}`}>
-          {state.kind === 'raised'
-            ? `SR-${state.serviceRequestId}`
-            : state.kind === 'failed'
-              ? 'Not raised'
-              : 'Not raised yet'}
+        <p
+          className={`mt-1 flex items-center gap-2 break-words text-sm font-semibold ${textClass}`}
+        >
+          {state.kind === 'raising' && (
+            <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-sky-500" />
+          )}
+          {headline}
         </p>
         {state.kind === 'failed' && (
           <p className="mt-2 break-words text-sm text-red-900">{state.reason}</p>
@@ -397,8 +451,12 @@ function WipSection({ request }: { request: LaptopRequestDetailData['request'] }
         {state.kind === 'raised'
           ? `Raised in Freshservice on ${fmtDateTime(request.freshservice_attempted_at)}.`
           : state.kind === 'failed'
-            ? `Last tried ${fmtDateTime(request.freshservice_attempted_at)}. The approval stands — only the WIP is missing, and the country IT Manager has been emailed.`
-            : 'The approval is complete, but no WIP has been raised against this request.'}
+            ? `Last tried ${fmtDateTime(request.freshservice_attempted_at)}. The approval stands — only the WIP is missing, and it still needs raising.`
+            : state.kind === 'raising'
+              ? 'The approval just completed and the WIP is being filed in Freshservice. This updates itself — no need to refresh.'
+              : state.kind === 'disabled'
+                ? 'The approval is complete, but the Freshservice integration is switched off, so no WIP was attempted. It will need raising by hand.'
+                : 'The approval is complete, but no WIP has been raised against this request.'}
       </p>
     </Section>
   );
@@ -627,9 +685,14 @@ function ProcureNewDetailsSection({
 export default function LaptopRequestDetailClient({
   data,
   devices,
+  wipEnabled,
 }: {
   data: LaptopRequestDetailData;
   devices: LaptopDeviceOption[];
+  /* Read from the environment on the server, because the request columns a
+     skipped WIP leaves behind are identical to the ones an in-flight WIP
+     leaves — see wipState. */
+  wipEnabled: boolean;
 }) {
   const [reviewComment, setReviewComment] = useState('');
   const [notice, setNotice] = useState('');
@@ -1464,7 +1527,7 @@ export default function LaptopRequestDetailClient({
               </div>
             </Section>
 
-            {canSeeWip && <WipSection request={request} />}
+            {canSeeWip && <WipSection request={request} wipEnabled={wipEnabled} />}
 
             {isProcureDetailsStage && (
               <ProcureNewDetailsSection

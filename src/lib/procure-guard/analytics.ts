@@ -11,11 +11,13 @@ import {
   procureGuardThreshold,
   toUsd,
 } from '@/lib/procureGuard-utils';
+import type { ProcureGuardThresholdRow } from '@/lib/procureGuard-utils';
 import type {
   AdhocPaymentRequest,
   AdvancePaymentRequest,
   ProcureGuardAnalyticsMetric,
   ProcureGuardReviewDurationMetric,
+  ProcureGuardStatus,
 } from '@/types/procureGuard';
 
 export function requestMonth(value: string | null | undefined): string {
@@ -51,9 +53,26 @@ function hoursBetween(startValue: string | null | undefined, endMs: number): num
 
 type ReviewDurationDraft = ProcureGuardReviewDurationMetric & { longestUpdatedAtMs: number };
 
+/**
+ * The fields this actually reads, rather than a whole payment row.
+ *
+ * Declared structurally so the analytics page can rebuild these metrics in the browser from the
+ * rows it already holds. It used to demand the full `AdhocPaymentRequest`, which meant the table
+ * could only be built server-side and so could only ever be narrowed by request type -- leaving
+ * it ignoring every other filter on a page where everything else honoured them.
+ */
+export type ReviewDurationRow = ProcureGuardThresholdRow & {
+  id: number;
+  reference_number: string;
+  vendor_name: string;
+  status: ProcureGuardStatus;
+  created_at: string;
+  reviewed_at: string | null;
+};
+
 export function buildReviewDurationMetrics(
-  adhoc: AdhocPaymentRequest[],
-  advance: AdvancePaymentRequest[],
+  adhoc: readonly ReviewDurationRow[],
+  advance: readonly ReviewDurationRow[],
 ): ProcureGuardReviewDurationMetric[] {
   const nowMs = Date.now();
   const adminPermissions = getPermissionProfile('Admin');

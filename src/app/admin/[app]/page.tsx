@@ -13,6 +13,9 @@ import { getLaptopAdminAnalyticsData, getLaptopAdminData } from '@/app/actions/l
 import { getLearningHubAdminData, getLearningHubAnalytics } from '@/app/actions/learning-hub';
 import { getWorksheetReport } from '@/app/actions/learning-hub-worksheets';
 import { getLearnerRoleCounts } from '@/app/actions/learning-hub-role';
+import { ensureIcsaSchema } from '@/lib/icsa/db';
+import { loadBankForAdmin } from '@/lib/icsa/catalog';
+import { listChampions, listPendingExtensions } from '@/lib/icsa/queries';
 
 /* Server actions invoked from this page inherit its budget, and one of them is genuinely slow:
    SOA's extract aggregates every PO transaction in an 18-month window and writes a few thousand
@@ -100,6 +103,27 @@ export default async function AdminAppPage({
       base.learningHubRoles = roles;
       break;
     }
+    case 'self-assessment/questions':
+      await ensureIcsaSchema();
+      base.scsaBank = await loadBankForAdmin();
+      break;
+    case 'self-assessment/champions':
+      await ensureIcsaSchema();
+      base.scsaChampions = await listChampions();
+      break;
+    case 'self-assessment/extensions':
+      await ensureIcsaSchema();
+      base.scsaExtensions = (await listPendingExtensions()).map((r) => ({
+        id: r.id,
+        country: r.country,
+        cycleLabel: r.cycleLabel,
+        requestedBy: r.requestedBy,
+        requestedDeadline: r.requestedDeadline,
+        currentDeadline: r.currentDeadline,
+        reason: r.reason,
+        requestedAt: r.requestedAt,
+      }));
+      break;
     default:
       // Access-approvals, SourceGuide, Catalog, SNS, laptop cost centers, TI-TE
       // migration / default-notifiers: the panels self-fetch — no server data needed.

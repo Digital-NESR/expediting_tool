@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   APPROVAL_ACTIVE_STATUSES,
+  LAPTOP_OVERRIDE_STATUSES,
   LAPTOP_STATUS_ORDER,
+  STATUS_FILTER_OPTIONS,
+  VESTIGIAL_STATUSES,
   laptopStagesPassedByOverride,
   APPROVER_MATRIX_ROLES,
   COUNTRY_OPTIONS,
@@ -18,6 +21,7 @@ import {
   canUseLaptopReviewerQueue,
   getLaptopAccessView,
   getLaptopApprovalStage,
+  getStatusBadge,
   getLaptopAvailableActions,
   getNextApprovalStatus,
   getPermissionProfile,
@@ -523,6 +527,70 @@ describe('the admin status override', () => {
      state they can see. */
   it('is a superset of the learner-facing filter', () => {
     for (const status of STATUS_OPTIONS) expect(LAPTOP_STATUS_ORDER).toContain(status);
+  });
+
+  /* Four statuses nothing produces any more. Two are merely pointless
+     ('Assign from Inventory & Closed' is written by no code path at all;
+     'Approved' comes only from a fallback the IT Manager's three decisions make
+     unreachable). Two are worse: the collapsed waypoints have no move out and
+     appear in no queue, so offering them let an admin strand a request. Removed
+     from the pickers, kept everywhere a stored row is read. */
+  describe('statuses that are no longer offered', () => {
+    it('keeps them out of both pickers', () => {
+      for (const status of VESTIGIAL_STATUSES) {
+        expect(LAPTOP_OVERRIDE_STATUSES).not.toContain(status);
+        expect(STATUS_FILTER_OPTIONS).not.toContain(status);
+      }
+    });
+
+    /* Counted against the source lists rather than a literal, because the two
+       pickers no longer drop the same number: both collapsed waypoints are in
+       LAPTOP_STATUS_ORDER but neither was ever in STATUS_OPTIONS, which has
+       always omitted the intermediate states nobody would filter by. */
+    it('removes nothing else from either picker', () => {
+      const dropped = (list: readonly LaptopRequestStatus[]) =>
+        list.filter((status) => VESTIGIAL_STATUSES.includes(status)).length;
+      expect(LAPTOP_OVERRIDE_STATUSES).toHaveLength(
+        LAPTOP_STATUS_ORDER.length - dropped(LAPTOP_STATUS_ORDER),
+      );
+      expect(STATUS_FILTER_OPTIONS).toHaveLength(STATUS_OPTIONS.length - dropped(STATUS_OPTIONS));
+      for (const status of LAPTOP_OVERRIDE_STATUSES) {
+        expect(LAPTOP_STATUS_ORDER).toContain(status);
+      }
+    });
+
+    /* Why the two collapsed waypoints had to go, rather than just being tidy:
+       a request put into one can neither advance nor be rejected, and shows up
+       in no queue built from the active set. The override was the only door
+       into that corner, so closing it is the whole fix. */
+    it('no longer offers a status a request could not leave', () => {
+      for (const status of ['Procure New Details', 'CM Confirm Device'] as const) {
+        expect(getNextApprovalStatus(status, false, false)).toBeNull();
+        expect(getNextApprovalStatus(status, true, true)).toBeNull();
+        expect(getRejectStatusForStage(status)).toBeNull();
+        expect(isActiveApprovalStatus(status)).toBe(false);
+        expect(TERMINAL_STATUSES).not.toContain(status);
+        expect(LAPTOP_OVERRIDE_STATUSES).not.toContain(status);
+      }
+    });
+
+    it('still renders a stored row carrying one', () => {
+      /* The whole reason they stay in the type and the badge map. Pinned
+         against their curated labels rather than just "truthy": the unknown
+         fallback echoes the raw status back, so a dropped map entry would still
+         look fine to a loose assertion while losing the colour that tells an
+         approver the request is finished. */
+      expect(getStatusBadge('Approved').label).toBe('Approved');
+      expect(getStatusBadge('Approved').className).toContain('emerald');
+      expect(getStatusBadge('Assign from Inventory & Closed').label).toBe('Assigned & Closed');
+      expect(getStatusBadge('Assign from Inventory & Closed').className).toContain('green');
+    });
+
+    it('still keeps the override a superset of the filter', () => {
+      for (const status of STATUS_FILTER_OPTIONS) {
+        expect(LAPTOP_OVERRIDE_STATUSES).toContain(status);
+      }
+    });
   });
 
   describe('which stages a jump has signed off', () => {

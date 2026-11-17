@@ -24,8 +24,14 @@ import type {
   ProcureGuardVendorMetric,
 } from '@/types/procureGuard';
 import { shortMonthYear } from '@/lib/format';
-
-type RequestScope = 'all' | 'adhoc' | 'advance';
+import { buildReviewDurationMetrics } from '@/lib/procure-guard/analytics';
+import {
+  AnalyticsFilterBar,
+  applyAnalyticsFilters,
+  EMPTY_FILTERS,
+  type AnalyticsFilterState,
+  type RequestScope,
+} from './AnalyticsFilters';
 
 const SCOPE_TABS: Array<{ value: RequestScope; label: string }> = [
   { value: 'all', label: 'All' },
@@ -641,50 +647,6 @@ function ScopeTabs({
   );
 }
 
-function SupplierSearch({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <div className="relative w-full sm:max-w-xs">
-      <svg
-        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={2}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M21 21l-4.35-4.35M17 11a6 6 0 11-12 0 6 6 0 0112 0z"
-        />
-      </svg>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Search a supplier…"
-        className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-8 text-sm text-slate-800 outline-none transition focus:border-[#307c4c] focus:ring-2 focus:ring-[#307c4c]/20 placeholder:text-slate-400"
-      />
-      {value && (
-        <button
-          onClick={() => onChange('')}
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-          aria-label="Clear supplier search"
-        >
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      )}
-    </div>
-  );
-}
-
 export default function AnalyticsClient({
   data,
   embedded = false,
@@ -694,8 +656,8 @@ export default function AnalyticsClient({
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>('requests-desc');
-  const [scope, setScope] = useState<RequestScope>('all');
-  const [supplierQuery, setSupplierQuery] = useState('');
+  const [filters, setFilters] = useState<AnalyticsFilterState>(EMPTY_FILTERS);
+  const scope = filters.scope;
 
   const requests = useMemo(() => data?.requests ?? [], [data]);
 
@@ -708,22 +670,21 @@ export default function AnalyticsClient({
     [requests],
   );
 
-  const scoped = useMemo(() => {
-    const q = supplierQuery.trim().toLowerCase();
-    const filtered = requests.filter(
-      (r) =>
-        (scope === 'all' || r.request_type === scope) &&
-        (!q || r.vendor_name.toLowerCase().includes(q)),
-    );
-    return aggregate(filtered);
-  }, [requests, scope, supplierQuery]);
+  /* One filtered array feeds every card and table below, so a filter is applied in exactly one
+     place and the whole page follows it. */
+  const filtered = useMemo(() => applyAnalyticsFilters(requests, filters), [requests, filters]);
+  const scoped = useMemo(() => aggregate(filtered), [filtered]);
 
+  /* Rebuilt from the filtered rows rather than read from the server's precomputed set, which
+     could only ever be narrowed by request type. A table that quietly ignored the date and
+     country filters while everything around it honoured them would be read as wrong data. */
   const reviewAging = useMemo(
     () =>
-      (data?.review_duration_metrics ?? []).filter(
-        (row) => scope === 'all' || row.request_type === scope,
+      buildReviewDurationMetrics(
+        filtered.filter((r) => r.request_type === 'adhoc'),
+        filtered.filter((r) => r.request_type === 'advance'),
       ),
-    [data, scope],
+    [filtered],
   );
 
   if (!data) return <EmptyOrForbidden />;
@@ -787,19 +748,22 @@ export default function AnalyticsClient({
           </section>
         )}
 
-        <section className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-          <ScopeTabs value={scope} onChange={setScope} counts={counts} />
-          <SupplierSearch value={supplierQuery} onChange={setSupplierQuery} />
+        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <ScopeTabs
+            value={scope}
+            onChange={(next) => setFilters((f) => ({ ...f, scope: next }))}
+            counts={counts}
+          />
         </section>
 
-        {supplierQuery.trim() && (
-          <p className="px-1 text-xs font-semibold text-slate-500">
-            Showing {scoped.count} {scopeNoun}
-            {scoped.count === 1 ? '' : 's'} for suppliers matching “{supplierQuery.trim()}”.
-          </p>
-        )}
+        <AnalyticsFilterBar
+          requests={requests}
+          filters={filters}
+          onChange={setFilters}
+          resultCount={filtered.length}
+        />
 
-        <section className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <section className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-5">
           <MetricCard
             label="Total USD Eq."
             value={usdFmt(scoped.total_amount)}
@@ -829,16 +793,6 @@ export default function AnalyticsClient({
             value={scoped.pending}
             detail="Active approval chain items"
             tone="amber"
-          />
-          <MetricCard
-            label="Top Vendor"
-            value={scoped.top_vendor?.label ?? 'None'}
-            detail={
-              scoped.top_vendor
-                ? `${scoped.top_vendor.count} ${scopeNoun}${scoped.top_vendor.count === 1 ? '' : 's'}`
-                : 'No records'
-            }
-            tone="green"
           />
         </section>
 

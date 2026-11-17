@@ -58,11 +58,14 @@ export interface CommodityRow {
   description: string;
 }
 
+import { commodityLabel } from './taxonomy-levels';
+
 export function rowToCommodity(r: CommodityRow): SgCommodity {
   const c: SgCommodity = {
     id: r.id,
     code: r.code,
-    name: r.name,
+    /* Catch-all nodes read as `General`; see `commodityLabel`. The stored name is untouched. */
+    name: commodityLabel(r.name, r.sub_category),
     category: r.category,
     categoryId: r.category_id,
     subCategory: r.sub_category,

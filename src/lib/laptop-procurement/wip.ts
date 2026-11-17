@@ -2,12 +2,14 @@ import { getActiveApproverMatrixForCountry } from '@/lib/laptop-procurement/acto
 import { exec } from '@/lib/laptop-procurement/db';
 import {
   buildWipPayload,
+  buildWipProblemPayload,
   stripEnvQuotes,
-  unitPriceUsd,
   wipBuildError,
-  type WipPayload,
+  wipNotifyList,
+  type WipWebhookBody,
 } from '@/lib/laptop-procurement/freshservice';
 import { logger } from '@/lib/logger';
+import { resolveUnitPriceUsd } from '@/lib/laptop-procurement/prices';
 import type { LaptopRequest } from '@/types/laptopProcurement';
 
 const log = logger('laptop-wip');
@@ -108,7 +110,7 @@ export interface WipOutcome {
  * deferLaptopNotifications, after the approver's response has already gone
  * back, so nobody is watching a spinner while it happens.
  */
-async function postToWipWorkflow(url: string, payload: WipPayload): Promise<WipOutcome> {
+async function postToWipWorkflow(url: string, payload: WipWebhookBody): Promise<WipOutcome> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20000);
   try {
@@ -146,6 +148,43 @@ async function postToWipWorkflow(url: string, payload: WipPayload): Promise<WipO
     // WIP and the answer was lost. Recorded as failed, which leaves the id
     // NULL, so a retry has to be a deliberate act by someone who has checked.
     return { state: 'failed', error: `Could not reach the WIP workflow: ${reason}` };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * Tells somebody that the WIP never got as far as Freshservice.
+ *
+ * Deliberately swallows everything. This runs on a path that has already
+ * failed, and the outcome the caller returns is the real failure — an alert
+ * that could not be delivered must not replace "missing: model" with a fetch
+ * error and send whoever reads the request screen chasing the wrong problem.
+ * A shorter timeout than the WIP call itself, for the same reason: nothing
+ * downstream is waiting on it.
+ */
+async function alertWipProblem(
+  url: string,
+  request: LaptopRequest,
+  reason: string,
+  ownerEmail: string,
+  cc: string[],
+  priceUsd: number | null,
+): Promise<void> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: wipWebhookHeaders(),
+      body: JSON.stringify(buildWipProblemPayload(request, reason, ownerEmail, cc, priceUsd)),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    log.error('wip.alert.failed', err, {
+      reference: request.reference_number,
+      reason,
+    });
   } finally {
     clearTimeout(timeout);
   }
@@ -211,32 +250,48 @@ export async function raiseFreshserviceWip(request: LaptopRequest): Promise<WipO
 
 async function buildAndPost(request: LaptopRequest, url: string): Promise<WipOutcome> {
   const { owner, cc } = await resolveWipParticipants(request.country);
+  const price = await resolveUnitPriceUsd(request.requested_model, request.country);
 
   const testMode = isWipTestMode();
   const testInbox = stripEnvQuotes(process.env.LAPTOP_FRESHSERVICE_WIP_TEST_EMAIL ?? '').trim();
+
+  /* Every exit below this one returns before Freshservice is ever called, so
+     the workflow's own failure email cannot fire for it — that node only runs
+     once Freshservice has rejected something. Each therefore alerts on its way
+     out. Without this they are silent: the request screen would be the only
+     place the failure exists, and only for whoever happens to open it. */
+  const fail = async (reason: string, to: string): Promise<WipOutcome> => {
+    await alertWipProblem(url, request, reason, to, testMode ? [] : cc, price);
+    return { state: 'failed', error: reason };
+  };
+
   if (testMode && !testInbox) {
-    return {
-      state: 'failed',
-      error:
-        'LAPTOP_FRESHSERVICE_WIP_TEST_MODE is on but LAPTOP_FRESHSERVICE_WIP_TEST_EMAIL is not set.',
-    };
+    return fail(
+      'LAPTOP_FRESHSERVICE_WIP_TEST_MODE is on but LAPTOP_FRESHSERVICE_WIP_TEST_EMAIL is not set.',
+      owner ?? '',
+    );
   }
 
-  // In test mode the ticket is raised under the test inbox and nobody real is
-  // CC'd, so a trial run cannot land in an IT Manager's queue.
+  // In test mode the ticket is raised under the test inbox, and `fail` copies
+  // nobody real, so a trial run cannot land in an IT Manager's queue.
   const requester = testMode ? testInbox : (owner ?? '');
-  const ccList = testMode ? [] : cc;
 
   if (!requester) {
-    return {
-      state: 'failed',
-      error: `No active IT Manager is configured for ${request.country ?? 'this country'}, so the WIP has no owner.`,
-    };
+    /* No owner to address it to, which is the whole problem. Sent with an empty
+       recipient on purpose: the workflow falls back to the standing mailbox, so
+       the one failure with nobody to tell still tells somebody. */
+    return fail(
+      `No active IT Manager is configured for ${request.country ?? 'this country'}, so the WIP has no owner.`,
+      '',
+    );
   }
 
-  const price = unitPriceUsd(request.requested_model ?? '', request.country ?? '');
-  const built = buildWipPayload(request, requester, price, ccList);
-  if (!built.ok) return { state: 'failed', error: wipBuildError(built.missing) };
+  /* ccList is not passed on: place_request rejects cc_emails outright, and the
+     workflow forwards this payload to Freshservice verbatim. It is still read
+     above, because the alert email - which n8n sends itself, not Freshservice -
+     does copy the other IT Managers. */
+  const built = buildWipPayload(request, requester, price);
+  if (!built.ok) return fail(wipBuildError(built.missing), requester);
 
   const payload = testMode
     ? {
@@ -248,7 +303,15 @@ async function buildAndPost(request: LaptopRequest, url: string): Promise<WipOut
       }
     : built.payload;
 
-  return postToWipWorkflow(url, payload);
+  /* Sent to the workflow, not to Freshservice, which names the two fields it
+     forwards. In test mode the list is the test inbox alone, so a trial run
+     still cannot reach a real IT Manager. */
+  const notify = wipNotifyList(requester, testMode ? [] : cc);
+
+  return postToWipWorkflow(url, {
+    ...payload,
+    ...(notify.length ? { notify_emails: notify } : {}),
+  });
 }
 
 async function recordOutcome(requestId: number, outcome: WipOutcome): Promise<void> {

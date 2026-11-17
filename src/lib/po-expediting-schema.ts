@@ -19,3 +19,17 @@ import { requireSchema } from '@/lib/db/schema-version';
 export function ensurePoExpeditingSchema(): Promise<void> {
   return requireSchema(pool, 'default', '001_baseline');
 }
+
+/**
+ * The narrower assertion for the analytics drill-downs, which read `active_expediting.sap_mat_id`
+ * — a column `005_expediting_mat_id_snapshot` adds.
+ *
+ * Deliberately NOT a bump of `ensurePoExpeditingSchema` above. That one is called by dispatch,
+ * reconciliation, the supplier portal and every analytics aggregate; pinning it to 005 would make
+ * the entire tool refuse to serve until 005 is applied, over a column only four queries read.
+ * `schema-version.ts` says the same thing in general terms: pass the baseline unless the caller
+ * specifically needs a later migration, and then name that one.
+ */
+export function ensureExpeditingMatIdSnapshot(): Promise<void> {
+  return requireSchema(pool, 'default', '005_expediting_mat_id_snapshot');
+}

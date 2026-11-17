@@ -78,3 +78,55 @@ export function familySql(a: Alias = '', as = 'fam'): string {
             ELSE TRIM(${a}family)
           END AS ${as}`;
 }
+
+/**
+ * This node repeats its own sub-category's name: `Specialty Chemicals` inside `Specialty
+ * Chemicals`, `Lubricants` inside `Lubricants`.
+ *
+ * Forty of these exist, carrying 825 mappings between them. They read like a parent and behave
+ * like a leaf — they hold their own mappings and roll up nothing — so a reader who opened one
+ * saw the suppliers approved for the sub-category at large and never met the ones approved for a
+ * particular commodity inside it. On Specialty Chemicals in Abu Dhabi that was 5 suppliers where
+ * the sub-category holds 15, and the missing ten included every supplier an RFx later suggested.
+ *
+ * The same comparison as `isRedundantFamily`, and for the same reason: trimmed and
+ * case-insensitive, because the exact-match version is the one that silently stops working the
+ * day somebody retypes a level in different case.
+ */
+export function isCatchAllNode(
+  name: string | null | undefined,
+  subCategory: string | null | undefined,
+): boolean {
+  const n = (name ?? '').trim();
+  const sub = (subCategory ?? '').trim();
+  if (!n || !sub) return false;
+  return n.toLowerCase() === sub.toLowerCase();
+}
+
+/**
+ * What a commodity is called on screen.
+ *
+ * A catch-all node repeats its own sub-category's name, so the drill-down read `Chemicals >
+ * Specialty Chemicals > General > Specialty Chemicals` and the page title said the same words as
+ * the breadcrumb above it. A buyer could not tell whether they were looking at the whole
+ * sub-category or at one general-purpose bucket inside it -- and it is the bucket, which is why
+ * it showed 5 Abu Dhabi suppliers where the sub-category holds 15.
+ *
+ * Called `General`, the hierarchy says what it is: `Specialty Chemicals > General > General`.
+ * The same word the family level has always used for a level that carries nothing of its own,
+ * and the same rule, one step further down.
+ *
+ * A READ RULE, NOT AN UPDATE -- for the reasons at the top of this file. `sg_commodities` is the
+ * taxonomy owner's data and `Specialty Chemicals` is what they typed; renaming the row would
+ * overwrite it to fix a rendering, lose the fact that this node IS the sub-category's catch-all,
+ * and be undone by the next import. As a rule it holds for rows not yet loaded.
+ *
+ * The real name stays searchable: the search index is built from the stored row, so somebody
+ * typing "specialty chemicals" still finds this node and then sees where it sits.
+ */
+export function commodityLabel(
+  name: string | null | undefined,
+  subCategory: string | null | undefined,
+): string {
+  return isCatchAllNode(name, subCategory) ? 'General' : (name ?? '').trim();
+}

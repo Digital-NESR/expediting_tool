@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   buildCountryIndex,
   countryOptions,
+  displayCountry,
+  isTestBooking,
   resolveBookingCountry,
   type CostCentreCompany,
   type CostCentreDepartment,
@@ -139,5 +141,71 @@ describe('the grant editor’s country list', () => {
       'Kuwait',
       'UAE',
     ]);
+  });
+});
+
+describe('displayCountry', () => {
+  it("writes SAP's 'Jordon' as Jordan", () => {
+    // SAP spells it 'Jordon' and the cost-centre export carries that through — 24 rows of it.
+    // It is corrected here rather than upstream, because SAP is the authority for the data and
+    // the next reseed would revert anything written into the table.
+    expect(displayCountry('Jordon')).toBe('Jordan');
+    expect(displayCountry('  Jordon  ')).toBe('Jordan');
+  });
+
+  it('leaves every other country exactly as it is', () => {
+    for (const c of ['KSA', 'HQ Dubai', 'EOS JAFZA', 'Oman', 'Kuwait', 'UAE', 'HQ Houston'])
+      expect(displayCountry(c)).toBe(c);
+  });
+
+  it('is case- and whitespace-honest rather than clever', () => {
+    // Only the exact spelling SAP emits is rewritten. 'JORDON' is not something the export
+    // produces, and guessing at variants would start rewriting values nobody has seen.
+    expect(displayCountry('JORDON')).toBe('JORDON');
+    expect(displayCountry('')).toBe('');
+    expect(displayCountry(null)).toBe('');
+    expect(displayCountry(undefined)).toBe('');
+  });
+
+  it('normalises the grantable country list', () => {
+    const options = countryOptions([
+      { code: '2925', name: 'NPS Jordan', country: 'Jordon' },
+      { code: '2112', name: 'Energy Oilfield Supplies DMCC', country: 'HQ Dubai' },
+    ]);
+    expect(options).toContain('Jordan');
+    expect(options).not.toContain('Jordon');
+  });
+
+  it('normalises the country resolved onto a booking, so a grant and a booking agree', () => {
+    // If the options list said 'Jordan' while resolution said 'Jordon', every grant written from
+    // the picker would match no booking and look like a country with no travel.
+    const index = buildCountryIndex(
+      [{ costCentre: 'C251100101', companyCode: '2925', department: 'CEMENTING' }],
+      [{ code: '2925', name: 'NPS Jordan', country: 'Jordon' }],
+    );
+    expect(resolveBookingCountry(index, 'C251100101', null).country).toBe('Jordan');
+    expect(resolveBookingCountry(index, null, '2925').country).toBe('Jordan');
+  });
+});
+
+describe('isTestBooking', () => {
+  it("recognises the agency's own test bookings", () => {
+    // Company 1000 "Satguru Test" on two invented cost centres: 17 bookings, ~$10,100 of
+    // fictitious spend that was the whole of the previously "unmapped" population.
+    expect(isTestBooking('C999999999', '1000')).toBe(true);
+    expect(isTestBooking('C999999997', '1000')).toBe(true);
+    expect(isTestBooking('  c999999999  ', ' 1000 ')).toBe(true);
+  });
+
+  it('needs BOTH the cost centre and the company to match', () => {
+    // Either alone could be a real row. Only the pair identifies an agency test booking.
+    expect(isTestBooking('C999999999', '2112')).toBe(false);
+    expect(isTestBooking('C121100101', '1000')).toBe(false);
+  });
+
+  it('leaves real bookings alone', () => {
+    expect(isTestBooking('C128890009', '2112')).toBe(false);
+    expect(isTestBooking(null, null)).toBe(false);
+    expect(isTestBooking('', '')).toBe(false);
   });
 });

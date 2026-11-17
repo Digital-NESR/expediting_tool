@@ -7,6 +7,7 @@ import { MATCH_THRESHOLD, matchScore, norm } from '@/lib/sg-fuzzy';
 import type {
   SgCommodity,
   SgCommodityDetail,
+  SgRelatedMapping,
   SgCommodityResult,
   SgMapping,
   SgSearchFilters,
@@ -15,12 +16,16 @@ import type {
   Tier,
 } from '@/types/sourceguide';
 import { canRead, readUser } from '@/lib/sourceguide/access';
+import { canManage } from '@/lib/sourceguide/can-manage';
+import { vendorCodeScore } from '@/lib/sourceguide/vendor-code';
 import { familySql, subCategorySql } from '@/lib/sourceguide/taxonomy-levels';
+import { commodityLabel, isCatchAllNode } from '@/lib/sourceguide/taxonomy-levels';
 import { isCentrallyBlocked } from '@/lib/sourceguide/blocked';
 import { logUsage } from '@/lib/sourceguide/activity';
 import {
   CommodityIndexRow,
   commodityExtra,
+  getAvlIndex,
   getCommodityIndex,
   getCountriesLite,
   getMappedSupplierIndex,
@@ -28,10 +33,22 @@ import {
 import { log, readFailed, rowToCommodity } from '@/lib/sourceguide/internals';
 import type {
   SgCatalogRow,
+  SgGlobalNode,
   SgGlobalResults,
   SgTaxonomyCategory,
   SgTaxonomyRow,
 } from '@/lib/sourceguide/types';
+import { PATH_SEP, commodityPath } from '@/lib/sourceguide/rollup';
+
+/* Not exported: in a `'use server'` file every export becomes a public POST endpoint, and a
+   non-function export fails the build outright. */
+const EMPTY_GLOBAL: SgGlobalResults = {
+  commodities: [],
+  suppliers: [],
+  nodes: [],
+  categories: [],
+  countries: [],
+};
 
 export async function searchCommodities(
   query: string,
@@ -146,9 +163,9 @@ export async function searchCommodities(
 }
 
 export async function globalSearch(query: string): Promise<SgGlobalResults> {
-  if (!(await canRead())) return { commodities: [], suppliers: [], categories: [], countries: [] };
+  if (!(await canRead())) return EMPTY_GLOBAL;
   const q = (query || '').trim();
-  if (!q) return { commodities: [], suppliers: [], categories: [], countries: [] };
+  if (!q) return EMPTY_GLOBAL;
   try {
     const [index, suppliers, countries] = await Promise.all([
       getCommodityIndex(),
@@ -168,12 +185,52 @@ export async function globalSearch(query: string): Promise<SgGlobalResults> {
         subCategory: x.r.sub_category,
       }));
 
+    /* Eight rather than five: supplier hits are a third of what people search for, and the
+       palette was cutting the list before a code match could surface. */
     const sup = suppliers
-      .map((s) => ({ s, score: Math.max(matchScore(q, s.name), s.code.includes(q) ? 1.5 : 0) }))
+      .map((s) => ({ s, score: Math.max(matchScore(q, s.name), vendorCodeScore(q, s.code)) }))
       .filter((x) => x.score >= MATCH_THRESHOLD)
       .sort((a, b) => b.score - a.score || a.s.name.localeCompare(b.s.name))
-      .slice(0, 5)
+      .slice(0, 8)
       .map((x) => ({ code: x.s.code, name: x.s.name }));
+
+    /* Sub-categories and families, which the palette has never been able to reach: a buyer who
+       typed "Completion Tools" got commodities whose name happened to contain it and no way to
+       open the level itself. Nodes are keyed by their whole path, never by label, because
+       `General` repeats under nearly every sub-category and merging two of them would send the
+       reader to a branch they did not pick. The counts are deliberately absent — the Explorer
+       folds those from the fact table, and recomputing them per keystroke here would cost a
+       round trip for a line of subtitle text. */
+    const nodeMap = new Map<string, SgGlobalNode>();
+    for (const r of index) {
+      const path = commodityPath({
+        id: r.id,
+        name: r.name,
+        code: r.code,
+        category: r.category,
+        subCategory: r.sub_category,
+        family: r.family,
+        spendType: r.spend_type,
+      });
+      for (const depth of [3, 4] as const) {
+        const slice = path.slice(0, depth);
+        const key = slice.join(PATH_SEP);
+        if (!nodeMap.has(key)) {
+          nodeMap.set(key, {
+            key,
+            label: slice[depth - 1],
+            level: depth === 3 ? 'subCategory' : 'family',
+            trail: slice.slice(0, depth - 1),
+          });
+        }
+      }
+    }
+    const nodes = [...nodeMap.values()]
+      .map((n) => ({ n, score: matchScore(q, n.label, n.trail.join(' ')) }))
+      .filter((x) => x.score >= MATCH_THRESHOLD)
+      .sort((a, b) => b.score - a.score || a.n.label.localeCompare(b.n.label))
+      .slice(0, 5)
+      .map((x) => x.n);
 
     const catMap = new Map<string, string>();
     for (const r of index) if (!catMap.has(r.category_id)) catMap.set(r.category_id, r.category);
@@ -191,10 +248,10 @@ export async function globalSearch(query: string): Promise<SgGlobalResults> {
       .slice(0, 4)
       .map((x) => ({ code: x.c.code, name: x.c.name, tone: x.c.tone }));
 
-    return { commodities, suppliers: sup, categories: cats, countries: ctry };
+    return { commodities, suppliers: sup, nodes, categories: cats, countries: ctry };
   } catch (err) {
     log.error('globalSearch.failed', err);
-    return { commodities: [], suppliers: [], categories: [], countries: [] };
+    return EMPTY_GLOBAL;
   }
 }
 
@@ -205,19 +262,46 @@ export async function countSearch(query: string, filters: SgSearchFilters = {}):
   return res.length;
 }
 
+/**
+ * Suppliers matching a name or a vendor code.
+ *
+ * Mapped vendors first, always. For a reader who can edit mappings, vendors that are in the AVL
+ * but mapped nowhere are appended behind them, flagged `unmapped`: 6,994 of the 8,564 AVL rows
+ * are in that state, so a pasted code for one of them previously returned nothing at all, which
+ * reads as "no such vendor" rather than "nobody has mapped it yet". Only the people who can fix
+ * that see them.
+ *
+ * THE GATE IS HERE, NOT IN THE UI. This is a public POST endpoint, so hiding the rows on screen
+ * would still hand them to anyone who called it directly.
+ */
 export async function searchSuppliers(query: string, limit = 6): Promise<SgSupplier[]> {
-  if (!(await canRead())) return [];
+  const user = await readUser();
+  if (!user) return [];
   try {
     const q = (query || '').trim();
     if (q.length < 2) return [];
     // Fuzzy-rank suppliers that are actually mapped somewhere (cached, joined to the AVL by code)
     const suppliers = await getMappedSupplierIndex();
-    return suppliers
-      .map((s) => ({ s, score: Math.max(matchScore(q, s.name), s.code.includes(q) ? 1.5 : 0) }))
+    const mapped = suppliers
+      .map((s) => ({ s, score: Math.max(matchScore(q, s.name), vendorCodeScore(q, s.code)) }))
       .filter((x) => x.score >= MATCH_THRESHOLD)
       .sort((a, b) => b.score - a.score || a.s.name.localeCompare(b.s.name))
       .slice(0, limit)
       .map((x) => ({ code: x.s.code, name: x.s.name, countries: x.s.countries }));
+
+    if (mapped.length >= limit || !canManage(user)) return mapped;
+
+    const known = new Set(suppliers.map((s) => s.code));
+    const avl = await getAvlIndex();
+    const extra = avl
+      .filter((a) => !known.has(a.code))
+      .map((a) => ({ a, score: Math.max(matchScore(q, a.name), vendorCodeScore(q, a.code)) }))
+      .filter((x) => x.score >= MATCH_THRESHOLD)
+      .sort((x, y) => y.score - x.score || x.a.name.localeCompare(y.a.name))
+      .slice(0, limit - mapped.length)
+      .map((x) => ({ code: x.a.code, name: x.a.name, countries: [], unmapped: true }));
+
+    return [...mapped, ...extra];
   } catch (err) {
     log.error('searchSuppliers.failed', err);
     return [];
@@ -263,10 +347,58 @@ export async function getCommodityDetail(commodityId: number): Promise<SgCommodi
       };
       (mappingsByCountry[m.country_code] ??= []).push(mapping);
     }
-    const countries = Object.keys(mappingsByCountry);
+    /* A catch-all node repeats its own sub-category's name -- `Specialty Chemicals` inside
+       `Specialty Chemicals`. It reads like a parent and behaves like a leaf: it carries its own
+       mappings and rolls up nothing, so a reader saw 5 Abu Dhabi suppliers where the sub-category
+       holds 15. There are 40 such nodes carrying 825 mappings.
+
+       The siblings are loaded separately and stay separate. A supplier on the catch-all is
+       approved for the sub-category generally; one on `Anti gas migration additives` is approved
+       for that commodity. Merging them would print a name under `Preferred for Specialty
+       Chemicals` that nobody approved for it. */
+    /* The STORED name, not `commodity.name` -- `rowToCommodity` has already relabelled a
+       catch-all to `General`, and asking this question of the label would always answer no. */
+    const isCatchAll = isCatchAllNode(comRes.rows[0].name, comRes.rows[0].sub_category);
+
+    const relatedByCountry: Record<string, SgRelatedMapping[]> = {};
+    if (isCatchAll) {
+      const relRes = await sourceGuidePool.query(
+        `SELECT m.id, m.commodity_id, m.supplier_code, m.country_code, m.tier, m.status,
+                a.name AS supplier_name, a.email AS supplier_email, a.central_block_status,
+                c.name AS commodity_name
+           FROM sg_mappings m
+           JOIN sg_commodities c ON c.id = m.commodity_id
+           JOIN supplier_avl a ON a.supplier_code = m.supplier_code
+          WHERE m.status = 'Active'
+            AND c.sub_category = $1
+            AND c.id <> $2
+          ORDER BY m.country_code, (m.tier = 'Preferred') DESC, c.name, a.name`,
+        [commodity.subCategory, commodityId],
+      );
+      for (const m of relRes.rows) {
+        (relatedByCountry[m.country_code] ??= []).push({
+          id: m.id,
+          commodityId: m.commodity_id,
+          commodityName: m.commodity_name ?? '',
+          supplierName: m.supplier_name ?? '',
+          supplierCode: m.supplier_code,
+          supplierEmail: m.supplier_email ?? null,
+          supplierBlocked: isCentrallyBlocked(m.central_block_status),
+          country: m.country_code,
+          tier: m.tier,
+          status: m.status,
+        });
+      }
+    }
+
+    /* The country pills come from both, so a country that only the siblings cover is still
+       offered -- otherwise the rollup would be invisible in exactly the countries that need it. */
+    const countries = [
+      ...new Set([...Object.keys(mappingsByCountry), ...Object.keys(relatedByCountry)]),
+    ].sort();
 
     void logUsage('view', 'commodity', commodity.name, String(commodityId), viewer);
-    return { commodity, countries, mappingsByCountry };
+    return { commodity, countries, mappingsByCountry, relatedByCountry };
   } catch (err) {
     readFailed('getCommodityDetail', err, { commodityId });
   }
@@ -423,7 +555,12 @@ export async function getTaxonomy(): Promise<SgTaxonomyCategory[]> {
         fam = { name: r.family, items: [] };
         sub.families.push(fam);
       }
-      fam.items.push({ id: r.id, name: r.name, code: r.code, countries: r.countries });
+      fam.items.push({
+        id: r.id,
+        name: commodityLabel(r.name, r.sub_category),
+        code: r.code,
+        countries: r.countries,
+      });
       sub.count++;
       cat.count++;
     }
