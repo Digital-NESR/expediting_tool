@@ -1,5 +1,5 @@
-// The ORIGINAL question bank of the Supply Chain Self-Assessment (formerly ICSA), aligned with
-// SOX controls, carried over verbatim from the NESR ICSA Self-Assessment artifact. A section is
+// The ORIGINAL question bank of the Supply Chain Self-Assessment (formerly ICSA),
+// carried over verbatim from the NESR ICSA Self-Assessment artifact. A section is
 // also a form variation: a champion assigns each respondent the sections that match what they do.
 //
 // This is no longer what the app reads. Administrators edit the bank in the admin panel; it

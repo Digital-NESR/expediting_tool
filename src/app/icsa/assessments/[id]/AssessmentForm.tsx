@@ -337,8 +337,8 @@ export default function AssessmentForm({
       <div className="space-y-4">
         <Head eyebrow="Respondent details" title="Start here">
           This Supply Chain Self-Assessment covers the internal controls of the Supply Chain
-          function and supports NESR&apos;s compliance with established procedures in line with SOX
-          controls. Review each question and respond with one of the options below.
+          function and supports NESR&apos;s compliance with established procedures. Review each
+          question and respond with one of the options below.
         </Head>
         {banner}
         <div className={`${CARD} p-5`}>

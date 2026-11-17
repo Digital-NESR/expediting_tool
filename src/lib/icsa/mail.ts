@@ -137,7 +137,7 @@ function frame(
   <div style="padding:20px;border:1px solid #d1d3d4;border-top:0">
   ${paragraphs.map((p) => `<p style="margin:0 0 12px;line-height:1.5">${p}</p>`).join('')}
   <p style="margin:20px 0"><a href="${esc(cta.href)}" style="background:#2a7e4f;color:#fff;padding:10px 18px;text-decoration:none;border-radius:6px;display:inline-block">${esc(cta.label)}</a></p>
-  <p style="margin:0;color:#58595b;font-size:12px">Supply Chain Self-Assessment: internal controls of the Supply Chain function, aligned with SOX controls.</p>
+  <p style="margin:0;color:#58595b;font-size:12px">Supply Chain Self-Assessment: internal controls of the Supply Chain function.</p>
   </div></div>`;
 }
 

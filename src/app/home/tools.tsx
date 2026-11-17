@@ -557,11 +557,11 @@ export const TOOLS: ToolDef[] = [
     id: 'icsa',
     group: 'development',
     keywords:
-      'supply chain self assessment scsa icsa internal control self-audit sox controls compliance governance champion cycle questionnaire',
+      'supply chain self assessment scsa icsa internal control self-audit controls compliance governance champion cycle questionnaire',
     name: 'Supply Chain Self-Assessment',
-    subtitle: 'Internal controls, aligned with SOX',
+    subtitle: 'Internal controls',
     description:
-      'Run Supply Chain self-audit cycles aligned with SOX controls: champions nominate respondents, each answers their own role-based questionnaire, and reviewers track coverage and compliance by country.',
+      'Run Supply Chain self-assessment cycles: champions nominate respondents, each answers their own role-based questionnaire, and reviewers track coverage and compliance by country.',
     icon: <ListChecks className="h-6 w-6 text-gray-400" />,
     logoClass: 'bg-gray-100',
     hoverClass: HOVER_GREEN,

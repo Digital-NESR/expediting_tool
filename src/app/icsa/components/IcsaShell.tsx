@@ -108,7 +108,7 @@ export default function IcsaShell({
         </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-bold leading-tight">Self-Assessment</p>
-          <p className="text-[0.6875rem] text-white/70">Supply Chain · SOX controls</p>
+          <p className="text-[0.6875rem] text-white/70">Supply Chain</p>
         </div>
         <button
           type="button"
