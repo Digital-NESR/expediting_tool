@@ -254,13 +254,13 @@ export function submissionIssues(
     if (c.un) {
       issues.push({
         step: s.key,
-        text: `Section ${s.id} (${s.short}): ${c.un} unanswered question${c.un > 1 ? 's' : ''}.`,
+        text: `${s.short}: ${c.un} unanswered question${c.un > 1 ? 's' : ''}.`,
       });
     }
     if (c.miss) {
       issues.push({
         step: s.key,
-        text: `Section ${s.id} (${s.short}): ${c.miss} No/Partial response${c.miss > 1 ? 's' : ''} without remarks.`,
+        text: `${s.short}: ${c.miss} No/Partial response${c.miss > 1 ? 's' : ''} without remarks.`,
       });
     }
   }

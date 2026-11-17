@@ -8,8 +8,9 @@ import { todayInDubai } from '@/lib/icsa/model';
 
 /**
  * Excel downloads.
- *   ?assessment=ID                       one respondent's workbook (the respondent, their
- *                                        champion, or an admin)
+ *   ?assessment=ID                       one respondent's workbook (their champion or an
+ *                                        admin; not the respondent, whose form hides which
+ *                                        part of the bank each question comes from)
  *   ?cycle=ID&country=X&champion=EMAIL   consolidated workbook over what the viewer manages
  */
 
@@ -28,11 +29,14 @@ export async function GET(req: NextRequest) {
     if (one) {
       const found = await getAssessment(actor, one);
       if (!found) return new NextResponse('Not found', { status: 404 });
+      if (!found.access.includes('manager')) {
+        return new NextResponse('Forbidden', { status: 403 });
+      }
       const a = found.assessment;
       const file = await assessmentWorkbook(a);
       return xlsx(
         file,
-        `ICSA_${safeName(a.country)}_${safeName(a.cycleLabel)}_${safeName(a.respondentName || a.respondentEmail)}.xlsx`,
+        `Self-Assessment_${safeName(a.country)}_${safeName(a.cycleLabel)}_${safeName(a.respondentName || a.respondentEmail)}.xlsx`,
       );
     }
 
@@ -47,7 +51,7 @@ export async function GET(req: NextRequest) {
     });
     const file = await consolidatedWorkbook(list);
     const label = list[0] && cycleId ? safeName(list[0].cycleLabel) : 'All';
-    return xlsx(file, `ICSA_Consolidated_${label}_${todayInDubai()}.xlsx`);
+    return xlsx(file, `Self-Assessment_Consolidated_${label}_${todayInDubai()}.xlsx`);
   } catch (err) {
     log.error('export.failed', err);
     return new NextResponse('Could not build the file.', { status: 500 });

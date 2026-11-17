@@ -102,6 +102,19 @@ export default function AssessmentForm({
   const score = useMemo(() => scoreAnswers(answers, sections), [answers, sections]);
   const issues = useMemo(() => submissionIssues({ answers }, sections), [answers, sections]);
 
+  /* Respondents must not see which part of the question bank they were given: no section
+     numbers, and questions are numbered within their own form (1.1, 1.2, 2.1…) instead of by
+     the bank ref (Q4.5). Reviewers see the real numbers, which match the exports and analytics. */
+  const showNumbers = canReview;
+  const localNumbers = useMemo(() => {
+    const m = new Map<string, string>();
+    sections.forEach((s, si) =>
+      s.questions.forEach((q, qi) => m.set(q.ref, `${si + 1}.${qi + 1}`)),
+    );
+    return m;
+  }, [sections]);
+  const numberOf = (ref: string) => (showNumbers ? ref : (localNumbers.get(ref) ?? ''));
+
   const flash = (tone: 'ok' | 'error', text: string) => {
     setToast({ tone, text });
     setTimeout(() => setToast(null), 4200);
@@ -299,7 +312,7 @@ export default function AssessmentForm({
             key={s.key}
             current={step === s.key}
             onClick={() => go(s.key)}
-            label={`${s.id}. ${s.short}`}
+            label={showNumbers ? `${s.id}. ${s.short}` : s.short}
             right={
               <span
                 className={`text-xs font-semibold ${ok ? 'text-[#2a7e4f]' : c.miss ? 'text-red-600' : 'text-slate-400'}`}
@@ -421,7 +434,7 @@ export default function AssessmentForm({
           <MiniKpi label="Open items" value={score.total.open} sub="No + Partial" />
           <MiniKpi label="Remarks missing" value={score.total.miss} />
         </div>
-        <SectionTable score={score} onOpen={go} />
+        <SectionTable score={score} onOpen={go} showNumbers={showNumbers} />
         {gaps.length > 0 && (
           <div className={`${CARD} overflow-x-auto`}>
             <h3 className="px-4 pt-4 font-bold text-slate-800">Gaps and action plan</h3>
@@ -446,7 +459,7 @@ export default function AssessmentForm({
                           className="font-semibold text-[#307c4c] hover:underline"
                           onClick={() => go(sec.key)}
                         >
-                          {q.ref}
+                          {numberOf(q.ref)}
                         </button>
                       </td>
                       <td className={TD}>{questionText(q, a.country)}</td>
@@ -493,9 +506,11 @@ export default function AssessmentForm({
                 {busy ? 'Submitting…' : 'Submit assessment'}
               </button>
             )}
-            <a className={BTN_QUIET} href={`/api/icsa/export?assessment=${a.id}`}>
-              <Download className="h-4 w-4" /> Download Excel
-            </a>
+            {canReview && (
+              <a className={BTN_QUIET} href={`/api/icsa/export?assessment=${a.id}`}>
+                <Download className="h-4 w-4" /> Download Excel
+              </a>
+            )}
           </div>
         </div>
       </div>
@@ -506,7 +521,7 @@ export default function AssessmentForm({
     const c = score.per[i].tally;
     panel = (
       <div className="space-y-4">
-        <Head eyebrow={`Section ${i + 1} of ${sections.length}`} title={s.title}>
+        <Head eyebrow={`Part ${i + 1} of ${sections.length}`} title={s.title}>
           {c.done} of {c.n} answered.
         </Head>
         {banner}
@@ -517,6 +532,7 @@ export default function AssessmentForm({
             country={a.country}
             ans={answers[answerKey(q.ref)] ?? {}}
             files={evidence.filter((e) => e.questionRef === q.ref)}
+            number={numberOf(q.ref)}
             locked={!canEdit}
             onField={setField}
             onUpload={upload}
@@ -633,9 +649,11 @@ function MiniKpi({ label, value, sub }: { label: string; value: React.ReactNode;
 function SectionTable({
   score,
   onOpen,
+  showNumbers,
 }: {
   score: ReturnType<typeof scoreAnswers>;
   onOpen: (k: string) => void;
+  showNumbers: boolean;
 }) {
   const t = score.total;
   return (
@@ -663,9 +681,9 @@ function SectionTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {score.per.map(({ section: s, tally: c }) => (
+          {score.per.map(({ section: s, tally: c }, i) => (
             <tr key={s.key}>
-              <td className={TD}>{s.id}</td>
+              <td className={TD}>{showNumbers ? s.id : i + 1}</td>
               <td className={TD}>
                 <button
                   className="text-left font-medium text-[#307c4c] hover:underline"
@@ -716,6 +734,7 @@ function SectionTable({
 
 function QuestionCard({
   q,
+  number,
   country,
   ans,
   files,
@@ -725,6 +744,8 @@ function QuestionCard({
   onRemove,
 }: {
   q: IcsaQuestion;
+  /** What the badge shows: the bank ref for reviewers, a form-local number for respondents. */
+  number: string;
   country: string;
   ans: Answer;
   files: EvidenceFile[];
@@ -744,12 +765,12 @@ function QuestionCard({
     <article className={`${CARD} p-4 ${r ? '' : 'border-l-4 border-l-amber-300'}`} id={`q-${k}`}>
       <div className="flex gap-3">
         <span className="shrink-0 rounded-md bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
-          {q.ref}
+          {number}
         </span>
         <p className="text-sm font-medium text-slate-800">{questionText(q, country)}</p>
       </div>
       <fieldset className="mt-3 flex flex-wrap gap-2">
-        <legend className="sr-only">Response for {q.ref}</legend>
+        <legend className="sr-only">Response for question {number}</legend>
         {RESPONSES.map((v) => (
           <label
             key={v}
