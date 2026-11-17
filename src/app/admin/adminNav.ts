@@ -161,6 +161,20 @@ export const ADMIN_APPS: AdminApp[] = [
        there is no queue of pending requests to badge. */
     sections: [{ id: 'travel-access', label: 'Travel Access' }],
   },
+  {
+    id: 'self-assessment',
+    label: 'Supply Chain Self-Assessment',
+    color: '#307c4c',
+    activeBg: '#eaf4ef',
+    activeColor: '#1d4f31',
+    /* Cycles, assignments and reviews stay in the tool itself (/icsa), where champions work too;
+       these are the administrator-only settings. */
+    sections: [
+      { id: 'questions', label: 'Questions' },
+      { id: 'champions', label: 'Champions' },
+      { id: 'extensions', label: 'Extension Requests' },
+    ],
+  },
 ];
 
 /* Tools that are visible in the sidebar but not yet built. Supply Chain Analytics left this

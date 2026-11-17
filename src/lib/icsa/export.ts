@@ -1,13 +1,13 @@
 import ExcelJS from 'exceljs';
 import {
   ASSESSMENT_STATUS_LABEL,
-  ICSA_SECTIONS,
   answerKey,
   isGap,
   questionText,
   scoreAnswers,
   sectionsByKeys,
 } from './model';
+import { loadCatalog } from './catalog';
 import type { AssessmentWithContext } from './queries';
 
 /**
@@ -50,14 +50,15 @@ function percentCols(ws: ExcelJS.Worksheet, cols: number[]): void {
 const rateOrDash = (r: number | null) => (r === null ? '-' : r);
 
 export async function assessmentWorkbook(a: AssessmentWithContext): Promise<Buffer> {
+  const catalog = await loadCatalog();
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'NESR SC Agents · ICSA';
-  const sections = sectionsByKeys(a.sections);
+  wb.creator = 'NESR SC Agents · Supply Chain Self-Assessment';
+  const sections = sectionsByKeys(a.sections, catalog);
   const score = scoreAnswers(a.answers, sections);
 
   const cover = wb.addWorksheet('Respondent');
   cover.columns = [{ width: 28 }, { width: 52 }];
-  cover.addRow(['Internal Control Self-Assessment (ICSA)']).font = {
+  cover.addRow(['Supply Chain Self-Assessment']).font = {
     bold: true,
     size: 14,
     color: { argb: GREEN },
@@ -164,8 +165,9 @@ export async function assessmentWorkbook(a: AssessmentWithContext): Promise<Buff
 }
 
 export async function consolidatedWorkbook(list: AssessmentWithContext[]): Promise<Buffer> {
+  const catalog = await loadCatalog();
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'NESR SC Agents · ICSA';
+  wb.creator = 'NESR SC Agents · Supply Chain Self-Assessment';
 
   const ov = sheet(
     wb,
@@ -199,9 +201,9 @@ export async function consolidatedWorkbook(list: AssessmentWithContext[]): Promi
       'Cycle',
       'Respondent',
       'Overall',
-      ...ICSA_SECTIONS.map((s) => `${s.id}. ${s.short}`),
+      ...catalog.map((s) => `${s.id}. ${s.short}`),
     ],
-    [18, 14, 24, 10, ...ICSA_SECTIONS.map(() => 16)],
+    [18, 14, 24, 10, ...catalog.map(() => 16)],
   );
   const open = sheet(
     wb,
@@ -239,7 +241,7 @@ export async function consolidatedWorkbook(list: AssessmentWithContext[]): Promi
   );
 
   for (const a of list) {
-    const sections = sectionsByKeys(a.sections);
+    const sections = sectionsByKeys(a.sections, catalog);
     const score = scoreAnswers(a.answers, sections);
     const t = score.total;
     const who = a.respondentName || a.respondentEmail;
@@ -267,7 +269,7 @@ export async function consolidatedWorkbook(list: AssessmentWithContext[]): Promi
       a.cycleLabel,
       who,
       rateOrDash(t.rate),
-      ...ICSA_SECTIONS.map((s) => {
+      ...catalog.map((s) => {
         const p = score.per.find((x) => x.section.key === s.key);
         return p ? rateOrDash(p.tally.rate) : '';
       }),
@@ -315,6 +317,6 @@ export function safeName(s: string): string {
     s
       .replace(/[^\w-]+/g, '_')
       .replace(/_+/g, '_')
-      .replace(/^_|_$/g, '') || 'ICSA'
+      .replace(/^_|_$/g, '') || 'Self-Assessment'
   );
 }

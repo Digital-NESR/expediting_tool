@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  ICSA_SECTIONS,
   answerKey,
   complianceBand,
   daysLeft,
@@ -14,11 +13,12 @@ import {
   submissionIssues,
   type Answers,
 } from '../model';
+import { SEED_SECTIONS as C } from '../questions';
 
 describe('question bank', () => {
   it('carries the artifact over whole: seven sections, a hundred questions, unique refs', () => {
-    expect(ICSA_SECTIONS).toHaveLength(7);
-    const refs = ICSA_SECTIONS.flatMap((s) => s.questions.map((q) => q.ref));
+    expect(C).toHaveLength(7);
+    const refs = C.flatMap((s) => s.questions.map((q) => q.ref));
     expect(refs).toHaveLength(100);
     expect(new Set(refs).size).toBe(100);
     expect(new Set(refs.map(answerKey)).size).toBe(100);
@@ -26,7 +26,7 @@ describe('question bank', () => {
 });
 
 describe('scoreAnswers', () => {
-  const grn = sectionsByKeys(['grn']);
+  const grn = sectionsByKeys(['grn'], C);
   const [q1, q2, q3, q4] = grn[0].questions;
 
   it('counts compliance as Yes over Yes+No+Partial, leaving N/A and blanks out', () => {
@@ -56,7 +56,7 @@ describe('scoreAnswers', () => {
 
 describe('submissionIssues', () => {
   it('blocks on unanswered questions and gaps without remarks', () => {
-    const s = sectionsByKeys(['policy']);
+    const s = sectionsByKeys(['policy'], C);
     const answers: Answers = Object.fromEntries(
       s[0].questions.map((q) => [answerKey(q.ref), { r: 'Yes' as const }]),
     );
@@ -125,7 +125,7 @@ describe('helpers', () => {
       sections: ['policy'],
       answers: { [answerKey('Q1.1')]: { r }, [answerKey('Q1.2')]: { r: 'Yes' as const } },
     });
-    const ranked = rankGaps([doc('Oman', 'No'), doc('Oman', 'Partial'), doc('Kuwait', 'No')]);
+    const ranked = rankGaps([doc('Oman', 'No'), doc('Oman', 'Partial'), doc('Kuwait', 'No')], C);
     expect(ranked[0].question.ref).toBe('Q1.1');
     expect(ranked[0]).toMatchObject({ no: 2, partial: 1, countries: ['Oman', 'Kuwait'] });
   });
@@ -134,19 +134,19 @@ describe('helpers', () => {
 describe('formCompletion: questions answered over questions asked', () => {
   it('counts one section of three as about a third, not 100%', () => {
     const three = ['policy', 'grn', 'po'];
-    const policy = sectionsByKeys(['policy'])[0];
+    const policy = sectionsByKeys(['policy'], C)[0];
     const answers = Object.fromEntries(
       policy.questions.map((q) => [answerKey(q.ref), { r: 'Yes' as const }]),
     );
-    const total = sectionsByKeys(three).reduce((n, s) => n + s.questions.length, 0);
-    const f = formCompletion([{ status: 'in_progress', sections: three, answers }]);
+    const total = sectionsByKeys(three, C).reduce((n, s) => n + s.questions.length, 0);
+    const f = formCompletion([{ status: 'in_progress', sections: three, answers }], C);
     expect(f.answered).toBe(policy.questions.length);
     expect(f.asked).toBe(total);
     expect(f.rate).toBeCloseTo(policy.questions.length / total);
   });
 
   it('leaves out people not sent the form yet, and is 0 with nobody asked', () => {
-    expect(formCompletion([{ status: 'nominated', sections: ['grn'], answers: {} }])).toEqual({
+    expect(formCompletion([{ status: 'nominated', sections: ['grn'], answers: {} }], C)).toEqual({
       answered: 0,
       asked: 0,
       rate: 0,

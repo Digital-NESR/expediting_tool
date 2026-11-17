@@ -4,7 +4,7 @@ import empDirectoryPool from '@/lib/db-emp-directory';
 import { logger } from '@/lib/logger';
 import { requireIcsaManager } from '@/lib/icsa/access';
 import { directoryCountriesFor } from '@/lib/icsa/model';
-import { DEMO_USERS } from '@/lib/icsa/demo';
+import { DEMO_USERS, ssoUser } from '@/lib/icsa/demo';
 
 const log = logger('icsa-directory');
 
@@ -34,7 +34,17 @@ export interface DirectoryFilter {
 
 const LIMIT = 200;
 
-/** A demo session searches the demo people, never the real directory. */
+/**
+ * Whether this search must stay inside the demo people. Only for an anonymous demo session (the
+ * public demo login, nobody signed in with Microsoft): the real directory is never shown to
+ * someone who has not signed in. An admin who is "viewing as" a demo person is signed in, so they
+ * search the real Azure AD directory and can pick real employees.
+ */
+async function demoOnly(isDemo: boolean): Promise<boolean> {
+  return isDemo && !(await ssoUser());
+}
+
+/** The demo people, for an anonymous demo session. */
 function demoPeople(): DirectoryPerson[] {
   return DEMO_USERS.map((d) => ({
     name: d.name,
@@ -61,7 +71,7 @@ export async function searchIcsaDirectory(
     if (!country && !department && !jobTitle && (!q || q.length < 2)) {
       return { people: [], truncated: false };
     }
-    if (actor.isDemo) {
+    if (await demoOnly(actor.isDemo)) {
       const people = demoPeople().filter(
         (p) =>
           (!country || p.country === country) &&
@@ -103,7 +113,7 @@ export async function searchIcsaDirectory(
 export async function icsaDirectoryDepartments(country?: string | null): Promise<string[]> {
   try {
     const actor = await requireIcsaManager();
-    if (actor.isDemo) {
+    if (await demoOnly(actor.isDemo)) {
       return [
         ...new Set(
           demoPeople()

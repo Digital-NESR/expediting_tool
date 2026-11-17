@@ -21,11 +21,11 @@ import {
 import {
   AWAITING_RESPONDENT,
   ICSA_COUNTRIES,
-  ICSA_SECTIONS,
   fmtDate,
   pct,
   type AssessmentStatus,
   type Progress,
+  type Catalog,
 } from '@/lib/icsa/model';
 import {
   AssessmentPill,
@@ -122,7 +122,7 @@ export function EnrollmentActions({
                   return d.emailError
                     ? {
                         tone: 'warn',
-                        text: `${d.sent} request${d.sent === 1 ? '' : 's'} recorded; ${d.emailed} emailed. ${d.emailError} They will see the form when they open ICSA.`,
+                        text: `${d.sent} request${d.sent === 1 ? '' : 's'} recorded; ${d.emailed} emailed. ${d.emailError} They will see the form when they open the Self-Assessment.`,
                       }
                     : {
                         tone: 'ok',
@@ -284,17 +284,19 @@ export function EnrollmentActions({
 /* ─── Section picker ────────────────────────────────────────────────────────────────────── */
 
 function SectionPicker({
+  catalog,
   value,
   onChange,
   disabled,
 }: {
+  catalog: Catalog;
   value: string[];
   onChange: (v: string[]) => void;
   disabled?: boolean;
 }) {
   return (
     <div className="flex flex-wrap gap-2">
-      {ICSA_SECTIONS.map((s) => {
+      {catalog.map((s) => {
         const on = value.includes(s.key);
         return (
           <button
@@ -324,10 +326,12 @@ export function NominatePanel({
   enrollmentId,
   country,
   already,
+  catalog,
 }: {
   enrollmentId: number;
   country: string;
   already: string[];
+  catalog: Catalog;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -539,7 +543,7 @@ export function NominatePanel({
 
       <div className="mt-4">
         <p className={LABEL}>Form sections for the {picked.size || ''} selected</p>
-        <SectionPicker value={sections} onChange={setSections} />
+        <SectionPicker catalog={catalog} value={sections} onChange={setSections} />
         <p className="mt-1 text-xs text-slate-500">
           Pick every process the person is involved in, for example Vendor and Sourcing plus PO
           Lifecycle for a buyer.
@@ -567,10 +571,12 @@ export function RespondentsTable({
   enrollmentId,
   rows,
   isOpen,
+  catalog,
 }: {
   enrollmentId: number;
   rows: RespondentRow[];
   isOpen: boolean;
+  catalog: Catalog;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState<number | null>(null);
@@ -705,7 +711,12 @@ export function RespondentsTable({
                     <td className={`${TD} max-w-[320px]`}>
                       {editing === r.id ? (
                         <div className="space-y-2">
-                          <SectionPicker value={draft} onChange={setDraft} disabled={busy} />
+                          <SectionPicker
+                            catalog={catalog}
+                            value={draft}
+                            onChange={setDraft}
+                            disabled={busy}
+                          />
                           <div className="flex gap-2">
                             <button
                               className={`${BTN} ${BTN_SM}`}
@@ -728,15 +739,17 @@ export function RespondentsTable({
                         </div>
                       ) : (
                         <div className="flex flex-wrap items-center gap-1">
-                          {ICSA_SECTIONS.filter((s) => r.sections.includes(s.key)).map((s) => (
-                            <span
-                              key={s.key}
-                              className="rounded-full bg-[#307c4c]/10 px-2 py-0.5 text-xs font-semibold text-[#307c4c]"
-                              title={s.title}
-                            >
-                              {s.short}
-                            </span>
-                          ))}
+                          {catalog
+                            .filter((s) => r.sections.includes(s.key))
+                            .map((s) => (
+                              <span
+                                key={s.key}
+                                className="rounded-full bg-[#307c4c]/10 px-2 py-0.5 text-xs font-semibold text-[#307c4c]"
+                                title={s.title}
+                              >
+                                {s.short}
+                              </span>
+                            ))}
                           {canEditSections && (
                             <button
                               className="text-xs font-semibold text-slate-500 hover:text-[#307c4c] hover:underline"

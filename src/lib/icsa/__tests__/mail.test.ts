@@ -36,7 +36,7 @@ describe('ICSA test recipient', () => {
     const m = redirectForTest({ ...base(), cc: ['boss@nesr.com'] }, 'me@nesr.com');
     expect(m.to).toEqual(['me@nesr.com']);
     expect(m.cc).toEqual([]);
-    expect(m.subject.startsWith('[ICSA TEST] ')).toBe(true);
+    expect(m.subject.startsWith('[TEST] ')).toBe(true);
     expect(m.bodyText).toContain('champion.ksa@icsa-demo.invalid, boss@nesr.com (cc)');
   });
 

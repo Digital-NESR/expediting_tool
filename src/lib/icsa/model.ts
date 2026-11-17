@@ -1,9 +1,4 @@
-import {
-  ICSA_SECTIONS,
-  type IcsaQuestion,
-  type IcsaSection,
-  type IcsaSectionKey,
-} from './questions';
+import type { IcsaQuestion, IcsaSection, IcsaSectionKey } from './questions';
 
 /**
  * ICSA domain rules that both the server and the browser need: response options, scoring,
@@ -11,8 +6,13 @@ import {
  * database, no React, so they are unit-tested directly.
  */
 
-export { ICSA_SECTIONS };
 export type { IcsaQuestion, IcsaSection, IcsaSectionKey };
+
+/**
+ * The question bank: every active section with its active questions, in order. Loaded from the
+ * database on the server (./catalog.ts) and passed to whatever needs it, browser included.
+ */
+export type Catalog = IcsaSection[];
 
 /* ─── Countries ─────────────────────────────────────────────────────────────────────────── */
 
@@ -147,12 +147,13 @@ export function questionText(q: IcsaQuestion, country: string | null | undefined
   return q.text.replace('{country}', country || 'your country');
 }
 
-export function sectionsByKeys(keys: readonly string[]): IcsaSection[] {
-  return ICSA_SECTIONS.filter((s) => keys.includes(s.key));
+/** The sections a form was given, in bank order. Archived sections drop out. */
+export function sectionsByKeys(keys: readonly string[], catalog: Catalog): IcsaSection[] {
+  return catalog.filter((s) => keys.includes(s.key));
 }
 
-export function isSectionKey(key: string): key is IcsaSectionKey {
-  return ICSA_SECTIONS.some((s) => s.key === key);
+export function isSectionKey(key: string, catalog: Catalog): key is IcsaSectionKey {
+  return catalog.some((s) => s.key === key);
 }
 
 export function isGap(r: Answer['r']): boolean {
@@ -312,12 +313,13 @@ export function progress(statuses: AssessmentStatus[]): Progress {
  */
 export function formCompletion(
   docs: { status: AssessmentStatus; sections: string[]; answers: Answers | null | undefined }[],
+  catalog: Catalog,
 ): { answered: number; asked: number; rate: number } {
   let answered = 0;
   let asked = 0;
   for (const d of docs) {
     if (d.status === 'nominated') continue;
-    const t = scoreAnswers(d.answers, sectionsByKeys(d.sections)).total;
+    const t = scoreAnswers(d.answers, sectionsByKeys(d.sections, catalog)).total;
     answered += t.done;
     asked += t.n;
   }
@@ -367,10 +369,11 @@ export interface GapRow {
 /** Questions answered No or Partial most often across the given assessments. */
 export function rankGaps(
   docs: { country: string; answers: Answers | null | undefined; sections: string[] }[],
+  catalog: Catalog,
 ): GapRow[] {
   const m = new Map<string, GapRow>();
   for (const d of docs) {
-    for (const s of sectionsByKeys(d.sections)) {
+    for (const s of sectionsByKeys(d.sections, catalog)) {
       for (const q of s.questions) {
         const r = d.answers?.[answerKey(q.ref)]?.r;
         if (!isGap(r)) continue;

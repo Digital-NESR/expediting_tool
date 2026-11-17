@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getIcsaActor, isChampion } from '@/lib/icsa/access';
 import { listMyAssessments } from '@/lib/icsa/queries';
+import { loadCatalog } from '@/lib/icsa/catalog';
 import {
   EDITABLE_STATUSES,
   daysLeft,
@@ -16,7 +17,7 @@ import { icsaSignInPath } from '@/lib/icsa/demo';
 export default async function IcsaHome() {
   const actor = await getIcsaActor();
   if (!actor) redirect(icsaSignInPath());
-  const mine = await listMyAssessments(actor.email);
+  const [mine, catalog] = await Promise.all([listMyAssessments(actor.email), loadCatalog()]);
   const manager = actor.isAdmin || isChampion(actor);
 
   return (
@@ -49,7 +50,7 @@ export default async function IcsaHome() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {mine.map((a) => {
-            const sections = sectionsByKeys(a.sections);
+            const sections = sectionsByKeys(a.sections, catalog);
             const t = scoreAnswers(a.answers, sections).total;
             const editable = EDITABLE_STATUSES.includes(a.status) && a.enrollmentStatus === 'open';
             const left = daysLeft(a.deadline);

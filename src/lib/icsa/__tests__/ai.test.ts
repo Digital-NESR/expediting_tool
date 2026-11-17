@@ -8,6 +8,7 @@ import {
   normalizeReview,
   normalizeSuggestions,
 } from '../ai';
+import { SEED_SECTIONS } from '../questions';
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -34,7 +35,7 @@ const docs: Parameters<typeof countryGaps>[1] = [
 
 describe('countryGaps', () => {
   it('collects No and Partial answers per question, worst first', () => {
-    const gaps = countryGaps('Kuwait', docs);
+    const gaps = countryGaps('Kuwait', docs, SEED_SECTIONS);
     /* Both have one No; Q5.2 also has a Partial, so it is worse. */
     expect(gaps.map((g) => g.ref)).toEqual(['Q5.2', 'Q5.1']);
     const q52 = gaps.find((g) => g.ref === 'Q5.2')!;
@@ -47,13 +48,13 @@ describe('countryGaps', () => {
   });
 
   it('ignores Yes and unanswered questions', () => {
-    expect(countryGaps('Kuwait', docs).some((g) => g.ref === 'Q5.3')).toBe(false);
+    expect(countryGaps('Kuwait', docs, SEED_SECTIONS).some((g) => g.ref === 'Q5.3')).toBe(false);
   });
 });
 
 describe('prompts', () => {
   it('the review prompt names the country and every gap', () => {
-    const gaps = countryGaps('Kuwait', docs);
+    const gaps = countryGaps('Kuwait', docs, SEED_SECTIONS);
     const { prompt, system } = gapReviewPrompt({
       country: 'Kuwait',
       cycleLabel: 'Q1 2027',
@@ -69,7 +70,7 @@ describe('prompts', () => {
   });
 
   it('the suggestion prompt carries the reviewer finding when there is one', () => {
-    const gap = countryGaps('Kuwait', docs)[0];
+    const gap = countryGaps('Kuwait', docs, SEED_SECTIONS)[0];
     const { prompt } = actionSuggestionPrompt({
       country: 'Kuwait',
       gap,

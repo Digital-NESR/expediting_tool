@@ -6,6 +6,7 @@ import { AccessError, normalizeEmail } from '@/lib/require-access';
 import { logger } from '@/lib/logger';
 import { createSqlHelpers } from '@/lib/db/sql';
 import { withTransaction } from '@/lib/db/tx';
+import { loadCatalog } from '@/lib/icsa/catalog';
 import { exec, icsaPool, sql } from '@/lib/icsa/db';
 import {
   canManageCountry,
@@ -180,8 +181,9 @@ export interface Nominee {
   department: string | null;
 }
 
-function cleanSections(sections: string[]): string[] | null {
-  const keys = [...new Set(sections)].filter(isSectionKey);
+async function cleanSections(sections: string[]): Promise<string[] | null> {
+  const catalog = await loadCatalog();
+  const keys = [...new Set(sections)].filter((k) => isSectionKey(k, catalog));
   return keys.length && keys.length === new Set(sections).size ? keys : null;
 }
 
@@ -197,7 +199,7 @@ export async function nominateIcsaRespondents(
   try {
     const actor = await requireIcsaActor();
     await loadEnrollment(actor, enrollmentId);
-    const keys = cleanSections(sections);
+    const keys = await cleanSections(sections);
     if (!keys) return { success: false, error: 'Choose at least one form section.' };
     const valid = people
       .map((p) => ({ ...p, email: normalizeEmail(p.email) }))
@@ -249,7 +251,7 @@ export async function setIcsaRespondentSections(
     if (!['nominated', 'requested'].includes(a.status)) {
       return { success: false, error: 'They have started answering, so their sections are fixed.' };
     }
-    const keys = cleanSections(sections);
+    const keys = await cleanSections(sections);
     if (!keys) return { success: false, error: 'Choose at least one form section.' };
     await exec(
       `UPDATE icsa_assessments SET sections = ?::text[], updated_at = NOW() WHERE id = ?`,
@@ -300,7 +302,7 @@ async function mailOne(
       name: a.respondent_name,
       cycleLabel: e.cycle_label,
       country: e.country,
-      sections: sectionsByKeys(a.sections).map((s) => s.title),
+      sections: sectionsByKeys(a.sections, await loadCatalog()).map((s) => s.title),
       deadline: e.deadline,
       championName: e.champion_name,
       championEmail: e.champion_email,

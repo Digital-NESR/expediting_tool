@@ -20,11 +20,11 @@ import {
   pct,
   questionText,
   scoreAnswers,
-  sectionsByKeys,
   submissionIssues,
   type Answer,
   type Answers,
   type IcsaQuestion,
+  type IcsaSection,
 } from '@/lib/icsa/model';
 import type { AssessmentWithContext, EvidenceFile } from '@/lib/icsa/queries';
 import {
@@ -70,17 +70,19 @@ const OPTION_ON: Record<string, string> = {
 
 export default function AssessmentForm({
   assessment: a,
+  sections,
   evidence: initialEvidence,
   canEdit,
   canReview,
 }: {
   assessment: AssessmentWithContext;
+  /** This form's sections from the question bank, in order (loaded on the server). */
+  sections: IcsaSection[];
   evidence: EvidenceFile[];
   canEdit: boolean;
   canReview: boolean;
 }) {
   const router = useRouter();
-  const sections = useMemo(() => sectionsByKeys(a.sections), [a.sections]);
   const [answers, setAnswers] = useState<Answers>(a.answers ?? {});
   const [evidence, setEvidence] = useState(initialEvidence);
   const [step, setStep] = useState<string>(canEdit ? 'details' : 'summary');
@@ -321,7 +323,7 @@ export default function AssessmentForm({
     panel = (
       <div className="space-y-4">
         <Head eyebrow="Respondent details" title="Start here">
-          This Internal Control Self-Assessment (ICSA) covers the operations of the Supply Chain
+          This Supply Chain Self-Assessment covers the internal controls of the Supply Chain
           function and supports NESR&apos;s compliance with established procedures in line with SOX
           controls. Review each question and respond with one of the options below.
         </Head>

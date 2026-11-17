@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { loadCatalog } from '@/lib/icsa/catalog';
 import { getIcsaActor, isChampion } from '@/lib/icsa/access';
 import {
   getCycle,
@@ -38,6 +39,7 @@ export default async function CyclePage({ params }: { params: Promise<{ id: stri
   const { id } = await params;
   const cycle = await getCycle(Number(id) || 0);
   if (!cycle) notFound();
+  const catalog = await loadCatalog();
   const enrollments = await listEnrollments(actor, cycle.id);
   /* A champion only reaches a cycle their country has been assigned to. */
   if (!actor.isAdmin && !enrollments.length) redirect('/icsa/cycles');
@@ -56,9 +58,12 @@ export default async function CyclePage({ params }: { params: Promise<{ id: stri
   }
   const overall = progress(enrollments.flatMap((e) => e.statuses));
   const forms = await listManagedAssessments(actor, { cycleId: cycle.id });
-  const filled = formCompletion(forms);
+  const filled = formCompletion(forms, catalog);
   const filledFor = (enrollmentId: number) =>
-    formCompletion(forms.filter((a) => a.enrollmentId === enrollmentId));
+    formCompletion(
+      forms.filter((a) => a.enrollmentId === enrollmentId),
+      catalog,
+    );
   const left = daysLeft(cycle.deadline);
 
   return (

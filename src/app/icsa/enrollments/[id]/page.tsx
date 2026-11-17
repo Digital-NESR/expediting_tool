@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { loadCatalog } from '@/lib/icsa/catalog';
 import { Download } from 'lucide-react';
 import { getIcsaActor } from '@/lib/icsa/access';
 import { getCycle, getEnrollment, listAssessmentsForEnrollment } from '@/lib/icsa/queries';
@@ -42,12 +43,13 @@ export default async function EnrollmentPage({ params }: { params: Promise<{ id:
     listAssessmentsForEnrollment(enrollment.id),
   ]);
   if (!cycle) notFound();
+  const catalog = await loadCatalog();
 
   const p = progress(assessments.map((a) => a.status));
-  const filled = formCompletion(assessments);
+  const filled = formCompletion(assessments, catalog);
   const isOpen = enrollment.status === 'open';
   const rows: RespondentRow[] = assessments.map((a) => {
-    const t = scoreAnswers(a.answers, sectionsByKeys(a.sections)).total;
+    const t = scoreAnswers(a.answers, sectionsByKeys(a.sections, catalog)).total;
     return {
       id: a.id,
       name: a.respondentName,
@@ -165,11 +167,17 @@ export default async function EnrollmentPage({ params }: { params: Promise<{ id:
             enrollmentId={enrollment.id}
             country={enrollment.country}
             already={rows.map((r) => r.email)}
+            catalog={catalog}
           />
         </div>
       )}
 
-      <RespondentsTable enrollmentId={enrollment.id} rows={rows} isOpen={isOpen} />
+      <RespondentsTable
+        enrollmentId={enrollment.id}
+        rows={rows}
+        isOpen={isOpen}
+        catalog={catalog}
+      />
     </>
   );
 }

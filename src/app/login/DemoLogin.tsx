@@ -17,7 +17,7 @@ export default function DemoLogin({ options }: { options: DemoOption[] }) {
         Demo login — testing only
       </p>
       <p className="mb-3 text-xs text-slate-400">
-        ICSA only. Pick a person to see the app as that role.
+        Supply Chain Self-Assessment only. Pick a person to see the app as that role.
       </p>
       <form action={action} className="flex gap-2">
         <select

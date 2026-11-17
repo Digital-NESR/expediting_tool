@@ -8,7 +8,7 @@ import IcsaShell from './components/IcsaShell';
 import { CARD } from './components/ui';
 import { allDemoOptions, currentDemoUser, icsaSignInPath, ssoUser } from '@/lib/icsa/demo';
 
-export const metadata: Metadata = { title: 'NESR | ICSA' };
+export const metadata: Metadata = { title: 'NESR | Supply Chain Self-Assessment' };
 export const dynamic = 'force-dynamic';
 
 /**
@@ -27,14 +27,15 @@ export default async function IcsaLayout({ children }: { children: React.ReactNo
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[#307c4c]/10">
             <ShieldCheck className="h-6 w-6 text-[#307c4c]" />
           </div>
-          <h1 className="text-xl font-bold text-slate-900">Internal Control Self-Assessment</h1>
+          <h1 className="text-xl font-bold text-slate-900">Supply Chain Self-Assessment</h1>
           <p className="mt-2 text-sm text-slate-600">
-            You have no self-assessment to complete right now. Your country&apos;s ICSA champion
-            sends you the form when a cycle opens, and you will receive an email when they do.
+            You have no self-assessment to complete right now. Your country&apos;s Self-Assessment
+            champion sends you the form when a cycle opens, and you will receive an email when they
+            do.
           </p>
           <p className="mt-2 text-sm text-slate-600">
-            Champions are appointed by the ICSA administrator. If you should be one, ask the Supply
-            Chain governance team.
+            Champions are appointed by the Self-Assessment administrator. If you should be one, ask
+            the Supply Chain governance team.
           </p>
           <Link
             href="/home"

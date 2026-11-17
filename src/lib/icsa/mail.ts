@@ -62,7 +62,7 @@ export function redirectForTest(message: IcsaMail, testTo: string): IcsaMail {
     ...message,
     to: [testTo],
     cc: [],
-    subject: `[ICSA TEST] ${message.subject}`,
+    subject: `[TEST] ${message.subject}`,
     bodyHtml: `<p style="font-family:Arial,Helvetica,sans-serif;background:#fff4d6;border:1px solid #f0c36d;padding:8px 12px;margin:0 0 12px;font-size:13px">${esc(note)}</p>${message.bodyHtml}`,
     bodyText: `${note}\n\n${message.bodyText}`,
     meta: { ...message.meta, intendedTo: meantFor },
@@ -137,7 +137,7 @@ function frame(
   <div style="padding:20px;border:1px solid #d1d3d4;border-top:0">
   ${paragraphs.map((p) => `<p style="margin:0 0 12px;line-height:1.5">${p}</p>`).join('')}
   <p style="margin:20px 0"><a href="${esc(cta.href)}" style="background:#2a7e4f;color:#fff;padding:10px 18px;text-decoration:none;border-radius:6px;display:inline-block">${esc(cta.label)}</a></p>
-  <p style="margin:0;color:#58595b;font-size:12px">Internal Control Self-Assessment (ICSA), Supply Chain function, aligned with SOX controls.</p>
+  <p style="margin:0;color:#58595b;font-size:12px">Supply Chain Self-Assessment: internal controls of the Supply Chain function, aligned with SOX controls.</p>
   </div></div>`;
 }
 
@@ -158,33 +158,33 @@ export function requestMail(i: RequestMailInput): IcsaMail {
   const link = appUrl(`/icsa/assessments/${i.assessmentId}`);
   const first = i.kind === 'request';
   const subject = first
-    ? `ICSA ${i.cycleLabel}: your self-assessment for ${i.country}`
-    : `Reminder: ICSA ${i.cycleLabel} self-assessment due ${i.deadline}`;
+    ? `Supply Chain Self-Assessment ${i.cycleLabel}: your form for ${i.country}`
+    : `Reminder: Supply Chain Self-Assessment ${i.cycleLabel} due ${i.deadline}`;
   const greeting = `Dear ${esc(i.name || 'colleague')},`;
   const ask = first
-    ? `You have been asked to complete the Internal Control Self-Assessment for <b>${esc(i.country)}</b>, cycle <b>${esc(i.cycleLabel)}</b>.`
-    : `This is a reminder that your Internal Control Self-Assessment for <b>${esc(i.country)}</b>, cycle <b>${esc(i.cycleLabel)}</b>, has not been submitted yet.`;
+    ? `You have been asked to complete the Supply Chain Self-Assessment for <b>${esc(i.country)}</b>, cycle <b>${esc(i.cycleLabel)}</b>.`
+    : `This is a reminder that your Supply Chain Self-Assessment for <b>${esc(i.country)}</b>, cycle <b>${esc(i.cycleLabel)}</b>, has not been submitted yet.`;
   const paras = [
     greeting,
     ask,
     `Sections assigned to you: ${i.sections.map(esc).join(', ')}.`,
     `Please submit by <b>${esc(i.deadline)}</b>. Your answers save as you go, so you can leave and come back.`,
-    `Questions? Contact your ICSA champion, ${esc(i.championName || i.championEmail)} (${esc(i.championEmail)}).`,
+    `Questions? Contact your Self-Assessment champion, ${esc(i.championName || i.championEmail)} (${esc(i.championEmail)}).`,
   ];
   return {
     kind: i.kind,
     to: [i.to],
     cc: [],
     subject,
-    bodyHtml: frame('Internal Control Self-Assessment', paras, {
+    bodyHtml: frame('Supply Chain Self-Assessment', paras, {
       label: 'Open my assessment',
       href: link,
     }),
     bodyText: [
       `Dear ${i.name || 'colleague'},`,
       first
-        ? `You have been asked to complete the ICSA for ${i.country}, cycle ${i.cycleLabel}.`
-        : `Reminder: your ICSA for ${i.country}, cycle ${i.cycleLabel}, has not been submitted yet.`,
+        ? `You have been asked to complete the Supply Chain Self-Assessment for ${i.country}, cycle ${i.cycleLabel}.`
+        : `Reminder: your Supply Chain Self-Assessment for ${i.country}, cycle ${i.cycleLabel}, has not been submitted yet.`,
       `Sections: ${i.sections.join(', ')}.`,
       `Due ${i.deadline}. Open it here: ${link}`,
     ].join('\n\n'),
@@ -215,12 +215,12 @@ export function submittedMail(i: {
     kind: 'submitted',
     to: [i.to],
     cc: [],
-    subject: `ICSA ${i.cycleLabel}: ${i.respondent} submitted their self-assessment (${i.country})`,
+    subject: `Supply Chain Self-Assessment ${i.cycleLabel}: ${i.respondent} submitted their form (${i.country})`,
     bodyHtml: frame(
       'Self-assessment submitted',
       [
         `Dear ${esc(i.championName || 'colleague')},`,
-        `<b>${esc(i.respondent)}</b> has submitted their ICSA for <b>${esc(i.country)}</b>, cycle <b>${esc(i.cycleLabel)}</b>.`,
+        `<b>${esc(i.respondent)}</b> has submitted their self-assessment for <b>${esc(i.country)}</b>, cycle <b>${esc(i.cycleLabel)}</b>.`,
         `Compliance ${rate}, with ${i.openItems} open item${i.openItems === 1 ? '' : 's'} (No or Partial).`,
         esc(tally),
         'Please review it, then mark it reviewed or return it for changes.',
@@ -228,7 +228,7 @@ export function submittedMail(i: {
       { label: 'Review the form', href: link },
     ),
     bodyText: [
-      `${i.respondent} submitted their ICSA for ${i.country} (${i.cycleLabel}).`,
+      `${i.respondent} submitted their self-assessment for ${i.country} (${i.cycleLabel}).`,
       `Compliance ${rate}, ${i.openItems} open items. ${tally}`,
       `Review it here: ${link}`,
     ].join('\n\n'),
@@ -250,19 +250,19 @@ export function assignedMail(i: {
     kind: 'assigned',
     to: [i.to],
     cc: [],
-    subject: `ICSA ${i.cycleLabel}: ${i.country} is assigned to you`,
+    subject: `Supply Chain Self-Assessment ${i.cycleLabel}: ${i.country} is assigned to you`,
     bodyHtml: frame(
-      'ICSA cycle assigned',
+      'Self-Assessment cycle assigned',
       [
         `Dear ${esc(i.name || 'colleague')},`,
-        `The ICSA administrator has added <b>${esc(i.country)}</b> to cycle <b>${esc(i.cycleLabel)}</b>, with you as its champion.`,
+        `The Self-Assessment administrator has added <b>${esc(i.country)}</b> to cycle <b>${esc(i.cycleLabel)}</b>, with you as its champion.`,
         `Please choose the people who should complete the self-assessment, give each of them their form sections, and send them the form. Everyone you choose has to submit their whole form by <b>${esc(i.deadline)}</b>.`,
       ],
       { label: 'Choose respondents', href: link },
     ),
     bodyText: [
       `Dear ${i.name || 'colleague'},`,
-      `${i.country} has been added to ICSA cycle ${i.cycleLabel} with you as champion.`,
+      `${i.country} has been added to Supply Chain Self-Assessment cycle ${i.cycleLabel} with you as champion.`,
       `Choose the respondents and send them the form by ${i.deadline}: ${link}`,
     ].join('\n\n'),
     meta: { enrollmentId: i.enrollmentId, country: i.country, cycle: i.cycleLabel },
@@ -281,18 +281,18 @@ export function returnedMail(i: {
   return {
     kind: 'returned',
     to: [i.to],
-    subject: `ICSA ${i.cycleLabel}: your self-assessment was returned for changes`,
+    subject: `Supply Chain Self-Assessment ${i.cycleLabel}: your form was returned for changes`,
     bodyHtml: frame(
       'Self-assessment returned',
       [
         `Dear ${esc(i.name || 'colleague')},`,
-        `Your ICSA for <b>${esc(i.country)}</b>, cycle <b>${esc(i.cycleLabel)}</b>, was returned with this note:`,
+        `Your self-assessment for <b>${esc(i.country)}</b>, cycle <b>${esc(i.cycleLabel)}</b>, was returned with this note:`,
         `<i>${esc(i.note)}</i>`,
         'Please update your answers and submit again.',
       ],
       { label: 'Open my assessment', href: link },
     ),
-    bodyText: `Your ICSA for ${i.country} (${i.cycleLabel}) was returned: ${i.note}\n\n${link}`,
+    bodyText: `Your self-assessment for ${i.country} (${i.cycleLabel}) was returned: ${i.note}\n\n${link}`,
     meta: { assessmentId: i.assessmentId },
   };
 }
@@ -314,13 +314,13 @@ export function extensionRequestMail(i: {
     kind: 'extension-request',
     to: i.to,
     cc: [],
-    subject: `ICSA ${i.cycleLabel}: ${i.country} asks for an extension to ${i.requestedDeadline}`,
+    subject: `Supply Chain Self-Assessment ${i.cycleLabel}: ${i.country} asks for an extension to ${i.requestedDeadline}`,
     bodyHtml: frame(
       'Extension requested',
       [
         `${esc(who)} (${esc(i.championEmail)}), champion for <b>${esc(i.country)}</b>, asks to move the deadline for cycle <b>${esc(i.cycleLabel)}</b> from <b>${esc(i.currentDeadline)}</b> to <b>${esc(i.requestedDeadline)}</b>.`,
         `Reason: <i>${esc(i.reason)}</i>`,
-        'Approve or reject it on the ICSA Administration page.',
+        'Approve or reject it in the admin panel, under Supply Chain Self-Assessment → Extension Requests.',
       ],
       { label: 'Review the request', href: link },
     ),
@@ -353,7 +353,7 @@ export function extensionDecisionMail(i: {
     kind: 'extension-decision',
     to: [i.to],
     cc: i.cc,
-    subject: `ICSA ${i.cycleLabel}: extension for ${i.country} ${i.approved ? 'approved' : 'rejected'}`,
+    subject: `Supply Chain Self-Assessment ${i.cycleLabel}: extension for ${i.country} ${i.approved ? 'approved' : 'rejected'}`,
     bodyHtml: frame(
       i.approved ? 'Extension approved' : 'Extension rejected',
       [
@@ -364,7 +364,7 @@ export function extensionDecisionMail(i: {
       { label: 'Open the country', href: link },
     ),
     bodyText: [
-      `Your ICSA extension request for ${i.country} (${i.cycleLabel}, to ${i.requestedDeadline}) was ${i.approved ? 'approved' : 'rejected'}.`,
+      `Your extension request for ${i.country} (${i.cycleLabel}, to ${i.requestedDeadline}) was ${i.approved ? 'approved' : 'rejected'}.`,
       ...(i.note ? [`Note: ${i.note}`] : []),
       link,
     ].join('\n\n'),

@@ -107,8 +107,8 @@ export default function IcsaShell({
           <ListChecks className="h-5 w-5" />
         </div>
         <div className="min-w-0">
-          <p className="truncate text-sm font-bold leading-tight">ICSA</p>
-          <p className="text-[0.6875rem] text-white/70">Internal Control Self-Assessment</p>
+          <p className="truncate text-sm font-bold leading-tight">Self-Assessment</p>
+          <p className="text-[0.6875rem] text-white/70">Supply Chain · SOX controls</p>
         </div>
         <button
           type="button"
@@ -195,7 +195,7 @@ export default function IcsaShell({
           >
             <Menu className="h-5 w-5" />
           </button>
-          <p className="text-sm font-bold text-slate-800">ICSA</p>
+          <p className="text-sm font-bold text-slate-800">Supply Chain Self-Assessment</p>
         </header>
         {/* relative: screen-reader-only (absolute) elements inside the page must stay in this
             scroll area. Otherwise they stretch the window, and focusing one (a radio) scrolls the

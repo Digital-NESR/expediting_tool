@@ -29,6 +29,9 @@ import type { LearningHubAdminData } from '@/types/learning-hub';
 import type { LearningHubAnalytics } from '@/types/learning-hub';
 import type { WorksheetReport } from '@/app/actions/learning-hub-worksheets';
 import type { ExpeditingAnalytics } from '@/app/actions/adminAnalytics';
+import type { AdminSection } from '@/lib/icsa/catalog';
+import type { Champion } from '@/lib/icsa/queries';
+import type { PendingExtension } from '../../icsa/admin/AdminClient';
 
 /* Same shape as ./loading.tsx — the skeleton the route already shows
    while a section's server data loads — so a panel chunk arriving a
@@ -156,6 +159,19 @@ const LearningHubAnalyticsClient = dynamic(() => import('../LearningHubAnalytics
   loading,
 });
 
+/* ── Supply Chain Self-Assessment ── */
+const ScsaQuestionBankPanel = dynamic(() => import('../../icsa/admin/QuestionBankPanel'), {
+  loading,
+});
+const ScsaChampionsPanel = dynamic(
+  () => import('../../icsa/admin/AdminClient').then((m) => m.ChampionsPanel),
+  { loading },
+);
+const ScsaExtensionsPanel = dynamic(
+  () => import('../../icsa/admin/AdminClient').then((m) => m.ExtensionsPanel),
+  { loading },
+);
+
 /* ── Supply Chain Analytics ── */
 const RrsmAdminClient = dynamic(() => import('../RrsmAdminClient'), { loading });
 const TravelAnalyticsGrantsClient = dynamic(() => import('../TravelAnalyticsGrantsClient'), {
@@ -176,6 +192,9 @@ export interface AdminAppContentProps {
   learningHubAnalytics?: LearningHubAnalytics;
   learningHubWorksheets?: WorksheetReport[];
   learningHubRoles?: { roleKey: string; label: string; learners: number }[];
+  scsaBank?: AdminSection[];
+  scsaChampions?: Champion[];
+  scsaExtensions?: PendingExtension[];
 }
 
 /* Badges live in the sidebar (server-fetched in the layout), so the access
@@ -290,6 +309,14 @@ export default function AdminAppContent(props: AdminAppContentProps) {
     /* ── RRSM ── */
     case 'rrsm/countries':
       return <RrsmAdminClient />;
+
+    /* ── Supply Chain Self-Assessment ── */
+    case 'self-assessment/questions':
+      return <ScsaQuestionBankPanel bank={props.scsaBank ?? []} />;
+    case 'self-assessment/champions':
+      return <ScsaChampionsPanel champions={props.scsaChampions ?? []} />;
+    case 'self-assessment/extensions':
+      return <ScsaExtensionsPanel requests={props.scsaExtensions ?? []} />;
 
     /* ── Supply Chain Analytics ── */
     case 'supply-chain-analytics/travel-access':

@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger';
 import { exec, sql } from '@/lib/icsa/db';
 import { canManageCountry, requireIcsaActor, type IcsaActor } from '@/lib/icsa/access';
 import { logEvent } from '@/lib/icsa/lifecycle';
+import { loadCatalog } from '@/lib/icsa/catalog';
 import { mailConfigured, returnedMail, sendIcsaMail, submittedMail } from '@/lib/icsa/mail';
 import {
   ANSWER_FIELD_MAX,
@@ -85,9 +86,13 @@ async function loadEditable(actor: IcsaActor, id: number): Promise<Row> {
 }
 
 /** Validate a patch of answers against the respondent's own questions. */
-function cleanPatch(patch: Record<string, Answer>, a: Row): Answers | string {
+function cleanPatch(
+  patch: Record<string, Answer>,
+  a: Row,
+  catalog: Awaited<ReturnType<typeof loadCatalog>>,
+): Answers | string {
   const allowed = new Set(
-    sectionsByKeys(a.sections).flatMap((s) =>
+    sectionsByKeys(a.sections, catalog).flatMap((s) =>
       s.questions.map((q) => q.ref.toLowerCase().replace('.', '_')),
     ),
   );
@@ -123,7 +128,7 @@ export async function saveIcsaAssessment(
   try {
     const actor = await requireIcsaActor();
     const a = await loadEditable(actor, id);
-    const patch = cleanPatch(input.answers ?? {}, a);
+    const patch = cleanPatch(input.answers ?? {}, a, await loadCatalog());
     if (typeof patch === 'string') return { success: false, error: patch };
     const designation =
       input.designation === undefined ? null : String(input.designation).slice(0, 200);
@@ -147,7 +152,7 @@ export async function submitIcsaAssessment(id: number): Promise<IcsaResult> {
   try {
     const actor = await requireIcsaActor();
     const a = await loadEditable(actor, id);
-    const issues = submissionIssues(a, sectionsByKeys(a.sections));
+    const issues = submissionIssues(a, sectionsByKeys(a.sections, await loadCatalog()));
     if (issues.length) {
       return { success: false, error: `Fix these first: ${issues.map((i) => i.text).join(' ')}` };
     }
@@ -183,7 +188,7 @@ async function tellChampion(actor: IcsaActor, a: Row): Promise<void> {
       `SELECT status FROM icsa_assessments WHERE enrollment_id = ? AND status <> 'nominated'`,
       [a.enrollment_id],
     );
-    const t = scoreAnswers(a.answers, sectionsByKeys(a.sections)).total;
+    const t = scoreAnswers(a.answers, sectionsByKeys(a.sections, await loadCatalog())).total;
     await sendIcsaMail(
       submittedMail({
         to: a.champion_email,
@@ -285,7 +290,9 @@ export async function uploadIcsaEvidence(
     const ref = String(form.get('questionRef') ?? '');
     const file = form.get('file');
     const a = await loadEditable(actor, id);
-    const refs = sectionsByKeys(a.sections).flatMap((s) => s.questions.map((q) => q.ref));
+    const refs = sectionsByKeys(a.sections, await loadCatalog()).flatMap((s) =>
+      s.questions.map((q) => q.ref),
+    );
     if (!refs.includes(ref)) return { success: false, error: 'That question is not on your form.' };
     if (!(file instanceof File) || !file.size) return { success: false, error: 'Choose a file.' };
     if (file.size > MAX_EVIDENCE_BYTES) {

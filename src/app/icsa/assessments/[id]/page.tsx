@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { getIcsaActor } from '@/lib/icsa/access';
 import { getAssessment, listEvidence } from '@/lib/icsa/queries';
-import { EDITABLE_STATUSES } from '@/lib/icsa/model';
+import { EDITABLE_STATUSES, sectionsByKeys } from '@/lib/icsa/model';
+import { loadCatalog } from '@/lib/icsa/catalog';
 import AssessmentForm from './AssessmentForm';
 import { icsaSignInPath } from '@/lib/icsa/demo';
 
@@ -13,7 +14,7 @@ export default async function AssessmentPage({ params }: { params: Promise<{ id:
   const found = await getAssessment(actor, Number(id) || 0);
   if (!found) notFound();
   const { assessment, access } = found;
-  const evidence = await listEvidence(assessment.id);
+  const [evidence, catalog] = await Promise.all([listEvidence(assessment.id), loadCatalog()]);
 
   const isRespondent = access.includes('respondent');
   const isManager = access.includes('manager');
@@ -40,6 +41,7 @@ export default async function AssessmentPage({ params }: { params: Promise<{ id:
       </div>
       <AssessmentForm
         assessment={assessment}
+        sections={sectionsByKeys(assessment.sections, catalog)}
         evidence={evidence}
         canEdit={canEdit}
         canReview={isManager}

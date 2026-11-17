@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { loadCatalog } from '@/lib/icsa/catalog';
 import { Download } from 'lucide-react';
 import { getIcsaActor, isChampion } from '@/lib/icsa/access';
 import {
@@ -10,7 +11,6 @@ import {
 } from '@/lib/icsa/queries';
 import {
   ICSA_COUNTRIES,
-  ICSA_SECTIONS,
   RESPONDED_STATUSES,
   fmtDate,
   pct,
@@ -44,6 +44,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
   if (!actor) redirect(icsaSignInPath());
   if (!actor.isAdmin && !isChampion(actor)) redirect('/icsa');
   const sp = await searchParams;
+  const catalog = await loadCatalog();
 
   const cycles = await listCycles();
   /* Default to the current cycle: the newest open one, else the newest. */
@@ -67,7 +68,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
 
   const scored = all.map((a) => ({
     a,
-    score: scoreAnswers(a.answers, sectionsByKeys(a.sections)),
+    score: scoreAnswers(a.answers, sectionsByKeys(a.sections, catalog)),
   }));
   const responded = scored.filter((x) => RESPONDED_STATUSES.includes(x.a.status));
   const started = new Set(
@@ -78,7 +79,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
   const rates = responded.map((x) => x.score.total.rate).filter((r): r is number => r !== null);
   const avg = rates.length ? rates.reduce((s, r) => s + r, 0) / rates.length : null;
   const coverage = progress(all.map((a) => a.status));
-  const filled = formCompletion(all);
+  const filled = formCompletion(all, catalog);
 
   /* Compliance by section and country, pooled over every response in that country. */
   const countriesInView = [...new Set(responded.map((x) => x.a.country))].sort();
@@ -100,11 +101,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
       country: c,
       n: mine.length,
       overall: cell(),
-      per: ICSA_SECTIONS.map((s) => cell(s.key)),
+      per: catalog.map((s) => cell(s.key)),
     };
   });
   const gaps = rankGaps(
     responded.map((x) => ({ country: x.a.country, answers: x.a.answers, sections: x.a.sections })),
+    catalog,
   );
 
   const scopeCountries = actor.isAdmin ? [...ICSA_COUNTRIES] : actor.championCountries;
@@ -169,7 +171,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
                 {enrollments.map((e) => {
                   const c = cycles.find((x) => x.id === e.cycleId);
                   const p = progress(e.statuses);
-                  const f = formCompletion(all.filter((a) => a.enrollmentId === e.id));
+                  const f = formCompletion(
+                    all.filter((a) => a.enrollmentId === e.id),
+                    catalog,
+                  );
                   return (
                     <tr key={e.id} className="hover:bg-[#307c4c]/5">
                       <td className={`${TD} font-semibold`}>{e.country}</td>
@@ -248,7 +253,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
                       <p className="text-xs text-slate-500">{a.designation || a.jobTitle || ''}</p>
                     </td>
                     <td className={`${TD} text-xs`}>
-                      {sectionsByKeys(a.sections)
+                      {sectionsByKeys(a.sections, catalog)
                         .map((s) => s.short)
                         .join(', ')}
                     </td>
@@ -289,7 +294,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: SP
                   <th className={TH}>Country</th>
                   <th className={`${TH} text-right`}>Responses</th>
                   <th className={`${TH} text-right`}>Overall</th>
-                  {ICSA_SECTIONS.map((s) => (
+                  {catalog.map((s) => (
                     <th key={s.key} className={`${TH} text-right`} title={s.title}>
                       {s.id}. {s.short.split(' ')[0]}
                     </th>

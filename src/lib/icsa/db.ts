@@ -11,5 +11,5 @@ export const { sql, exec } = createSqlHelpers(icsaPool);
 export { icsaPool };
 
 export function ensureIcsaSchema(): Promise<void> {
-  return requireSchema(icsaPool, 'icsa', '002_ai_review_and_action_plans');
+  return requireSchema(icsaPool, 'icsa', '003_question_bank');
 }

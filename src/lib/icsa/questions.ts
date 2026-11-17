@@ -1,10 +1,13 @@
-// Question bank for the ICSA (Internal Control Self-Assessment), Supply Chain
-// function, aligned with SOX controls. Carried over verbatim from the NESR ICSA
-// Self-Assessment artifact. A section is also a form variation: a champion
-// assigns each respondent the sections that match what they do.
+// The ORIGINAL question bank of the Supply Chain Self-Assessment (formerly ICSA), aligned with
+// SOX controls, carried over verbatim from the NESR ICSA Self-Assessment artifact. A section is
+// also a form variation: a champion assigns each respondent the sections that match what they do.
+//
+// This is no longer what the app reads. Administrators edit the bank in the admin panel; it
+// lives in icsa_sections / icsa_questions (migration 003 seeded them from this file) and is
+// loaded by ./catalog.ts. The file stays as the seed and as fixtures for the tests.
 
-export type IcsaSectionKey =
-  'policy' | 'planning' | 'sourcing' | 'po' | 'grn' | 'valuation' | 'movement';
+/** A section's permanent key (e.g. 'po'). Sections added later get keys like 's8'. */
+export type IcsaSectionKey = string;
 
 export interface IcsaQuestion {
   ref: string;
@@ -19,7 +22,7 @@ export interface IcsaSection {
   questions: IcsaQuestion[];
 }
 
-export const ICSA_SECTIONS: IcsaSection[] = [
+export const SEED_SECTIONS: IcsaSection[] = [
   {
     key: 'policy',
     id: 1,

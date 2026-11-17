@@ -4,13 +4,14 @@ import type { IcsaActor } from './access';
 import { countryGaps, type CountryGap, type GapReview } from './ai';
 import {
   RESPONDED_STATUSES,
+  type Catalog,
   formCompletion,
   progress,
   scoreAnswers,
   sectionsByKeys,
   type Progress,
 } from './model';
-import { ICSA_SECTIONS } from './questions';
+import { loadCatalog } from './catalog';
 import {
   getCycle,
   getEnrollment,
@@ -121,9 +122,10 @@ function snapshot(
   assessments: AssessmentSummary[],
   plans: ActionPlan[],
   review: SavedReview | null,
+  catalog: Catalog,
 ): CountrySnapshot {
   const responded = assessments.filter((a) => RESPONDED_STATUSES.includes(a.status));
-  const scores = responded.map((a) => scoreAnswers(a.answers, sectionsByKeys(a.sections)));
+  const scores = responded.map((a) => scoreAnswers(a.answers, sectionsByKeys(a.sections, catalog)));
   const pool = (key?: string) => {
     let yes = 0;
     let n = 0;
@@ -138,16 +140,16 @@ function snapshot(
   return {
     enrollment,
     progress: progress(assessments.map((a) => a.status)),
-    completion: formCompletion(assessments).rate,
+    completion: formCompletion(assessments, catalog).rate,
     forms: responded.length,
     compliance: pool(),
-    perSection: ICSA_SECTIONS.map((s) => ({
+    perSection: catalog.map((s) => ({
       key: s.key,
       id: s.id,
       short: s.short,
       rate: pool(s.key),
     })),
-    gaps: countryGaps(enrollment.country, responded),
+    gaps: countryGaps(enrollment.country, responded, catalog),
     plans,
     review,
   };
@@ -160,10 +162,11 @@ export async function countrySnapshots(
 ): Promise<CountrySnapshot[]> {
   const enrollments = await listEnrollments(actor, cycleId);
   const ids = enrollments.map((e) => e.id);
-  const [assessments, plans, reviews] = await Promise.all([
+  const [assessments, plans, reviews, catalog] = await Promise.all([
     Promise.all(ids.map((id) => listAssessmentsForEnrollment(id))),
     plansFor(ids),
     latestReviews(ids),
+    loadCatalog(),
   ]);
   return enrollments.map((e, i) =>
     snapshot(
@@ -171,6 +174,7 @@ export async function countrySnapshots(
       assessments[i],
       plans.filter((p) => p.enrollmentId === e.id),
       reviews.get(e.id) ?? null,
+      catalog,
     ),
   );
 }
@@ -182,15 +186,16 @@ export async function countrySnapshot(
 ): Promise<{ cycle: Cycle; snap: CountrySnapshot } | null> {
   const enrollment = await getEnrollment(actor, enrollmentId);
   if (!enrollment) return null;
-  const [cycle, assessments, plans, reviews] = await Promise.all([
+  const [cycle, assessments, plans, reviews, catalog] = await Promise.all([
     getCycle(enrollment.cycleId),
     listAssessmentsForEnrollment(enrollmentId),
     plansFor([enrollmentId]),
     latestReviews([enrollmentId]),
+    loadCatalog(),
   ]);
   if (!cycle) return null;
   return {
     cycle,
-    snap: snapshot(enrollment, assessments, plans, reviews.get(enrollmentId) ?? null),
+    snap: snapshot(enrollment, assessments, plans, reviews.get(enrollmentId) ?? null, catalog),
   };
 }

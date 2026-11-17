@@ -90,7 +90,7 @@ export async function requireIcsaActor(): Promise<IcsaActor> {
 
 export async function requireIcsaAdmin(): Promise<IcsaActor> {
   const actor = await requireIcsaActor();
-  if (!actor.isAdmin) throw new AccessError('ICSA administrator access is required.');
+  if (!actor.isAdmin) throw new AccessError('Self-Assessment administrator access is required.');
   return actor;
 }
 
@@ -98,7 +98,7 @@ export async function requireIcsaAdmin(): Promise<IcsaActor> {
 export async function requireIcsaCountry(country: string): Promise<IcsaActor> {
   const actor = await requireIcsaActor();
   if (!canManageCountry(actor, country)) {
-    throw new AccessError(`You are not the ICSA champion for ${country}.`);
+    throw new AccessError(`You are not the Self-Assessment champion for ${country}.`);
   }
   return actor;
 }
@@ -107,7 +107,7 @@ export async function requireIcsaCountry(country: string): Promise<IcsaActor> {
 export async function requireIcsaManager(): Promise<IcsaActor> {
   const actor = await requireIcsaActor();
   if (!actor.isAdmin && !isChampion(actor)) {
-    throw new AccessError('Only ICSA champions and administrators can do that.');
+    throw new AccessError('Only Self-Assessment champions and administrators can do that.');
   }
   return actor;
 }

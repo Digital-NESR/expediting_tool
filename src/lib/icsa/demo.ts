@@ -70,7 +70,14 @@ function person(
 }
 
 export const DEMO_USERS: DemoUser[] = [
-  person('admin1', 'Layla Haddad', 'admin', null, 'ICSA Administrator', 'Supply Chain Governance'),
+  person(
+    'admin1',
+    'Layla Haddad',
+    'admin',
+    null,
+    'Self-Assessment Administrator',
+    'Supply Chain Governance',
+  ),
   person(
     'admin2',
     'Omar Khalil',
