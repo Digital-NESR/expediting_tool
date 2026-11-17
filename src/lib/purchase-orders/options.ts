@@ -8,8 +8,12 @@
  */
 
 import { cache } from 'react';
+import { unstable_cache } from 'next/cache';
 import materialsPool from '@/lib/db-materials';
+import { logger } from '@/lib/logger';
 import { BASE_SCOPE, type FilterOption, type PoFilterOptions } from './filters';
+
+const log = logger('purchase-orders-options');
 
 const num = (v: unknown) => (v === null || v === undefined ? 0 : Number(v));
 
@@ -77,10 +81,47 @@ async function supplierOptions(limit: number): Promise<FilterOption[]> {
 }
 
 /**
- * Loaded once per render pass. Not cached beyond the request: the warehouse reloads daily and
- * a new country or buyer should appear the next time the page is opened, not the next deploy.
+ * The option lists, cached for an hour across requests.
+ *
+ * These are the distinct values of six columns over a 735k-row table — seven queries and about
+ * six seconds, and they are the same six seconds on every page load. The warehouse behind them
+ * reloads once a day (`core.load_log`), so the lists can only change daily; recomputing them
+ * per request bought nothing and was a third of a load that was running close to the page's
+ * duration limit.
+ *
+ * An hour rather than a day so a newly-seen country or buyer appears the same morning, and
+ * because a stale option list is a filter that selects nothing — mildly confusing — not a wrong
+ * number. The figures the filters produce are never cached; only the vocabulary is.
+ *
+ * Still on `unstable_cache`, matching `catalog-manager.ts` and `procure-guard/activity.ts`;
+ * the bundled Next 16 docs say `use cache` replaces it, and all three should move together.
+ */
+const cachedOptions = unstable_cache(
+  async (): Promise<PoFilterOptions> => loadFreshOptions(),
+  ['purchase-orders', 'filter-options', 'v1'],
+  { revalidate: 3600, tags: ['purchase-orders:options'] },
+);
+
+/**
+ * Deduped within a render pass, and served from the hourly cache across requests.
+ *
+ * Falls back to a fresh read if the cache is unusable. `unstable_cache` throws
+ * "Invariant: incrementalCache missing" when called outside a Next request context, and the
+ * cache here is an optimisation, not the feature — a board that fails to render because its
+ * option lists could not be *cached* would be a self-inflicted outage. This also keeps the
+ * loader callable from a plain script, which is how its SQL gets exercised against the
+ * warehouse outside the app.
  */
 export const loadPoFilterOptions = cache(async (): Promise<PoFilterOptions> => {
+  try {
+    return await cachedOptions();
+  } catch (err) {
+    log.warn('options.cache_unavailable', { reason: String(err) });
+    return loadFreshOptions();
+  }
+});
+
+async function loadFreshOptions(): Promise<PoFilterOptions> {
   const [accountClassification, segment, country, purchasingOrg, supplier, buyer, range] =
     await Promise.all([
       accountClassificationOptions(),
@@ -109,4 +150,4 @@ export const loadPoFilterOptions = cache(async (): Promise<PoFilterOptions> => {
     buyer,
     releaseRange: { min: iso(range.rows[0]?.min), max: iso(range.rows[0]?.max) },
   };
-});
+}

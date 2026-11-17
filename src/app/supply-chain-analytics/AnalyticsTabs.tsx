@@ -25,7 +25,6 @@ import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import type { TravelAnalyticsData } from '@/lib/travel-analytics/queries';
 import type { PurchaseOrderAnalytics } from '@/lib/purchase-orders/queries';
-import type { PastDueAnalysis } from '@/lib/purchase-orders/past-due';
 import type { PoFilterOptions } from '@/lib/purchase-orders/filters';
 
 const boardSkeleton = () => (
@@ -53,16 +52,18 @@ export default function AnalyticsTabs({
   embedUrl,
   travel,
   purchaseOrders,
-  pastDue,
   poOptions,
+  poFailure,
+  poTarget,
   showPowerBi,
   showPurchaseOrders,
 }: {
   embedUrl: string;
   travel: TravelAnalyticsData | null;
   purchaseOrders: PurchaseOrderAnalytics | null;
-  pastDue: PastDueAnalysis | null;
   poOptions: PoFilterOptions | null;
+  poFailure: string | null;
+  poTarget: string;
   showPowerBi: boolean;
   showPurchaseOrders: boolean;
 }) {
@@ -134,13 +135,9 @@ export default function AnalyticsTabs({
           {/* Without the option lists there is no filter bar to render, and a board whose
               filters are missing is more confusing than one that says so. */}
           {poOptions ? (
-            <PurchaseOrderAnalyticsClient
-              data={purchaseOrders}
-              pastDue={pastDue}
-              options={poOptions}
-            />
+            <PurchaseOrderAnalyticsClient data={purchaseOrders} options={poOptions} />
           ) : (
-            <div className="rounded-2xl border border-slate-200 bg-white py-20 text-center">
+            <div className="rounded-2xl border border-slate-200 bg-white px-6 py-16 text-center">
               <p className="text-[15px] font-semibold text-slate-900">
                 Purchase order data unavailable
               </p>
@@ -148,6 +145,25 @@ export default function AnalyticsTabs({
                 The SAP extract warehouse could not be reached. The other boards on this page are
                 unaffected.
               </p>
+              {/* Admin-only surface, so the actual cause is shown rather than swallowed. */}
+              <dl className="mx-auto mt-5 max-w-xl space-y-1.5 rounded-xl bg-slate-50 p-4 text-left">
+                <div className="flex gap-2">
+                  <dt className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    Reason
+                  </dt>
+                  <dd className="min-w-0 break-words font-mono text-[11.5px] text-red-700">
+                    {poFailure ?? 'not recorded'}
+                  </dd>
+                </div>
+                <div className="flex gap-2">
+                  <dt className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    Target
+                  </dt>
+                  <dd className="min-w-0 break-words font-mono text-[11.5px] text-slate-500">
+                    {poTarget}
+                  </dd>
+                </div>
+              </dl>
             </div>
           )}
         </div>

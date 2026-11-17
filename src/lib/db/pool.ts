@@ -98,6 +98,15 @@ export interface CreatePoolOptions {
   label?: string | null;
   /** Per-pool connection ceiling. */
   max?: number;
+  /**
+   * How long a query may wait for a free connection before it throws, in ms.
+   *
+   * The default suits a pool whose callers issue one or two queries. A board that fans out a
+   * couple of dozen aggregates queues them behind `max` connections, and the ones at the back
+   * of the queue were failing with "timeout exceeded when trying to connect" — a wait, reported
+   * as if the database were unreachable.
+   */
+  connectionTimeoutMillis?: number;
   envStyle?: PoolEnvStyle;
   /** Called on each new physical connection — only TI-TE uses this. */
   onConnect?: () => void;
@@ -138,7 +147,7 @@ export function createPool(databaseName: string | undefined, options: CreatePool
     ssl,
     max: options.max ?? DEFAULT_POOL_MAX,
     idleTimeoutMillis: IDLE_TIMEOUT_MS,
-    connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
+    connectionTimeoutMillis: options.connectionTimeoutMillis ?? CONNECTION_TIMEOUT_MS,
   });
 
   const label = options.label;

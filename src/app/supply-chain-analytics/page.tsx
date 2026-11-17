@@ -7,9 +7,9 @@ import { loadTravelAnalytics } from '@/lib/travel-analytics/queries';
 import type { TravelAnalyticsData } from '@/lib/travel-analytics/queries';
 import { loadPurchaseOrderAnalytics } from '@/lib/purchase-orders/queries';
 import type { PurchaseOrderAnalytics } from '@/lib/purchase-orders/queries';
-import { loadPastDueAnalysis } from '@/lib/purchase-orders/past-due';
-import type { PastDueAnalysis } from '@/lib/purchase-orders/past-due';
 import { loadPoFilterOptions } from '@/lib/purchase-orders/options';
+import { materialsTarget } from '@/lib/db-materials';
+import { describeDbError } from '@/lib/db/describe-error';
 import { EMPTY_FILTERS, type PoFilterOptions } from '@/lib/purchase-orders/filters';
 import { logger } from '@/lib/logger';
 import AnalyticsTabs from './AnalyticsTabs';
@@ -40,10 +40,12 @@ function embedUrl(): string {
    figure that will grow is the bookings table, and a page that starts timing out should do so
    loudly in a review rather than quietly in production.
 
-   The PO board is the bigger consumer now: ten aggregates over a 747k-row fact table, ~5s
-   warm. They run in parallel with the travel board, so the page costs the slower of the two
-   rather than their sum. */
-export const maxDuration = 30;
+   The PO board is the bigger consumer now: ten aggregates over a 747k-row fact table. Raised
+   to 60s after the PO board's first load was measured at ~17s against a 30s ceiling — close
+   enough that a cold start plus a slow round would have tripped it. This is a ceiling, not a
+   wait: a fast page is unaffected. The work to stay under it was done in the queries and the
+   pool, not here. */
+export const maxDuration = 60;
 
 export default async function SupplyChainAnalyticsPage() {
   /* The layout gates this segment, but layouts do not re-render on navigation
@@ -70,10 +72,18 @@ export default async function SupplyChainAnalyticsPage() {
 
      The PO tab needs three things — overview, past due, and the filter option lists — and a
      failure in any one of them blanks only the piece it feeds. */
-  const [travel, purchaseOrders, pastDue, poOptions]: [
+  /* Why the PO board failed, if it did. The card used to say "could not be reached" whatever
+     happened, which is no help when the same code works locally: a reader who can see the real
+     reason and the connection it was attempted on can act, and this page is admin-only. */
+  let poFailure: string | null = null;
+
+  /* Past due is deliberately NOT loaded here. It is the second of two views behind a switch,
+     and loading it with the rest put ~22 aggregates on this pool in one burst — enough that
+     queries at the back of the queue timed out waiting for a connection. The client fetches it
+     the first time that view is opened. */
+  const [travel, purchaseOrders, poOptions]: [
     TravelAnalyticsData | null,
     PurchaseOrderAnalytics | null,
-    PastDueAnalysis | null,
     PoFilterOptions | null,
   ] = await Promise.all([
     scope
@@ -89,14 +99,9 @@ export default async function SupplyChainAnalyticsPage() {
         })
       : null,
     actor.isPlatformAdmin
-      ? loadPastDueAnalysis(EMPTY_FILTERS).catch((err) => {
-          log.error('past due board unavailable', err);
-          return null;
-        })
-      : null,
-    actor.isPlatformAdmin
       ? loadPoFilterOptions().catch((err) => {
-          log.error('purchase order filters unavailable', err);
+          poFailure = describeDbError(err);
+          log.error('purchase order filters unavailable', err, { target: materialsTarget() });
           return null;
         })
       : null,
@@ -132,8 +137,9 @@ export default async function SupplyChainAnalyticsPage() {
         embedUrl={actor.isPlatformAdmin ? embedUrl() : ''}
         travel={travel}
         purchaseOrders={purchaseOrders}
-        pastDue={pastDue}
         poOptions={poOptions}
+        poFailure={poFailure}
+        poTarget={materialsTarget()}
         showPowerBi={actor.isPlatformAdmin}
         showPurchaseOrders={actor.isPlatformAdmin}
       />

@@ -52,38 +52,68 @@ function countActive(f: PoFilters): number {
 
 export default function PurchaseOrderAnalyticsClient({
   data,
-  pastDue,
   options,
 }: {
   data: PurchaseOrderAnalytics | null;
-  pastDue: PastDueAnalysis | null;
   options: PoFilterOptions;
 }) {
   const [view, setView] = useState<View>('overview');
   const [filters, setFilters] = useState<PoFilters>(EMPTY_FILTERS);
   const [overview, setOverview] = useState(data);
-  const [past, setPast] = useState(pastDue);
+  const [past, setPast] = useState<PastDueAnalysis | null>(null);
+  /** Null until the past-due view has been opened once, so a filter change knows to skip it. */
+  const [pastLoaded, setPastLoaded] = useState(false);
   const [busy, startTransition] = useTransition();
 
-  /* Both boards are refetched together rather than lazily per tab: they share a filter bar, and
-     switching tabs to find yesterday's numbers still loading is worse than one slightly longer
-     wait. The server resolves them in parallel. */
-  const apply = useCallback((next: PoFilters) => {
-    setFilters(next);
-    startTransition(async () => {
-      const [o, p] = await Promise.all([
-        fetchPurchaseOrderAnalytics(next),
-        fetchPastDueAnalysis(next),
-      ]);
-      setOverview(o);
-      setPast(p);
-    });
-  }, []);
+  /**
+   * Only what is on screen is fetched.
+   *
+   * Loading both boards together put roughly two dozen aggregates on one connection pool at
+   * once, and the queries at the back of the queue failed waiting for a connection. The
+   * past-due board is behind a switch, so it is fetched the first time that switch is used and
+   * refreshed thereafter only while it is the visible view.
+   */
+  const apply = useCallback(
+    (next: PoFilters, opts?: { withPastDue?: boolean }) => {
+      setFilters(next);
+      startTransition(async () => {
+        const wantPast = opts?.withPastDue ?? false;
+        const [o, p] = await Promise.all([
+          fetchPurchaseOrderAnalytics(next),
+          wantPast ? fetchPastDueAnalysis(next) : Promise.resolve(undefined),
+        ]);
+        setOverview(o);
+        if (wantPast) {
+          setPast(p ?? null);
+          setPastLoaded(true);
+        }
+      });
+    },
+    [],
+  );
+
+  const onFilterChange = useCallback(
+    (next: PoFilters) => apply(next, { withPastDue: view === 'past-due' || pastLoaded }),
+    [apply, view, pastLoaded],
+  );
+
+  /** Switching to past due for the first time is what triggers its only load. */
+  const onViewChange = useCallback(
+    (next: View) => {
+      setView(next);
+      if (next !== 'past-due' || pastLoaded || busy) return;
+      startTransition(async () => {
+        setPast((await fetchPastDueAnalysis(filters)) ?? null);
+        setPastLoaded(true);
+      });
+    },
+    [filters, pastLoaded, busy],
+  );
 
   const reset = useCallback(() => {
     if (isUnfiltered(filters)) return;
-    apply(EMPTY_FILTERS);
-  }, [apply, filters]);
+    onFilterChange(EMPTY_FILTERS);
+  }, [onFilterChange, filters]);
 
   const views: { id: View; label: string }[] = [
     { id: 'overview', label: 'Overview' },
@@ -95,7 +125,7 @@ export default function PurchaseOrderAnalyticsClient({
       <PurchaseOrderFilterBar
         options={options}
         value={filters}
-        onChange={apply}
+        onChange={onFilterChange}
         onReset={reset}
         busy={busy}
         activeCount={countActive(filters)}
@@ -108,7 +138,7 @@ export default function PurchaseOrderAnalyticsClient({
             <button
               key={v.id}
               type="button"
-              onClick={() => setView(v.id)}
+              onClick={() => onViewChange(v.id)}
               aria-current={active ? 'page' : undefined}
               className={`-mb-px border-b-2 px-3 py-2 text-[13px] font-semibold transition-colors ${
                 active
@@ -126,7 +156,20 @@ export default function PurchaseOrderAnalyticsClient({
           the layout does not jump, which matters when a reader is adjusting one filter at a
           time and comparing. */}
       <div className={busy ? 'pointer-events-none opacity-50 transition-opacity' : 'transition-opacity'}>
-        {view === 'overview' ? <OverviewBoard data={overview} /> : <PastDueBoard data={past} />}
+        {view === 'overview' ? (
+          <OverviewBoard data={overview} />
+        ) : !pastLoaded ? (
+          <div className="animate-pulse space-y-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-24 rounded-2xl bg-slate-100" />
+              ))}
+            </div>
+            <div className="h-72 rounded-2xl bg-slate-100" />
+          </div>
+        ) : (
+          <PastDueBoard data={past} />
+        )}
       </div>
     </div>
   );
