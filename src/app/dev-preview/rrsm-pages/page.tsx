@@ -10,12 +10,7 @@
  * entry in src/proxy.ts is only added outside production.
  */
 import { notFound } from 'next/navigation';
-import type {
-  HistoryRow,
-  RegisterRow,
-  RrsmOverview,
-  RrsmScope,
-} from '@/app/actions/rrsm/overview';
+import type { HistoryRow, RegisterRow, RrsmOverview, RrsmScope } from '@/app/actions/rrsm/overview';
 import type { RegisterEditorData } from '@/app/actions/rrsm/register';
 import RrsmDashboardClient from '@/app/rrsm/RrsmDashboardClient';
 import RrsmHistoryClient from '@/app/rrsm/RrsmHistoryClient';
@@ -24,7 +19,13 @@ import RrsmRegisterClient from '@/app/rrsm/RrsmRegisterClient';
 export const dynamic = 'force-dynamic';
 
 const KW = { code: 'KW', name: 'Kuwait', currency: 'KWD', flag: '🇰🇼', live: true };
-const AE = { code: 'AE', name: 'United Arab Emirates (UAE)', currency: 'AED', flag: '🇦🇪', live: true };
+const AE = {
+  code: 'AE',
+  name: 'United Arab Emirates (UAE)',
+  currency: 'AED',
+  flag: '🇦🇪',
+  live: true,
+};
 
 function scopeFor(role?: string): RrsmScope {
   if (role === 'ops')
@@ -45,6 +46,15 @@ const OVERVIEW: RrsmOverview = {
     value: 18_240.5,
     byStage: { awaiting_supplier: 9, submitted: 14, returned: 2, validated: 11, closed: 12 },
     awaitingPo: 7,
+    sap: {
+      ok: true,
+      total: 114,
+      released: 113,
+      underRelease: 1,
+      notInSap: 0,
+      serviceEntered: 2,
+      loadedAt: '2026-11-18T11:17',
+    },
   },
   suppliers: { inCycle: 6, notInvited: 1, waiting: 2, submitted: 3 },
   renewals: { overdue: 1, dueSoon: 3, pending: 5 },
@@ -96,10 +106,34 @@ const EDITOR: RegisterEditorData = {
     { code: 'unit', label: 'Unit' },
   ],
   suppliers: [
-    { code: '100482', name: 'Al Mulla Rental Co.', contactEmails: ['fleet@almulla.example'], active: true, linesHere: 4 },
-    { code: '100911', name: 'Gulf Guarding Services', contactEmails: [], active: true, linesHere: 1 },
-    { code: '100733', name: 'Kuwait Real Estate Holdings', contactEmails: ['leasing@kreh.example', 'ap@kreh.example'], active: true, linesHere: 1 },
-    { code: '200150', name: 'Emirates Plant Hire', contactEmails: ['ops@eph.example'], active: true, linesHere: 0 },
+    {
+      code: '100482',
+      name: 'Al Mulla Rental Co.',
+      contactEmails: ['fleet@almulla.example'],
+      active: true,
+      linesHere: 4,
+    },
+    {
+      code: '100911',
+      name: 'Gulf Guarding Services',
+      contactEmails: [],
+      active: true,
+      linesHere: 1,
+    },
+    {
+      code: '100733',
+      name: 'Kuwait Real Estate Holdings',
+      contactEmails: ['leasing@kreh.example', 'ap@kreh.example'],
+      active: true,
+      linesHere: 1,
+    },
+    {
+      code: '200150',
+      name: 'Emirates Plant Hire',
+      contactEmails: ['ops@eph.example'],
+      active: true,
+      linesHere: 0,
+    },
   ],
 };
 
@@ -112,9 +146,27 @@ function inDays(n: number): string {
 }
 
 const REGISTER: RegisterRow[] = [
-  reg({ id: 1, description: 'CT-TOYOTA PRADO -23X70474', assetRef: '23X70474', contractEndsOn: inDays(12) }),
-  reg({ id: 2, description: 'CT-NISSAN PATROL -41K22018', assetRef: '41K22018', rate: 310, contractEndsOn: inDays(-4) }),
-  reg({ id: 3, description: 'NPS-TOYOTA HILUX -77A10233', assetRef: '77A10233', segment: 'NPS_CMT', rate: 180, contractEndsOn: inDays(64) }),
+  reg({
+    id: 1,
+    description: 'CT-TOYOTA PRADO -23X70474',
+    assetRef: '23X70474',
+    contractEndsOn: inDays(12),
+  }),
+  reg({
+    id: 2,
+    description: 'CT-NISSAN PATROL -41K22018',
+    assetRef: '41K22018',
+    rate: 310,
+    contractEndsOn: inDays(-4),
+  }),
+  reg({
+    id: 3,
+    description: 'NPS-TOYOTA HILUX -77A10233',
+    assetRef: '77A10233',
+    segment: 'NPS_CMT',
+    rate: 180,
+    contractEndsOn: inDays(64),
+  }),
   reg({
     id: 4,
     description: 'Security guard, Ahmadi yard',
@@ -158,9 +210,45 @@ const REGISTER: RegisterRow[] = [
 ];
 
 const HISTORY: HistoryRow[] = [
-  { id: 3, period: '2026-11-01', opensOn: '2026-10-26', closesOn: '2026-11-25', status: 'open', closedAt: '', lines: 48, closedLines: 12, value: 18_240.5, suppliers: 6, withPo: 23 },
-  { id: 2, period: '2026-10-01', opensOn: '2026-09-26', closesOn: '2026-10-25', status: 'closed', closedAt: '2026-10-29', lines: 47, closedLines: 47, value: 17_905, suppliers: 6, withPo: 47 },
-  { id: 1, period: '2026-09-01', opensOn: '2026-08-26', closesOn: '2026-09-25', status: 'closed', closedAt: '2026-09-30', lines: 45, closedLines: 45, value: 17_120.75, suppliers: 5, withPo: 45 },
+  {
+    id: 3,
+    period: '2026-11-01',
+    opensOn: '2026-10-26',
+    closesOn: '2026-11-25',
+    status: 'open',
+    closedAt: '',
+    lines: 48,
+    closedLines: 12,
+    value: 18_240.5,
+    suppliers: 6,
+    withPo: 23,
+  },
+  {
+    id: 2,
+    period: '2026-10-01',
+    opensOn: '2026-09-26',
+    closesOn: '2026-10-25',
+    status: 'closed',
+    closedAt: '2026-10-29',
+    lines: 47,
+    closedLines: 47,
+    value: 17_905,
+    suppliers: 6,
+    withPo: 47,
+  },
+  {
+    id: 1,
+    period: '2026-09-01',
+    opensOn: '2026-08-26',
+    closesOn: '2026-09-25',
+    status: 'closed',
+    closedAt: '2026-09-30',
+    lines: 45,
+    closedLines: 45,
+    value: 17_120.75,
+    suppliers: 5,
+    withPo: 45,
+  },
 ];
 
 export default async function RrsmPagesPreview({

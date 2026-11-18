@@ -15,7 +15,15 @@
 
 import Link from 'next/link';
 import { useMemo } from 'react';
-import { ArrowRight, CalendarClock, ClipboardCheck, Library, Receipt, Send } from 'lucide-react';
+import {
+  ArrowRight,
+  CalendarClock,
+  ClipboardCheck,
+  Database,
+  Library,
+  Receipt,
+  Send,
+} from 'lucide-react';
 import type { RrsmOverview, RrsmScope } from '@/app/actions/rrsm/overview';
 import { STAGE_LABEL, periodLabel, type CycleStage } from '@/lib/rrsm/cycle';
 import { meetsNeed, rrsmHref, type RrsmNeed } from '@/lib/rrsm/nav';
@@ -115,7 +123,10 @@ export default function RrsmDashboardClient({
           )}
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5">
             {STAGE_ORDER.map((s) => (
-              <span key={s} className="inline-flex items-center gap-1.5 text-[12.5px] text-slate-600">
+              <span
+                key={s}
+                className="inline-flex items-center gap-1.5 text-[12.5px] text-slate-600"
+              >
                 <span className={`h-2 w-2 rounded-full ${STAGE_BAR[s]}`} />
                 {STAGE_LABEL[s]}
                 <b className="font-semibold text-slate-900">{cycle.byStage[s]}</b>
@@ -192,6 +203,11 @@ export default function RrsmDashboardClient({
         />
       </div>
 
+      {/* ── this month's POs, as SAP has them ─────────────────── */}
+      {cycle && cycle.sap.total > 0 && (
+        <SapStrip sap={cycle.sap} href={can('buy') ? href('/rrsm/purchasing') : null} />
+      )}
+
       {/* ── the register, in one line ─────────────────────────── */}
       <Link
         href={href('/rrsm/register')}
@@ -210,6 +226,76 @@ export default function RrsmDashboardClient({
         <ArrowRight className="h-4 w-4 text-slate-300 transition-colors group-hover:text-[#307c4c]" />
       </Link>
     </RrsmShell>
+  );
+}
+
+function SapStrip({
+  sap,
+  href,
+}: {
+  sap: NonNullable<RrsmOverview['cycle']>['sap'];
+  href: string | null;
+}) {
+  const body = (
+    <>
+      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#307c4c]/[0.08] text-[#307c4c]">
+        <Database className="h-5 w-5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-slate-900">
+          This month&rsquo;s POs in SAP
+          {sap.loadedAt && (
+            <span className="ml-2 text-[11.5px] font-normal text-slate-400">
+              SAP data as of {sap.loadedAt.replace('T', ' ')} UTC
+            </span>
+          )}
+        </p>
+        {sap.ok ? (
+          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-slate-600">
+            <span>
+              <b className="font-semibold text-slate-900">{sap.total}</b> POs
+            </span>
+            <span>
+              <b className="font-semibold text-[#1d4f31]">{sap.released}</b> released
+            </span>
+            <span>
+              <b
+                className={`font-semibold ${sap.underRelease ? 'text-amber-600' : 'text-slate-900'}`}
+              >
+                {sap.underRelease}
+              </b>{' '}
+              under release
+            </span>
+            <span>
+              <b className={`font-semibold ${sap.notInSap ? 'text-red-600' : 'text-slate-900'}`}>
+                {sap.notInSap}
+              </b>{' '}
+              not found in SAP
+            </span>
+            <span>
+              <b className="font-semibold text-slate-900">{sap.serviceEntered}</b> with a service
+              entry or GRN
+            </span>
+          </div>
+        ) : (
+          <p className="mt-1 text-[13px] text-amber-700">
+            SAP status is unavailable right now (Materials DB could not be read).
+          </p>
+        )}
+      </div>
+      {href && (
+        <ArrowRight className="h-4 w-4 text-slate-300 transition-colors group-hover:text-[#307c4c]" />
+      )}
+    </>
+  );
+  const cls =
+    'group flex items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm transition-colors';
+  return href ? (
+    <Link href={href} className={`${cls} hover:border-[#307c4c]/30`}>
+      {body}
+    </Link>
+  ) : (
+    <div className={cls}>{body}</div>
   );
 }
 

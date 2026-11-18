@@ -13,6 +13,8 @@ import {
 } from '@/lib/rrsm/access';
 import type { CycleStage } from '@/lib/rrsm/cycle';
 import { WINDOW_DAYS } from '@/lib/rrsm/renewals';
+import { summarisePos } from '@/lib/rrsm/sap';
+import { readSapStatus } from '@/lib/rrsm/sap-status';
 
 /**
  * The reads behind the RRSM shell, the dashboard, the register and the cycle history.
@@ -63,6 +65,16 @@ export interface RrsmOverview {
     byStage: Record<CycleStage, number>;
     /** Validated, waiting on a PO number before the buyer can close them. */
     awaitingPo: number;
+    /** The cycle's POs as SAP has them, live from Materials DB. */
+    sap: {
+      ok: boolean;
+      total: number;
+      released: number;
+      underRelease: number;
+      notInSap: number;
+      serviceEntered: number;
+      loadedAt: string;
+    };
   } | null;
   suppliers: {
     inCycle: number;
@@ -161,7 +173,7 @@ export async function getRrsmOverview(countryCode: string): Promise<RrsmOverview
     const c = cycleRes.rows[0];
     if (!c) return out;
 
-    const [stageRes, supplierRes] = await Promise.all([
+    const [stageRes, supplierRes, refRes] = await Promise.all([
       rrsmPool.query<QueryResultRow>(
         `SELECT stage, count(*)::int AS n, COALESCE(sum(value), 0) AS value,
                 count(*) FILTER (WHERE stage = 'validated'
@@ -185,7 +197,16 @@ export async function getRrsmOverview(countryCode: string): Promise<RrsmOverview
                   ON k.cycle_id = $1 AND k.supplier_code = sup.supplier_code`,
         [Number(c.id)],
       ),
+      rrsmPool.query<QueryResultRow>(
+        `SELECT DISTINCT COALESCE(po_number, '') AS po, COALESCE(pr_number, '') AS pr
+           FROM rrsm_cycle_lines WHERE cycle_id = $1`,
+        [Number(c.id)],
+      ),
     ]);
+
+    const poNumbers = refRes.rows.map((r) => String(r.po));
+    const sapStatus = await readSapStatus(poNumbers, []);
+    const sapCounts = summarisePos(poNumbers, sapStatus);
 
     const byStage = { ...NO_STAGES };
     let lines = 0;
@@ -212,6 +233,7 @@ export async function getRrsmOverview(countryCode: string): Promise<RrsmOverview
         value,
         byStage,
         awaitingPo,
+        sap: { ok: sapStatus.ok, ...sapCounts, loadedAt: sapStatus.loadedAt },
       },
       suppliers: {
         inCycle: Number(sup.in_cycle ?? 0),

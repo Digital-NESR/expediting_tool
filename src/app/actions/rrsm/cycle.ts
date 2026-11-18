@@ -12,6 +12,8 @@ import {
   type RrsmCountryOption,
 } from '@/lib/rrsm/access';
 import { canMove, cycleWindow, isoDate, type CycleStage, type ErpStatus } from '@/lib/rrsm/cycle';
+import { EMPTY_SAP, type SapStatus } from '@/lib/rrsm/sap';
+import { readSapStatus } from '@/lib/rrsm/sap-status';
 
 /**
  * The monthly cycle, for the Ops and Buyer screens.
@@ -66,6 +68,8 @@ export interface RrsmBoard {
   /** The period a cycle would be opened for, when there is none. */
   suggestedPeriod: string;
   suppliers: BoardSupplier[];
+  /** Live SAP state of the lines' PRs and POs, from Materials DB. */
+  sap: SapStatus;
 }
 
 export type RrsmResult = { success: boolean; error?: string };
@@ -138,6 +142,7 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
     cycle: null,
     suggestedPeriod: suggestPeriod(),
     suppliers: [],
+    sap: EMPTY_SAP,
   };
   if (!countryCode) return empty;
 
@@ -202,7 +207,13 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
       group.lines.push(toBoardLine(r));
     }
 
+    const sap = await readSapStatus(
+      rows.map((r) => String(r.po_number ?? '')),
+      rows.map((r) => String(r.pr_number ?? '')),
+    );
+
     return {
+      sap,
       country,
       available,
       canBuy,

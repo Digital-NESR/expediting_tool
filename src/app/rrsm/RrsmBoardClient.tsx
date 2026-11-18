@@ -28,7 +28,20 @@ import {
   type BoardLine,
   type RrsmBoard,
 } from '@/app/actions/rrsm/cycle';
-import RrsmShell, { RrsmEmpty as Empty, RrsmNoCountry, RrsmNotYourRole } from './components/RrsmShell';
+import RrsmShell, {
+  RrsmEmpty as Empty,
+  RrsmNoCountry,
+  RrsmNotYourRole,
+} from './components/RrsmShell';
+import {
+  PO_RELEASE_LABEL,
+  PR_RELEASE_LABEL,
+  RECEIPT_LABEL,
+  summarisePos,
+  type SapPo,
+  type SapPr,
+  type SapStatus,
+} from '@/lib/rrsm/sap';
 import {
   ERP_STATUS_LABEL,
   STAGE_LABEL,
@@ -56,11 +69,27 @@ const STAGE_TONE: Record<CycleStage, string> = {
   closed: 'bg-slate-900 text-white',
 };
 
+/** What the PR & PO page can narrow itself to, by SAP's state of each line's PO. */
+type SapFilter = 'all' | 'under_release' | 'not_in_sap' | 'no_entry';
+
+function sapFilterMatches(filter: SapFilter, line: BoardLine, sap: SapStatus): boolean {
+  if (filter === 'all') return true;
+  const po = sap.pos[line.poNumber.trim()];
+  /* A line with no PO yet is not "missing from SAP"; it just has nothing to look up. */
+  if (filter === 'not_in_sap') return Boolean(line.poNumber.trim()) && !po;
+  if (filter === 'under_release') return po?.release === 'under_release' || po?.release === 'draft';
+  return (
+    po?.release === 'released' &&
+    (po.receipt === 'no_service_entry' || po.receipt === 'not_received')
+  );
+}
+
 export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; view: View }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [sapFilter, setSapFilter] = useState<SapFilter>('all');
 
   const money = useMemo(
     () =>
@@ -76,6 +105,39 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
   const readyToClose = useMemo(
     () => lines.filter((l) => l.stage === 'validated' && l.poNumber).length,
     [lines],
+  );
+
+  const sapCounts = useMemo(
+    () =>
+      summarisePos(
+        lines.map((l) => l.poNumber),
+        board.sap,
+      ),
+    [lines, board.sap],
+  );
+  const filterCount = useMemo(() => {
+    const n: Record<SapFilter, number> = {
+      all: lines.length,
+      under_release: 0,
+      not_in_sap: 0,
+      no_entry: 0,
+    };
+    for (const l of lines)
+      for (const f of ['under_release', 'not_in_sap', 'no_entry'] as const)
+        if (sapFilterMatches(f, l, board.sap)) n[f]++;
+    return n;
+  }, [lines, board.sap]);
+  const shownSuppliers = useMemo(
+    () =>
+      view === 'buyer' && sapFilter !== 'all'
+        ? board.suppliers
+            .map((s) => ({
+              ...s,
+              lines: s.lines.filter((l) => sapFilterMatches(sapFilter, l, board.sap)),
+            }))
+            .filter((s) => s.lines.length)
+        : board.suppliers,
+    [board.suppliers, board.sap, sapFilter, view],
   );
 
   function refresh() {
@@ -135,7 +197,11 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
           readyToClose ? undefined : 'A validated line needs a PO number before it can be closed'
         }
       >
-        {busy === 'close' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+        {busy === 'close' ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Check className="h-4 w-4" />
+        )}
         Close all ready · {readyToClose}
       </button>
     ) : undefined;
@@ -176,9 +242,63 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
         />
       ) : (
         <>
+          {/* ── SAP, live: what the buyer used to type by hand ── */}
+          {view === 'buyer' && lines.length > 0 && (
+            <section className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-[13.5px] font-semibold text-slate-800">
+                  SAP status, live from Materials DB
+                </h2>
+                {board.sap.loadedAt && (
+                  <span className="text-[11.5px] text-slate-400">
+                    SAP data as of {board.sap.loadedAt.replace('T', ' ')} UTC
+                  </span>
+                )}
+              </div>
+              {board.sap.ok ? (
+                <>
+                  <p className="mt-1 text-[12.5px] text-slate-600">
+                    {sapCounts.total} POs · {sapCounts.released} released · {sapCounts.underRelease}{' '}
+                    under release · {sapCounts.notInSap} not found in SAP ·{' '}
+                    {sapCounts.serviceEntered} with a service entry or GRN
+                  </p>
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {(
+                      [
+                        ['all', 'All lines'],
+                        ['under_release', 'PO under release'],
+                        ['no_entry', 'Released, no service entry yet'],
+                        ['not_in_sap', 'PO not in SAP'],
+                      ] as [SapFilter, string][]
+                    ).map(([f, label]) => (
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() => setSapFilter(f)}
+                        aria-pressed={sapFilter === f}
+                        className={`rounded-full border px-3 py-1 text-[12px] font-medium transition-colors ${
+                          sapFilter === f
+                            ? 'border-[#307c4c] bg-[#307c4c] text-white'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-[#307c4c]/40'
+                        }`}
+                      >
+                        {label} <span className="opacity-70">{filterCount[f]}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="mt-1 text-[12.5px] text-amber-700">
+                  SAP status is unavailable right now (Materials DB could not be read). The PR and
+                  PO numbers below are as recorded.
+                </p>
+              )}
+            </section>
+          )}
+
           {/* ── the lines, grouped by supplier ──────────────── */}
           <div className="space-y-5">
-            {board.suppliers.map((s) => (
+            {shownSuppliers.map((s) => (
               <section
                 key={s.code}
                 className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
@@ -239,6 +359,9 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
                           canBuy={view === 'buyer' && board.canBuy}
                           busy={busy}
                           onRun={run}
+                          sapOk={board.sap.ok}
+                          sapPo={board.sap.pos[l.poNumber.trim()]}
+                          sapPr={board.sap.prs[l.prNumber.trim()]}
                         />
                       ))}
                     </tbody>
@@ -247,6 +370,10 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
               </section>
             ))}
           </div>
+
+          {board.suppliers.length > 0 && !shownSuppliers.length && (
+            <Empty title="No lines match" body="Nothing in this cycle is in that SAP state." />
+          )}
 
           {!board.suppliers.length && (
             <Empty
@@ -277,6 +404,9 @@ function Row({
   canBuy,
   busy,
   onRun,
+  sapOk,
+  sapPo,
+  sapPr,
 }: {
   line: BoardLine;
   view: View;
@@ -286,6 +416,9 @@ function Row({
   canBuy: boolean;
   busy: string | null;
   onRun: (key: string, fn: () => Promise<{ success: boolean; error?: string }>) => Promise<void>;
+  sapOk: boolean;
+  sapPo?: SapPo;
+  sapPr?: SapPr;
 }) {
   const [draft, setDraft] = useState({
     onHire: line.onHire,
@@ -389,6 +522,16 @@ function Row({
               placeholder="PR"
               onChange={(v) => setDraft({ ...draft, prNumber: v })}
             />
+            {sapPr && (
+              <div
+                className={`mt-0.5 px-1.5 text-[10.5px] ${sapPr.release === 'released' ? 'text-slate-400' : 'text-amber-700'}`}
+                title={sapPr.waitingWith ? `Waiting with ${sapPr.waitingWith}` : undefined}
+              >
+                {PR_RELEASE_LABEL[sapPr.release]}
+                {sapPr.converted ? ' · on PO' : ''}
+                {sapPr.release !== 'released' && sapPr.waitingWith ? ` · ${sapPr.waitingWith}` : ''}
+              </div>
+            )}
           </td>
           <td className="px-2 py-2.5">
             <Text
@@ -399,19 +542,22 @@ function Row({
             />
           </td>
           <td className="px-2 py-2.5">
-            <select
-              value={draft.erpStatus}
-              disabled={!buyerEditable}
-              onChange={(e) => setDraft({ ...draft, erpStatus: e.target.value })}
-              className="w-full min-w-[8.25rem] rounded border border-slate-200 bg-white px-1.5 py-1 text-[12px] outline-none disabled:border-transparent disabled:bg-transparent"
-            >
-              <option value="">—</option>
-              {(Object.keys(ERP_STATUS_LABEL) as ErpStatus[]).map((s) => (
-                <option key={s} value={s}>
-                  {ERP_STATUS_LABEL[s]}
-                </option>
-              ))}
-            </select>
+            {sapPo ? (
+              <SapPoCell po={sapPo} money={money} />
+            ) : (
+              <>
+                {sapOk && line.poNumber.trim() && (
+                  <div className="mb-1 inline-block rounded bg-red-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-red-700">
+                    PO not in SAP
+                  </div>
+                )}
+                <ManualErpStatus
+                  value={draft.erpStatus}
+                  disabled={!buyerEditable}
+                  onChange={(v) => setDraft({ ...draft, erpStatus: v })}
+                />
+              </>
+            )}
           </td>
           <td className="px-2 py-2.5">
             <div className="flex items-center gap-1.5">
@@ -495,6 +641,75 @@ function Row({
 }
 
 /* ─── bits ───────────────────────────────────────────────────────────────────────────────── */
+
+const RELEASE_TONE: Record<SapPo['release'], string> = {
+  released: 'bg-[#e6f1ea] text-[#1d4f31]',
+  under_release: 'bg-amber-50 text-amber-700',
+  draft: 'bg-slate-100 text-slate-600',
+  deleted: 'bg-red-50 text-red-700',
+};
+
+/** SAP's word on a PO, read live. Replaces the hand-picked status wherever SAP has the PO. */
+function SapPoCell({ po, money }: { po: SapPo; money: Intl.NumberFormat }) {
+  const receiptDone = po.receipt === 'service_posted' || po.receipt === 'received';
+  const detail = [
+    po.createdOn && `Created ${po.createdOn}`,
+    po.releasedOn && `released ${po.releasedOn}`,
+    po.lastReceiptOn && `last entry ${po.lastReceiptOn}`,
+    po.value !== null && `${money.format(po.value)} ${po.currency}`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  return (
+    <div className="min-w-[9.5rem]" title={detail}>
+      <span
+        className={`inline-block rounded px-1.5 py-0.5 text-[10.5px] font-semibold ${RELEASE_TONE[po.release]}`}
+      >
+        {PO_RELEASE_LABEL[po.release]}
+      </span>
+      {po.release === 'under_release' && po.waitingWith && (
+        <div className="mt-0.5 text-[10.5px] text-amber-700">
+          With {po.waitingWith}
+          {po.daysWaiting !== null ? ` · ${po.daysWaiting}d` : ''}
+        </div>
+      )}
+      {po.release === 'released' && (
+        <div
+          className={`mt-0.5 text-[10.5px] ${receiptDone ? 'text-[#1d4f31]' : 'text-slate-500'}`}
+        >
+          {RECEIPT_LABEL[po.receipt]}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The old hand-picked SAP status, kept for a PO SAP does not have (or none typed yet). */
+function ManualErpStatus({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: string;
+  disabled: boolean;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <select
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full min-w-[8.25rem] rounded border border-slate-200 bg-white px-1.5 py-1 text-[12px] outline-none disabled:border-transparent disabled:bg-transparent"
+    >
+      <option value="">—</option>
+      {(Object.keys(ERP_STATUS_LABEL) as ErpStatus[]).map((s) => (
+        <option key={s} value={s}>
+          {ERP_STATUS_LABEL[s]}
+        </option>
+      ))}
+    </select>
+  );
+}
 
 function Num({
   value,

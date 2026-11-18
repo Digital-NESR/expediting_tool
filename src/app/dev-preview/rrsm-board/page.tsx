@@ -146,6 +146,53 @@ const BOARD: RrsmBoard = {
       ],
     },
   ],
+  /* One PO of each kind the live status can show; 5200008535 is left out to draw "not in SAP". */
+  sap: {
+    ok: true,
+    loadedAt: '2026-11-18T11:17',
+    pos: {
+      '5200008560': {
+        po: '5200008560',
+        release: 'under_release',
+        waitingWith: 'MKHATTAB',
+        daysWaiting: 4,
+        receipt: 'unapproved',
+        value: 675,
+        currency: 'KWD',
+        createdOn: '2026-11-12',
+        releasedOn: '',
+        lastReceiptOn: '',
+      },
+      '5200008499': {
+        po: '5200008499',
+        release: 'released',
+        waitingWith: null,
+        daysWaiting: null,
+        receipt: 'service_posted',
+        value: 390,
+        currency: 'KWD',
+        createdOn: '2026-10-28',
+        releasedOn: '2026-10-29',
+        lastReceiptOn: '2026-11-14',
+      },
+    },
+    prs: {
+      '1037006021': {
+        pr: '1037006021',
+        release: 'released',
+        converted: true,
+        waitingWith: null,
+        daysWaiting: null,
+      },
+      '1037006053': {
+        pr: '1037006053',
+        release: 'under_release',
+        converted: false,
+        waitingWith: 'MSALAH1',
+        daysWaiting: 2,
+      },
+    },
+  },
 };
 
 export default async function RrsmBoardPreviewPage({
