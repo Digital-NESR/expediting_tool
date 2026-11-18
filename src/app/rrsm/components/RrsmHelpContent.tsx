@@ -432,8 +432,8 @@ function OpsTab() {
 
       <H>2 · Invite the suppliers</H>
       <P>
-        The <b>Suppliers · invitations</b> tab lists everyone with lines this month and shows where
-        each one has got to.
+        <b>Supplier invitations</b> in the sidebar lists everyone with lines this month and shows
+        where each one has got to.
       </P>
       <Shot
         src="/help/rrsm/invitations.jpg"
@@ -451,14 +451,14 @@ function OpsTab() {
 
       <H>3 · Validate what came back</H>
       <P>
-        The <b>Ops · what was used</b> view is your working screen. Each line shows the quantity and
+        <b>Ops validation</b> is your working screen. Each line shows the quantity and
         days claimed, the value that produces, and how it compares to last month.
       </P>
       <Shot
         src="/help/rrsm/board-ops.jpg"
-        alt="The Ops validation view"
-        width={794}
-        height={496}
+        alt="The Ops validation page"
+        width={800}
+        height={500}
         caption="VS LAST MONTH is the column to read first. A jump of +170% or a line marked NEW is where a month goes wrong, and both are called out rather than left to be noticed."
       />
       <Steps
@@ -488,7 +488,7 @@ function OpsTab() {
 
       <H>4 · Renewals — you read, you do not decide</H>
       <P>
-        The <b>Renewals</b> tab is visible to you and shows everything ending in the next 90 days,
+        The <b>Renewals</b> page is visible to you and shows everything ending in the next 90 days,
         with twelve months of use beside it. You can read all of it and add a note. Committing NESR
         to another twelve months is a buyer’s decision, so the buttons are not yours.
       </P>
@@ -518,14 +518,14 @@ function BuyerTab() {
 
       <H>1 · Work from what Ops validated</H>
       <P>
-        The <b>Buyer · PR and PO</b> view shows the same lines from your side. A line you cannot act
+        <b>PR &amp; PO</b> shows the same lines from your side. A line you cannot act
         on yet has not been validated.
       </P>
       <Shot
         src="/help/rrsm/board-buyer.jpg"
-        alt="The buyer's PR and PO view"
-        width={795}
-        height={496}
+        alt="The buyer's PR & PO page"
+        width={800}
+        height={500}
         caption="Your columns are PR, PO, SAP status and invoice. The quantity and days are Ops' and are read-only here, which is deliberate."
       />
       <Steps
@@ -552,7 +552,7 @@ function BuyerTab() {
 
       <H>2 · Decide the renewals</H>
       <P>
-        The <b>Renewals</b> tab lists everything ending within 90 days, soonest first, with twelve
+        The <b>Renewals</b> page lists everything ending within 90 days, soonest first, with twelve
         months of actual use beside each one. You are emailed about these; the screen is where the
         decision is recorded.
       </P>

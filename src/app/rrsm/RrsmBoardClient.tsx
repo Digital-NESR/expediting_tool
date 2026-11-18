@@ -1,13 +1,14 @@
 'use client';
 
 /* ─────────────────────────────────────────────────────────────
-   RRSM · the monthly cycle, from both sides.
+   RRSM · the monthly cycle, from either side.
 
-   One board with two views rather than two screens, because they
-   are the same rows: Ops confirm what was used, the buyer puts it
-   on a PO, and a line moves between them. Splitting them into two
-   routes would make the handover invisible — which is the thing
-   the Kuwait workbooks lose by being two separate sheets.
+   One component behind two pages (/rrsm/validation and
+   /rrsm/purchasing), because they are the same rows: Ops confirm
+   what was used, the buyer puts it on a PO, and a line moves
+   between them. Both pages show every line with its stage, so the
+   handover stays visible from either side — the thing the Kuwait
+   workbooks lose by being two separate sheets.
 
    What Ops may touch and what a buyer may touch do not overlap.
    Ops own on-hire, days, quantity and a note; the buyer owns the
@@ -17,18 +18,7 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  AlertTriangle,
-  ArrowLeft,
-  Check,
-  ChevronDown,
-  CircleQuestionMark,
-  Forklift,
-  Loader2,
-  Lock,
-  Undo2,
-} from 'lucide-react';
-import Link from 'next/link';
+import { AlertTriangle, Check, Loader2, Undo2 } from 'lucide-react';
 import {
   closeValidatedLines,
   moveRrsmLine,
@@ -38,8 +28,7 @@ import {
   type BoardLine,
   type RrsmBoard,
 } from '@/app/actions/rrsm/cycle';
-import InvitationsPanel from './InvitationsPanel';
-import RenewalsPanel from './RenewalsPanel';
+import RrsmShell, { RrsmEmpty as Empty, RrsmNoCountry, RrsmNotYourRole } from './components/RrsmShell';
 import {
   ERP_STATUS_LABEL,
   STAGE_LABEL,
@@ -54,7 +43,10 @@ import {
 
 const BRAND = '#307c4c';
 
-type View = 'ops' | 'buyer' | 'invite' | 'renew';
+export type BoardView = 'ops' | 'buyer';
+type View = BoardView;
+
+const TITLE: Record<View, string> = { ops: 'Ops validation', buyer: 'PR & PO' };
 
 const STAGE_TONE: Record<CycleStage, string> = {
   awaiting_supplier: 'bg-slate-100 text-slate-600',
@@ -64,31 +56,11 @@ const STAGE_TONE: Record<CycleStage, string> = {
   closed: 'bg-slate-900 text-white',
 };
 
-const VIEWS: readonly View[] = ['ops', 'buyer', 'invite', 'renew'];
-
-export default function RrsmBoardClient({
-  board,
-  initialView,
-}: {
-  board: RrsmBoard;
-  /** `?view=` from the URL. A renewal reminder links straight at the tab it is about. */
-  initialView?: string;
-}) {
+export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; view: View }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
-
-  /* Opens on whichever half this person actually does. Somebody who holds both sees Ops first,
-     because the cycle starts there and a buyer has nothing to act on until it has.
-     An explicit `?view=` wins, so an emailed link lands on the thing it is about. Resolved as
-     initial state rather than in an effect: an effect would render the wrong tab first and
-     then swap it, which reads as a flicker and loses any click made in between. */
-  const [view, setView] = useState<View>(() => {
-    const wanted = String(initialView ?? '').trim() as View;
-    if (VIEWS.includes(wanted)) return wanted;
-    return board.canValidate ? 'ops' : 'buyer';
-  });
 
   const money = useMemo(
     () =>
@@ -119,62 +91,59 @@ export default function RrsmBoardClient({
     setBusy(null);
   }
 
+  const title = TITLE[view];
+
   /* ── nothing to show ─────────────────────────────────────── */
 
   if (!board.country) {
     return (
-      <Shell>
-        <Empty
-          title="No country is live for you yet"
-          body="RRSM is switched on country by country. You hold a grant, but the country it covers has not been switched on, so there is nothing here to work on."
-        />
-      </Shell>
+      <RrsmShell scope={board} title={title}>
+        <RrsmNoCountry />
+      </RrsmShell>
     );
   }
 
+  /* The sidebar hides a page the reader's role does not cover, but a typed or shared URL still
+     arrives here. The actions refuse the writes regardless; this says why before anyone tries. */
+  if (view === 'ops' ? !board.canValidate : !board.canBuy) {
+    return (
+      <RrsmShell scope={board} title={title}>
+        <RrsmNotYourRole what={view === 'ops' ? 'Ops validation' : 'Raising PRs and POs'} />
+      </RrsmShell>
+    );
+  }
+
+  const subtitle = board.cycle ? (
+    <>
+      {periodLabel(new Date(board.cycle.period + 'T00:00:00Z'))} cycle · {board.cycle.opensOn} to{' '}
+      {board.cycle.closesOn} · {lines.length} lines ·{' '}
+      <b className="font-semibold text-white">
+        {money.format(total)} {board.country.currency}
+      </b>
+    </>
+  ) : (
+    'No cycle is open for this country yet.'
+  );
+
+  const actions =
+    view === 'buyer' && board.cycle ? (
+      <button
+        onClick={() => void run('close', () => closeValidatedLines(board.cycle!.id))}
+        disabled={!readyToClose || busy === 'close'}
+        className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3.5 py-2 text-[13px] font-semibold text-[#1d4f31] shadow-sm transition-opacity hover:bg-white/90 disabled:opacity-50"
+        title={
+          readyToClose ? undefined : 'A validated line needs a PO number before it can be closed'
+        }
+      >
+        {busy === 'close' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+        Close all ready · {readyToClose}
+      </button>
+    ) : undefined;
+
   return (
-    <Shell>
-      {/* ── header ──────────────────────────────────────────── */}
-      <div className="mb-5 flex flex-wrap items-center gap-3">
-        <div className="min-w-0 flex-1">
-          <div
-            className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest"
-            style={{ color: BRAND }}
-          >
-            <Forklift className="h-3.5 w-3.5" />
-            RRSM
-          </div>
-          <h1 className="mt-1 truncate text-[22px] font-bold tracking-tight text-slate-900">
-            {board.cycle
-              ? `${periodLabel(new Date(board.cycle.period + 'T00:00:00Z'))} cycle`
-              : 'No cycle open'}
-          </h1>
-          {board.cycle && (
-            <p className="mt-0.5 text-[13px] text-slate-500">
-              {board.cycle.opensOn} to {board.cycle.closesOn} · {lines.length} lines ·{' '}
-              <b className="text-slate-700">
-                {money.format(total)} {board.country.currency}
-              </b>
-            </p>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          {/* Beside the country picker rather than tucked in a menu: the people who need it most
-              are the ones who have not learnt where anything is yet. */}
-          <Link
-            href="/rrsm/help"
-            title="Help & Training"
-            className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
-          >
-            <CircleQuestionMark className="h-4 w-4" />
-          </Link>
-          <CountryScope board={board} />
-        </div>
-      </div>
-
+    <RrsmShell scope={board} title={title} subtitle={subtitle} actions={actions}>
       {error && (
-        <div className="mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-[13px] text-red-700">
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-[13px] text-red-700">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{error}</span>
         </div>
@@ -185,12 +154,12 @@ export default function RrsmBoardClient({
         <Empty
           title={`Nothing open for ${board.country.name}`}
           body={
-            board.canValidate
+            view === 'ops'
               ? 'Opening a cycle copies every asset still on hire from last month, with today’s rates and the quantity confirmed last time. You then confirm each one.'
               : 'Ops open the cycle. There is nothing to put on a PO until they have.'
           }
           action={
-            board.canValidate ? (
+            view === 'ops' ? (
               <button
                 onClick={() =>
                   void run('open', () => openRrsmCycle(board.country!.code, board.suggestedPeriod))
@@ -207,144 +176,83 @@ export default function RrsmBoardClient({
         />
       ) : (
         <>
-          {/* ── view switch ─────────────────────────────────── */}
-          <div className="mb-4 flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
-              {(
-                [
-                  ['ops', 'Ops · what was used', board.canValidate],
-                  ['buyer', 'Buyer · PR and PO', board.canBuy],
-                  /* Ops own the chase, the same people who opened the cycle. A buyer has nothing
-                     to act on until the submissions are in. */
-                  ['invite', 'Suppliers · invitations', board.canValidate],
-                  /* Visible to both: a validator should see what is running out even though
-                     only a buyer may commit to another year of it. */
-                  ['renew', 'Renewals', true],
-                ] as [View, string, boolean][]
-              ).map(([id, label, allowed]) => (
-                <button
-                  key={id}
-                  onClick={() => setView(id)}
-                  disabled={!allowed}
-                  title={allowed ? undefined : 'You do not hold that role in this country'}
-                  className={`rounded-md px-3 py-1.5 text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                    view === id ? 'text-white' : 'text-slate-600 hover:bg-slate-50'
-                  }`}
-                  style={view === id ? { background: BRAND } : undefined}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex-1" />
-
-            {view === 'buyer' && board.canBuy && (
-              <button
-                onClick={() => void run('close', () => closeValidatedLines(board.cycle!.id))}
-                disabled={!readyToClose || busy === 'close'}
-                className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[13px] font-semibold text-white disabled:opacity-40"
-                style={{ background: BRAND }}
-                title={
-                  readyToClose
-                    ? undefined
-                    : 'A validated line needs a PO number before it can be closed'
-                }
+          {/* ── the lines, grouped by supplier ──────────────── */}
+          <div className="space-y-5">
+            {board.suppliers.map((s) => (
+              <section
+                key={s.code}
+                className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
               >
-                {busy === 'close' ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Check className="h-4 w-4" />
-                )}
-                Close all ready · {readyToClose}
-              </button>
-            )}
+                <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5">
+                  <h2 className="text-[13.5px] font-semibold text-slate-800">{s.name}</h2>
+                  <span className="font-mono text-[11px] text-slate-400">{s.code}</span>
+                  {s.paymentTerms && (
+                    <span className="rounded bg-white px-1.5 py-0.5 font-mono text-[10.5px] text-slate-500">
+                      {s.paymentTerms}
+                    </span>
+                  )}
+                  <span className="flex-1" />
+                  <span className="text-[12.5px] text-slate-500">
+                    {money.format(s.lines.reduce((n, l) => n + lineValue(l.qty, l.rate), 0))}{' '}
+                    {board.country!.currency}
+                  </span>
+                </header>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[56rem] text-[13px]">
+                    <thead>
+                      <tr className="text-[10.5px] uppercase tracking-wider text-slate-400">
+                        <th className="px-4 py-2 text-left font-semibold">Asset / service</th>
+                        {view === 'ops' ? (
+                          <>
+                            <th className="px-2 py-2 text-left font-semibold">On hire</th>
+                            <th className="px-2 py-2 text-right font-semibold">Days</th>
+                            <th className="px-2 py-2 text-right font-semibold">Qty</th>
+                            <th className="px-2 py-2 text-right font-semibold">Rate</th>
+                            <th className="px-2 py-2 text-right font-semibold">Total</th>
+                            <th className="px-2 py-2 text-right font-semibold">vs last month</th>
+                          </>
+                        ) : (
+                          <>
+                            <th className="px-2 py-2 text-right font-semibold">Total</th>
+                            <th className="px-2 py-2 text-left font-semibold">PR</th>
+                            <th className="px-2 py-2 text-left font-semibold">PO</th>
+                            <th className="px-2 py-2 text-left font-semibold">SAP status</th>
+                            <th className="px-2 py-2 text-left font-semibold">Invoice</th>
+                          </>
+                        )}
+                        <th className="px-4 py-2 text-right font-semibold">Stage</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {s.lines.map((l) => (
+                        <Row
+                          key={l.id}
+                          line={l}
+                          view={view}
+                          currency={board.country!.currency}
+                          money={money}
+                          /* Each page offers only its own side's edits and moves. Somebody who
+                             holds both roles switches page to do the other half, which keeps
+                             "who changed this" answerable from the page they were on. */
+                          canValidate={view === 'ops' && board.canValidate}
+                          canBuy={view === 'buyer' && board.canBuy}
+                          busy={busy}
+                          onRun={run}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            ))}
           </div>
 
-          {view === 'invite' ? (
-            <InvitationsPanel countryCode={board.country.code} />
-          ) : view === 'renew' ? (
-            <RenewalsPanel countryCode={board.country.code} />
-          ) : (
-            <>
-              {/* ── the lines, grouped by supplier ──────────────── */}
-              <div className="space-y-5">
-                {board.suppliers.map((s) => (
-                  <section
-                    key={s.code}
-                    className="overflow-hidden rounded-xl border border-slate-200 bg-white"
-                  >
-                    <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5">
-                      <h2 className="text-[13.5px] font-semibold text-slate-800">{s.name}</h2>
-                      <span className="font-mono text-[11px] text-slate-400">{s.code}</span>
-                      {s.paymentTerms && (
-                        <span className="rounded bg-white px-1.5 py-0.5 font-mono text-[10.5px] text-slate-500">
-                          {s.paymentTerms}
-                        </span>
-                      )}
-                      <span className="flex-1" />
-                      <span className="text-[12.5px] text-slate-500">
-                        {money.format(s.lines.reduce((n, l) => n + lineValue(l.qty, l.rate), 0))}{' '}
-                        {board.country!.currency}
-                      </span>
-                    </header>
-
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[56rem] text-[13px]">
-                        <thead>
-                          <tr className="text-[10.5px] uppercase tracking-wider text-slate-400">
-                            <th className="px-4 py-2 text-left font-semibold">Asset / service</th>
-                            {view === 'ops' ? (
-                              <>
-                                <th className="px-2 py-2 text-left font-semibold">On hire</th>
-                                <th className="px-2 py-2 text-right font-semibold">Days</th>
-                                <th className="px-2 py-2 text-right font-semibold">Qty</th>
-                                <th className="px-2 py-2 text-right font-semibold">Rate</th>
-                                <th className="px-2 py-2 text-right font-semibold">Total</th>
-                                <th className="px-2 py-2 text-right font-semibold">
-                                  vs last month
-                                </th>
-                              </>
-                            ) : (
-                              <>
-                                <th className="px-2 py-2 text-right font-semibold">Total</th>
-                                <th className="px-2 py-2 text-left font-semibold">PR</th>
-                                <th className="px-2 py-2 text-left font-semibold">PO</th>
-                                <th className="px-2 py-2 text-left font-semibold">SAP status</th>
-                                <th className="px-2 py-2 text-left font-semibold">Invoice</th>
-                              </>
-                            )}
-                            <th className="px-4 py-2 text-right font-semibold">Stage</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {s.lines.map((l) => (
-                            <Row
-                              key={l.id}
-                              line={l}
-                              view={view}
-                              currency={board.country!.currency}
-                              money={money}
-                              canValidate={board.canValidate}
-                              canBuy={board.canBuy}
-                              busy={busy}
-                              onRun={run}
-                            />
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </section>
-                ))}
-              </div>
-
-              {!board.suppliers.length && (
-                <Empty
-                  title="The cycle is open and empty"
-                  body="Nothing was carried forward, which means the register has no active service lines for this country yet."
-                />
-              )}
-            </>
+          {!board.suppliers.length && (
+            <Empty
+              title="The cycle is open and empty"
+              body="Nothing was carried forward, which means the register has no active service lines for this country yet."
+            />
           )}
         </>
       )}
@@ -354,7 +262,7 @@ export default function RrsmBoardClient({
           <Loader2 className="h-3.5 w-3.5 animate-spin" /> Refreshing
         </div>
       )}
-    </Shell>
+    </RrsmShell>
   );
 }
 
@@ -495,7 +403,7 @@ function Row({
               value={draft.erpStatus}
               disabled={!buyerEditable}
               onChange={(e) => setDraft({ ...draft, erpStatus: e.target.value })}
-              className="w-full rounded border border-slate-200 bg-white px-1.5 py-1 text-[12px] outline-none disabled:border-transparent disabled:bg-transparent"
+              className="w-full min-w-[8.25rem] rounded border border-slate-200 bg-white px-1.5 py-1 text-[12px] outline-none disabled:border-transparent disabled:bg-transparent"
             >
               <option value="">—</option>
               {(Object.keys(ERP_STATUS_LABEL) as ErpStatus[]).map((s) => (
@@ -526,7 +434,9 @@ function Row({
       )}
 
       <td className="px-4 py-2.5">
-        <div className="flex items-center justify-end gap-1.5">
+        {/* Wraps rather than widening the table: with the sidebar pinned, a validated line's four
+            controls would otherwise push Return off the edge into a sideways scroll. */}
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
           <span
             className={`rounded px-1.5 py-0.5 text-[10.5px] font-semibold ${STAGE_TONE[line.stage]}`}
           >
@@ -623,7 +533,7 @@ function Text({
       disabled={disabled}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
-      className="w-28 rounded border border-slate-200 bg-white px-1.5 py-1 font-mono text-[12px] outline-none focus:border-[#6AAF8E] disabled:border-transparent disabled:bg-transparent"
+      className="w-24 rounded border border-slate-200 bg-white px-1.5 py-1 font-mono text-[12px] outline-none focus:border-[#6AAF8E] disabled:border-transparent disabled:bg-transparent"
     />
   );
 }
@@ -655,70 +565,5 @@ function Delta({
         </span>
       )}
     </span>
-  );
-}
-
-/**
- * The country this board is showing.
- *
- * A picker only when there is a choice. A buyer holds one country and has nothing to pick, so
- * they get a label that says what they are looking at — the same rule, and the same shape, as
- * the SourceGuide mappings screen and the SOA board.
- */
-function CountryScope({ board }: { board: RrsmBoard }) {
-  const router = useRouter();
-  if (!board.country) return null;
-
-  if (board.available.length > 1) {
-    return (
-      <div className="relative">
-        <select
-          value={board.country.code}
-          onChange={(e) => router.push(`/rrsm?country=${encodeURIComponent(e.target.value)}`)}
-          className="appearance-none rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-8 text-[13.5px] font-semibold text-slate-800 outline-none"
-        >
-          {board.available.map((c) => (
-            <option key={c.code} value={c.code}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-      </div>
-    );
-  }
-
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e6f1ea] px-3 py-1.5 text-[12px] font-semibold text-[#1d4f31]">
-      <Lock className="h-3 w-3" />
-      {board.country.name}
-    </span>
-  );
-}
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-[100dvh] bg-slate-50">
-      <div className="mx-auto max-w-[1400px] px-4 py-6 lg:px-6">
-        <Link
-          href="/home"
-          className="mb-4 inline-flex items-center gap-1.5 text-[12.5px] font-medium text-slate-500 hover:text-slate-800"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Applications
-        </Link>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function Empty({ title, body, action }: { title: string; body: string; action?: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-8 py-14 text-center">
-      <h2 className="text-[16px] font-semibold text-slate-900">{title}</h2>
-      <p className="mx-auto mt-2 max-w-md text-[13.5px] leading-relaxed text-slate-500">{body}</p>
-      {action && <div className="mt-6">{action}</div>}
-    </div>
   );
 }

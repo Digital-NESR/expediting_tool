@@ -151,21 +151,13 @@ const BOARD: RrsmBoard = {
 export default async function RrsmBoardPreviewPage({
   searchParams,
 }: {
-  /* Mirrors the real page, so `?view=` -- what a renewal reminder email links at -- can be
-     checked here rather than only behind SSO. */
+  /* `?view=buyer` renders /rrsm/purchasing; anything else renders /rrsm/validation. */
   searchParams?: Promise<{ view?: string }>;
 }) {
   if (process.env.NODE_ENV === 'production') notFound();
   const sp = searchParams ? await searchParams : {};
 
-  return (
-    <>
-      <div className="bg-amber-50 px-5 py-2.5 text-[12.5px] text-amber-900">
-        <b className="font-semibold uppercase tracking-widest">Development preview</b> · fixture
-        data, not reachable in production. Rendered as somebody holding both roles, so both views
-        are enabled.
-      </div>
-      <RrsmBoardClient board={BOARD} initialView={sp.view} />
-    </>
-  );
+  /* No banner above the board: the shell's sticky header and pinned sidebar are what is being
+     checked, and a strip above them would offset both. The fixture data says what this is. */
+  return <RrsmBoardClient board={BOARD} view={sp.view === 'buyer' ? 'buyer' : 'ops'} />;
 }

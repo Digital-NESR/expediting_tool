@@ -66,6 +66,21 @@ export function canAccessCountry(actor: RrsmActor, code: string, role: RrsmRole)
 }
 
 /**
+ * Which of the two jobs this actor may do in one country. Admins may do both.
+ *
+ * Exported so the sidebar, the overview and the board all ask the same question the same way;
+ * a nav item that shows for somebody the page then refuses is the drift this file exists to stop.
+ */
+export function rolesIn(actor: RrsmActor, code: string): { canBuy: boolean; canValidate: boolean } {
+  if (actor.isAdmin) return { canBuy: true, canValidate: true };
+  const here = actor.grants.filter((g) => g.countryCode === code);
+  return {
+    canBuy: here.some((g) => g.role === 'buyer' || g.role === 'admin'),
+    canValidate: here.some((g) => g.role === 'ops' || g.role === 'admin'),
+  };
+}
+
+/**
  * The signed-in actor's RRSM access. Memoised per request by React `cache`, so the layout, the
  * page and the actions that each need it share one query.
  *
