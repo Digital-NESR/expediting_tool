@@ -120,6 +120,8 @@ function buildProject(
   req: SourcingRequest,
   isServiceCluster: boolean,
   categorySuppliers: Map<string, number>,
+  /** What the rows were grouped on. Equals the material, or the normalised description key. */
+  groupKey: string,
 ): Built {
   const examinedSpendUsd = g.spendUsd;
 
@@ -181,6 +183,7 @@ function buildProject(
     type,
     country: g.country,
     material: g.material,
+    groupKey,
     title: g.title,
     materialGroup: g.materialGroup,
     materialType: g.materialType,
@@ -291,8 +294,8 @@ export const loadSourcingAnalysis = cache(
     const excluded = new Map<ExclusionReason, { groups: number; spendUsd: number }>();
     let examinedSpendUsd = 0;
 
-    const consider = (g: CandidateGroup, isService: boolean) => {
-      const built = buildProject(g, pir, req, isService, categorySuppliers);
+    const consider = (g: CandidateGroup, isService: boolean, groupKey: string) => {
+      const built = buildProject(g, pir, req, isService, categorySuppliers, groupKey);
       examinedSpendUsd += built.examinedSpendUsd;
       if (built.excluded) {
         const e = excluded.get(built.excluded) ?? { groups: 0, spendUsd: 0 };
@@ -303,7 +306,7 @@ export const loadSourcingAnalysis = cache(
       if (built.project) projects.push(built.project);
     };
 
-    for (const g of materialGroups) consider(g, false);
+    for (const g of materialGroups) consider(g, false, g.material ?? '');
 
     if (req.includeServices && serviceLaneSupported(req.filters)) {
       const raw = await serviceGroups(req.lookbackMonths);
@@ -313,7 +316,10 @@ export const loadSourcingAnalysis = cache(
            profiling found ranking at the very top by value. */
         const decision = clusterKey(row.title);
         if (!decision.usable) continue;
-        consider({ ...row, title: clusterLabel(row.originals) || row.title }, true);
+        /* `row.title` arrives as the normalised KEY — that is what the lines were grouped on,
+           and what fetching them back needs. The label a reader sees is the commonest original
+           spelling, which replaces it only for display. */
+        consider({ ...row, title: clusterLabel(row.originals) || row.title }, true, row.title);
       }
     }
 

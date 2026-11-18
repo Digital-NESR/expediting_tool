@@ -29,7 +29,7 @@ import materialsPool from '@/lib/db-materials';
 import { logger } from '@/lib/logger';
 import { baseScope, buildFilterSql, type PoFilters } from '@/lib/purchase-orders/filters';
 import type { CandidateGroup } from './rules';
-import type { CategoryFragment, ProjectSupplier } from './types';
+import type { CategoryFragment, EvidenceLine, ProjectSupplier } from './types';
 
 const log = logger('sourcing-queries');
 
@@ -389,4 +389,89 @@ export async function loadedAt(): Promise<string | null> {
     log.warn('warehouse.load_log_unavailable', { reason: String(err) });
     return null;
   }
+}
+
+/* ─── Evidence ────────────────────────────────────────────────────────────── */
+
+/**
+ * Every PO line behind one project.
+ *
+ * This is what makes a sourcing project arguable rather than assertable: the board states that
+ * a material was bought 106 times at prices between $27 and $73, and this returns the 106 lines
+ * so a category manager can check it, take it to a supplier, or find the one keying error that
+ * explains the spread.
+ *
+ * The scope is rebuilt from the SAME request that produced the project — same window, same
+ * filters, same hygiene — so the lines add up to the figures on the row. A separately-written
+ * WHERE clause here would drift from the one in `loadMaterialGroups` and quietly produce
+ * evidence that contradicts the claim it supports.
+ *
+ * `LIMIT` guards against a pathological group; the caller is told when it bites rather than
+ * being handed a partial list that looks whole.
+ */
+const EVIDENCE_LIMIT = 5000;
+
+export async function loadProjectLines(
+  p: LaneParams,
+  target: { country: string; groupKey: string; isService: boolean },
+): Promise<{ lines: EvidenceLine[]; truncated: boolean }> {
+  const { scope, params } = lane(p, 's');
+  const n = params.length;
+
+  /* A material project matches on the material number; a service project has none, so it
+     matches on the same normalised description expression the clustering used. Both are bound
+     parameters — neither the country nor the key is ever interpolated. */
+  const match = target.isService
+    ? `(s.material IS NULL OR TRIM(s.material) = '') AND ${SQL_NORMALISE.replace(/short_text/g, 's.short_text')} = $${n + 2}`
+    : `s.material = $${n + 2}`;
+
+  const { rows } = await materialsPool.query(
+    `SELECT s.purchase_doc, s.item, s.po_release_date::date AS release_date,
+            s.delv_date::date AS delivery_date,
+            s.supplier_num,
+            COALESCE(NULLIF(TRIM(d.name), ''), s.supplier_num) AS supplier_name,
+            COALESCE(NULLIF(TRIM(s.material_desc), ''), s.short_text) AS description,
+            s.order_qty, s.order_unit,
+            s.net_order_val_usd,
+            s.net_order_value, s.currency,
+            s.plant_desc, s.created_by, s.pu_doc_type,
+            s.purchasing_info_rec, s.incoterms_text
+       FROM core.supplychain s
+       LEFT JOIN track.supplier_directory d ON d.code = s.supplier_num
+      WHERE ${scope}
+        AND s.country = $${n + 1}
+        AND ${match}
+      ORDER BY s.po_release_date DESC, s.purchase_doc, s.item
+      LIMIT ${EVIDENCE_LIMIT + 1}`,
+    [...params, target.country, target.groupKey],
+  );
+
+  const truncated = rows.length > EVIDENCE_LIMIT;
+  return {
+    truncated,
+    lines: rows.slice(0, EVIDENCE_LIMIT).map((r) => {
+      const qty = num(r.order_qty);
+      const value = num(r.net_order_val_usd);
+      return {
+        purchaseDoc: String(r.purchase_doc),
+        item: str(r.item),
+        releaseDate: iso(r.release_date),
+        deliveryDate: iso(r.delivery_date),
+        supplierNum: String(r.supplier_num ?? ''),
+        supplierName: String(r.supplier_name ?? ''),
+        description: str(r.description),
+        qty,
+        orderUnit: str(r.order_unit),
+        unitPriceUsd: qty > 0 ? value / qty : null,
+        lineValueUsd: value,
+        currency: str(r.currency),
+        nativeValue: r.net_order_value === null ? null : Number(r.net_order_value),
+        plant: str(r.plant_desc),
+        buyer: str(r.created_by),
+        docType: str(r.pu_doc_type),
+        infoRecord: str(r.purchasing_info_rec),
+        incoterms: str(r.incoterms_text),
+      };
+    }),
+  };
 }

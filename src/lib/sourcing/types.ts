@@ -61,6 +61,14 @@ export interface SourcingProject {
   country: string;
   /** SAP material number, or null for description-clustered service projects. */
   material: string | null;
+  /**
+   * What the rows were grouped on — the material number, or the normalised description key.
+   *
+   * Carried separately from `title` because a service cluster is LABELLED with the commonest
+   * original spelling a buyer wrote, while it is GROUPED on the stripped key. Fetching the
+   * lines behind a project needs the key, not the label.
+   */
+  groupKey: string;
   /** What a reader calls it — material description, or the normalised description cluster. */
   title: string;
   materialGroup: string | null;
@@ -133,6 +141,34 @@ export interface SourcingSummary {
   excluded: { reason: string; groups: number; spendUsd: number }[];
   /** Share of material spend a live info record could be found for, 0-100. */
   pirCoveragePct: number | null;
+}
+
+/** One PO line behind a project — the evidence a reader checks the rationale against. */
+export interface EvidenceLine {
+  purchaseDoc: string;
+  item: string | null;
+  releaseDate: string | null;
+  deliveryDate: string | null;
+  supplierNum: string;
+  supplierName: string;
+  description: string | null;
+  qty: number;
+  orderUnit: string | null;
+  unitPriceUsd: number | null;
+  lineValueUsd: number;
+  currency: string | null;
+  nativeValue: number | null;
+  plant: string | null;
+  buyer: string | null;
+  docType: string | null;
+  infoRecord: string | null;
+  incoterms: string | null;
+}
+
+export interface ProjectEvidence {
+  lines: EvidenceLine[];
+  /** True when the line list was capped — the workbook says so rather than implying it is whole. */
+  truncated: boolean;
 }
 
 export interface SourcingAnalysis {

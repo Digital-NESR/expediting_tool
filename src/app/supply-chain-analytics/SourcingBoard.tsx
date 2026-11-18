@@ -24,7 +24,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
-import { fetchSourcingAnalysis } from '@/app/actions/sourcing';
+import { fetchProjectEvidence, fetchSourcingAnalysis } from '@/app/actions/sourcing';
 import { csvSafe } from '@/lib/catalog-manager-utils';
 import type { PoFilters, PoFilterOptions } from '@/lib/purchase-orders/filters';
 import {
@@ -36,6 +36,7 @@ import {
   type SourcingProject,
   type SourcingRequest,
 } from '@/lib/sourcing/types';
+import { downloadProjectWorkbook } from '@/lib/sourcing/export';
 import PurchaseOrderFilterBar from './PurchaseOrderFilterBar';
 import { SavingsByCountry, TYPE_TONE, usdCompact } from './SourcingCharts';
 
@@ -112,6 +113,9 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
   const [req, setReq] = useState<SourcingRequest>(DEFAULT_REQUEST);
   const [sort, setSort] = useState<SortKey>('rank');
   const [expanded, setExpanded] = useState<string | null>(null);
+  /** Which project's workbook is being built, and the last one that failed. */
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const [busy, startTransition] = useTransition();
 
   /**
@@ -125,7 +129,6 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
    */
   useEffect(() => {
     if (loaded) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoaded(true);
     startTransition(async () => {
       setAnalysis(await fetchSourcingAnalysis(DEFAULT_REQUEST));
@@ -157,6 +160,37 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
       return typeof x === 'string' ? x.localeCompare(y as string) : (x as number) - (y as number);
     });
   }, [analysis, sort]);
+
+  /**
+   * Fetches the PO lines behind one project and hands back a workbook.
+   *
+   * Deliberately NOT prefetched with the board — a project can sit behind hundreds of lines and
+   * nobody wants all of them for every row. It is fetched when a reader asks for that one,
+   * using the same request that produced the board so the evidence reconciles to the figures.
+   */
+  const downloadWorkbook = useCallback(
+    async (p: SourcingProject) => {
+      setDownloading(p.id);
+      setDownloadError(null);
+      try {
+        const evidence = await fetchProjectEvidence(req, {
+          country: p.country,
+          groupKey: p.groupKey,
+          isService: p.type === 'service',
+        });
+        if (!evidence) {
+          setDownloadError(`Could not read the lines behind ${p.title}.`);
+          return;
+        }
+        await downloadProjectWorkbook(p, evidence);
+      } catch {
+        setDownloadError(`Could not build the workbook for ${p.title}.`);
+      } finally {
+        setDownloading(null);
+      }
+    },
+    [req],
+  );
 
   const exportCsv = useCallback(() => {
     const head = [
@@ -448,6 +482,12 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
             </div>
           </div>
 
+          {downloadError && (
+            <p className="border-b border-red-100 bg-red-50 px-5 py-2.5 text-[12px] text-red-700">
+              {downloadError}
+            </p>
+          )}
+
           {projects.length === 0 ? (
             <p className="py-16 text-center text-[13px] text-slate-400">
               Nothing qualifies at these thresholds. Loosen the preset or lower the minimum spend.
@@ -494,6 +534,23 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
                         <div className="mt-0.5"><Savings p={p} /></div>
                       </div>
                     </button>
+
+                    {/* Sibling of the row button, not nested — a button inside a button is
+                        invalid and the inner one never receives its click. */}
+                    <div className="flex justify-end px-5 pb-3 -mt-2">
+                      <button
+                        type="button"
+                        onClick={() => downloadWorkbook(p)}
+                        disabled={downloading === p.id}
+                        title="Excel workbook: the analysis, the supplier spread, the price history and every PO line behind it"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1 text-[11.5px] font-semibold text-slate-600 transition-colors hover:border-[#307c4c] hover:text-[#307c4c] disabled:opacity-50"
+                      >
+                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" />
+                        </svg>
+                        {downloading === p.id ? 'Building…' : 'Evidence pack'}
+                      </button>
+                    </div>
 
                     {open && (
                       <div className="border-t border-slate-100 bg-slate-50 px-5 py-4">

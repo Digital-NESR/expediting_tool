@@ -123,21 +123,43 @@ export function clusterKey(raw: string | null | undefined): ClusterKey {
 /**
  * How a cluster is labelled on the board.
  *
- * The normalised key is upper-case with its digits removed, which reads badly. The most common
- * original spelling is shown instead — it is what the buyer actually wrote, so it is what they
- * will recognise. Ties break on the longest, which tends to be the most descriptive.
+ * The normalised key is upper-case with its digits stripped, which reads badly, so the most
+ * common original spelling is shown instead — it is what the buyer actually wrote and so what
+ * they will recognise. Ties break on the longest, which tends to be the most descriptive.
+ *
+ * THE MONTH HAS TO COME BACK OUT OF THE LABEL. Stripping month names is what merged the twelve
+ * monthly diesel clusters into one, but the surviving label is still one month's spelling —
+ * "SEP-25 SITE DIESEL SUPPLY" heading a cluster that runs across two years reads as a mistake,
+ * and a reader would reasonably conclude the grouping was wrong. A candidate without a month is
+ * preferred; where every spelling carries one, it is removed from the label.
  */
 export function clusterLabel(originals: string[]): string {
-  if (!originals.length) return '(no description)';
   const counts = new Map<string, number>();
   for (const o of originals) {
     const t = o.trim();
     if (t) counts.set(t, (counts.get(t) ?? 0) + 1);
   }
   if (!counts.size) return '(no description)';
-  return [...counts.entries()].sort(
-    (a, b) => b[1] - a[1] || b[0].length - a[0].length,
-  )[0][0];
+
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0].length - a[0].length);
+  const hasMonth = (s: string) => MONTH_RE.test(s.toUpperCase());
+
+  /* `MONTH_RE` is global, so `test` advances `lastIndex` between calls — reset it or every
+      other check silently returns false. */
+  const monthFree = ranked.find(([text]) => {
+    MONTH_RE.lastIndex = 0;
+    return !hasMonth(text);
+  });
+  if (monthFree) return monthFree[0];
+
+  const [best] = ranked;
+  MONTH_RE.lastIndex = 0;
+  const stripped = best[0]
+    .replace(new RegExp(MONTH_RE.source, 'gi'), ' ')
+    .replace(/[\s\-–—_/]{2,}/g, ' ')
+    .replace(/^[\s\-–—_/]+|[\s\-–—_/]+$/g, '')
+    .trim();
+  return stripped || best[0];
 }
 
 export const REJECT_LABEL: Record<RejectReason, string> = {

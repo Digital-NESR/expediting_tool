@@ -17,11 +17,13 @@ import { currentActor } from '@/lib/require-access';
 import { logger } from '@/lib/logger';
 import { coerceFilters } from '@/lib/purchase-orders/filters';
 import { loadSourcingAnalysis } from '@/lib/sourcing/analysis';
+import { loadProjectLines } from '@/lib/sourcing/queries';
 import {
   DEFAULT_REQUEST,
   PRESETS,
   type Preset,
   type ProjectType,
+  type ProjectEvidence,
   type SourcingAnalysis,
   type SourcingRequest,
 } from '@/lib/sourcing/types';
@@ -70,6 +72,39 @@ export async function fetchSourcingAnalysis(raw: unknown): Promise<SourcingAnaly
     return await loadSourcingAnalysis(coerceRequest(raw));
   } catch (err) {
     log.error('analysis.failed', err);
+    return null;
+  }
+}
+
+/**
+ * The PO lines behind one project.
+ *
+ * Takes the same request that produced the board so the evidence is drawn from the identical
+ * window, filters and hygiene — lines that did not add up to the figures they are supposed to
+ * justify would be worse than no evidence at all.
+ *
+ * `country` and `groupKey` are bound parameters inside the query; neither is interpolated.
+ */
+export async function fetchProjectEvidence(
+  rawRequest: unknown,
+  rawTarget: unknown,
+): Promise<ProjectEvidence | null> {
+  const actor = await currentActor();
+  if (!actor?.isPlatformAdmin) return null;
+
+  const t = (rawTarget ?? {}) as Record<string, unknown>;
+  const country = typeof t.country === 'string' ? t.country : '';
+  const groupKey = typeof t.groupKey === 'string' ? t.groupKey : '';
+  if (!country || !groupKey) return null;
+
+  const req = coerceRequest(rawRequest);
+  try {
+    return await loadProjectLines(
+      { filters: req.filters, lookbackMonths: req.lookbackMonths },
+      { country, groupKey, isService: t.isService === true },
+    );
+  } catch (err) {
+    log.error('evidence.failed', err);
     return null;
   }
 }

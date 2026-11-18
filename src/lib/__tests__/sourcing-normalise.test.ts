@@ -102,6 +102,25 @@ describe('clusterLabel', () => {
     expect(label).toBe('Diesel supply to site');
   });
 
+  it('prefers a spelling without a month over a more common one with', () => {
+    // The cluster spans many months; heading it "SEP-25 ..." reads as a grouping mistake.
+    const label = clusterLabel([
+      'SEP-25 SITE DIESEL SUPPLY', 'SEP-25 SITE DIESEL SUPPLY', 'SEP-25 SITE DIESEL SUPPLY',
+      'SITE DIESEL SUPPLY',
+    ]);
+    expect(label).toBe('SITE DIESEL SUPPLY');
+  });
+
+  it('strips the month when every spelling carries one', () => {
+    const label = clusterLabel(['SEP-25 SITE DIESEL SUPPLY', 'OCT-25 SITE DIESEL SUPPLY']);
+    expect(label).not.toMatch(/SEP|OCT/);
+    expect(label).toContain('SITE DIESEL SUPPLY');
+  });
+
+  it('does not mangle a label whose words merely begin like a month', () => {
+    expect(clusterLabel(['DECANTER CENTRIFUGE SERVICE'])).toBe('DECANTER CENTRIFUGE SERVICE');
+  });
+
   it('survives an empty list', () => {
     expect(clusterLabel([])).toBe('(no description)');
     expect(clusterLabel(['  '])).toBe('(no description)');
