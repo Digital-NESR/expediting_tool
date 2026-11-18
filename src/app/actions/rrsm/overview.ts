@@ -247,15 +247,19 @@ export interface RegisterRow {
   offHireDate: string;
   ownerEmail: string;
   requesterEmail: string;
+  entity: string;
+  purchasingGroup: string;
+  plant: string;
   active: boolean;
+  /** Cycles that have carried this line. Above zero, it can be off-hired but not deleted. */
+  cycles: number;
 }
 
 /**
  * Every service line in the country, on hire or not.
  *
- * Read-only on purpose. The register is loaded from the source workbooks and changes rarely;
- * editing it is a separate decision with its own audit questions, not a side effect of being
- * able to see it.
+ * Readable by anyone in the country. Changes go through `actions/rrsm/register.ts`, which
+ * allows buyers and admins only and logs every one.
  */
 export async function getRrsmRegister(countryCode: string): Promise<RegisterRow[]> {
   try {
@@ -270,7 +274,12 @@ export async function getRrsmRegister(countryCode: string): Promise<RegisterRow[
               COALESCE(s.service_number, '') AS service_number, s.operating_model, s.uom, s.rate,
               COALESCE(s.payment_terms, '') AS payment_terms, s.starts_on, s.contract_ends_on,
               s.off_hire_date, COALESCE(s.owner_email, '') AS owner_email,
-              COALESCE(s.requester_email, '') AS requester_email, s.active
+              COALESCE(s.requester_email, '') AS requester_email, s.active,
+              COALESCE(s.entity, '') AS entity,
+              COALESCE(s.purchasing_group, '') AS purchasing_group,
+              COALESCE(s.plant, '') AS plant,
+              (SELECT count(*)::int FROM rrsm_cycle_lines c WHERE c.service_line_id = s.id)
+                AS cycles
          FROM rrsm_service_lines s
          JOIN rrsm_suppliers sup ON sup.code = s.supplier_code
         WHERE s.country_code = $1
@@ -297,7 +306,11 @@ export async function getRrsmRegister(countryCode: string): Promise<RegisterRow[
       offHireDate: r.off_hire_date ? dateOnly(r.off_hire_date) : '',
       ownerEmail: String(r.owner_email ?? ''),
       requesterEmail: String(r.requester_email ?? ''),
+      entity: String(r.entity ?? ''),
+      purchasingGroup: String(r.purchasing_group ?? ''),
+      plant: String(r.plant ?? ''),
       active: Boolean(r.active),
+      cycles: Number(r.cycles ?? 0),
     }));
   } catch (err) {
     log.error('getRrsmRegister.failed', err, { countryCode });

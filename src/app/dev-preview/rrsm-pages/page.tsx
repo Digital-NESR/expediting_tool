@@ -16,6 +16,7 @@ import type {
   RrsmOverview,
   RrsmScope,
 } from '@/app/actions/rrsm/overview';
+import type { RegisterEditorData } from '@/app/actions/rrsm/register';
 import RrsmDashboardClient from '@/app/rrsm/RrsmDashboardClient';
 import RrsmHistoryClient from '@/app/rrsm/RrsmHistoryClient';
 import RrsmRegisterClient from '@/app/rrsm/RrsmRegisterClient';
@@ -75,10 +76,31 @@ function reg(partial: Partial<RegisterRow> & Pick<RegisterRow, 'id' | 'descripti
     offHireDate: '',
     ownerEmail: '',
     requesterEmail: '',
+    entity: '',
+    purchasingGroup: '',
+    plant: '',
     active: true,
+    cycles: 3,
     ...partial,
   };
 }
+
+const EDITOR: RegisterEditorData = {
+  canEdit: true,
+  uoms: [
+    { code: 'month', label: 'Month' },
+    { code: 'day', label: 'Day' },
+    { code: 'hour', label: 'Hour' },
+    { code: 'headcount', label: 'Headcount' },
+    { code: 'unit', label: 'Unit' },
+  ],
+  suppliers: [
+    { code: '100482', name: 'Al Mulla Rental Co.', contactEmails: ['fleet@almulla.example'], active: true, linesHere: 4 },
+    { code: '100911', name: 'Gulf Guarding Services', contactEmails: [], active: true, linesHere: 1 },
+    { code: '100733', name: 'Kuwait Real Estate Holdings', contactEmails: ['leasing@kreh.example', 'ap@kreh.example'], active: true, linesHere: 1 },
+    { code: '200150', name: 'Emirates Plant Hire', contactEmails: ['ops@eph.example'], active: true, linesHere: 0 },
+  ],
+};
 
 /* Contract dates are relative to today so the "in N days" labels stay meaningful whenever this
    preview is opened. */
@@ -119,6 +141,17 @@ const REGISTER: RegisterRow[] = [
     offHireDate: '2026-08-31',
     contractEndsOn: '2026-12-31',
   }),
+  /* Loaded but never in a cycle, so the editor offers Delete; and no rate agreed yet. */
+  reg({
+    id: 7,
+    description: 'Crane 50T, Mussafah yard',
+    supplierCode: '200150',
+    supplierName: 'Emirates Plant Hire',
+    serviceNumber: '',
+    rate: null,
+    uom: 'day',
+    cycles: 0,
+  }),
 ];
 
 const HISTORY: HistoryRow[] = [
@@ -138,7 +171,17 @@ export default async function RrsmPagesPreview({
 
   switch (sp.page) {
     case 'register':
-      return <RrsmRegisterClient scope={scope} rows={REGISTER} />;
+      return (
+        <RrsmRegisterClient
+          scope={scope}
+          rows={REGISTER}
+          /* Ops read the register; buyers and admins edit it. */
+          editor={{ ...EDITOR, canEdit: scope.canBuy }}
+          preview
+        />
+      );
+    case 'register-empty':
+      return <RrsmRegisterClient scope={scope} rows={[]} editor={EDITOR} preview />;
     case 'history':
       return <RrsmHistoryClient scope={scope} rows={HISTORY} />;
     case 'empty':

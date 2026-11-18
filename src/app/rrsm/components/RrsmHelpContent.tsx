@@ -591,6 +591,35 @@ function BuyerTab() {
         expired undecided you are chased once more and then left alone — the list does not go away.
       </P>
 
+      <H>4 · Keep the register up to date</H>
+      <P>
+        The <b>Service register</b> is the list every month is opened from, and keeping it right is
+        yours. <b>Add line</b> registers a new asset or service; clicking a line opens it to edit.
+        Suppliers are added from the same page, and need a contact email for the monthly invitation
+        to be sent to them.
+      </P>
+      <Steps
+        items={[
+          <>
+            A changed <b>rate</b> applies from the next month opened. A month already open keeps the
+            rate it opened with, so an approved month is never restated.
+          </>,
+          <>
+            A <b>contract end date</b> is what puts a line on the Renewals page, and the owner and
+            requester on the line are the people reminded.
+          </>,
+          <>
+            <b>Off hire</b> a line when the asset has gone for good; the line stays on record and the
+            next month leaves it out. For a single month it was not used, Ops untick On hire
+            instead.
+          </>,
+          <>
+            A line can be deleted only while no month has carried it. Every change is recorded with
+            your name, and each line shows its history.
+          </>,
+        ]}
+      />
+
       <Cannot
         items={[
           'You cannot change quantity, days or on-hire. Return the line instead.',
