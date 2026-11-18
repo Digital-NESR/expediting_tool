@@ -504,6 +504,10 @@ export const COUNTRY_OPTIONS = [
   'Oman',
   'Qatar',
   'Saudi Arabia (KSA)',
+  /* KSA Unconventional: its own country in ProcureGuard because it has its own SCM, while every
+     other approver is the same as KSA's. Named after KSA's own spelling so the two sort together,
+     and so the released-PR search (which drops a trailing bracket) still ranks Saudi PRs first. */
+  'Saudi Arabia (KSA-UC)',
   'United Arab Emirates (UAE)',
   'Congo',
   'Yemen',
@@ -517,6 +521,13 @@ export function normalizeProcureGuardCountry(value: string | null | undefined): 
   const aliases: Record<string, string> = {
     ksa: 'Saudi Arabia (KSA)',
     'saudi arabia': 'Saudi Arabia (KSA)',
+    /* Exact keys only, never a prefix match: "KSA-UC" must not fall into KSA, or KSA's SCM
+       would be handed Unconventional's requests and Hichem would never see them. */
+    'ksa-uc': 'Saudi Arabia (KSA-UC)',
+    'ksa uc': 'Saudi Arabia (KSA-UC)',
+    'ksa unconventional': 'Saudi Arabia (KSA-UC)',
+    'saudi arabia uc': 'Saudi Arabia (KSA-UC)',
+    'saudi arabia unconventional': 'Saudi Arabia (KSA-UC)',
     uae: 'United Arab Emirates (UAE)',
     'united arab emirates': 'United Arab Emirates (UAE)',
     dubai: 'HQ Dubai',
