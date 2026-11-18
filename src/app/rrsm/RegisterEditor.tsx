@@ -187,6 +187,7 @@ function todayIso(): string {
 
 const FIELD_LABEL: Record<string, string> = {
   supplierCode: 'Supplier',
+  category: 'Category',
   description: 'Description',
   assetRef: 'Plate / serial',
   serviceNumber: 'Service number',
@@ -227,6 +228,7 @@ function show(v: unknown): string {
 export function draftFromRow(r: RegisterRow): ServiceLineDraft {
   return {
     supplierCode: r.supplierCode,
+    category: r.category,
     description: r.description,
     assetRef: r.assetRef,
     serviceNumber: r.serviceNumber,
@@ -251,6 +253,7 @@ export function LineDrawer({
   countryCode,
   currency,
   editor,
+  categories,
   line,
   preview,
   onClose,
@@ -260,6 +263,8 @@ export function LineDrawer({
   countryCode: string;
   currency: string;
   editor: RegisterEditorData;
+  /** The categories already on this register, offered as suggestions so spellings converge. */
+  categories: string[];
   /** Null to add a new line. */
   line: RegisterRow | null;
   /** Dev preview: checks run, nothing is sent. */
@@ -410,6 +415,25 @@ export function LineDrawer({
       </Section>
 
       <Section title="What it is">
+        <Field
+          label="Category"
+          wide
+          error={errors.category}
+          hint="e.g. Equipment Rental, Transportation, Accommodation. Pick an existing one where it fits."
+        >
+          <input
+            value={draft.category}
+            disabled={ro}
+            list="rrsm-categories"
+            onChange={(e) => set('category', e.target.value)}
+            className={INPUT}
+          />
+          <datalist id="rrsm-categories">
+            {categories.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+        </Field>
         <Field label="Description" required wide error={errors.description}>
           <input
             value={draft.description}

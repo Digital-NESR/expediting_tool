@@ -56,6 +56,7 @@ export default function RrsmRegisterClient({
   const [refreshing, startTransition] = useTransition();
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<Filter>('on');
+  const [category, setCategory] = useState('');
   const [view, setView] = useState<View>('lines');
   const [panel, setPanel] = useState<Panel>(null);
   const [notice, setNotice] = useState('');
@@ -73,13 +74,23 @@ export default function RrsmRegisterClient({
 
   const needle = q.trim().toLowerCase();
 
+  /* Every category on the register, with how many lines carry it, for the filter and for the
+     editor's suggestions. */
+  const categories = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of rows) if (r.category) m.set(r.category, (m.get(r.category) ?? 0) + 1);
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [rows]);
+
   const shown = useMemo(
     () =>
       rows.filter((r) => {
         if (filter === 'on' && !isOnHire(r)) return false;
         if (filter === 'off' && isOnHire(r)) return false;
+        if (category && r.category !== category) return false;
         if (!needle) return true;
         return [
+          r.category,
           r.description,
           r.assetRef,
           r.supplierName,
@@ -91,7 +102,7 @@ export default function RrsmRegisterClient({
           r.ownerEmail,
         ].some((v) => v.toLowerCase().includes(needle));
       }),
-    [rows, filter, needle],
+    [rows, filter, category, needle],
   );
 
   const suppliers = useMemo(
@@ -204,6 +215,21 @@ export default function RrsmRegisterClient({
             className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-[#307c4c]"
           />
         </label>
+        {view === 'lines' && categories.length > 0 && (
+          <select
+            aria-label="Category"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="shrink-0 self-start rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] font-medium text-slate-700 outline-none focus:border-[#307c4c]"
+          >
+            <option value="">All categories</option>
+            {categories.map(([c, n]) => (
+              <option key={c} value={c}>
+                {c} ({n})
+              </option>
+            ))}
+          </select>
+        )}
         {view === 'lines' && (
           <div className="inline-flex shrink-0 self-start rounded-lg border border-slate-200 bg-white p-0.5">
             {(
@@ -281,6 +307,11 @@ export default function RrsmRegisterClient({
                         className="group cursor-pointer border-t border-slate-100 align-top transition-colors hover:bg-[#307c4c]/[0.03]"
                       >
                         <td className="px-4 py-2.5">
+                          {r.category && (
+                            <div className="mb-0.5 text-[10.5px] font-semibold uppercase tracking-wider text-[#307c4c]">
+                              {r.category}
+                            </div>
+                          )}
                           <div className="flex items-center gap-1.5 font-medium text-slate-800">
                             {r.description}
                             {editor.canEdit && (
@@ -306,10 +337,16 @@ export default function RrsmRegisterClient({
                         <td className="px-2 py-2.5">
                           <div className="text-slate-700">{r.segment}</div>
                           <div
-                            className="font-mono text-[10.5px] text-slate-400"
-                            title={r.costCenterName || undefined}
+                            className={`font-mono text-[10.5px] ${
+                              r.costCenter === 'TBC' ? 'font-semibold text-amber-600' : 'text-slate-400'
+                            }`}
+                            title={
+                              r.costCenter === 'TBC'
+                                ? 'Cost center still to be confirmed'
+                                : r.costCenterName || undefined
+                            }
                           >
-                            {r.costCenter}
+                            {r.costCenter === 'TBC' ? 'Cost center TBC' : r.costCenter}
                           </div>
                         </td>
                         <td className="whitespace-nowrap px-2 py-2.5 text-right font-mono text-[12.5px] text-slate-700">
@@ -441,6 +478,7 @@ export default function RrsmRegisterClient({
           countryCode={country.code}
           currency={currency}
           editor={editor}
+          categories={categories.map(([c]) => c)}
           line={lineUnder.line}
           preview={preview}
           onClose={() => setPanel(null)}

@@ -62,6 +62,7 @@ function reg(partial: Partial<RegisterRow> & Pick<RegisterRow, 'id' | 'descripti
   return {
     supplierCode: '100482',
     supplierName: 'Al Mulla Rental Co.',
+    category: 'Transportation',
     assetRef: '',
     segment: 'CPVEN_CT',
     costCenter: 'C541110101',
@@ -147,6 +148,8 @@ const REGISTER: RegisterRow[] = [
     description: 'Crane 50T, Mussafah yard',
     supplierCode: '200150',
     supplierName: 'Emirates Plant Hire',
+    category: 'Equipment Rental',
+    costCenter: 'TBC',
     serviceNumber: '',
     rate: null,
     uom: 'day',

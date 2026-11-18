@@ -48,6 +48,15 @@ describe('checkServiceLine', () => {
     );
   });
 
+  it('keeps a category as typed and treats a blank one as none', () => {
+    const r = checkServiceLine({ ...good, category: '  Equipment Rental ' }, UOMS);
+    expect(r.ok && r.value.category).toBe('Equipment Rental');
+    const blank = checkServiceLine({ ...good, category: '' }, UOMS);
+    expect(blank.ok && blank.value.category).toBeNull();
+    const long = checkServiceLine({ ...good, category: 'x'.repeat(81) }, UOMS);
+    expect(!long.ok && long.errors.category).toBeTruthy();
+  });
+
   it('allows a blank rate, which means "not agreed yet"', () => {
     const r = checkServiceLine({ ...good, rate: '' }, UOMS);
     expect(r.ok && r.value.rate).toBeNull();

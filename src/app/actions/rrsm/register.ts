@@ -110,6 +110,7 @@ function str(v: unknown): string | null {
 function rowToValues(r: QueryResultRow): ServiceLineValues {
   return {
     supplierCode: String(r.supplier_code),
+    category: str(r.category),
     description: String(r.description),
     assetRef: str(r.asset_ref),
     serviceNumber: str(r.service_number),
@@ -348,6 +349,7 @@ export async function saveServiceLine(input: {
         v.contractEndsOn,
         v.ownerEmail,
         v.requesterEmail,
+        v.category,
       ];
 
       if (!before) {
@@ -356,8 +358,8 @@ export async function saveServiceLine(input: {
              (supplier_code, description, asset_ref, service_number, segment, cost_center,
               cost_center_name, entity, purchasing_group, plant, operating_model, uom, rate,
               payment_terms, starts_on, contract_ends_on, owner_email, requester_email,
-              country_code)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+              category, country_code)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
            RETURNING id`,
           [...params, country],
         );
@@ -383,8 +385,8 @@ export async function saveServiceLine(input: {
            segment = $5, cost_center = $6, cost_center_name = $7, entity = $8,
            purchasing_group = $9, plant = $10, operating_model = $11, uom = $12, rate = $13,
            payment_terms = $14, starts_on = $15, contract_ends_on = $16, owner_email = $17,
-           requester_email = $18, updated_at = NOW()
-         WHERE id = $19`,
+           requester_email = $18, category = $19, updated_at = NOW()
+         WHERE id = $20`,
         [...params, id],
       );
       await writeLog(client, {

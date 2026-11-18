@@ -20,6 +20,7 @@ export const OPERATING_MODEL_LABEL: Record<OperatingModel, string> = {
 /** The editable fields of a register line, as the form holds them: strings throughout. */
 export interface ServiceLineDraft {
   supplierCode: string;
+  category: string;
   description: string;
   assetRef: string;
   serviceNumber: string;
@@ -42,6 +43,7 @@ export interface ServiceLineDraft {
 /** The same line, cleaned and typed, as the database takes it. */
 export interface ServiceLineValues {
   supplierCode: string;
+  category: string | null;
   description: string;
   assetRef: string | null;
   serviceNumber: string | null;
@@ -69,6 +71,7 @@ export type Checked<T, K extends string> =
 
 export const EMPTY_LINE_DRAFT: ServiceLineDraft = {
   supplierCode: '',
+  category: '',
   description: '',
   assetRef: '',
   serviceNumber: '',
@@ -156,6 +159,8 @@ export function checkServiceLine(
   const supplierCode = normalizeVendorCode(d.supplierCode);
   if (!supplierCode) errors.supplierCode = 'Pick a supplier.';
 
+  if (d.category.length > 80) errors.category = 'Keep it under 80 characters.';
+
   if (!d.description) errors.description = 'Describe the asset or service.';
   else if (d.description.length > 200) errors.description = 'Keep it under 200 characters.';
 
@@ -192,6 +197,7 @@ export function checkServiceLine(
     ok: true,
     value: {
       supplierCode,
+      category: orNull(d.category),
       description: d.description,
       assetRef: orNull(d.assetRef.toUpperCase()),
       serviceNumber: orNull(d.serviceNumber),
@@ -217,6 +223,7 @@ export function checkServiceLine(
 export function draftFromValues(v: ServiceLineValues): ServiceLineDraft {
   return {
     supplierCode: v.supplierCode,
+    category: v.category ?? '',
     description: v.description,
     assetRef: v.assetRef ?? '',
     serviceNumber: v.serviceNumber ?? '',

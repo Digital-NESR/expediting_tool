@@ -232,6 +232,7 @@ export interface RegisterRow {
   id: number;
   supplierCode: string;
   supplierName: string;
+  category: string;
   description: string;
   assetRef: string;
   segment: string;
@@ -269,6 +270,7 @@ export async function getRrsmRegister(countryCode: string): Promise<RegisterRow[
 
     const { rows } = await rrsmPool.query<QueryResultRow>(
       `SELECT s.id, s.supplier_code, sup.name AS supplier_name, s.description,
+              COALESCE(s.category, '') AS category,
               COALESCE(s.asset_ref, '') AS asset_ref, s.segment, s.cost_center,
               COALESCE(s.cost_center_name, '') AS cost_center_name,
               COALESCE(s.service_number, '') AS service_number, s.operating_model, s.uom, s.rate,
@@ -291,6 +293,7 @@ export async function getRrsmRegister(countryCode: string): Promise<RegisterRow[
       id: Number(r.id),
       supplierCode: String(r.supplier_code),
       supplierName: String(r.supplier_name),
+      category: String(r.category ?? ''),
       description: String(r.description),
       assetRef: String(r.asset_ref ?? ''),
       segment: String(r.segment),
