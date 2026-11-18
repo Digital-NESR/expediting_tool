@@ -46,7 +46,9 @@ const PurchaseOrderAnalyticsClient = dynamic(() => import('./PurchaseOrderAnalyt
   loading: boardSkeleton,
 });
 
-type TabId = 'power-bi' | 'travel' | 'purchase-orders';
+const SourcingBoard = dynamic(() => import('./SourcingBoard'), { loading: boardSkeleton });
+
+type TabId = 'power-bi' | 'travel' | 'purchase-orders' | 'sourcing';
 
 export default function AnalyticsTabs({
   embedUrl,
@@ -57,6 +59,7 @@ export default function AnalyticsTabs({
   poTarget,
   showPowerBi,
   showPurchaseOrders,
+  showSourcing,
 }: {
   embedUrl: string;
   travel: TravelAnalyticsData | null;
@@ -66,6 +69,7 @@ export default function AnalyticsTabs({
   poTarget: string;
   showPowerBi: boolean;
   showPurchaseOrders: boolean;
+  showSourcing: boolean;
 }) {
   const tabs: { id: TabId; label: string; sub: string }[] = [
     ...(showPowerBi
@@ -78,6 +82,15 @@ export default function AnalyticsTabs({
             id: 'purchase-orders' as const,
             label: 'Purchase Orders',
             sub: 'SAP extract · refreshed daily',
+          },
+        ]
+      : []),
+    ...(showSourcing
+      ? [
+          {
+            id: 'sourcing' as const,
+            label: 'Sourcing Opportunities',
+            sub: 'Candidate projects from spend history',
           },
         ]
       : []),
@@ -129,6 +142,19 @@ export default function AnalyticsTabs({
       ) : tab === 'travel' ? (
         <div className="flex-1 p-6">
           <TravelAnalyticsClient data={travel} />
+        </div>
+      ) : tab === 'sourcing' ? (
+        <div className="flex-1 p-6">
+          {poOptions ? (
+            <SourcingBoard options={poOptions} />
+          ) : (
+            <div className="rounded-2xl border border-slate-200 bg-white py-20 text-center">
+              <p className="text-[15px] font-semibold text-slate-900">Sourcing analysis unavailable</p>
+              <p className="mx-auto mt-1 max-w-md text-[13px] leading-relaxed text-slate-500">
+                The SAP extract warehouse could not be reached.
+              </p>
+            </div>
+          )}
         </div>
       ) : (
         <div className="flex-1 p-6">

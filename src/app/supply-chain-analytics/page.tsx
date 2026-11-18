@@ -140,6 +140,7 @@ export default async function SupplyChainAnalyticsPage() {
         poOptions={poOptions}
         poFailure={poFailure}
         poTarget={materialsTarget()}
+        showSourcing={actor.isPlatformAdmin}
         showPowerBi={actor.isPlatformAdmin}
         showPurchaseOrders={actor.isPlatformAdmin}
       />
