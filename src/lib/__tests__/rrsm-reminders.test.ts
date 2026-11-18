@@ -167,7 +167,7 @@ describe('one email per person', () => {
     await sendRrsmRenewalReminders({ today: TODAY });
 
     const mail = sendRrsmMail.mock.calls[0][0] as { bodyHtml: string };
-    expect(mail.bodyHtml).toContain('https://sc.example.test/rrsm?country=KW&amp;view=renew');
+    expect(mail.bodyHtml).toContain('https://sc.example.test/rrsm/renewals?country=KW');
   });
 });
 

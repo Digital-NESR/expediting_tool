@@ -3,12 +3,11 @@
 import { signIn } from 'next-auth/react';
 import Image from 'next/image';
 import { siteConfig } from '@/config/site';
-import DemoLogin, { type DemoOption } from './DemoLogin';
 
 const { colors, images, text } = siteConfig;
 const login = text.login;
 
-export default function LoginClient({ demo }: { demo: DemoOption[] | null }) {
+export default function LoginClient() {
   const handleSSOLogin = () => {
     signIn('azure-ad', { callbackUrl: '/home' });
   };
@@ -65,8 +64,6 @@ export default function LoginClient({ demo }: { demo: DemoOption[] | null }) {
             </svg>
             {login.ssoButton}
           </button>
-
-          {demo && <DemoLogin options={demo} />}
 
           {/* Footer */}
           <p className="text-slate-500 text-xs text-center">{login.footer}</p>

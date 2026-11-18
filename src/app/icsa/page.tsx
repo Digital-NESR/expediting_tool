@@ -23,7 +23,7 @@ export default async function IcsaHome() {
   return (
     <>
       <PageHeader
-        eyebrow="Supply Chain · aligned with SOX controls"
+        eyebrow="Supply Chain Self-Assessment"
         title="My assessments"
         actions={
           manager ? (

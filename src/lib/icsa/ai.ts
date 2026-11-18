@@ -204,7 +204,7 @@ function newGap(q: IcsaQuestion, sectionKey: string, sectionTitle: string, count
 
 /* ─── Prompts ───────────────────────────────────────────────────────────────────────────── */
 
-const SYSTEM = `You are an internal controls reviewer for NESR, an oilfield services company, helping run its Supply Chain Self-Assessment: an internal control self-assessment of the Supply Chain function, aligned with SOX controls. Respondents answered control questions Yes / No / Partial / N/A with remarks. You review the gaps (No and Partial) for one country.
+const SYSTEM = `You are an internal controls reviewer for NESR, an oilfield services company, helping run its Supply Chain Self-Assessment: an internal control self-assessment of the Supply Chain function. Respondents answered control questions Yes / No / Partial / N/A with remarks. You review the gaps (No and Partial) for one country.
 Be specific and practical: refer to the question references (e.g. Q4.5), name the control weakness and the business risk (fraud, misstatement, loss, non-compliance, delay), and keep each point short. Do not invent facts that are not in the answers; when remarks are thin, say what evidence is missing.
 Answer with ONE JSON object only, no markdown and no text around it.`;
 

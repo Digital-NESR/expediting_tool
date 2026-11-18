@@ -1,6 +1,7 @@
 import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { QueryResultRow } from 'pg';
 import rrsmPool from '@/lib/db-rrsm';
+import { legacyViewPath, rrsmHref } from '@/lib/rrsm/nav';
 
 /**
  * Letting a supplier prove they are entitled to submit a cycle.
@@ -295,9 +296,12 @@ export function submissionUrl(token: string): string {
   return `${appBase()}/rrsm/submit/${token}`;
 }
 
-/** The staff board, opened on a given country and view. What a reminder email points at. */
+/**
+ * A staff page, opened on a given country. What a reminder email points at.
+ *
+ * Each view is its own route now; the `view` names are kept so callers did not have to change,
+ * and `/rrsm?view=` still redirects for the emails that went out before the split.
+ */
 export function boardUrl(countryCode: string, view?: 'ops' | 'buyer' | 'invite' | 'renew'): string {
-  const q = new URLSearchParams({ country: String(countryCode ?? '').trim() });
-  if (view) q.set('view', view);
-  return `${appBase()}/rrsm?${q.toString()}`;
+  return appBase() + rrsmHref(legacyViewPath(view) ?? '/rrsm', countryCode);
 }

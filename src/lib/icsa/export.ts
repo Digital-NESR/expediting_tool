@@ -63,7 +63,7 @@ export async function assessmentWorkbook(a: AssessmentWithContext): Promise<Buff
     size: 14,
     color: { argb: GREEN },
   };
-  cover.addRow(['Supply Chain Function | Aligned with SOX Controls']);
+  cover.addRow(['Supply Chain Function']);
   cover.addRow([]);
   for (const [k, v] of [
     ['Country / Business Unit', a.country],

@@ -7,10 +7,13 @@ import {
   canAccessCountry,
   currentRrsmActor,
   resolveRrsmCountry,
+  rolesIn,
   type RrsmActor,
   type RrsmCountryOption,
 } from '@/lib/rrsm/access';
 import { canMove, cycleWindow, isoDate, type CycleStage, type ErpStatus } from '@/lib/rrsm/cycle';
+import { EMPTY_SAP, type SapStatus } from '@/lib/rrsm/sap';
+import { readSapStatus } from '@/lib/rrsm/sap-status';
 
 /**
  * The monthly cycle, for the Ops and Buyer screens.
@@ -65,6 +68,8 @@ export interface RrsmBoard {
   /** The period a cycle would be opened for, when there is none. */
   suggestedPeriod: string;
   suppliers: BoardSupplier[];
+  /** Live SAP state of the lines' PRs and POs, from Materials DB. */
+  sap: SapStatus;
 }
 
 export type RrsmResult = { success: boolean; error?: string };
@@ -82,16 +87,6 @@ async function requireCountry(code: string): Promise<RrsmActor> {
   const actor = await actorOrThrow();
   if (!canAccessCountry(actor, code, 'buyer')) throw new Error('No access to that country.');
   return actor;
-}
-
-/** Which of the two jobs this actor may do in this country. Admins may do both. */
-function rolesIn(actor: RrsmActor, code: string): { canBuy: boolean; canValidate: boolean } {
-  if (actor.isAdmin) return { canBuy: true, canValidate: true };
-  const here = actor.grants.filter((g) => g.countryCode === code);
-  return {
-    canBuy: here.some((g) => g.role === 'buyer' || g.role === 'admin'),
-    canValidate: here.some((g) => g.role === 'ops' || g.role === 'admin'),
-  };
 }
 
 /** The country a cycle belongs to, read from the row rather than trusted from the caller. */
@@ -147,6 +142,7 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
     cycle: null,
     suggestedPeriod: suggestPeriod(),
     suppliers: [],
+    sap: EMPTY_SAP,
   };
   if (!countryCode) return empty;
 
@@ -211,7 +207,13 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
       group.lines.push(toBoardLine(r));
     }
 
+    const sap = await readSapStatus(
+      rows.map((r) => String(r.po_number ?? '')),
+      rows.map((r) => String(r.pr_number ?? '')),
+    );
+
     return {
+      sap,
       country,
       available,
       canBuy,
