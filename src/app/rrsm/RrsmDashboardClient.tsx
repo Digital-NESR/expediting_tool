@@ -277,7 +277,40 @@ function SapStrip({
               entry or GRN
             </span>
           </div>
-        ) : (
+        ) : null}
+        {sap.ok && sap.waiting.length > 0 && (
+          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">
+              Waiting for release in SAP
+            </p>
+            <ul className="mt-1 divide-y divide-amber-100">
+              {sap.waiting.map((w) => (
+                <li
+                  key={w.po}
+                  className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1.5 text-[12.5px]"
+                >
+                  <span className="font-mono font-semibold text-slate-800">{w.po}</span>
+                  <span className="min-w-0 flex-1 truncate text-slate-600">{w.supplier}</span>
+                  {w.value !== null && (
+                    <span className="font-mono font-semibold text-slate-900">
+                      {new Intl.NumberFormat('en-GB', { maximumFractionDigits: 0 }).format(w.value)}{' '}
+                      {w.currency}
+                    </span>
+                  )}
+                  <span className="text-[11.5px] text-amber-700">
+                    {w.waitingWith ? `With ${w.waitingWith}` : 'Not approved yet'}
+                    {w.daysWaiting !== null
+                      ? ` · ${w.daysWaiting}d`
+                      : w.createdOn
+                        ? ` · created ${w.createdOn}`
+                        : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {!sap.ok && (
           <p className="mt-1 text-[13px] text-amber-700">
             SAP status is unavailable right now (Materials DB could not be read).
           </p>

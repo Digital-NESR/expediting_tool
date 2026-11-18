@@ -54,6 +54,17 @@ const OVERVIEW: RrsmOverview = {
       notInSap: 0,
       serviceEntered: 2,
       loadedAt: '2026-11-18T11:17',
+      waiting: [
+        {
+          po: '5150009399',
+          supplier: 'Suhail Al Mazroui Transportation &',
+          value: 500000,
+          currency: 'AED',
+          createdOn: '2026-11-13',
+          waitingWith: null,
+          daysWaiting: null,
+        },
+      ],
     },
   },
   suppliers: { inCycle: 6, notInvited: 1, waiting: 2, submitted: 3 },

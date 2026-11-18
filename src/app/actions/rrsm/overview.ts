@@ -74,6 +74,16 @@ export interface RrsmOverview {
       notInSap: number;
       serviceEntered: number;
       loadedAt: string;
+      /** The POs still in approval, largest first, so a big one waiting stands out. */
+      waiting: {
+        po: string;
+        supplier: string;
+        value: number | null;
+        currency: string;
+        createdOn: string;
+        waitingWith: string | null;
+        daysWaiting: number | null;
+      }[];
     };
   } | null;
   suppliers: {
@@ -198,8 +208,11 @@ export async function getRrsmOverview(countryCode: string): Promise<RrsmOverview
         [Number(c.id)],
       ),
       rrsmPool.query<QueryResultRow>(
-        `SELECT DISTINCT COALESCE(po_number, '') AS po, COALESCE(pr_number, '') AS pr
-           FROM rrsm_cycle_lines WHERE cycle_id = $1`,
+        `SELECT DISTINCT COALESCE(l.po_number, '') AS po, sup.name AS supplier
+           FROM rrsm_cycle_lines l
+           JOIN rrsm_service_lines s ON s.id = l.service_line_id
+           JOIN rrsm_suppliers sup   ON sup.code = s.supplier_code
+          WHERE l.cycle_id = $1`,
         [Number(c.id)],
       ),
     ]);
@@ -207,6 +220,19 @@ export async function getRrsmOverview(countryCode: string): Promise<RrsmOverview
     const poNumbers = refRes.rows.map((r) => String(r.po));
     const sapStatus = await readSapStatus(poNumbers, []);
     const sapCounts = summarisePos(poNumbers, sapStatus);
+    const supplierOfPo = new Map(refRes.rows.map((r) => [String(r.po).trim(), String(r.supplier)]));
+    const waiting = Object.values(sapStatus.pos)
+      .filter((p) => p.release === 'under_release' || p.release === 'draft')
+      .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
+      .map((p) => ({
+        po: p.po,
+        supplier: supplierOfPo.get(p.po) ?? '',
+        value: p.value,
+        currency: p.currency,
+        createdOn: p.createdOn,
+        waitingWith: p.waitingWith,
+        daysWaiting: p.daysWaiting,
+      }));
 
     const byStage = { ...NO_STAGES };
     let lines = 0;
@@ -233,7 +259,7 @@ export async function getRrsmOverview(countryCode: string): Promise<RrsmOverview
         value,
         byStage,
         awaitingPo,
-        sap: { ok: sapStatus.ok, ...sapCounts, loadedAt: sapStatus.loadedAt },
+        sap: { ok: sapStatus.ok, ...sapCounts, loadedAt: sapStatus.loadedAt, waiting },
       },
       suppliers: {
         inCycle: Number(sup.in_cycle ?? 0),

@@ -652,16 +652,13 @@ const RELEASE_TONE: Record<SapPo['release'], string> = {
 /** SAP's word on a PO, read live. Replaces the hand-picked status wherever SAP has the PO. */
 function SapPoCell({ po, money }: { po: SapPo; money: Intl.NumberFormat }) {
   const receiptDone = po.receipt === 'service_posted' || po.receipt === 'received';
-  const detail = [
+  const dates = [
     po.createdOn && `Created ${po.createdOn}`,
     po.releasedOn && `released ${po.releasedOn}`,
-    po.lastReceiptOn && `last entry ${po.lastReceiptOn}`,
-    po.value !== null && `${money.format(po.value)} ${po.currency}`,
-  ]
-    .filter(Boolean)
-    .join(' · ');
+    po.lastReceiptOn && `entry ${po.lastReceiptOn}`,
+  ].filter(Boolean);
   return (
-    <div className="min-w-[9.5rem]" title={detail}>
+    <div className="min-w-[11rem]">
       <span
         className={`inline-block rounded px-1.5 py-0.5 text-[10.5px] font-semibold ${RELEASE_TONE[po.release]}`}
       >
@@ -679,6 +676,14 @@ function SapPoCell({ po, money }: { po: SapPo; money: Intl.NumberFormat }) {
         >
           {RECEIPT_LABEL[po.receipt]}
         </div>
+      )}
+      {po.value !== null && (
+        <div className="mt-0.5 font-mono text-[10.5px] text-slate-600">
+          {money.format(po.value)} {po.currency}
+        </div>
+      )}
+      {dates.length > 0 && (
+        <div className="mt-0.5 text-[10px] leading-snug text-slate-400">{dates.join(' · ')}</div>
       )}
     </div>
   );

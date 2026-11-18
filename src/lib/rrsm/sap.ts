@@ -94,7 +94,7 @@ export const RECEIPT_LABEL: Record<SapReceipt, string> = {
   received: 'GRN done',
   partial: 'Part GRN',
   not_received: 'No GRN yet',
-  service_posted: 'Service entry posted',
+  service_posted: 'Service entry done',
   no_service_entry: 'No service entry yet',
   unapproved: 'Not approved yet',
 };
