@@ -8,19 +8,13 @@ import { icsaPool } from './db';
 import type { IcsaSectionKey } from './model';
 
 /**
- * ICSA demo sign-in.
+ * Demo people for the Supply Chain Self-Assessment.
  *
- * SC Agents signs people in with Microsoft SSO. For walking stakeholders through ICSA before it
- * goes live, the sign-in page also offers demo people (two admins, plus a champion and
- * employees for each of the DEMO_COUNTRIES): pick one and you see ICSA as that person, no password.
- *
- * The demo session is ICSA's own signed cookie, not a NextAuth session, so it opens /icsa and
- * nothing else in the platform. It is off unless ICSA_DEMO_LOGIN=true. Anyone who can reach the
- * sign-in page can then act as a demo admin inside ICSA, so switch it off before real cycles
- * start. Demo addresses use
- * the reserved .invalid domain, so they can never be a real colleague, and no mail is sent to
- * them. While a demo person is signed in, the people search shows the demo people instead of
- * the Azure AD directory.
+ * There is no public demo login: SC Agents is production, and everyone signs in with Microsoft
+ * SSO. An ICSA admin who is signed in can "View as" one of these demo people from inside the
+ * tool, to see a champion's or an employee's screens. The demo session is the tool's own signed
+ * cookie and only counts while the admin's own SSO session is valid (currentDemoUser below). Demo
+ * addresses use the reserved .invalid domain, so they can never be a real colleague.
  */
 
 const log = logger('icsa-demo');
@@ -220,8 +214,13 @@ export const DEMO_CYCLE_LABEL = 'Demo cycle (Q4 2026)';
 export const DEMO_COOKIE = 'icsa_demo';
 const SESSION_HOURS = 12;
 
+/**
+ * The public demo login is gone (it was reachable on production). Demo people can now only be
+ * used through "View as" by an ICSA admin who is signed in with Microsoft SSO. Kept as a function
+ * so the callers below read the same; it is always false, whatever ICSA_DEMO_LOGIN says.
+ */
 export function demoEnabled(): boolean {
-  return process.env.ICSA_DEMO_LOGIN === 'true' && Boolean(process.env.NEXTAUTH_SECRET);
+  return false;
 }
 
 const ROLE_LABEL: Record<DemoRole, string> = {
@@ -258,11 +257,6 @@ export function allDemoOptions(): DemoOption[] {
       group: ROLE_GROUP[role],
     })),
   );
-}
-
-/** What the sign-in page needs: the dropdown options, or null when the demo is off. */
-export function demoOptions(): DemoOption[] | null {
-  return demoEnabled() ? allDemoOptions() : null;
 }
 
 export function isDemoEmail(email: string): boolean {
