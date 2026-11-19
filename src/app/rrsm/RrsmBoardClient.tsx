@@ -34,14 +34,17 @@ import RrsmShell, {
   RrsmNotYourRole,
 } from './components/RrsmShell';
 import {
+  LINE_PR_STAGE_LABEL,
   PO_RELEASE_LABEL,
   PR_RELEASE_LABEL,
   RECEIPT_LABEL,
+  lineSap,
   summarisePos,
+  type LineSap,
   type SapPo,
-  type SapPr,
   type SapStatus,
 } from '@/lib/rrsm/sap';
+import PrLinkDialog from './PrLinkDialog';
 import {
   ERP_STATUS_LABEL,
   STAGE_LABEL,
@@ -69,14 +72,40 @@ const STAGE_TONE: Record<CycleStage, string> = {
   closed: 'bg-slate-900 text-white',
 };
 
-/** What the PR & PO page can narrow itself to, by SAP's state of each line's PO. */
-type SapFilter = 'all' | 'under_release' | 'not_in_sap' | 'no_entry';
+/** What the PR & PO page can narrow itself to, by where each line is between PR and service entry. */
+type SapFilter = 'all' | 'no_pr' | 'pr_waiting' | 'under_release' | 'no_entry' | 'not_in_sap';
+
+const SAP_FILTERS: [SapFilter, string][] = [
+  ['all', 'All lines'],
+  ['no_pr', 'No PR linked'],
+  ['pr_waiting', 'PR, no PO yet'],
+  ['under_release', 'PO under release'],
+  ['no_entry', 'Released, no service entry yet'],
+  ['not_in_sap', 'PO not in SAP'],
+];
+
+/** The PO whose status a line shows: the least advanced of its POs, so nothing waiting hides. */
+function primaryPo(pos: string[], sap: SapStatus): SapPo | undefined {
+  const found = pos.map((p) => sap.pos[p]).filter((p): p is SapPo => Boolean(p));
+  const rank = (p: SapPo) =>
+    p.release === 'draft'
+      ? 0
+      : p.release === 'under_release'
+        ? 1
+        : p.release === 'released'
+          ? 2
+          : 3;
+  return found.sort((a, b) => rank(a) - rank(b))[0];
+}
 
 function sapFilterMatches(filter: SapFilter, line: BoardLine, sap: SapStatus): boolean {
   if (filter === 'all') return true;
-  const po = sap.pos[line.poNumber.trim()];
+  const ls = lineSap(line, sap);
+  if (filter === 'no_pr') return ls.stage === 'no_pr';
+  if (filter === 'pr_waiting') return ls.stage !== 'no_pr' && ls.stage !== 'po';
+  const po = primaryPo(ls.pos, sap);
   /* A line with no PO yet is not "missing from SAP"; it just has nothing to look up. */
-  if (filter === 'not_in_sap') return Boolean(line.poNumber.trim()) && !po;
+  if (filter === 'not_in_sap') return ls.stage === 'po' && !po;
   if (filter === 'under_release') return po?.release === 'under_release' || po?.release === 'draft';
   return (
     po?.release === 'released' &&
@@ -118,13 +147,14 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
   const filterCount = useMemo(() => {
     const n: Record<SapFilter, number> = {
       all: lines.length,
+      no_pr: 0,
+      pr_waiting: 0,
       under_release: 0,
       not_in_sap: 0,
       no_entry: 0,
     };
     for (const l of lines)
-      for (const f of ['under_release', 'not_in_sap', 'no_entry'] as const)
-        if (sapFilterMatches(f, l, board.sap)) n[f]++;
+      for (const [f] of SAP_FILTERS) if (f !== 'all' && sapFilterMatches(f, l, board.sap)) n[f]++;
     return n;
   }, [lines, board.sap]);
   const shownSuppliers = useMemo(
@@ -262,15 +292,12 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
                     under release · {sapCounts.notInSap} not found in SAP ·{' '}
                     {sapCounts.serviceEntered} with a service entry or GRN
                   </p>
+                  <p className="mt-0.5 text-[11.5px] text-slate-400">
+                    Link each line to its PR. The PO number, its approval and the service entry then
+                    fill in from SAP as they happen.
+                  </p>
                   <div className="mt-2.5 flex flex-wrap gap-1.5">
-                    {(
-                      [
-                        ['all', 'All lines'],
-                        ['under_release', 'PO under release'],
-                        ['no_entry', 'Released, no service entry yet'],
-                        ['not_in_sap', 'PO not in SAP'],
-                      ] as [SapFilter, string][]
-                    ).map(([f, label]) => (
+                    {SAP_FILTERS.map(([f, label]) => (
                       <button
                         key={f}
                         type="button"
@@ -347,7 +374,9 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
                     <tbody>
                       {s.lines.map((l) => (
                         <Row
-                          key={l.id}
+                          /* Keyed on the references too, so a row redraws its inputs after a PR
+                             is linked or SAP fills a PO, rather than keeping the old ones. */
+                          key={`${l.id}:${l.prNumber}:${l.poNumber}`}
                           line={l}
                           view={view}
                           currency={board.country!.currency}
@@ -359,9 +388,11 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
                           canBuy={view === 'buyer' && board.canBuy}
                           busy={busy}
                           onRun={run}
-                          sapOk={board.sap.ok}
-                          sapPo={board.sap.pos[l.poNumber.trim()]}
-                          sapPr={board.sap.prs[l.prNumber.trim()]}
+                          sap={board.sap}
+                          siblings={s.lines
+                            .filter((o) => o.id !== l.id && !o.prNumber && o.stage !== 'closed')
+                            .map((o) => o.id)}
+                          supplierName={s.name}
                         />
                       ))}
                     </tbody>
@@ -404,9 +435,9 @@ function Row({
   canBuy,
   busy,
   onRun,
-  sapOk,
-  sapPo,
-  sapPr,
+  sap,
+  siblings,
+  supplierName,
 }: {
   line: BoardLine;
   view: View;
@@ -416,16 +447,21 @@ function Row({
   canBuy: boolean;
   busy: string | null;
   onRun: (key: string, fn: () => Promise<{ success: boolean; error?: string }>) => Promise<void>;
-  sapOk: boolean;
-  sapPo?: SapPo;
-  sapPr?: SapPr;
+  sap: SapStatus;
+  /** This supplier's other open lines with no PR, which a PR link can be applied to as well. */
+  siblings: number[];
+  supplierName: string;
 }) {
+  const [linking, setLinking] = useState(false);
+  const ls: LineSap = lineSap(line, sap);
+  const sapPo = primaryPo(ls.pos, sap);
+  const sapPr = ls.pr;
+  const canLink = canBuy && line.stage !== 'closed';
   const [draft, setDraft] = useState({
     onHire: line.onHire,
     days: line.days === null ? '' : String(line.days),
     qty: String(line.qty),
     opsNote: line.opsNote,
-    prNumber: line.prNumber,
     poNumber: line.poNumber,
     erpStatus: line.erpStatus ?? '',
     supplierInvoice: line.supplierInvoice === null ? '' : String(line.supplierInvoice),
@@ -516,12 +552,39 @@ function Row({
             {money.format(value)}
           </td>
           <td className="px-2 py-2.5">
-            <Text
-              value={draft.prNumber}
-              disabled={!buyerEditable}
-              placeholder="PR"
-              onChange={(v) => setDraft({ ...draft, prNumber: v })}
-            />
+            <div className="flex items-center gap-1.5">
+              {line.prNumber ? (
+                <span className="font-mono text-[12px] text-slate-800">{line.prNumber}</span>
+              ) : (
+                <span className="text-[12px] text-slate-400">—</span>
+              )}
+              {canLink && (
+                <button
+                  type="button"
+                  onClick={() => setLinking(true)}
+                  className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${
+                    line.prNumber
+                      ? 'text-slate-500 hover:bg-slate-100'
+                      : 'bg-[#307c4c] text-white hover:opacity-90'
+                  }`}
+                >
+                  {line.prNumber ? 'Change' : 'Link PR'}
+                </button>
+              )}
+            </div>
+            {linking && (
+              <PrLinkDialog
+                line={line}
+                supplierName={supplierName}
+                siblings={siblings}
+                money={money}
+                onClose={() => setLinking(false)}
+                onDone={(fn) => {
+                  setLinking(false);
+                  void onRun(key, fn);
+                }}
+              />
+            )}
             {sapPr && (
               <div
                 className={`mt-0.5 px-1.5 text-[10.5px] ${sapPr.release === 'released' ? 'text-slate-400' : 'text-amber-700'}`}
@@ -534,19 +597,31 @@ function Row({
             )}
           </td>
           <td className="px-2 py-2.5">
-            <Text
-              value={draft.poNumber}
-              disabled={!buyerEditable}
-              placeholder="PO"
-              onChange={(v) => setDraft({ ...draft, poNumber: v })}
-            />
+            {buyerEditable ? (
+              <Text
+                value={draft.poNumber}
+                placeholder="PO"
+                onChange={(v) => setDraft({ ...draft, poNumber: v })}
+              />
+            ) : (
+              <span className="font-mono text-[12px] text-slate-800">
+                {line.poNumber || ls.pos.join(', ') || <span className="text-slate-400">—</span>}
+              </span>
+            )}
+            {!line.poNumber && ls.pos.length > 1 && (
+              <div className="mt-0.5 text-[10.5px] text-amber-700">
+                SAP split this PR into {ls.pos.length} POs
+              </div>
+            )}
           </td>
           <td className="px-2 py-2.5">
             {sapPo ? (
               <SapPoCell po={sapPo} money={money} />
+            ) : sap.ok && ls.stage !== 'po' ? (
+              <PrStageCell ls={ls} />
             ) : (
               <>
-                {sapOk && line.poNumber.trim() && (
+                {sap.ok && line.poNumber.trim() && (
                   <div className="mb-1 inline-block rounded bg-red-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-red-700">
                     PO not in SAP
                   </div>
@@ -603,7 +678,6 @@ function Row({
                       })
                     : saveBuyerRefs({
                         lineId: line.id,
-                        prNumber: draft.prNumber,
                         poNumber: draft.poNumber,
                         erpStatus: (draft.erpStatus || null) as ErpStatus | null,
                         supplierInvoice:
@@ -684,6 +758,38 @@ function SapPoCell({ po, money }: { po: SapPo; money: Intl.NumberFormat }) {
       )}
       {dates.length > 0 && (
         <div className="mt-0.5 text-[10px] leading-snug text-slate-400">{dates.join(' · ')}</div>
+      )}
+    </div>
+  );
+}
+
+/** Where a line is before SAP has a PO for it: which PR step it is waiting on. */
+function PrStageCell({ ls }: { ls: LineSap }) {
+  if (ls.stage === 'po') return null;
+  const waiting = ls.pr?.waitingWith;
+  const tone =
+    ls.stage === 'no_pr'
+      ? 'bg-slate-100 text-slate-500'
+      : ls.stage === 'pr_not_found'
+        ? 'bg-red-50 text-red-700'
+        : 'bg-amber-50 text-amber-700';
+  return (
+    <div className="min-w-[11rem]">
+      <span className={`inline-block rounded px-1.5 py-0.5 text-[10.5px] font-semibold ${tone}`}>
+        {LINE_PR_STAGE_LABEL[ls.stage]}
+      </span>
+      {ls.stage === 'pr_under_release' && waiting && (
+        <div className="mt-0.5 text-[10.5px] text-amber-700">
+          With {waiting}
+          {ls.pr?.daysWaiting !== null && ls.pr?.daysWaiting !== undefined
+            ? ` · ${ls.pr.daysWaiting}d`
+            : ''}
+        </div>
+      )}
+      {ls.stage === 'converted_po_pending' && ls.pr?.convertedOn && (
+        <div className="mt-0.5 text-[10px] text-slate-400">
+          Converted {ls.pr.convertedOn}; picked up on a later SAP load
+        </div>
       )}
     </div>
   );

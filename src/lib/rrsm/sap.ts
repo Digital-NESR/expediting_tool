@@ -38,6 +38,13 @@ export interface SapPr {
   converted: boolean;
   waitingWith: string | null;
   daysWaiting: number | null;
+  /** The latest date SAP put one of its lines on a PO, `yyyy-mm-dd`, or ''. */
+  convertedOn: string;
+  /**
+   * The POs SAP has raised from this PR, from the PO side (`supplychain` carries the PR on each PO
+   * line, released or not). The PR table knows THAT a PR was converted, never the PO number.
+   */
+  pos: string[];
 }
 
 export interface SapStatus {
@@ -104,6 +111,98 @@ export const PR_RELEASE_LABEL: Record<SapPrRelease, string> = {
   under_release: 'Under release',
   not_submitted: 'Not submitted',
 };
+
+/* ─── one cycle line, PR to service entry ────────────────────────────────────────────────── */
+
+/**
+ * Where a cycle line is between "nobody has linked a PR" and "the PO has a service entry".
+ *
+ * The link a person makes is the PR. Everything after it is read: SAP's PR table says whether the
+ * PR is released and whether (and when) it went onto a PO; SAP's PO data says which PO, because
+ * each PO line carries the PR it came from; and the PO says the rest.
+ */
+export type LinePrStage =
+  | 'no_pr'
+  | 'pr_not_found'
+  | 'pr_not_submitted'
+  | 'pr_under_release'
+  | 'pr_released'
+  /** SAP says the PR is on a PO, but no PO line naming it has been loaded yet. */
+  | 'converted_po_pending'
+  | 'po';
+
+export interface LineSap {
+  stage: LinePrStage;
+  /** The POs whose status the line should show: the recorded one, or those SAP raised from the PR. */
+  pos: string[];
+  /**
+   * A PO number to record on the line because SAP has exactly one PO for its PR and the line has
+   * none yet. Null when there is nothing to fill, or when the PR split into several POs (a person
+   * should say which belongs to this line).
+   */
+  autoPo: string | null;
+  pr: SapPr | null;
+}
+
+export function lineSap(line: { prNumber: string; poNumber: string }, sap: SapStatus): LineSap {
+  const prNumber = line.prNumber.trim();
+  const poNumber = line.poNumber.trim();
+  const pr = prNumber ? (sap.prs[prNumber] ?? null) : null;
+
+  if (poNumber) return { stage: 'po', pos: [poNumber], autoPo: null, pr };
+  if (!prNumber) return { stage: 'no_pr', pos: [], autoPo: null, pr: null };
+  if (!pr) return { stage: 'pr_not_found', pos: [], autoPo: null, pr: null };
+  if (pr.pos.length)
+    return { stage: 'po', pos: pr.pos, autoPo: pr.pos.length === 1 ? pr.pos[0] : null, pr };
+  if (pr.convertedOn) return { stage: 'converted_po_pending', pos: [], autoPo: null, pr };
+  if (pr.release === 'not_submitted')
+    return { stage: 'pr_not_submitted', pos: [], autoPo: null, pr };
+  if (pr.release === 'under_release')
+    return { stage: 'pr_under_release', pos: [], autoPo: null, pr };
+  return { stage: 'pr_released', pos: [], autoPo: null, pr };
+}
+
+export const LINE_PR_STAGE_LABEL: Record<Exclude<LinePrStage, 'po'>, string> = {
+  no_pr: 'No PR linked',
+  pr_not_found: 'PR not in SAP data yet',
+  pr_not_submitted: 'PR not submitted',
+  pr_under_release: 'PR under release',
+  pr_released: 'PR released · no PO yet',
+  converted_po_pending: 'On a PO · number not in the data yet',
+};
+
+/* ─── suggesting a PR ────────────────────────────────────────────────────────────────────── */
+
+/** A PR SAP has put on a service PO for this supplier, as a candidate for a line. */
+export interface PrCandidate {
+  pr: string;
+  pos: string[];
+  /** Total of the PR's PO lines for this supplier. */
+  value: number | null;
+  currency: string;
+  createdOn: string;
+  description: string;
+}
+
+/**
+ * Candidates nearest the line's value first, then newest.
+ *
+ * Value because a monthly rental PO is usually raised for exactly the month's amount: on Abu
+ * Dhabi's November cycle the nearest-value PR was the right one on 189 of 208 lines.
+ */
+export function rankCandidates(cands: PrCandidate[], lineValue: number): PrCandidate[] {
+  const gap = (c: PrCandidate) => (c.value === null ? Infinity : Math.abs(c.value - lineValue));
+  return [...cands].sort(
+    (a, b) => gap(a) - gap(b) || b.createdOn.localeCompare(a.createdOn) || a.pr.localeCompare(b.pr),
+  );
+}
+
+/** A PR number as SAP writes it: digits only, leading zeros dropped. Null when it is not one. */
+export function cleanPrNumber(raw: string): string | null {
+  const s = String(raw ?? '').replace(/\s+/g, '');
+  if (!/^\d{6,12}$/.test(s)) return null;
+  return s.replace(/^0+(?=\d)/, '');
+}
 
 /** Counts for the Dashboard, over the lines' POs (each PO counted once). */
 export function summarisePos(

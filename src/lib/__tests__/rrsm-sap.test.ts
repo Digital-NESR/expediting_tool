@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   EMPTY_SAP,
+  cleanPrNumber,
+  lineSap,
+  rankCandidates,
+  type PrCandidate,
+  type SapPr,
   poReleaseFrom,
   prReleaseFrom,
   receiptFrom,
@@ -105,5 +110,77 @@ describe('summarisePos', () => {
       notInSap: 1,
       serviceEntered: 1,
     });
+  });
+});
+
+describe('lineSap', () => {
+  const pr = (p: Partial<SapPr> & Pick<SapPr, 'pr'>): SapPr => ({
+    release: 'released',
+    converted: false,
+    waitingWith: null,
+    daysWaiting: null,
+    convertedOn: '',
+    pos: [],
+    ...p,
+  });
+  const sap: SapStatus = {
+    ...EMPTY_SAP,
+    prs: {
+      '1': pr({ pr: '1', release: 'under_release', waitingWith: 'MSALAH1' }),
+      '2': pr({ pr: '2' }),
+      '3': pr({ pr: '3', converted: true, convertedOn: '2026-11-17' }),
+      '4': pr({ pr: '4', converted: true, convertedOn: '2026-11-12', pos: ['5150009399'] }),
+      '5': pr({ pr: '5', converted: true, convertedOn: '2026-11-12', pos: ['51', '52'] }),
+      '6': pr({ pr: '6', release: 'not_submitted' }),
+    },
+  };
+  const at = (prNumber: string, poNumber = '') => lineSap({ prNumber, poNumber }, sap);
+
+  it('walks a PR from raised to on a PO', () => {
+    expect(at('').stage).toBe('no_pr');
+    expect(at('99').stage).toBe('pr_not_found');
+    expect(at('6').stage).toBe('pr_not_submitted');
+    expect(at('1').stage).toBe('pr_under_release');
+    expect(at('2').stage).toBe('pr_released');
+    expect(at('3').stage).toBe('converted_po_pending');
+    expect(at('4')).toMatchObject({ stage: 'po', pos: ['5150009399'], autoPo: '5150009399' });
+  });
+  it('does not guess a PO when SAP split the PR into several', () => {
+    expect(at('5')).toMatchObject({ stage: 'po', pos: ['51', '52'], autoPo: null });
+  });
+  it('keeps a recorded PO and never auto-fills over it', () => {
+    expect(at('4', '777')).toMatchObject({ stage: 'po', pos: ['777'], autoPo: null });
+  });
+});
+
+describe('rankCandidates', () => {
+  const c = (pr: string, value: number | null, createdOn: string): PrCandidate => ({
+    pr,
+    pos: [],
+    value,
+    currency: 'AED',
+    createdOn,
+    description: '',
+  });
+  it('puts the nearest amount first, then the newest', () => {
+    const ranked = rankCandidates(
+      [
+        c('a', 900, '2026-11-01'),
+        c('b', 1000, '2026-10-30'),
+        c('c', null, '2026-11-15'),
+        c('d', 1000, '2026-11-05'),
+      ],
+      1000,
+    );
+    expect(ranked.map((r) => r.pr)).toEqual(['d', 'b', 'a', 'c']);
+  });
+});
+
+describe('cleanPrNumber', () => {
+  it('accepts digits, drops spaces and leading zeros, refuses the rest', () => {
+    expect(cleanPrNumber(' 1016 006595 ')).toBe('1016006595');
+    expect(cleanPrNumber('0010160065')).toBe('10160065');
+    expect(cleanPrNumber('PR-123')).toBeNull();
+    expect(cleanPrNumber('123')).toBeNull();
   });
 });

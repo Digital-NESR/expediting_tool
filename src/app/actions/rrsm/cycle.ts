@@ -12,8 +12,15 @@ import {
   type RrsmCountryOption,
 } from '@/lib/rrsm/access';
 import { canMove, cycleWindow, isoDate, type CycleStage, type ErpStatus } from '@/lib/rrsm/cycle';
-import { EMPTY_SAP, type SapStatus } from '@/lib/rrsm/sap';
-import { readSapStatus } from '@/lib/rrsm/sap-status';
+import {
+  EMPTY_SAP,
+  cleanPrNumber,
+  lineSap,
+  rankCandidates,
+  type PrCandidate,
+  type SapStatus,
+} from '@/lib/rrsm/sap';
+import { readPrCandidates, readSapStatus } from '@/lib/rrsm/sap-status';
 
 /**
  * The monthly cycle, for the Ops and Buyer screens.
@@ -211,6 +218,36 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
       rows.map((r) => String(r.po_number ?? '')),
       rows.map((r) => String(r.pr_number ?? '')),
     );
+
+    /* A line with a PR and no PO gets the PO SAP raised from that PR, recorded on the line, once
+       SAP has exactly one. Recorded rather than only shown so "Close all ready" and the cycle
+       history see it too. `po_number IS NULL` in the WHERE makes a second page load, or a buyer
+       typing a PO at the same moment, a no-op rather than an overwrite. */
+    if (sap.ok) {
+      for (const group of suppliers.values()) {
+        for (const line of group.lines) {
+          const auto = lineSap(line, sap).autoPo;
+          if (!auto) continue;
+          try {
+            const filled = await rrsmPool.query(
+              `UPDATE rrsm_cycle_lines SET po_number = $2, updated_at = NOW()
+                WHERE id = $1 AND COALESCE(po_number, '') = '' RETURNING id`,
+              [line.id, auto],
+            );
+            if (filled.rowCount) {
+              line.poNumber = auto;
+              await rrsmPool.query(
+                `INSERT INTO rrsm_activity_log (cycle_line_id, cycle_id, actor, action, note)
+                 VALUES ($1, $2, 'sap: Materials DB', 'po_from_sap', $3)`,
+                [line.id, Number(c.id), `PO ${auto} found in SAP for PR ${line.prNumber}`],
+              );
+            }
+          } catch (err) {
+            log.error('getRrsmBoard.autoPo.failed', err, { lineId: line.id });
+          }
+        }
+      }
+    }
 
     return {
       sap,
@@ -488,8 +525,11 @@ export async function saveBuyerRefs(input: {
     }
 
     await rrsmPool.query(
+      /* The PR is left alone unless one is passed: the PR is linked with `linkLinePr` now, and
+         a Save from a row drawn before that link must not put the old PR back. */
       `UPDATE rrsm_cycle_lines
-          SET pr_number = NULLIF($2, ''), po_number = NULLIF($3, ''),
+          SET pr_number = CASE WHEN $6 THEN NULLIF($2, '') ELSE pr_number END,
+              po_number = NULLIF($3, ''),
               erp_status = $4, supplier_invoice = $5, updated_at = NOW()
         WHERE id = $1`,
       [
@@ -498,11 +538,149 @@ export async function saveBuyerRefs(input: {
         String(input?.poNumber ?? '').trim(),
         input?.erpStatus ?? null,
         invoice,
+        input?.prNumber !== undefined,
       ],
     );
     return { success: true };
   } catch (err) {
     log.error('saveBuyerRefs.failed', err, { lineId: input?.lineId });
+    return { success: false, error: (err as Error).message };
+  }
+}
+
+/* ─── Buyer: linking a line to its PR ────────────────────────────────────────────────────── */
+
+export interface PrSuggestions {
+  /** Null when Materials DB could not be read. */
+  candidates: PrCandidate[] | null;
+  /** PR → how many other lines in this cycle already carry it. */
+  usedOnLines: Record<string, number>;
+}
+
+/**
+ * The PRs SAP has put on a service PO for this line's supplier during its cycle (with a week's
+ * slack either side, since a month's PO is often raised a few days early or late), nearest the
+ * line's value first.
+ */
+export async function getPrSuggestions(lineId: number): Promise<PrSuggestions> {
+  const empty: PrSuggestions = { candidates: [], usedOnLines: {} };
+  try {
+    const { country } = await countryOfLine(Number(lineId));
+    const actor = await requireCountry(country);
+    if (!rolesIn(actor, country).canBuy) return empty;
+
+    const { rows } = await rrsmPool.query<QueryResultRow>(
+      `SELECT l.cycle_id, l.value, s.supplier_code,
+              (c.opens_on - 7)::text AS from_on, (c.closes_on + 8)::text AS to_on
+         FROM rrsm_cycle_lines l
+         JOIN rrsm_service_lines s ON s.id = l.service_line_id
+         JOIN rrsm_cycles c        ON c.id = l.cycle_id
+        WHERE l.id = $1`,
+      [Number(lineId)],
+    );
+    const r = rows[0];
+    if (!r) return empty;
+
+    const found = await readPrCandidates(
+      String(r.supplier_code),
+      String(r.from_on),
+      String(r.to_on),
+    );
+    if (found === null) return { candidates: null, usedOnLines: {} };
+
+    const { rows: used } = await rrsmPool.query<QueryResultRow>(
+      `SELECT pr_number, count(*)::int AS n FROM rrsm_cycle_lines
+        WHERE cycle_id = $1 AND id <> $2 AND pr_number = ANY($3) GROUP BY pr_number`,
+      [Number(r.cycle_id), Number(lineId), found.map((f) => f.pr)],
+    );
+    return {
+      candidates: rankCandidates(found, Number(r.value ?? 0)),
+      usedOnLines: Object.fromEntries(used.map((u) => [String(u.pr_number), Number(u.n)])),
+    };
+  } catch (err) {
+    log.error('getPrSuggestions.failed', err, { lineId });
+    return { candidates: null, usedOnLines: {} };
+  }
+}
+
+/**
+ * Put a PR on a line, and optionally on other lines of the same supplier in the same cycle (one
+ * monthly PR often covers several of a supplier's lines).
+ *
+ * Allowed at any stage before closed: the PR is usually raised before Ops have validated the
+ * month. Changing a line's PR clears its PO, since the PO came from the old PR; the next page load
+ * fills it again from the new one. An empty PR unlinks.
+ */
+export async function linkLinePr(input: {
+  lineId: number;
+  pr: string;
+  alsoLineIds?: number[];
+}): Promise<RrsmResult & { linked?: number }> {
+  try {
+    const lineId = Number(input?.lineId);
+    const { country, stage } = await countryOfLine(lineId);
+    const actor = await requireCountry(country);
+    if (!rolesIn(actor, country).canBuy) {
+      return { success: false, error: 'Only a buyer or an admin links PRs.' };
+    }
+    if (stage === 'closed') return { success: false, error: 'That line is closed.' };
+
+    const raw = String(input?.pr ?? '').trim();
+    const pr = raw ? cleanPrNumber(raw) : '';
+    if (pr === null)
+      return { success: false, error: 'A PR number is digits only, like 1016006595.' };
+
+    /* The other lines must be this supplier's, in this cycle, and not closed. Checked against the
+       rows, not trusted from the browser. */
+    const extra = [...new Set((input?.alsoLineIds ?? []).map(Number))].filter(
+      (id) => Number.isInteger(id) && id !== lineId,
+    );
+    const { rows: targets } = await rrsmPool.query<QueryResultRow>(
+      `SELECT o.id, COALESCE(o.pr_number, '') AS pr_number
+         FROM rrsm_cycle_lines me
+         JOIN rrsm_service_lines ms ON ms.id = me.service_line_id
+         JOIN rrsm_cycle_lines o    ON o.cycle_id = me.cycle_id
+         JOIN rrsm_service_lines os ON os.id = o.service_line_id
+        WHERE me.id = $1 AND os.supplier_code = ms.supplier_code AND o.stage <> 'closed'
+          AND (o.id = $1 OR o.id = ANY($2))`,
+      [lineId, extra],
+    );
+
+    const client = await rrsmPool.connect();
+    let linked = 0;
+    try {
+      await client.query('BEGIN');
+      for (const t of targets) {
+        const before = String(t.pr_number);
+        if (before === pr) continue;
+        await client.query(
+          `UPDATE rrsm_cycle_lines
+              SET pr_number = NULLIF($2, ''), po_number = NULL, updated_at = NOW()
+            WHERE id = $1`,
+          [Number(t.id), pr],
+        );
+        await client.query(
+          `INSERT INTO rrsm_activity_log (cycle_line_id, actor, action, note)
+           VALUES ($1, $2, $3, $4)`,
+          [
+            Number(t.id),
+            actor.email,
+            pr ? 'pr_linked' : 'pr_unlinked',
+            pr ? `PR ${pr}${before ? ` (was ${before})` : ''}` : `PR ${before} removed`,
+          ],
+        );
+        linked++;
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+    return { success: true, linked };
+  } catch (err) {
+    log.error('linkLinePr.failed', err, { lineId: input?.lineId });
     return { success: false, error: (err as Error).message };
   }
 }
