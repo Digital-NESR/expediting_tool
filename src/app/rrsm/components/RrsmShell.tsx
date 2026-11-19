@@ -15,7 +15,13 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { Check, ChevronDown, Forklift, MapPin, Menu } from 'lucide-react';
-import RrsmSidebar, { RRSM_BRAND, RRSM_PIN_KEY, RrsmMark, rrsmRoleLabel } from './RrsmSidebar';
+import RrsmSidebar, {
+  RRSM_BRAND,
+  RRSM_FULL_NAME,
+  RRSM_PIN_KEY,
+  RrsmMark,
+  rrsmRoleLabel,
+} from './RrsmSidebar';
 import { sidebarInitials } from '@/components/AppSidebar';
 import { usePinnedSidebar } from '@/components/usePinnedSidebar';
 import { rrsmHref } from '@/lib/rrsm/nav';
@@ -163,7 +169,14 @@ export default function RrsmShell({
               >
                 <Forklift className="h-[18px] w-[18px]" style={{ color: RRSM_BRAND }} />
               </span>
-              <span className="text-[15px] font-semibold tracking-tight text-slate-900">RRSM</span>
+              <span className="min-w-0 leading-tight">
+                <span className="block text-[15px] font-semibold tracking-tight text-slate-900">
+                  RRSM
+                </span>
+                <span className="hidden truncate text-[11.5px] text-slate-500 sm:block">
+                  {RRSM_FULL_NAME}
+                </span>
+              </span>
             </Link>
 
             <div className="flex-1" />

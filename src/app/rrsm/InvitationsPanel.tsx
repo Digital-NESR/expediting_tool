@@ -18,6 +18,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  BellRing,
   Check,
   Copy,
   Loader2,
@@ -29,6 +30,7 @@ import {
 import {
   getRrsmInvitations,
   sendRrsmInvitations,
+  sendRrsmReminders,
   setRrsmDocRequirements,
   type InvitationBoard,
   type InvitationRow,
@@ -65,11 +67,12 @@ export default function InvitationsPanel({
 }) {
   const [board, setBoard] = useState<InvitationBoard | null>(preview ?? null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [result, setResult] = useState<{
     sent: number;
     failed: { supplier: string; reason: string }[];
+    label: string;
   } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -142,22 +145,42 @@ export default function InvitationsPanel({
     }
   }
 
-  async function send() {
-    if (!board?.cycleId || !picked.size) return;
-    setBusy(true);
+  /* What is ticked splits by state: suppliers never asked get the invitation, suppliers asked
+     and silent get a reminder. Neither button touches the other group. */
+  const pickedInvite = rows.filter(
+    (r) => picked.has(r.supplierCode) && !r.sentAt && !r.submittedAt,
+  );
+  const pickedRemind = rows.filter((r) => picked.has(r.supplierCode) && r.sentAt && !r.submittedAt);
+
+  function selectWaiting() {
+    setPicked(new Set(rows.filter((r) => r.sentAt && !r.submittedAt).map((r) => r.supplierCode)));
+  }
+
+  async function run(kind: 'invite' | 'remind', codes: string[], label: (n: number) => string) {
+    if (!board?.cycleId || !codes.length) return;
+    setBusy(kind === 'invite' ? 'invite' : codes.length === 1 ? 'remind:' + codes[0] : 'remind');
     setError('');
     setResult(null);
-    const r = await sendRrsmInvitations(board.cycleId, [...picked]);
+    const r =
+      kind === 'invite'
+        ? await sendRrsmInvitations(board.cycleId, codes)
+        : await sendRrsmReminders(board.cycleId, codes);
     if (!r.success) {
       setError(r.error ?? 'That did not work.');
     } else {
-      setResult({ sent: r.sent ?? 0, failed: r.failed ?? [] });
-      setPicked(new Set());
+      setResult({ sent: r.sent ?? 0, failed: r.failed ?? [], label: label(r.sent ?? 0) });
+      setPicked((prev) => {
+        const next = new Set(prev);
+        for (const c of codes) next.delete(c);
+        return next;
+      });
       const fresh = await getRrsmInvitations(countryCode);
       setBoard(fresh);
     }
-    setBusy(false);
+    setBusy(null);
   }
+
+  const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 
   async function copy(url: string, code: string) {
     try {
@@ -219,7 +242,9 @@ export default function InvitationsPanel({
             ))}
           </div>
         )}
+      </div>
 
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         {board.canSend && (
           <button
             onClick={toggleSelection}
@@ -229,15 +254,55 @@ export default function InvitationsPanel({
             {picked.size ? `Deselect all (${picked.size})` : 'Select everyone not asked'}
           </button>
         )}
+        {board.canSend && !picked.size && (
+          <button
+            onClick={selectWaiting}
+            disabled={!counts.waiting}
+            className="whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-slate-700 disabled:opacity-40"
+          >
+            Select everyone not responded
+          </button>
+        )}
+        <div className="flex-1" />
+        {board.canSend && (
+          <button
+            onClick={() =>
+              void run(
+                'remind',
+                pickedRemind.map((r) => r.supplierCode),
+                (n) => `Sent ${plural(n, 'reminder')}.`,
+              )
+            }
+            disabled={!pickedRemind.length || busy !== null}
+            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-[13px] font-semibold text-amber-900 disabled:opacity-40"
+          >
+            {busy === 'remind' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <BellRing className="h-4 w-4" />
+            )}
+            Send {pickedRemind.length || ''} reminder{pickedRemind.length === 1 ? '' : 's'}
+          </button>
+        )}
         <button
-          onClick={() => void send()}
-          disabled={!picked.size || busy || !board.canSend}
+          onClick={() =>
+            void run(
+              'invite',
+              pickedInvite.map((r) => r.supplierCode),
+              (n) => `Sent ${plural(n, 'invitation')}.`,
+            )
+          }
+          disabled={!pickedInvite.length || busy !== null || !board.canSend}
           title={board.canSend ? undefined : 'Only a buyer or an admin sends invitations'}
           className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-40"
           style={{ background: BRAND }}
         >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          Send {picked.size || ''} invitation{picked.size === 1 ? '' : 's'}
+          {busy === 'invite' ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
+          Send {pickedInvite.length || ''} invitation{pickedInvite.length === 1 ? '' : 's'}
         </button>
       </div>
 
@@ -250,7 +315,7 @@ export default function InvitationsPanel({
       {error && <Note tone="bad">{error}</Note>}
       {result && (
         <Note tone={result.failed.length ? 'warn' : 'good'}>
-          Sent {result.sent} invitation{result.sent === 1 ? '' : 's'}.
+          {result.label}
           {result.failed.length > 0 && (
             <ul className="mt-1.5 list-disc space-y-0.5 pl-5">
               {result.failed.map((f, i) => (
@@ -273,7 +338,7 @@ export default function InvitationsPanel({
               <col className="w-[15rem]" />
               <col className="w-28" />
               <col className="w-28" />
-              <col className="w-20" />
+              <col className="w-[8.5rem]" />
             </colgroup>
             <thead>
               <tr className="bg-slate-50 text-[10.5px] uppercase tracking-wider text-slate-400">
@@ -299,6 +364,12 @@ export default function InvitationsPanel({
                   picked={picked.has(r.supplierCode)}
                   onToggle={() => toggle(r.supplierCode)}
                   onCopy={copy}
+                  reminding={busy === 'remind:' + r.supplierCode}
+                  onRemind={() =>
+                    void run('remind', [r.supplierCode], (n) =>
+                      n ? `Reminder sent to ${r.supplierName}.` : 'No reminder was sent.',
+                    )
+                  }
                   copied={copied === r.supplierCode}
                   canSend={board.canSend}
                   onRequire={(field, v) => void setRequirement([r.supplierCode], field, v)}
@@ -364,6 +435,8 @@ function Row({
   copied,
   canSend,
   onRequire,
+  reminding,
+  onRemind,
 }: {
   row: InvitationRow;
   picked: boolean;
@@ -372,6 +445,8 @@ function Row({
   copied: boolean;
   canSend: boolean;
   onRequire: (field: Field, value: boolean) => void;
+  reminding: boolean;
+  onRemind: () => void;
 }) {
   const noAddress = row.contacts.length === 0;
   const to = row.sentAt && row.sentTo.length ? row.sentTo : row.contacts;
@@ -430,6 +505,12 @@ function Row({
             Not asked
           </Chip>
         )}
+        {row.reminders > 0 && !row.submittedAt && (
+          <div className="mt-0.5 whitespace-nowrap text-[10.5px] text-amber-700">
+            Reminded {shortDate(row.remindedAt)}
+            {row.reminders > 1 ? ` (${row.reminders})` : ''}
+          </div>
+        )}
       </td>
 
       <td className="px-3 py-2">
@@ -473,18 +554,35 @@ function Row({
       </td>
 
       <td className="px-3 py-2 text-right">
-        {row.url ? (
-          <button
-            onClick={() => onCopy(row.url!, row.supplierCode)}
-            className="inline-flex items-center gap-1 whitespace-nowrap rounded border border-slate-200 px-2 py-1 text-[11.5px] font-medium text-slate-600 hover:bg-slate-50"
-            title={row.url}
-          >
-            {copied ? <Check className="h-3 w-3 text-[#1d4f31]" /> : <Copy className="h-3 w-3" />}
-            {copied ? 'Copied' : 'Copy'}
-          </button>
-        ) : (
-          <span className="text-[11.5px] text-slate-300">—</span>
-        )}
+        <div className="flex items-center justify-end gap-1">
+          {canSend && row.sentAt && !row.submittedAt && (
+            <button
+              onClick={onRemind}
+              disabled={reminding}
+              title="Email this supplier a reminder with their link"
+              className="inline-flex items-center gap-1 whitespace-nowrap rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[11.5px] font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-40"
+            >
+              {reminding ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <BellRing className="h-3 w-3" />
+              )}
+              Remind
+            </button>
+          )}
+          {row.url ? (
+            <button
+              onClick={() => onCopy(row.url!, row.supplierCode)}
+              className="inline-flex items-center gap-1 whitespace-nowrap rounded border border-slate-200 px-2 py-1 text-[11.5px] font-medium text-slate-600 hover:bg-slate-50"
+              title={row.url}
+            >
+              {copied ? <Check className="h-3 w-3 text-[#1d4f31]" /> : <Copy className="h-3 w-3" />}
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          ) : (
+            <span className="text-[11.5px] text-slate-300">—</span>
+          )}
+        </div>
       </td>
     </tr>
   );

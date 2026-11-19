@@ -35,6 +35,8 @@ const BOARD: InvitationBoard = {
       submittedAt: null,
       requires: { deliveryNote: true, timesheet: true },
       documents: [{ id: 1, kind: 'delivery_note', fileName: 'DN-Nov.pdf' }],
+      remindedAt: '2026-11-21',
+      reminders: 2,
     },
     {
       supplierCode: '1103542',
@@ -48,6 +50,8 @@ const BOARD: InvitationBoard = {
       submittedAt: '2026-11-03',
       requires: { deliveryNote: true, timesheet: false },
       documents: [{ id: 2, kind: 'delivery_note', fileName: 'Palisade-DN.pdf' }],
+      remindedAt: null,
+      reminders: 0,
     },
     {
       supplierCode: '1102721',
@@ -61,6 +65,8 @@ const BOARD: InvitationBoard = {
       submittedAt: null,
       requires: { deliveryNote: false, timesheet: false },
       documents: [],
+      remindedAt: null,
+      reminders: 0,
     },
     {
       supplierCode: '1103573',
@@ -74,6 +80,8 @@ const BOARD: InvitationBoard = {
       submittedAt: null,
       requires: { deliveryNote: true, timesheet: true },
       documents: [],
+      remindedAt: null,
+      reminders: 0,
     },
   ],
 };

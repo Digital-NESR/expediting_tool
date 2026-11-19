@@ -43,6 +43,8 @@ import {
 import type { RrsmScope } from '@/app/actions/rrsm/overview';
 
 export const RRSM_BRAND = '#307c4c';
+/** The tool's full name, beside "RRSM" in the sidebar and the top bar. */
+export const RRSM_FULL_NAME = 'Rental & Recurrent Services Management';
 export const RRSM_PIN_KEY = 'rrsm-sidebar-pinned';
 
 const ICONS: Record<RrsmNavId, typeof LayoutGrid> = {
@@ -133,8 +135,11 @@ export default function RrsmSidebar({
               >
                 <Forklift className="h-4 w-4 text-white" />
               </div>
-              <span className="text-sm font-semibold leading-tight tracking-tight text-white">
-                RRSM
+              <span className="min-w-0 leading-tight">
+                <span className="block text-sm font-semibold tracking-tight text-white">RRSM</span>
+                <span className="block text-[10.5px] leading-snug text-white/75">
+                  {RRSM_FULL_NAME}
+                </span>
               </span>
             </div>
             <div className="flex items-center gap-1">

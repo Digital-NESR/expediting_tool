@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { currentRrsmActor } from '@/lib/rrsm/access';
 
-export const metadata = { title: 'NESR | RRSM' };
+export const metadata = { title: 'NESR | RRSM · Rental & Recurrent Services Management' };
 
 // Auth-gated, so never statically prerendered.
 export const dynamic = 'force-dynamic';

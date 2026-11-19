@@ -137,6 +137,41 @@ export function supplierInvitationMail(input: {
   };
 }
 
+/**
+ * A buyer's reminder to a supplier who was invited and has not submitted. Same link as the
+ * invitation; says what is still owed, including any document the buyer asked for.
+ */
+export function supplierReminderMail(input: {
+  to: string[];
+  supplierName: string;
+  countryName: string;
+  period: string;
+  closesOn: string;
+  url: string;
+  documents: string[];
+}): RrsmMail {
+  const docs = input.documents.length
+    ? `<p>Please also upload your <b>${input.documents.map(esc).join('</b> and <b>')}</b> on the same page.</p>`
+    : '';
+  return {
+    kind: 'cycle.reminder',
+    to: input.to,
+    subject: `Reminder: confirm your ${periodLabel(input.period)} rentals and services for NESR`,
+    bodyHtml: SHELL(
+      `<p>Dear ${esc(input.supplierName)},</p>` +
+        `<p>We have not yet received your confirmation of what NESR ${esc(input.countryName)} had ` +
+        `on hire from you during <b>${esc(periodLabel(input.period))}</b>.</p>` +
+        docs +
+        `<p style="margin:24px 0"><a href="${esc(input.url)}" ` +
+        `style="background:#307c4c;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:600;display:inline-block">` +
+        `Open your ${esc(periodLabel(input.period))} submission</a></p>` +
+        `<p>Please submit by <b>${esc(input.closesOn)}</b>. If you have already sent it, ` +
+        `you can ignore this email.</p>`,
+    ),
+    meta: { supplier: input.supplierName, period: input.period, reminder: true },
+  };
+}
+
 /** Told to the people who have to act on it. */
 export function supplierSubmittedMail(input: {
   to: string[];

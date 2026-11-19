@@ -5,7 +5,8 @@ import rrsmPool from '@/lib/db-rrsm';
 import { logger } from '@/lib/logger';
 import { canAccessCountry, currentRrsmActor, rolesIn, type RrsmActor } from '@/lib/rrsm/access';
 import type { DocKind } from '@/lib/rrsm/submission';
-import { sendRrsmMail, supplierInvitationMail } from '@/lib/rrsm/notify';
+import { sendRrsmMail, supplierInvitationMail, supplierReminderMail } from '@/lib/rrsm/notify';
+import { DOC_LABEL } from '@/lib/rrsm/submission';
 import { submissionUrl } from '@/lib/rrsm/supplier-access';
 
 /**
@@ -38,6 +39,9 @@ export interface InvitationRow {
   /** What this invitation asked for, and what has been uploaded against it. */
   requires: { deliveryNote: boolean; timesheet: boolean };
   documents: { id: number; kind: DocKind; fileName: string }[];
+  /** The last reminder a buyer sent, and how many so far. */
+  remindedAt: string | null;
+  reminders: number;
 }
 
 export interface InvitationBoard {
@@ -118,6 +122,7 @@ export async function getRrsmInvitations(countryCode: string): Promise<Invitatio
               COUNT(l.id)::int AS lines,
               COUNT(l.id) FILTER (WHERE l.stage IN ('awaiting_supplier', 'returned'))::int AS awaiting,
               lk.token, lk.sent_at, lk.sent_to, lk.submitted_at,
+              lk.reminded_at, COALESCE(lk.reminder_count, 0) AS reminder_count,
               /* A link carries what this cycle asks for; before there is one, the supplier's own
                  default (remembered from the last time a buyer changed it) is what will be asked. */
               CASE WHEN lk.id IS NULL THEN sup.requires_delivery_note
@@ -136,6 +141,7 @@ export async function getRrsmInvitations(countryCode: string): Promise<Invitatio
         GROUP BY s.supplier_code, sup.name, sup.contact_emails,
                  sup.requires_delivery_note, sup.requires_timesheet,
                  lk.id, lk.token, lk.sent_at, lk.sent_to, lk.submitted_at,
+                 lk.reminded_at, lk.reminder_count,
                  lk.requires_delivery_note, lk.requires_timesheet
         ORDER BY sup.name`,
       [Number(cycle.id)],
@@ -173,6 +179,8 @@ export async function getRrsmInvitations(countryCode: string): Promise<Invitatio
         sentAt: r.sent_at ? dateOnly(r.sent_at) : null,
         sentTo: (r.sent_to as string[] | null) ?? [],
         submittedAt: r.submitted_at ? dateOnly(r.submitted_at) : null,
+        remindedAt: r.reminded_at ? dateOnly(r.reminded_at) : null,
+        reminders: Number(r.reminder_count ?? 0),
         requires: { deliveryNote: Boolean(r.requires_dn), timesheet: Boolean(r.requires_ts) },
         documents: ((r.documents as { id: number; kind: DocKind; fileName: string }[]) ?? []).map(
           (d) => ({ id: Number(d.id), kind: d.kind, fileName: String(d.fileName) }),
@@ -303,6 +311,119 @@ export async function sendRrsmInvitations(
     return { success: true, sent, failed };
   } catch (err) {
     log.error('sendRrsmInvitations.failed', err, { cycleId });
+    return { success: false, error: (err as Error).message };
+  }
+}
+
+/**
+ * Remind suppliers who were invited and have not submitted: one, or every one ticked.
+ *
+ * Only a supplier whose invitation actually went out and who has not submitted is reminded; any
+ * other code in the list is reported back by name rather than mailed. Manual only, by decision:
+ * nothing calls this on a schedule.
+ */
+export async function sendRrsmReminders(
+  cycleId: number,
+  supplierCodes: string[],
+): Promise<InviteResult> {
+  try {
+    const id = Number(cycleId);
+    const country = await countryOfCycle(id);
+    const actor = await actorOrThrow();
+    if (!canAccessCountry(actor, country, 'buyer') || !canSendIn(actor, country)) {
+      return { success: false, error: 'Only a buyer or an admin sends reminders.' };
+    }
+    const wanted = (supplierCodes ?? []).map((c) => String(c).trim()).filter(Boolean);
+    if (!wanted.length) return { success: false, error: 'Nobody was selected.' };
+
+    const { rows: cycles } = await rrsmPool.query<QueryResultRow>(
+      `SELECT cy.period, cy.closes_on, c.name AS country_name
+         FROM rrsm_cycles cy JOIN rrsm_countries c ON c.code = cy.country_code
+        WHERE cy.id = $1`,
+      [id],
+    );
+    const cycle = cycles[0];
+    if (!cycle) return { success: false, error: 'No such cycle.' };
+
+    const { rows: links } = await rrsmPool.query<QueryResultRow>(
+      `SELECT lk.id, lk.token, lk.supplier_code, lk.sent_to, lk.requires_delivery_note,
+              lk.requires_timesheet, sup.name, sup.contact_emails,
+              ARRAY(SELECT d.kind FROM rrsm_submission_documents d WHERE d.link_id = lk.id) AS uploaded
+         FROM rrsm_supplier_links lk JOIN rrsm_suppliers sup ON sup.code = lk.supplier_code
+        WHERE lk.cycle_id = $1 AND lk.supplier_code = ANY($2)
+          AND lk.sent_at IS NOT NULL AND lk.submitted_at IS NULL`,
+      [id, wanted],
+    );
+
+    const failed: { supplier: string; reason: string }[] = [];
+    let sent = 0;
+    for (const lk of links) {
+      const name = String(lk.name);
+      const sentTo = ((lk.sent_to as string[] | null) ?? []).filter((e) => String(e).includes('@'));
+      const to = sentTo.length
+        ? sentTo
+        : ((lk.contact_emails as string[] | null) ?? [])
+            .map((e) => String(e).trim().toLowerCase())
+            .filter((e) => e.includes('@'));
+      if (!to.length) {
+        failed.push({ supplier: name, reason: 'No email address on file. Copy the link instead.' });
+        continue;
+      }
+      let url: string;
+      try {
+        url = submissionUrl(String(lk.token));
+      } catch (err) {
+        failed.push({ supplier: name, reason: (err as Error).message });
+        continue;
+      }
+      const uploaded = ((lk.uploaded as string[] | null) ?? []).map(String);
+      const owed: string[] = [];
+      if (lk.requires_delivery_note && !uploaded.includes('delivery_note'))
+        owed.push(DOC_LABEL.delivery_note);
+      if (lk.requires_timesheet && !uploaded.includes('timesheet')) owed.push(DOC_LABEL.timesheet);
+
+      const mail = await sendRrsmMail(
+        supplierReminderMail({
+          to,
+          supplierName: name,
+          countryName: String(cycle.country_name),
+          period: dateOnly(cycle.period),
+          closesOn: dateOnly(cycle.closes_on),
+          url,
+          documents: owed,
+        }),
+      );
+      if (!mail.ok) {
+        failed.push({ supplier: name, reason: mail.error ?? 'The mail workflow refused it.' });
+        continue;
+      }
+      await rrsmPool.query(
+        `UPDATE rrsm_supplier_links
+            SET reminded_at = NOW(), reminder_count = reminder_count + 1
+          WHERE id = $1`,
+        [Number(lk.id)],
+      );
+      await rrsmPool.query(
+        `INSERT INTO rrsm_activity_log (cycle_id, actor, action, note)
+         VALUES ($1, $2, 'supplier_reminded', $3)`,
+        [id, actor.email, `Reminder sent to ${name} (${lk.supplier_code})`],
+      );
+      sent += 1;
+    }
+
+    for (const c of wanted) {
+      if (!links.some((l) => String(l.supplier_code) === c)) {
+        failed.push({
+          supplier: c,
+          reason: 'Not waiting on a reply (not invited yet, or already submitted).',
+        });
+      }
+    }
+
+    log.info('reminders.sent', { cycleId: id, sent, failed: failed.length, by: actor.email });
+    return { success: true, sent, failed };
+  } catch (err) {
+    log.error('sendRrsmReminders.failed', err, { cycleId });
     return { success: false, error: (err as Error).message };
   }
 }
