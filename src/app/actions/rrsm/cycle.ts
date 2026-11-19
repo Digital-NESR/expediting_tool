@@ -22,6 +22,7 @@ import {
 } from '@/lib/rrsm/sap';
 import { readPrCandidates, readSapStatus } from '@/lib/rrsm/sap-status';
 import type { DocKind } from '@/lib/rrsm/submission';
+import { openingStage, stageAfterBuyerDecision, type CycleSteps } from '@/lib/rrsm/steps';
 
 /**
  * The monthly cycle, for the Ops and Buyer screens.
@@ -106,6 +107,22 @@ async function requireCountry(code: string): Promise<RrsmActor> {
 }
 
 /** The country a cycle belongs to, read from the row rather than trusted from the caller. */
+/** The validation steps a country runs (Admin -> RRSM). Both on when the row says nothing. */
+async function stepsOf(
+  code: string,
+  db: { query: PoolClient['query'] } = rrsmPool,
+): Promise<CycleSteps> {
+  const { rows } = await db.query<QueryResultRow>(
+    `SELECT supplier_validation, ops_validation FROM rrsm_countries WHERE code = $1`,
+    [code],
+  );
+  return {
+    supplier:
+      rows[0]?.supplier_validation === undefined ? true : Boolean(rows[0].supplier_validation),
+    ops: rows[0]?.ops_validation === undefined ? true : Boolean(rows[0].ops_validation),
+  };
+}
+
 async function countryOfCycle(cycleId: number): Promise<string> {
   const { rows } = await rrsmPool.query<QueryResultRow>(
     `SELECT country_code FROM rrsm_cycles WHERE id = $1`,
@@ -364,8 +381,12 @@ export async function openRrsmCycle(countryCode: string, period: string): Promis
   let client: PoolClient | null = null;
   try {
     const actor = await requireCountry(countryCode);
-    const { canValidate } = rolesIn(actor, countryCode);
-    if (!canValidate) return { success: false, error: 'Only Ops or an admin opens a cycle.' };
+    /* Ops open the month; a buyer may too, because a country that does not run Ops validation
+       has no Ops to do it. */
+    const { canValidate, canBuy } = rolesIn(actor, countryCode);
+    if (!canValidate && !canBuy) {
+      return { success: false, error: 'Only Ops, a buyer or an admin opens a cycle.' };
+    }
 
     const first = `${String(period ?? '').slice(0, 7)}-01`;
     const asDate = new Date(first + 'T00:00:00Z');
@@ -387,12 +408,15 @@ export async function openRrsmCycle(countryCode: string, period: string): Promis
       return { success: false, error: 'That cycle is already open.' };
     }
     const cycleId = Number(made[0].id);
+    /* Lines start at the first step this country runs: with no supplier validation they skip
+       straight to Ops, and with neither step they open ready for the PO. */
+    const start = openingStage(await stepsOf(countryCode, client));
 
     /* The rate comes from the register (today's agreed rate) and the quantity from last month's
        confirmed figure, defaulting to 1 where there is no history. */
     await client.query(
-      `INSERT INTO rrsm_cycle_lines (cycle_id, service_line_id, qty, rate, on_hire)
-       SELECT $1, s.id, COALESCE(prev.qty, 1), s.rate, TRUE
+      `INSERT INTO rrsm_cycle_lines (cycle_id, service_line_id, qty, rate, on_hire, stage)
+       SELECT $1, s.id, COALESCE(prev.qty, 1), s.rate, TRUE, $4
          FROM rrsm_service_lines s
          LEFT JOIN LATERAL (
               SELECT p.qty FROM rrsm_cycle_lines p
@@ -402,7 +426,7 @@ export async function openRrsmCycle(countryCode: string, period: string): Promis
          ) prev ON TRUE
         WHERE s.country_code = $2 AND s.active AND s.off_hire_date IS NULL
        ON CONFLICT (cycle_id, service_line_id) DO NOTHING`,
-      [cycleId, countryCode, first],
+      [cycleId, countryCode, first, start],
     );
 
     await client.query(
@@ -691,6 +715,18 @@ export async function decideSupplierChange(input: {
                   change_note = NULLIF($3, ''), updated_at = NOW()
             WHERE id = $1`,
           [lineId, actor.email, note],
+        );
+      }
+
+      /* With no Ops step in this country, the buyer's decision is the last check: the line is
+         validated by it. */
+      const next = stageAfterBuyerDecision(await stepsOf(country, client));
+      if (next) {
+        await client.query(
+          `UPDATE rrsm_cycle_lines
+              SET stage = $2, validated_by = $3, validated_at = NOW(), updated_at = NOW()
+            WHERE id = $1 AND stage = 'submitted'`,
+          [lineId, next, actor.email],
         );
       }
 

@@ -18,13 +18,23 @@ import RrsmRegisterClient from '@/app/rrsm/RrsmRegisterClient';
 
 export const dynamic = 'force-dynamic';
 
-const KW = { code: 'KW', name: 'Kuwait', currency: 'KWD', flag: '🇰🇼', live: true };
+const KW = {
+  code: 'KW',
+  name: 'Kuwait',
+  currency: 'KWD',
+  flag: '🇰🇼',
+  live: true,
+  supplierValidation: true,
+  opsValidation: true,
+};
 const AE = {
   code: 'AE',
   name: 'United Arab Emirates (UAE)',
   currency: 'AED',
   flag: '🇦🇪',
   live: true,
+  supplierValidation: true,
+  opsValidation: true,
 };
 
 function scopeFor(role?: string): RrsmScope {
@@ -265,11 +275,22 @@ const HISTORY: HistoryRow[] = [
 export default async function RrsmPagesPreview({
   searchParams,
 }: {
-  searchParams?: Promise<{ page?: string; role?: string }>;
+  searchParams?: Promise<{ page?: string; role?: string; steps?: string }>;
 }) {
   if (process.env.NODE_ENV === 'production') notFound();
   const sp = searchParams ? await searchParams : {};
-  const scope = scopeFor(sp.role);
+  const base = scopeFor(sp.role);
+  /* ?steps=supplier|ops|none shows a country that runs only that step, or neither. */
+  const steps =
+    sp.steps === 'none'
+      ? { supplierValidation: false, opsValidation: false }
+      : sp.steps === 'supplier'
+        ? { supplierValidation: true, opsValidation: false }
+        : sp.steps === 'ops'
+          ? { supplierValidation: false, opsValidation: true }
+          : null;
+  const scope: RrsmScope =
+    steps && base.country ? { ...base, country: { ...base.country, ...steps } } : base;
 
   switch (sp.page) {
     case 'register':

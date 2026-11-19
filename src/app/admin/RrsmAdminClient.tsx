@@ -22,10 +22,12 @@ import {
   getRrsmTeam,
   removeRrsmUser,
   setRrsmCountryLive,
+  setRrsmCountrySteps,
   setRrsmUser,
   type RrsmCountryRow,
   type RrsmTeamRow,
 } from '@/app/actions/rrsm/admin';
+import { describeSteps } from '@/lib/rrsm/steps';
 import type { EmployeeDirectoryEntry } from '@/app/actions/employeeDirectory';
 import { personInitials, usePickerAnchor, PickerPortal } from './_components/EmployeePicker';
 
@@ -64,6 +66,12 @@ export default function RrsmAdminClient({ preview }: { preview?: RrsmAdminPrevie
   const [loading, setLoading] = useState(!preview);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  /* A step change waiting for the admin to say whether this month's lines move too. */
+  const [stepDraft, setStepDraft] = useState<{
+    code: string;
+    steps: { supplier: boolean; ops: boolean };
+  } | null>(null);
 
   const [role, setRole] = useState<Role>('buyer');
   const [country, setCountry] = useState('');
@@ -103,6 +111,27 @@ export default function RrsmAdminClient({ preview }: { preview?: RrsmAdminPrevie
     const r = await setRrsmCountryLive(c.code, !c.live);
     if (!r.success) setError(r.error ?? 'That did not work.');
     else await reload();
+    setBusy(null);
+  }
+
+  async function saveSteps(apply: boolean) {
+    if (!stepDraft) return;
+    setBusy('steps:' + stepDraft.code);
+    setError('');
+    setNotice('');
+    const r = await setRrsmCountrySteps(stepDraft.code, stepDraft.steps, apply);
+    if (!r.success) {
+      setError(r.error ?? 'That did not work.');
+    } else {
+      const name = countries.find((c) => c.code === stepDraft.code)?.name ?? stepDraft.code;
+      setNotice(
+        apply
+          ? `${name}: ${describeSteps(stepDraft.steps)}. ${r.moved ?? 0} line${r.moved === 1 ? '' : 's'} in this month's cycle moved on.`
+          : `${name}: ${describeSteps(stepDraft.steps)}, from the next cycle.`,
+      );
+      setStepDraft(null);
+      await reload();
+    }
     setBusy(null);
   }
 
@@ -150,13 +179,22 @@ export default function RrsmAdminClient({ preview }: { preview?: RrsmAdminPrevie
         </h2>
         <p className="mt-1 max-w-2xl text-[13.5px] leading-relaxed text-slate-500">
           RRSM rolls out country by country. A country stays dark until it is switched on here, and
-          it cannot be switched on with nobody assigned to it.{' '}
+          it cannot be switched on with nobody assigned to it. Each country also chooses its
+          validation steps: some skip the supplier&rsquo;s confirmation, some skip Ops, some go
+          straight to the PO.{' '}
           <b className="text-slate-700">
             {liveCount} of {countries.length}
           </b>{' '}
           live.
         </p>
       </div>
+
+      {notice && !error && (
+        <div className="flex items-start gap-2 rounded-lg border border-[#a9d3bb] bg-[#e6f1ea] px-3.5 py-2.5 text-[13px] text-[#1d4f31]">
+          <Check className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{notice}</span>
+        </div>
+      )}
 
       {error && (
         <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-[13px] text-red-700">
@@ -313,6 +351,58 @@ export default function RrsmAdminClient({ preview }: { preview?: RrsmAdminPrevie
                   ))}
                 </div>
 
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <div className="flex items-center gap-1.5">
+                    {(
+                      [
+                        ['supplier', 'Supplier validation', c.supplierValidation],
+                        ['ops', 'Ops validation', c.opsValidation],
+                      ] as const
+                    ).map(([key, label, on]) => {
+                      const draft = stepDraft?.code === c.code ? stepDraft.steps : null;
+                      const value = draft ? draft[key] : on;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          role="switch"
+                          aria-checked={value}
+                          onClick={() => {
+                            const base = draft ?? {
+                              supplier: c.supplierValidation,
+                              ops: c.opsValidation,
+                            };
+                            const steps = { ...base, [key]: !value };
+                            setNotice('');
+                            setStepDraft(
+                              steps.supplier === c.supplierValidation &&
+                                steps.ops === c.opsValidation
+                                ? null
+                                : { code: c.code, steps },
+                            );
+                          }}
+                          title={`${label}: ${value ? 'on' : 'off'}. Click to switch ${value ? 'off' : 'on'}.`}
+                          className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11.5px] font-semibold transition-colors ${
+                            value
+                              ? 'bg-[#e6f1ea] text-[#1d4f31] hover:bg-[#d6e8de]'
+                              : 'bg-slate-100 text-slate-400 line-through hover:bg-slate-200'
+                          } ${draft && draft[key] !== on ? 'ring-2 ring-amber-300' : ''}`}
+                        >
+                          {value ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <span className="text-[11px] text-slate-400">
+                    {describeSteps(
+                      stepDraft?.code === c.code
+                        ? stepDraft.steps
+                        : { supplier: c.supplierValidation, ops: c.opsValidation },
+                    )}
+                  </span>
+                </div>
+
                 <button
                   onClick={() => void toggleLive(c)}
                   disabled={busy === 'country:' + c.code || (!c.live && c.users === 0)}
@@ -336,6 +426,47 @@ export default function RrsmAdminClient({ preview }: { preview?: RrsmAdminPrevie
                   ) : null}
                   {c.live ? 'Live' : 'Not live'}
                 </button>
+
+                {stepDraft?.code === c.code && (
+                  <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900">
+                    <span className="mr-auto">
+                      Change {c.name} to <b>{describeSteps(stepDraft.steps)}</b>?
+                      {((c.supplierValidation && !stepDraft.steps.supplier) ||
+                        (c.opsValidation && !stepDraft.steps.ops)) &&
+                        ' Lines already waiting on a step you are switching off can move on now.'}
+                    </span>
+                    {((c.supplierValidation && !stepDraft.steps.supplier) ||
+                      (c.opsValidation && !stepDraft.steps.ops)) && (
+                      <button
+                        type="button"
+                        onClick={() => void saveSteps(true)}
+                        disabled={busy !== null}
+                        className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-40"
+                        style={{ background: BRAND }}
+                      >
+                        Save, and move this month&rsquo;s lines on
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => void saveSteps(false)}
+                      disabled={busy !== null}
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 disabled:opacity-40"
+                    >
+                      {(c.supplierValidation && !stepDraft.steps.supplier) ||
+                      (c.opsValidation && !stepDraft.steps.ops)
+                        ? 'Save, from the next cycle'
+                        : 'Save'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStepDraft(null)}
+                      className="px-2 py-1.5 text-[12px] font-semibold text-slate-500 hover:underline"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}

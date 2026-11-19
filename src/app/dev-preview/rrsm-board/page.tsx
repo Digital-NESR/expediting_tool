@@ -46,11 +46,35 @@ function line(partial: Partial<BoardLine> & Pick<BoardLine, 'id' | 'description'
 }
 
 const BOARD: RrsmBoard = {
-  country: { code: 'KW', name: 'Kuwait', currency: 'KWD', flag: '🇰🇼', live: true },
+  country: {
+    code: 'KW',
+    name: 'Kuwait',
+    currency: 'KWD',
+    flag: '🇰🇼',
+    live: true,
+    supplierValidation: true,
+    opsValidation: true,
+  },
   /* Two, so the picker is drawn rather than the locked label. Swap to one to see the other. */
   available: [
-    { code: 'KW', name: 'Kuwait', currency: 'KWD', flag: '🇰🇼', live: true },
-    { code: 'AE', name: 'United Arab Emirates (UAE)', currency: 'AED', flag: '🇦🇪', live: true },
+    {
+      code: 'KW',
+      name: 'Kuwait',
+      currency: 'KWD',
+      flag: '🇰🇼',
+      live: true,
+      supplierValidation: true,
+      opsValidation: true,
+    },
+    {
+      code: 'AE',
+      name: 'United Arab Emirates (UAE)',
+      currency: 'AED',
+      flag: '🇦🇪',
+      live: true,
+      supplierValidation: true,
+      opsValidation: true,
+    },
   ],
   canBuy: true,
   canValidate: true,

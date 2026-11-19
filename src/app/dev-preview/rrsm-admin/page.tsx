@@ -96,6 +96,8 @@ export default async function RrsmAdminPreviewPage() {
       /* AE forced live so the screen shows both states; nothing is written, this is the prop. */
       live: base.code === 'AE' ? true : base.live,
       users: staffed.get(base.code) ?? 0,
+      /* KW shown without Ops validation, so both states of the steps control are on screen. */
+      opsValidation: base.code === 'KW' ? false : base.opsValidation,
     };
   });
 

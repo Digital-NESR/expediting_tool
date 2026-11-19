@@ -138,17 +138,28 @@ export default function RrsmDashboardClient({
         <RrsmEmpty
           title={`Nothing open for ${country.name}`}
           body={
-            scope.canValidate
-              ? 'Open the month from Ops validation. It copies every asset still on hire from last month, with today’s rates.'
-              : 'Ops open the cycle. There is nothing to put on a PO until they have.'
+            country.opsValidation
+              ? scope.canValidate
+                ? 'Open the month from Ops validation. It copies every asset still on hire from last month, with today’s rates.'
+                : 'Ops open the cycle. There is nothing to put on a PO until they have.'
+              : 'Open the month from PR & PO. It copies every asset still on hire from last month, with today’s rates.'
           }
           action={
-            scope.canValidate ? (
+            country.opsValidation ? (
+              scope.canValidate ? (
+                <Link
+                  href={href('/rrsm/validation')}
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#307c4c] px-4 py-2 text-[13.5px] font-semibold text-white hover:bg-[#2b6f44]"
+                >
+                  Go to Ops validation <ArrowRight className="h-4 w-4" />
+                </Link>
+              ) : undefined
+            ) : scope.canBuy ? (
               <Link
-                href={href('/rrsm/validation')}
+                href={href('/rrsm/purchasing')}
                 className="inline-flex items-center gap-2 rounded-lg bg-[#307c4c] px-4 py-2 text-[13.5px] font-semibold text-white hover:bg-[#2b6f44]"
               >
-                Go to Ops validation <ArrowRight className="h-4 w-4" />
+                Go to PR &amp; PO <ArrowRight className="h-4 w-4" />
               </Link>
             ) : undefined
           }
@@ -157,30 +168,34 @@ export default function RrsmDashboardClient({
 
       {/* ── what needs doing ──────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Tile
-          icon={Send}
-          label="Supplier validation"
-          value={cycle ? suppliers.notInvited + suppliers.waiting : 0}
-          detail={
-            cycle
-              ? `${suppliers.notInvited} not sent · ${suppliers.waiting} waiting · ${suppliers.submitted} submitted`
-              : 'No cycle open'
-          }
-          href={href('/rrsm/suppliers')}
-          tone={cycle && suppliers.notInvited ? 'warn' : 'plain'}
-        />
-        <Tile
-          icon={ClipboardCheck}
-          label="To validate"
-          value={cycle ? cycle.byStage.submitted + cycle.byStage.returned : 0}
-          detail={
-            cycle
-              ? `${cycle.byStage.submitted} submitted · ${cycle.byStage.returned} returned · ${cycle.byStage.awaiting_supplier} still with suppliers`
-              : 'No cycle open'
-          }
-          href={can('validate') ? href('/rrsm/validation') : null}
-          tone={cycle && cycle.byStage.returned ? 'warn' : 'plain'}
-        />
+        {country.supplierValidation && (
+          <Tile
+            icon={Send}
+            label="Supplier validation"
+            value={cycle ? suppliers.notInvited + suppliers.waiting : 0}
+            detail={
+              cycle
+                ? `${suppliers.notInvited} not sent · ${suppliers.waiting} waiting · ${suppliers.submitted} submitted`
+                : 'No cycle open'
+            }
+            href={href('/rrsm/suppliers')}
+            tone={cycle && suppliers.notInvited ? 'warn' : 'plain'}
+          />
+        )}
+        {country.opsValidation && (
+          <Tile
+            icon={ClipboardCheck}
+            label="To validate"
+            value={cycle ? cycle.byStage.submitted + cycle.byStage.returned : 0}
+            detail={
+              cycle
+                ? `${cycle.byStage.submitted} submitted · ${cycle.byStage.returned} returned · ${cycle.byStage.awaiting_supplier} still with suppliers`
+                : 'No cycle open'
+            }
+            href={can('validate') ? href('/rrsm/validation') : null}
+            tone={cycle && cycle.byStage.returned ? 'warn' : 'plain'}
+          />
+        )}
         <Tile
           icon={Receipt}
           label="Awaiting a PO"

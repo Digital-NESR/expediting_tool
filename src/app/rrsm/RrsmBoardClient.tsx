@@ -211,6 +211,20 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
     );
   }
 
+  if (view === 'ops' && !board.country.opsValidation) {
+    return (
+      <RrsmShell scope={board} title={title}>
+        <Empty
+          title={`${board.country.name} does not run Ops validation`}
+          body="Lines go from the supplier (or straight from the register) to PR & PO in this country. An RRSM admin can switch Ops validation on in Admin → RRSM."
+        />
+      </RrsmShell>
+    );
+  }
+
+  /* Who opens the month: Ops, or the buyer in a country with no Ops step. */
+  const canOpen = view === 'ops' || !board.country.opsValidation;
+
   const subtitle = board.cycle ? (
     <>
       {periodLabel(new Date(board.cycle.period + 'T00:00:00Z'))} cycle · {board.cycle.opensOn} to{' '}
@@ -256,12 +270,12 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
         <Empty
           title={`Nothing open for ${board.country.name}`}
           body={
-            view === 'ops'
-              ? 'Opening a cycle copies every asset still on hire from last month, with today’s rates and the quantity confirmed last time. You then confirm each one.'
+            canOpen
+              ? 'Opening a cycle copies every asset still on hire from last month, with today’s rates and the quantity confirmed last time.'
               : 'Ops open the cycle. There is nothing to put on a PO until they have.'
           }
           action={
-            view === 'ops' ? (
+            canOpen ? (
               <button
                 onClick={() =>
                   void run('open', () => openRrsmCycle(board.country!.code, board.suggestedPeriod))

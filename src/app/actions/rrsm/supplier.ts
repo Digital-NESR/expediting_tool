@@ -404,19 +404,34 @@ export async function submitRrsmCycle(
       };
     }
 
-    /* A line carrying a proposed rate or pricing unit goes to a buyer before Ops can validate it. */
+    /* A line carrying a proposed rate or pricing unit goes to a buyer before anything else. The
+       rest go to Ops, or straight to "validated" in a country that does not run Ops validation. */
+    const { rows: stepRows } = await rrsmPool.query<QueryResultRow>(
+      `SELECT ops_validation FROM rrsm_countries WHERE code = $1`,
+      [t.countryCode],
+    );
+    const opsStep =
+      stepRows[0]?.ops_validation === undefined ? true : Boolean(stepRows[0].ops_validation);
     const { rows } = await rrsmPool.query<QueryResultRow>(
       `UPDATE rrsm_cycle_lines l
-          SET stage = 'submitted', returned_to = NULL,
+          SET stage = CASE WHEN l.supplier_rate IS NOT NULL OR l.supplier_uom IS NOT NULL OR $4
+                           THEN 'submitted' ELSE 'validated' END,
+              validated_by = CASE WHEN l.supplier_rate IS NULL AND l.supplier_uom IS NULL AND NOT $4
+                                  THEN $3 ELSE l.validated_by END,
+              validated_at = CASE WHEN l.supplier_rate IS NULL AND l.supplier_uom IS NULL AND NOT $4
+                                  THEN NOW() ELSE l.validated_at END,
+              returned_to = NULL,
               change_status = CASE WHEN l.supplier_rate IS NOT NULL OR l.supplier_uom IS NOT NULL
                                    THEN 'pending' ELSE NULL END,
-              submitted_by = $4, submitted_at = NOW(), updated_at = NOW()
+              submitted_by = $3, submitted_at = NOW(), updated_at = NOW()
          FROM rrsm_service_lines s
         WHERE l.service_line_id = s.id
           AND l.cycle_id = $1 AND s.supplier_code = $2
           AND l.stage IN ('awaiting_supplier', 'returned')
-        RETURNING l.id, l.qty, l.rate, l.change_status`,
-      [t.cycleId, t.supplierCode, t.linkId, email],
+        RETURNING l.id, l.qty, l.rate, l.change_status, l.stage`,
+      /* Every parameter is used: Postgres refuses one it cannot type, which is how this statement
+         failed outright while it was passed the link id it never read. */
+      [t.cycleId, t.supplierCode, email, opsStep],
     );
 
     await rrsmPool.query(
@@ -427,7 +442,7 @@ export async function submitRrsmCycle(
     for (const r of rows) {
       await rrsmPool.query(
         `INSERT INTO rrsm_activity_log (cycle_line_id, cycle_id, actor, action, to_stage, note)
-         VALUES ($1, $2, $3, 'submitted', 'submitted', $4)`,
+         VALUES ($1, $2, $3, 'submitted', $5, $4)`,
         [
           Number(r.id),
           t.cycleId,
@@ -435,6 +450,7 @@ export async function submitRrsmCycle(
           r.change_status === 'pending'
             ? 'Submitted by the supplier with a different rate or pricing unit, for buyer review'
             : 'Submitted by the supplier',
+          String(r.stage),
         ],
       );
     }

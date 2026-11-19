@@ -99,7 +99,10 @@ export default function RrsmSidebar({
   const { data: session } = useSession();
 
   const active = activeNavId(pathname);
-  const items = visibleNav(scope);
+  const items = visibleNav(scope, {
+    supplier: scope.country?.supplierValidation ?? true,
+    ops: scope.country?.opsValidation ?? true,
+  });
   const country = scope.country?.code ?? null;
 
   const groups: { key: RrsmNavItem['group']; items: RrsmNavItem[] }[] = [];

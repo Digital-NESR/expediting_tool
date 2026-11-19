@@ -44,6 +44,9 @@ export interface RrsmCountryOption {
   currency: string;
   flag: string | null;
   live: boolean;
+  /** Which validation steps this country runs (Admin -> RRSM). Both true unless switched off. */
+  supplierValidation: boolean;
+  opsValidation: boolean;
 }
 
 /**
@@ -134,9 +137,9 @@ export async function resolveRrsmCountry(
 
   const { rows } = await rrsmPool.query<QueryResultRow>(
     scope === 'all'
-      ? `SELECT code, name, currency, flag, live FROM rrsm_countries
+      ? `SELECT code, name, currency, flag, live, supplier_validation, ops_validation FROM rrsm_countries
           WHERE live ORDER BY sort_order, name`
-      : `SELECT code, name, currency, flag, live FROM rrsm_countries
+      : `SELECT code, name, currency, flag, live, supplier_validation, ops_validation FROM rrsm_countries
           WHERE live AND code = ANY($1) ORDER BY sort_order, name`,
     scope === 'all' ? [] : [scope],
   );
@@ -153,5 +156,8 @@ export function toCountryOption(r: QueryResultRow): RrsmCountryOption {
     currency: String(r.currency),
     flag: r.flag === null || r.flag === undefined ? null : String(r.flag),
     live: Boolean(r.live),
+    /* Absent from a query that did not select them = the default, which is both steps on. */
+    supplierValidation: r.supplier_validation === undefined ? true : Boolean(r.supplier_validation),
+    opsValidation: r.ops_validation === undefined ? true : Boolean(r.ops_validation),
   };
 }

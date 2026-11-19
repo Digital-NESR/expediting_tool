@@ -5,6 +5,8 @@ import rrsmPool from '@/lib/db-rrsm';
 import { logger } from '@/lib/logger';
 import { currentActor, normalizeEmail } from '@/lib/require-access';
 import { currentRrsmActor, toCountryOption, type RrsmCountryOption } from '@/lib/rrsm/access';
+import type { CycleStage } from '@/lib/rrsm/cycle';
+import { describeSteps, fastForward, type CycleSteps } from '@/lib/rrsm/steps';
 
 /**
  * The RRSM admin editor's endpoints: who may use the tool, and which countries are switched on.
@@ -47,7 +49,7 @@ async function requireRrsmAdmin(): Promise<string> {
 export async function getRrsmCountries(): Promise<RrsmCountryRow[]> {
   await requireRrsmAdmin();
   const { rows } = await rrsmPool.query<QueryResultRow>(
-    `SELECT c.code, c.name, c.currency, c.flag, c.live,
+    `SELECT c.code, c.name, c.currency, c.flag, c.live, c.supplier_validation, c.ops_validation,
             (SELECT count(*)::int FROM rrsm_users u
               WHERE u.active AND u.country_code = c.code) AS users
        FROM rrsm_countries c
@@ -93,6 +95,91 @@ export async function setRrsmCountryLive(code: string, live: boolean): Promise<R
     return { success: true };
   } catch (err) {
     log.error('setRrsmCountryLive.failed', err, { code });
+    return { success: false, error: (err as Error).message };
+  }
+}
+
+/**
+ * Set which validation steps a country's cycle runs: supplier validation, Ops validation, both
+ * or neither (straight to PR & PO).
+ *
+ * New cycles follow it from the day they open. `applyToOpenCycle` also moves this month's lines
+ * past any step just switched off (forward only, and never a line holding a supplier's proposed
+ * rate, which still waits for a buyer), each move logged. Without it the open month carries on
+ * as it started.
+ */
+export async function setRrsmCountrySteps(
+  code: string,
+  steps: { supplier: boolean; ops: boolean },
+  applyToOpenCycle: boolean,
+): Promise<RrsmActionResult & { moved?: number }> {
+  try {
+    const admin = await requireRrsmAdmin();
+    const target = String(code ?? '').trim();
+    if (!target) return { success: false, error: 'No country given.' };
+    const next: CycleSteps = { supplier: Boolean(steps?.supplier), ops: Boolean(steps?.ops) };
+
+    const client = await rrsmPool.connect();
+    let moved = 0;
+    try {
+      await client.query('BEGIN');
+      const { rowCount } = await client.query(
+        `UPDATE rrsm_countries SET supplier_validation = $2, ops_validation = $3 WHERE code = $1`,
+        [target, next.supplier, next.ops],
+      );
+      if (!rowCount) {
+        await client.query('ROLLBACK');
+        return { success: false, error: 'No such country.' };
+      }
+
+      if (applyToOpenCycle) {
+        const { rows } = await client.query<QueryResultRow>(
+          `SELECT l.id, l.cycle_id, l.stage, (l.change_status = 'pending') AS pending
+             FROM rrsm_cycle_lines l JOIN rrsm_cycles c ON c.id = l.cycle_id
+            WHERE c.country_code = $1 AND c.status = 'open'
+              AND l.stage IN ('awaiting_supplier', 'submitted')
+            FOR UPDATE OF l`,
+          [target],
+        );
+        for (const r of rows) {
+          const to = fastForward(next, String(r.stage) as CycleStage, Boolean(r.pending));
+          if (!to) continue;
+          await client.query(
+            `UPDATE rrsm_cycle_lines
+                SET stage = $2,
+                    validated_by = CASE WHEN $2 = 'validated' THEN $3 ELSE validated_by END,
+                    validated_at = CASE WHEN $2 = 'validated' THEN NOW() ELSE validated_at END,
+                    updated_at = NOW()
+              WHERE id = $1`,
+            [Number(r.id), to, admin],
+          );
+          await client.query(
+            `INSERT INTO rrsm_activity_log (cycle_line_id, cycle_id, actor, action, from_stage, to_stage, note)
+             VALUES ($1, $2, $3, $4, $5, $4, $6)`,
+            [
+              Number(r.id),
+              Number(r.cycle_id),
+              admin,
+              to,
+              String(r.stage),
+              `Validation steps changed for the country: ${describeSteps(next)}`,
+            ],
+          );
+          moved++;
+        }
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    log.info('country.steps', { code: target, ...next, applyToOpenCycle, moved, by: admin });
+    return { success: true, moved };
+  } catch (err) {
+    log.error('setRrsmCountrySteps.failed', err, { code });
     return { success: false, error: (err as Error).message };
   }
 }

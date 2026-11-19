@@ -82,8 +82,20 @@ export function meetsNeed(need: RrsmNeed, roles: RrsmRoles): boolean {
 }
 
 /** The items this reader should see, in sidebar order. */
-export function visibleNav(roles: RrsmRoles): RrsmNavItem[] {
-  return RRSM_NAV.filter((item) => meetsNeed(item.needs, roles));
+/**
+ * The pages this reader sees. A country that does not run a validation step (set per country in
+ * Admin -> RRSM) does not show that step's page at all.
+ */
+export function visibleNav(
+  roles: RrsmRoles,
+  steps: { supplier: boolean; ops: boolean } = { supplier: true, ops: true },
+): RrsmNavItem[] {
+  return RRSM_NAV.filter(
+    (item) =>
+      meetsNeed(item.needs, roles) &&
+      !(item.id === 'suppliers' && !steps.supplier) &&
+      !(item.id === 'validation' && !steps.ops),
+  );
 }
 
 /**

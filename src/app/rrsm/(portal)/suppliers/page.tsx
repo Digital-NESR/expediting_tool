@@ -1,6 +1,6 @@
 import { getRrsmScope } from '@/app/actions/rrsm/overview';
 import InvitationsPanel from '../../InvitationsPanel';
-import RrsmShell, { RrsmNoCountry } from '../../components/RrsmShell';
+import RrsmShell, { RrsmEmpty, RrsmNoCountry } from '../../components/RrsmShell';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +19,16 @@ export default async function RrsmSuppliersPage({
       title="Supplier validation"
       subtitle="Send each supplier this month's submission link, choose which documents they must upload, and see who has answered. Suppliers confirm their lines before Ops validate them."
     >
-      {!scope.country ? <RrsmNoCountry /> : <InvitationsPanel countryCode={scope.country.code} />}
+      {!scope.country ? (
+        <RrsmNoCountry />
+      ) : !scope.country.supplierValidation ? (
+        <RrsmEmpty
+          title={`${scope.country.name} does not run supplier validation`}
+          body="Suppliers are not asked to confirm their month in this country. An RRSM admin can switch it on in Admin → RRSM."
+        />
+      ) : (
+        <InvitationsPanel countryCode={scope.country.code} />
+      )}
     </RrsmShell>
   );
 }
