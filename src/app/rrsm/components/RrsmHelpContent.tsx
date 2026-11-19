@@ -132,7 +132,9 @@ function Note({ tone = 'info', children }: { tone?: 'info' | 'warn'; children: R
   return (
     <div
       className={`my-4 rounded-lg border px-4 py-3 text-[13px] leading-relaxed ${
-        warn ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-slate-200 bg-slate-50 text-slate-600'
+        warn
+          ? 'border-amber-200 bg-amber-50 text-amber-900'
+          : 'border-slate-200 bg-slate-50 text-slate-600'
       }`}
     >
       {children}
@@ -166,17 +168,20 @@ const STAGES: { label: string; who: string; detail: string }[] = [
   {
     label: 'Submitted',
     who: 'Supplier, or Ops',
-    detail: 'Somebody has stated the quantity and days. It is now a claim, not yet a confirmed fact.',
+    detail:
+      'Somebody has stated the quantity and days. It is now a claim, not yet a confirmed fact.',
   },
   {
     label: 'Validated',
     who: 'Ops',
-    detail: 'Ops confirm the claim matches what was actually on site. This is the gate before any money moves.',
+    detail:
+      'Ops confirm the claim matches what was actually on site. This is the gate before any money moves.',
   },
   {
     label: 'Closed',
     who: 'Buyer',
-    detail: 'A PO carries the line and the month is finished. Closed lines are the basis of next month’s comparison.',
+    detail:
+      'A PO carries the line and the month is finished. Closed lines are the basis of next month’s comparison.',
   },
 ];
 
@@ -198,9 +203,9 @@ function FlowTab() {
 
       <H>A line moves through four stages</H>
       <P>
-        Every rented asset or recurrent service is one line. A line is never edited backwards:
-        when something is wrong it is <b>returned</b> to whoever said it, so the record keeps who
-        stated what.
+        Every rented asset or recurrent service is one line. A line is never edited backwards: when
+        something is wrong it is <b>returned</b> to whoever said it, so the record keeps who stated
+        what.
       </P>
       <div className="my-5 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
         {STAGES.map((s, i) => (
@@ -264,8 +269,8 @@ function FlowTab() {
             does not match.
           </>,
           <>
-            <b>The buyer</b> raises the PR and PO in SAP, records the numbers and the invoice against
-            each validated line, and closes the month.
+            <b>The buyer</b> raises the PR and PO in SAP, records the numbers and the invoice
+            against each validated line, and closes the month.
           </>,
           <>
             Alongside all of that, <b>renewals</b> run on their own annual clock, and RRSM emails
@@ -301,8 +306,16 @@ function FlowTab() {
           <tbody className="text-slate-600">
             {[
               ['Supplier', 'Stating what was on hire', 'See anyone else’s data, or change a rate'],
-              ['Ops', 'On hire, days, quantity, notes, validation', 'Raise a PO, or decide a renewal'],
-              ['Buyer', 'PR, PO, SAP status, invoice, closing, renewals', 'Change what Ops validated'],
+              [
+                'Ops',
+                'On hire, days, quantity, notes, validation',
+                'Raise a PO, or decide a renewal',
+              ],
+              [
+                'Buyer',
+                'PR, PO, SAP status, invoice, closing, renewals',
+                'Change what Ops validated',
+              ],
               ['Admin', 'Countries, people, going live', '—'],
             ].map(([a, b, c]) => (
               <tr key={a} className="border-t border-slate-100">
@@ -380,8 +393,8 @@ function SupplierTab() {
             days and quantity showing what was used up to that point.
           </>,
           <>
-            <b>Days and quantity</b> — what was actually used, not what was contracted. A vehicle off
-            the road for a fortnight is not a full month.
+            <b>Days and quantity</b> — what was actually used, not what was contracted. A vehicle
+            off the road for a fortnight is not a full month.
           </>,
           <>
             <b>Note</b> — optional, but the fastest way to stop a query. One line is enough.
@@ -432,7 +445,7 @@ function OpsTab() {
 
       <H>2 · Invite the suppliers</H>
       <P>
-        <b>Supplier invitations</b> in the sidebar lists everyone with lines this month and shows
+        <b>Supplier validation</b> in the sidebar lists everyone with lines this month and shows
         where each one has got to.
       </P>
       <Shot
@@ -451,8 +464,8 @@ function OpsTab() {
 
       <H>3 · Validate what came back</H>
       <P>
-        <b>Ops validation</b> is your working screen. Each line shows the quantity and
-        days claimed, the value that produces, and how it compares to last month.
+        <b>Ops validation</b> is your working screen. Each line shows the quantity and days claimed,
+        the value that produces, and how it compares to last month.
       </P>
       <Shot
         src="/help/rrsm/board-ops.jpg"
@@ -518,8 +531,8 @@ function BuyerTab() {
 
       <H>1 · Work from what Ops validated</H>
       <P>
-        <b>PR &amp; PO</b> shows the same lines from your side. A line you cannot act
-        on yet has not been validated.
+        <b>PR &amp; PO</b> shows the same lines from your side. A line you cannot act on yet has not
+        been validated.
       </P>
       <Shot
         src="/help/rrsm/board-buyer.jpg"
@@ -532,8 +545,8 @@ function BuyerTab() {
         items={[
           <>Raise the PR and PO in SAP as you normally would. RRSM does not do this for you.</>,
           <>
-            Record the <b>PR</b> and <b>PO</b> numbers against the line, and set the <b>SAP status</b>{' '}
-            to match ERP.
+            Record the <b>PR</b> and <b>PO</b> numbers against the line, and set the{' '}
+            <b>SAP status</b> to match ERP.
           </>,
           <>
             Enter the <b>invoice</b> value. RRSM flags it against the line’s own total, so a
@@ -566,8 +579,9 @@ function BuyerTab() {
       <Steps
         items={[
           <>
-            <b>Extend 12 months</b> — the end date moves twelve months from <i>the date it was
-            due</i>, not from today, so a late decision does not walk the anniversary forward.
+            <b>Extend 12 months</b> — the end date moves twelve months from{' '}
+            <i>the date it was due</i>, not from today, so a late decision does not walk the
+            anniversary forward.
           </>,
           <>
             <b>Extend with scope change</b> — same twelve months; what changes is the line itself,
@@ -609,8 +623,8 @@ function BuyerTab() {
             requester on the line are the people reminded.
           </>,
           <>
-            <b>Off hire</b> a line when the asset has gone for good; the line stays on record and the
-            next month leaves it out. For a single month it was not used, Ops untick On hire
+            <b>Off hire</b> a line when the asset has gone for good; the line stays on record and
+            the next month leaves it out. For a single month it was not used, Ops untick On hire
             instead.
           </>,
           <>

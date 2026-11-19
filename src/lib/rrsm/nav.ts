@@ -36,7 +36,7 @@ export const RRSM_NAV: readonly RrsmNavItem[] = [
   {
     id: 'suppliers',
     path: '/rrsm/suppliers',
-    label: 'Supplier invitations',
+    label: 'Supplier validation',
     group: 'cycle',
     needs: 'any',
   },

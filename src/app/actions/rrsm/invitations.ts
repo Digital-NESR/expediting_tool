@@ -118,8 +118,12 @@ export async function getRrsmInvitations(countryCode: string): Promise<Invitatio
               COUNT(l.id)::int AS lines,
               COUNT(l.id) FILTER (WHERE l.stage IN ('awaiting_supplier', 'returned'))::int AS awaiting,
               lk.token, lk.sent_at, lk.sent_to, lk.submitted_at,
-              COALESCE(lk.requires_delivery_note, false) AS requires_dn,
-              COALESCE(lk.requires_timesheet, false) AS requires_ts,
+              /* A link carries what this cycle asks for; before there is one, the supplier's own
+                 default (remembered from the last time a buyer changed it) is what will be asked. */
+              CASE WHEN lk.id IS NULL THEN sup.requires_delivery_note
+                   ELSE lk.requires_delivery_note END AS requires_dn,
+              CASE WHEN lk.id IS NULL THEN sup.requires_timesheet
+                   ELSE lk.requires_timesheet END AS requires_ts,
               (SELECT COALESCE(json_agg(json_build_object('id', d.id, 'kind', d.kind, 'fileName', d.file_name)
                                 ORDER BY d.kind), '[]'::json)
                  FROM rrsm_submission_documents d WHERE d.link_id = lk.id) AS documents
@@ -130,6 +134,7 @@ export async function getRrsmInvitations(countryCode: string): Promise<Invitatio
                 ON lk.cycle_id = l.cycle_id AND lk.supplier_code = s.supplier_code
         WHERE l.cycle_id = $1
         GROUP BY s.supplier_code, sup.name, sup.contact_emails,
+                 sup.requires_delivery_note, sup.requires_timesheet,
                  lk.id, lk.token, lk.sent_at, lk.sent_to, lk.submitted_at,
                  lk.requires_delivery_note, lk.requires_timesheet
         ORDER BY sup.name`,
@@ -194,7 +199,6 @@ export async function getRrsmInvitations(countryCode: string): Promise<Invitatio
 export async function sendRrsmInvitations(
   cycleId: number,
   supplierCodes: string[],
-  requires?: { deliveryNote?: boolean; timesheet?: boolean },
 ): Promise<InviteResult> {
   try {
     const id = Number(cycleId);
@@ -219,7 +223,8 @@ export async function sendRrsmInvitations(
     /* The supplier must actually be on this cycle. Without this, a code typed into the payload
        would mint a link for somebody who has nothing to confirm. */
     const { rows: eligible } = await rrsmPool.query<QueryResultRow>(
-      `SELECT DISTINCT s.supplier_code, sup.name, sup.contact_emails
+      `SELECT DISTINCT s.supplier_code, sup.name, sup.contact_emails,
+              sup.requires_delivery_note, sup.requires_timesheet
          FROM rrsm_cycle_lines l
          JOIN rrsm_service_lines s ON s.id = l.service_line_id
          JOIN rrsm_suppliers sup   ON sup.code = s.supplier_code
@@ -239,8 +244,8 @@ export async function sendRrsmInvitations(
 
       // The link exists either way; only the mail depends on there being somewhere to send it.
       const { rows: linkRows } = await rrsmPool.query<QueryResultRow>(
-        /* The documents this invitation asks for are set on every send, so re-sending with a
-         different choice changes what the supplier is asked for (until they have submitted). */
+        /* The documents asked for are the supplier's defaults, set on every send, so a re-send
+           picks up a change (until the supplier has submitted). */
         `INSERT INTO rrsm_supplier_links (cycle_id, supplier_code, requires_delivery_note, requires_timesheet)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (cycle_id, supplier_code) DO UPDATE
@@ -249,7 +254,7 @@ export async function sendRrsmInvitations(
                requires_timesheet = CASE WHEN rrsm_supplier_links.submitted_at IS NULL
                  THEN EXCLUDED.requires_timesheet ELSE rrsm_supplier_links.requires_timesheet END
          RETURNING id, token`,
-        [id, code, Boolean(requires?.deliveryNote), Boolean(requires?.timesheet)],
+        [id, code, Boolean(s.requires_delivery_note), Boolean(s.requires_timesheet)],
       );
       const link = linkRows[0];
 
@@ -298,6 +303,66 @@ export async function sendRrsmInvitations(
     return { success: true, sent, failed };
   } catch (err) {
     log.error('sendRrsmInvitations.failed', err, { cycleId });
+    return { success: false, error: (err as Error).message };
+  }
+}
+
+/**
+ * Set which documents one or more suppliers must upload: the Supplier validation page's per-row
+ * ticks, and the common ticks that apply to every supplier listed.
+ *
+ * Written to the supplier, so it is remembered for the next cycle, and to this cycle's link where
+ * one exists and the supplier has not submitted, so a supplier already invited sees the change
+ * on their page straight away. Only suppliers with lines on the cycle are touched.
+ */
+export async function setRrsmDocRequirements(
+  cycleId: number,
+  supplierCodes: string[],
+  change: { deliveryNote?: boolean; timesheet?: boolean },
+): Promise<{ success: boolean; error?: string; updated?: number }> {
+  try {
+    const id = Number(cycleId);
+    const country = await countryOfCycle(id);
+    const actor = await actorOrThrow();
+    if (!canAccessCountry(actor, country, 'buyer') || !canSendIn(actor, country)) {
+      return { success: false, error: 'Only a buyer or an admin sets what suppliers upload.' };
+    }
+    const wanted = (supplierCodes ?? []).map((c) => String(c).trim()).filter(Boolean);
+    const dn = typeof change?.deliveryNote === 'boolean' ? change.deliveryNote : null;
+    const ts = typeof change?.timesheet === 'boolean' ? change.timesheet : null;
+    if (!wanted.length || (dn === null && ts === null)) return { success: true, updated: 0 };
+
+    const client = await rrsmPool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query<QueryResultRow>(
+        `UPDATE rrsm_suppliers sup
+            SET requires_delivery_note = COALESCE($3, sup.requires_delivery_note),
+                requires_timesheet     = COALESCE($4, sup.requires_timesheet)
+          WHERE sup.code = ANY($2)
+            AND EXISTS (SELECT 1 FROM rrsm_cycle_lines l
+                          JOIN rrsm_service_lines s ON s.id = l.service_line_id
+                         WHERE l.cycle_id = $1 AND s.supplier_code = sup.code)
+          RETURNING sup.code`,
+        [id, wanted, dn, ts],
+      );
+      await client.query(
+        `UPDATE rrsm_supplier_links
+            SET requires_delivery_note = COALESCE($3, requires_delivery_note),
+                requires_timesheet     = COALESCE($4, requires_timesheet)
+          WHERE cycle_id = $1 AND supplier_code = ANY($2) AND submitted_at IS NULL`,
+        [id, rows.map((r) => String(r.code)), dn, ts],
+      );
+      await client.query('COMMIT');
+      return { success: true, updated: rows.length };
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    log.error('setRrsmDocRequirements.failed', err, { cycleId });
     return { success: false, error: (err as Error).message };
   }
 }

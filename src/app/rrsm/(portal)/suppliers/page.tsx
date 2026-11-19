@@ -16,7 +16,7 @@ export default async function RrsmSuppliersPage({
   return (
     <RrsmShell
       scope={scope}
-      title="Supplier invitations"
+      title="Supplier validation"
       subtitle="Send each supplier this month's submission link, choose which documents they must upload, and see who has answered. Suppliers confirm their lines before Ops validate them."
     >
       {!scope.country ? <RrsmNoCountry /> : <InvitationsPanel countryCode={scope.country.code} />}

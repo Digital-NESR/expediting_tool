@@ -1,24 +1,25 @@
 'use client';
 
 /* ─────────────────────────────────────────────────────────────
-   RRSM · asking suppliers to confirm their month.
+   RRSM · Supplier validation: asking suppliers to confirm their
+   month.
 
-   The step between opening a cycle and anything arriving. One row
-   per supplier with lines on the cycle, showing how far their
-   invitation has got: never asked, asked and waiting, or done.
+   One row per supplier with lines on the cycle, showing how far
+   their invitation has got: never asked, asked and waiting, or
+   done. The three states are kept visibly apart because a chase
+   turns on the difference.
 
-   The three states are kept visibly apart because a chase turns
-   on the difference. "Nobody has asked them" and "they are
-   ignoring us" look identical on a list that only counts
-   submissions, and they call for opposite actions.
+   Documents: each supplier has its own Delivery Note / Timesheet
+   ticks, remembered for the next cycle, and the ticks in the
+   toolbar set them for everyone listed at once. Buyers send;
+   Ops see the same page read-only.
    ───────────────────────────────────────────────────────────── */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Check,
   Copy,
-  FileText,
   Loader2,
   Mail,
   MailCheck,
@@ -28,19 +29,32 @@ import {
 import {
   getRrsmInvitations,
   sendRrsmInvitations,
+  setRrsmDocRequirements,
   type InvitationBoard,
   type InvitationRow,
 } from '@/app/actions/rrsm/invitations';
-import { DOC_KINDS, DOC_LABEL } from '@/lib/rrsm/submission';
+import { DOC_LABEL, type DocKind } from '@/lib/rrsm/submission';
 
 const BRAND = '#307c4c';
 
+const SHORT: Record<DocKind, string> = { delivery_note: 'DN', timesheet: 'TS' };
+
+type Field = 'deliveryNote' | 'timesheet';
+const FIELD_OF: Record<DocKind, Field> = { delivery_note: 'deliveryNote', timesheet: 'timesheet' };
+
+/** '2026-11-19' → '19 Nov'. */
+function shortDate(iso: string | null): string {
+  if (!iso) return '';
+  return new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  });
+}
+
 /**
- * A board supplied instead of fetched, for `/dev-preview/rrsm-invitations` only.
- *
- * The screen needs an open cycle with lines and links on it, which does not exist until a
- * country goes live. With `preview` set the panel renders what it is given and makes no server
- * call, so the buttons do nothing.
+ * A board supplied instead of fetched, for `/dev-preview/rrsm-invitations` only. With `preview`
+ * set the panel renders what it is given and makes no server call.
  */
 export default function InvitationsPanel({
   countryCode,
@@ -58,9 +72,6 @@ export default function InvitationsPanel({
     failed: { supplier: string; reason: string }[];
   } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  /* What the next send asks for. Both by default: the buyer unticks what a supplier does not owe. */
-  const [requireDn, setRequireDn] = useState(true);
-  const [requireTs, setRequireTs] = useState(true);
 
   useEffect(() => {
     if (preview) return;
@@ -74,6 +85,8 @@ export default function InvitationsPanel({
   }, [countryCode, preview]);
 
   const rows = useMemo(() => board?.rows ?? [], [board]);
+  /* A submitted supplier's documents are settled; only the others can still be changed. */
+  const editable = useMemo(() => rows.filter((r) => !r.submittedAt), [rows]);
 
   const counts = useMemo(
     () => ({
@@ -84,9 +97,13 @@ export default function InvitationsPanel({
     [rows],
   );
 
-  /* Default selection: everyone who has not submitted and has somewhere to send to. A resend is
-     a deliberate act, so a supplier already chased is not ticked by habit. */
-  function selectUnasked() {
+  /* One button: with nothing ticked it selects everyone not yet asked (a resend is deliberate,
+     so a supplier already chased is not ticked by habit); with anything ticked it clears. */
+  function toggleSelection() {
+    if (picked.size) {
+      setPicked(new Set());
+      return;
+    }
     setPicked(
       new Set(
         rows
@@ -105,15 +122,32 @@ export default function InvitationsPanel({
     });
   }
 
+  /** Set a document requirement for some suppliers: shown at once, saved, undone if refused. */
+  async function setRequirement(codes: string[], field: Field, value: boolean) {
+    if (!board?.cycleId || !codes.length) return;
+    const before = board;
+    const touched = new Set(codes);
+    setBoard({
+      ...board,
+      rows: board.rows.map((r) =>
+        touched.has(r.supplierCode) ? { ...r, requires: { ...r.requires, [field]: value } } : r,
+      ),
+    });
+    setError('');
+    if (preview) return;
+    const r = await setRrsmDocRequirements(board.cycleId, codes, { [field]: value });
+    if (!r.success) {
+      setBoard(before);
+      setError(r.error ?? 'That change was not saved.');
+    }
+  }
+
   async function send() {
     if (!board?.cycleId || !picked.size) return;
     setBusy(true);
     setError('');
     setResult(null);
-    const r = await sendRrsmInvitations(board.cycleId, [...picked], {
-      deliveryNote: requireDn,
-      timesheet: requireTs,
-    });
+    const r = await sendRrsmInvitations(board.cycleId, [...picked]);
     if (!r.success) {
       setError(r.error ?? 'That did not work.');
     } else {
@@ -157,49 +191,49 @@ export default function InvitationsPanel({
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <p className="text-[13.5px] text-slate-600">
+      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+        <p className="whitespace-nowrap text-[13.5px] text-slate-600">
           <b className="text-slate-900">{counts.never}</b> not asked ·{' '}
           <b className="text-slate-900">{counts.waiting}</b> waiting ·{' '}
           <b className="text-slate-900">{counts.done}</b> submitted
         </p>
         <div className="flex-1" />
-        {board.canSend && (
-          <fieldset className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] text-slate-700">
-            <legend className="sr-only">Documents the supplier must upload</legend>
-            <span className="font-semibold text-slate-500">Must upload:</span>
-            <label className="inline-flex items-center gap-1.5">
-              <input
-                type="checkbox"
-                checked={requireDn}
-                onChange={(e) => setRequireDn(e.target.checked)}
-                className="h-4 w-4 accent-[#307c4c]"
+
+        {board.canSend && editable.length > 0 && (
+          <div className="flex items-center gap-3 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] text-slate-700">
+            <span className="font-semibold text-slate-500">Everyone must upload:</span>
+            {(['delivery_note', 'timesheet'] as DocKind[]).map((kind) => (
+              <AllTick
+                key={kind}
+                label={DOC_LABEL[kind]}
+                on={editable.filter((r) => r.requires[FIELD_OF[kind]]).length}
+                of={editable.length}
+                onChange={(v) =>
+                  void setRequirement(
+                    editable.map((r) => r.supplierCode),
+                    FIELD_OF[kind],
+                    v,
+                  )
+                }
               />
-              {DOC_LABEL.delivery_note}
-            </label>
-            <label className="inline-flex items-center gap-1.5">
-              <input
-                type="checkbox"
-                checked={requireTs}
-                onChange={(e) => setRequireTs(e.target.checked)}
-                className="h-4 w-4 accent-[#307c4c]"
-              />
-              {DOC_LABEL.timesheet}
-            </label>
-          </fieldset>
+            ))}
+          </div>
         )}
-        <button
-          onClick={selectUnasked}
-          disabled={!counts.never}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-[12.5px] font-semibold text-slate-700 disabled:opacity-40"
-        >
-          Select everyone not asked
-        </button>
+
+        {board.canSend && (
+          <button
+            onClick={toggleSelection}
+            disabled={!picked.size && !counts.never}
+            className="whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-slate-700 disabled:opacity-40"
+          >
+            {picked.size ? `Deselect all (${picked.size})` : 'Select everyone not asked'}
+          </button>
+        )}
         <button
           onClick={() => void send()}
           disabled={!picked.size || busy || !board.canSend}
           title={board.canSend ? undefined : 'Only a buyer or an admin sends invitations'}
-          className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-40"
+          className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-40"
           style={{ background: BRAND }}
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -231,15 +265,29 @@ export default function InvitationsPanel({
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[46rem] text-[13px]">
+          <table className="w-full min-w-[60rem] table-fixed text-[13px]">
+            <colgroup>
+              <col className="w-10" />
+              <col />
+              <col className="w-14" />
+              <col className="w-[15rem]" />
+              <col className="w-28" />
+              <col className="w-28" />
+              <col className="w-20" />
+            </colgroup>
             <thead>
               <tr className="bg-slate-50 text-[10.5px] uppercase tracking-wider text-slate-400">
-                <th className="w-10 px-3 py-2.5"></th>
+                <th className="px-3 py-2.5"></th>
                 <th className="px-3 py-2.5 text-left font-semibold">Supplier</th>
                 <th className="px-2 py-2.5 text-right font-semibold">Lines</th>
                 <th className="px-3 py-2.5 text-left font-semibold">Goes to</th>
                 <th className="px-3 py-2.5 text-left font-semibold">State</th>
-                <th className="px-3 py-2.5 text-left font-semibold">Documents</th>
+                <th
+                  className="px-3 py-2.5 text-left font-semibold"
+                  title="DN = Delivery Note, TS = Timesheet. Ticked = the supplier must upload it."
+                >
+                  Must upload
+                </th>
                 <th className="px-3 py-2.5 text-right font-semibold">Link</th>
               </tr>
             </thead>
@@ -253,6 +301,7 @@ export default function InvitationsPanel({
                   onCopy={copy}
                   copied={copied === r.supplierCode}
                   canSend={board.canSend}
+                  onRequire={(field, v) => void setRequirement([r.supplierCode], field, v)}
                 />
               ))}
               {!rows.length && (
@@ -266,7 +315,44 @@ export default function InvitationsPanel({
           </table>
         </div>
       </div>
+      <p className="mt-2 text-[11.5px] text-slate-400">
+        DN = Delivery Note, TS = Timesheet. A supplier&rsquo;s ticks are remembered for next month.
+      </p>
     </div>
+  );
+}
+
+/** The toolbar tick that sets one document for every supplier; half-ticked when they differ. */
+function AllTick({
+  label,
+  on,
+  of,
+  onChange,
+}: {
+  label: string;
+  on: number;
+  of: number;
+  onChange: (v: boolean) => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const mixed = on > 0 && on < of;
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = mixed;
+  }, [mixed]);
+  return (
+    <label
+      className="inline-flex items-center gap-1.5"
+      title={mixed ? `${on} of ${of}` : undefined}
+    >
+      <input
+        ref={ref}
+        type="checkbox"
+        checked={on === of && of > 0}
+        onChange={() => onChange(!(on === of))}
+        className="h-4 w-4 accent-[#307c4c]"
+      />
+      {label}
+    </label>
   );
 }
 
@@ -277,6 +363,7 @@ function Row({
   onCopy,
   copied,
   canSend,
+  onRequire,
 }: {
   row: InvitationRow;
   picked: boolean;
@@ -284,12 +371,14 @@ function Row({
   onCopy: (url: string, code: string) => void;
   copied: boolean;
   canSend: boolean;
+  onRequire: (field: Field, value: boolean) => void;
 }) {
   const noAddress = row.contacts.length === 0;
+  const to = row.sentAt && row.sentTo.length ? row.sentTo : row.contacts;
 
   return (
-    <tr className="border-t border-slate-100">
-      <td className="px-3 py-2.5">
+    <tr className="border-t border-slate-100 align-middle">
+      <td className="px-3 py-2">
         <input
           type="checkbox"
           checked={picked}
@@ -300,62 +389,98 @@ function Row({
         />
       </td>
 
-      <td className="px-3 py-2.5">
-        <div className="font-medium text-slate-800">{row.supplierName}</div>
+      <td className="px-3 py-2">
+        <div className="truncate font-medium text-slate-800" title={row.supplierName}>
+          {row.supplierName}
+        </div>
         <div className="font-mono text-[10.5px] text-slate-400">{row.supplierCode}</div>
       </td>
 
-      <td className="px-2 py-2.5 text-right font-mono text-[12.5px] text-slate-600">
+      <td className="px-2 py-2 text-right font-mono text-[12.5px] text-slate-600">
         {row.lines}
         {row.awaiting > 0 && row.awaiting !== row.lines && (
-          <span className="ml-1 text-[11px] text-amber-700">({row.awaiting} open)</span>
+          <div className="text-[10.5px] text-amber-700">{row.awaiting} open</div>
         )}
       </td>
 
-      <td className="px-3 py-2.5">
+      <td className="px-3 py-2">
         {noAddress ? (
-          <span className="inline-flex items-center gap-1 text-[12px] text-amber-700">
+          <span className="inline-flex items-center gap-1 whitespace-nowrap text-[12px] text-amber-700">
             <AlertTriangle className="h-3.5 w-3.5" /> No address on file
           </span>
         ) : (
-          <span className="font-mono text-[11.5px] text-slate-500">{row.contacts.join(', ')}</span>
-        )}
-      </td>
-
-      <td className="px-3 py-2.5">
-        {row.submittedAt ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e6f1ea] px-2 py-0.5 text-[11px] font-semibold text-[#1d4f31]">
-            <Check className="h-3 w-3" /> Submitted {row.submittedAt}
-          </span>
-        ) : row.sentAt ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
-            <MailCheck className="h-3 w-3" /> Sent {row.sentAt}
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
-            <Mail className="h-3 w-3" /> Not asked
-          </span>
-        )}
-        {row.sentAt && !row.submittedAt && row.sentTo.length > 0 && (
-          <div className="mt-0.5 font-mono text-[10.5px] text-slate-400">
-            to {row.sentTo.join(', ')}
+          <div className="truncate font-mono text-[11.5px] text-slate-500" title={to.join(', ')}>
+            {to[0]}
+            {to.length > 1 && <span className="text-slate-400"> +{to.length - 1}</span>}
           </div>
         )}
       </td>
 
-      <td className="px-3 py-2.5">
-        <Documents row={row} />
+      <td className="px-3 py-2">
+        {row.submittedAt ? (
+          <Chip tone="good" icon={<Check className="h-3 w-3" />}>
+            Done {shortDate(row.submittedAt)}
+          </Chip>
+        ) : row.sentAt ? (
+          <Chip tone="warn" icon={<MailCheck className="h-3 w-3" />}>
+            Sent {shortDate(row.sentAt)}
+          </Chip>
+        ) : (
+          <Chip tone="plain" icon={<Mail className="h-3 w-3" />}>
+            Not asked
+          </Chip>
+        )}
       </td>
 
-      <td className="px-3 py-2.5 text-right">
+      <td className="px-3 py-2">
+        <div className="flex items-center gap-1.5">
+          {(['delivery_note', 'timesheet'] as DocKind[]).map((kind) => {
+            const doc = row.documents.find((d) => d.kind === kind);
+            const required = row.requires[FIELD_OF[kind]];
+            if (doc) {
+              return (
+                <a
+                  key={kind}
+                  href={`/api/rrsm/documents/${doc.id}`}
+                  title={`${DOC_LABEL[kind]} uploaded: ${doc.fileName}`}
+                  className="inline-flex items-center gap-0.5 rounded bg-[#e6f1ea] px-1.5 py-0.5 text-[11px] font-semibold text-[#1d4f31] hover:underline"
+                >
+                  <Check className="h-3 w-3" />
+                  {SHORT[kind]}
+                </a>
+              );
+            }
+            return (
+              <label
+                key={kind}
+                title={`${DOC_LABEL[kind]}: ${required ? 'required' : 'not required'}`}
+                className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold ${
+                  required ? 'bg-amber-50 text-amber-800' : 'bg-slate-50 text-slate-400'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={required}
+                  disabled={!canSend || Boolean(row.submittedAt)}
+                  onChange={(e) => onRequire(FIELD_OF[kind], e.target.checked)}
+                  className="h-3.5 w-3.5 accent-[#307c4c]"
+                />
+                {SHORT[kind]}
+              </label>
+            );
+          })}
+        </div>
+      </td>
+
+      <td className="px-3 py-2 text-right">
         {row.url ? (
           <button
             onClick={() => onCopy(row.url!, row.supplierCode)}
-            className="inline-flex items-center gap-1 rounded border border-slate-200 px-2 py-1 text-[11.5px] font-medium text-slate-600 hover:bg-slate-50"
+            className="inline-flex items-center gap-1 whitespace-nowrap rounded border border-slate-200 px-2 py-1 text-[11.5px] font-medium text-slate-600 hover:bg-slate-50"
             title={row.url}
           >
             {copied ? <Check className="h-3 w-3 text-[#1d4f31]" /> : <Copy className="h-3 w-3" />}
-            {copied ? 'Copied' : 'Copy link'}
+            {copied ? 'Copied' : 'Copy'}
           </button>
         ) : (
           <span className="text-[11.5px] text-slate-300">—</span>
@@ -365,37 +490,28 @@ function Row({
   );
 }
 
-/** Per kind: uploaded (a download link), required and missing, or not asked for. */
-function Documents({ row }: { row: InvitationRow }) {
-  if (!row.url) return <span className="text-[11.5px] text-slate-300">—</span>;
+function Chip({
+  tone,
+  icon,
+  children,
+}: {
+  tone: 'good' | 'warn' | 'plain';
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const cls =
+    tone === 'good'
+      ? 'bg-[#e6f1ea] text-[#1d4f31]'
+      : tone === 'warn'
+        ? 'bg-amber-50 text-amber-800'
+        : 'bg-slate-100 text-slate-500';
   return (
-    <div className="space-y-0.5">
-      {DOC_KINDS.map((kind) => {
-        const doc = row.documents.find((d) => d.kind === kind);
-        const required =
-          kind === 'delivery_note' ? row.requires.deliveryNote : row.requires.timesheet;
-        if (doc)
-          return (
-            <a
-              key={kind}
-              href={`/api/rrsm/documents/${doc.id}`}
-              className="flex items-center gap-1 text-[11.5px] font-medium text-[#1d4f31] hover:underline"
-              title={doc.fileName}
-            >
-              <FileText className="h-3 w-3 shrink-0" />
-              <span className="truncate">{DOC_LABEL[kind]}</span>
-            </a>
-          );
-        return (
-          <div
-            key={kind}
-            className={`text-[11.5px] ${required ? 'text-amber-700' : 'text-slate-300'}`}
-          >
-            {DOC_LABEL[kind]} {required ? '· required' : '· not asked'}
-          </div>
-        );
-      })}
-    </div>
+    <span
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}`}
+    >
+      {icon}
+      {children}
+    </span>
   );
 }
 

@@ -159,7 +159,7 @@ export default function RrsmDashboardClient({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Tile
           icon={Send}
-          label="Supplier invitations"
+          label="Supplier validation"
           value={cycle ? suppliers.notInvited + suppliers.waiting : 0}
           detail={
             cycle
