@@ -8,7 +8,8 @@ import {
   visibleNav,
 } from '@/lib/rrsm/nav';
 
-const ids = (roles: { canBuy: boolean; canValidate: boolean }) => visibleNav(roles).map((i) => i.id);
+const ids = (roles: { canBuy: boolean; canValidate: boolean }) =>
+  visibleNav(roles).map((i) => i.id);
 
 describe('visibleNav', () => {
   it('shows an Ops validator the chase and validation, not PR & PO', () => {
@@ -18,11 +19,11 @@ describe('visibleNav', () => {
     expect(seen).not.toContain('purchasing');
   });
 
-  it('shows a buyer PR & PO, not the Ops pages', () => {
+  it('shows a buyer PR & PO and the invitations they send, not Ops validation', () => {
     const seen = ids({ canBuy: true, canValidate: false });
     expect(seen).toContain('purchasing');
     expect(seen).not.toContain('validation');
-    expect(seen).not.toContain('suppliers');
+    expect(seen).toContain('suppliers');
   });
 
   it('shows somebody holding both roles every page, in sidebar order', () => {

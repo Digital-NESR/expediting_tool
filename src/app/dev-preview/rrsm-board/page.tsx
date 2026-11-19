@@ -38,6 +38,9 @@ function line(partial: Partial<BoardLine> & Pick<BoardLine, 'id' | 'description'
     supplierInvoice: null,
     opsNote: '',
     previous: { qty: 1, rate: 250 },
+    supplierRate: null,
+    supplierUom: null,
+    changeStatus: null,
     ...partial,
   } as BoardLine;
 }
@@ -65,6 +68,8 @@ const BOARD: RrsmBoard = {
       code: '1101066',
       name: 'Automak Automotive Co. KSC',
       paymentTerms: 'NT30',
+      requires: { deliveryNote: true, timesheet: true },
+      documents: [{ id: 1, kind: 'delivery_note', fileName: 'DN-Nov.pdf' }],
       lines: [
         line({
           id: 1,
@@ -80,6 +85,9 @@ const BOARD: RrsmBoard = {
           rate: 275,
           previous: { qty: 1, rate: 250 },
           opsNote: 'Rate renegotiated from 1 Nov',
+          supplierRate: 290,
+          supplierUom: 'day',
+          changeStatus: 'pending',
         }),
         line({
           id: 3,
@@ -121,6 +129,8 @@ const BOARD: RrsmBoard = {
       code: '1103542',
       name: 'Palisade Security Services',
       paymentTerms: 'NT90',
+      requires: { deliveryNote: false, timesheet: false },
+      documents: [],
       lines: [
         line({
           id: 6,

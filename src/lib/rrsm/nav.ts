@@ -30,15 +30,34 @@ export interface RrsmNavItem {
 
 export const RRSM_NAV: readonly RrsmNavItem[] = [
   { id: 'dashboard', path: '/rrsm', label: 'Dashboard', group: 'overview', needs: 'any' },
-  /* Ops own the first half of the month and the supplier chase; the buyer owns the second half.
-     Listed in the order the month runs, so the sidebar reads as the process. */
-  { id: 'suppliers', path: '/rrsm/suppliers', label: 'Supplier invitations', group: 'cycle', needs: 'validate' },
-  { id: 'validation', path: '/rrsm/validation', label: 'Ops validation', group: 'cycle', needs: 'validate' },
+  /* Listed in the order the month runs, so the sidebar reads as the process. */
+  /* Buyers send the invitations (and choose which documents each supplier must upload); Ops see
+     where each supplier has got to, since their validation waits on it. */
+  {
+    id: 'suppliers',
+    path: '/rrsm/suppliers',
+    label: 'Supplier invitations',
+    group: 'cycle',
+    needs: 'any',
+  },
+  {
+    id: 'validation',
+    path: '/rrsm/validation',
+    label: 'Ops validation',
+    group: 'cycle',
+    needs: 'validate',
+  },
   { id: 'purchasing', path: '/rrsm/purchasing', label: 'PR & PO', group: 'cycle', needs: 'buy' },
   /* Visible to both roles: a validator should see what is running out even though only a buyer
      may commit to another year of it. */
   { id: 'renewals', path: '/rrsm/renewals', label: 'Renewals', group: 'records', needs: 'any' },
-  { id: 'register', path: '/rrsm/register', label: 'Service register', group: 'records', needs: 'any' },
+  {
+    id: 'register',
+    path: '/rrsm/register',
+    label: 'Service register',
+    group: 'records',
+    needs: 'any',
+  },
   { id: 'history', path: '/rrsm/history', label: 'Cycle history', group: 'records', needs: 'any' },
   { id: 'help', path: '/rrsm/help', label: 'Help & Training', group: 'support', needs: 'any' },
 ];

@@ -14,6 +14,13 @@ import {
   type SubmissionTarget,
 } from '@/lib/rrsm/supplier-access';
 import { sendRrsmMail, supplierCodeMail, supplierSubmittedMail } from '@/lib/rrsm/notify';
+import {
+  DOC_LABEL,
+  checkDoc,
+  missingDocs,
+  proposalAgainst,
+  type DocKind,
+} from '@/lib/rrsm/submission';
 
 /**
  * The supplier's half of the cycle, reached by an emailed link and no NESR account.
@@ -46,6 +53,13 @@ export interface SupplierLine {
   previousQty: number | null;
   stage: string;
   remarks: string;
+  /** The agreed rate for this month, which the cost is worked out from. */
+  rate: number | null;
+  /** What the supplier has proposed instead, if anything; null for no change. */
+  supplierRate: number | null;
+  supplierUom: string | null;
+  /** Set once the supplier has submitted a proposal, and again when a buyer decides on it. */
+  changeStatus: 'pending' | 'accepted' | 'rejected' | null;
 }
 
 export interface SupplierView {
@@ -62,6 +76,12 @@ export interface SupplierView {
   verifiedAs: string | null;
   lines: SupplierLine[];
   codeTtlSeconds: number;
+  currency: string;
+  /** Pricing units a supplier may choose from. */
+  uoms: { code: string; label: string }[];
+  /** Which documents this invitation asks for, and what is uploaded. Only after verification. */
+  requires: { deliveryNote: boolean; timesheet: boolean };
+  documents: { kind: DocKind; fileName: string; uploadedAt: string }[];
 }
 
 const DENIED: SupplierView = {
@@ -76,6 +96,10 @@ const DENIED: SupplierView = {
   verifiedAs: null,
   lines: [],
   codeTtlSeconds: CODE_TTL_SECONDS,
+  currency: '',
+  uoms: [],
+  requires: { deliveryNote: false, timesheet: false },
+  documents: [],
 };
 
 /** Resolve the link, and the lines only once a session proves who is holding it. */
@@ -104,6 +128,9 @@ export async function getRrsmSubmission(
          stranger with a forwarded link to learn what NESR hires from them or at what quantity. */
       lines: verifiedAs ? await linesFor(t) : [],
       codeTtlSeconds: CODE_TTL_SECONDS,
+      currency: verifiedAs ? t.currency : '',
+      uoms: verifiedAs ? await uomOptions() : [],
+      ...(verifiedAs ? await documentsFor(t.linkId) : { requires: DENIED.requires, documents: [] }),
     };
   } catch (err) {
     log.error('getRrsmSubmission.failed', err);
@@ -114,7 +141,9 @@ export async function getRrsmSubmission(
 async function linesFor(t: SubmissionTarget): Promise<SupplierLine[]> {
   const { rows } = await rrsmPool.query<QueryResultRow>(
     `SELECT l.id, l.qty, l.days, l.on_hire, l.stage, COALESCE(l.remarks, '') AS remarks,
-            s.description, COALESCE(s.asset_ref, '') AS asset_ref, s.uom,
+            l.rate, l.supplier_rate, l.supplier_uom, l.change_status,
+            s.description, COALESCE(s.asset_ref, '') AS asset_ref,
+            COALESCE(l.uom, s.uom) AS uom,
             prev.qty AS prev_qty
        FROM rrsm_cycle_lines l
        JOIN rrsm_service_lines s ON s.id = l.service_line_id
@@ -141,7 +170,48 @@ async function linesFor(t: SubmissionTarget): Promise<SupplierLine[]> {
     previousQty: r.prev_qty === null || r.prev_qty === undefined ? null : Number(r.prev_qty),
     stage: String(r.stage),
     remarks: String(r.remarks ?? ''),
+    rate: r.rate === null ? null : Number(r.rate),
+    supplierRate: r.supplier_rate === null ? null : Number(r.supplier_rate),
+    supplierUom: r.supplier_uom ? String(r.supplier_uom) : null,
+    changeStatus: r.change_status
+      ? (String(r.change_status) as SupplierLine['changeStatus'])
+      : null,
   }));
+}
+
+async function uomOptions(): Promise<{ code: string; label: string }[]> {
+  const { rows } = await rrsmPool.query<QueryResultRow>(
+    `SELECT code, label FROM rrsm_uoms WHERE active ORDER BY sort_order, label`,
+  );
+  return rows.map((r) => ({ code: String(r.code), label: String(r.label) }));
+}
+
+async function documentsFor(linkId: number): Promise<{
+  requires: { deliveryNote: boolean; timesheet: boolean };
+  documents: { kind: DocKind; fileName: string; uploadedAt: string }[];
+}> {
+  const [link, docs] = await Promise.all([
+    rrsmPool.query<QueryResultRow>(
+      `SELECT requires_delivery_note, requires_timesheet FROM rrsm_supplier_links WHERE id = $1`,
+      [linkId],
+    ),
+    rrsmPool.query<QueryResultRow>(
+      `SELECT kind, file_name, uploaded_at FROM rrsm_submission_documents
+        WHERE link_id = $1 ORDER BY kind`,
+      [linkId],
+    ),
+  ]);
+  return {
+    requires: {
+      deliveryNote: Boolean(link.rows[0]?.requires_delivery_note),
+      timesheet: Boolean(link.rows[0]?.requires_timesheet),
+    },
+    documents: docs.rows.map((d) => ({
+      kind: String(d.kind) as DocKind,
+      fileName: String(d.file_name),
+      uploadedAt: d.uploaded_at instanceof Date ? d.uploaded_at.toISOString().slice(0, 10) : '',
+    })),
+  };
 }
 
 export type SupplierResult = { success: boolean; error?: string; retryAfterSeconds?: number };
@@ -220,13 +290,24 @@ export async function verifyRrsmCode(
 export async function saveRrsmSupplierLines(
   token: string,
   sessionToken: string,
-  lines: { id: number; qty: number; days: number | null; onHire: boolean; remarks?: string }[],
+  lines: {
+    id: number;
+    qty: number;
+    days: number | null;
+    onHire: boolean;
+    remarks?: string;
+    /** The rate and pricing unit the supplier says apply. Equal to the agreed ones = no change. */
+    rate?: number | null;
+    uom?: string;
+  }[],
 ): Promise<SupplierResult> {
   try {
     const t = await targetForToken(token);
     if (!t || !t.accepting) return { success: false, error: 'That link is no longer open.' };
     const email = await sessionEmailFor(t.linkId, sessionToken);
     if (!email) return { success: false, error: 'Your session has expired. Request a new code.' };
+
+    const uoms = new Set((await uomOptions()).map((u) => u.code));
 
     for (const line of lines ?? []) {
       const qty = Number(line?.qty);
@@ -237,11 +318,36 @@ export async function saveRrsmSupplierLines(
       if (days !== null && (!Number.isFinite(days) || days < 0 || days > 31)) {
         return { success: false, error: 'Days must be between 0 and 31.' };
       }
+      const rate = line?.rate === null || line?.rate === undefined ? null : Number(line.rate);
+      if (rate !== null && (!Number.isFinite(rate) || rate < 0)) {
+        return { success: false, error: 'A rate must be a number, zero or more.' };
+      }
+      const uom = String(line?.uom ?? '').trim();
+      if (uom && !uoms.has(uom)) {
+        return { success: false, error: 'Pick a pricing unit from the list.' };
+      }
+
+      /* The proposal is stored only where it differs from what was agreed for this month, so a
+         supplier who saves without touching the rate proposes nothing. The agreed terms are read
+         from the row, never taken from the browser. */
+      const { rows: agreedRows } = await rrsmPool.query<QueryResultRow>(
+        `SELECT l.rate, COALESCE(l.uom, s.uom) AS uom
+           FROM rrsm_cycle_lines l JOIN rrsm_service_lines s ON s.id = l.service_line_id
+          WHERE l.id = $1 AND l.cycle_id = $2 AND s.supplier_code = $3`,
+        [Number(line.id), t.cycleId, t.supplierCode],
+      );
+      const agreed = agreedRows[0];
+      if (!agreed) continue;
+      const proposal = proposalAgainst(
+        { rate: agreed.rate === null ? null : Number(agreed.rate), uom: String(agreed.uom) },
+        { rate, uom: uom || String(agreed.uom) },
+      );
 
       await rrsmPool.query(
         `UPDATE rrsm_cycle_lines l
             SET qty = $4, days = $5, on_hire = $6, remarks = NULLIF($7, ''),
-                submitted_by = $8, updated_at = NOW()
+                submitted_by = $8, supplier_rate = $9, supplier_uom = $10,
+                change_status = NULL, updated_at = NOW()
            FROM rrsm_service_lines s
           WHERE l.id = $1 AND l.service_line_id = s.id
             AND l.cycle_id = $2 AND s.supplier_code = $3
@@ -255,6 +361,8 @@ export async function saveRrsmSupplierLines(
           Boolean(line.onHire),
           String(line?.remarks ?? '').trim(),
           email,
+          proposal.rate,
+          proposal.uom,
         ],
       );
     }
@@ -283,15 +391,31 @@ export async function submitRrsmCycle(
     const email = await sessionEmailFor(t.linkId, sessionToken);
     if (!email) return { success: false, error: 'Your session has expired. Request a new code.' };
 
+    /* The documents this invitation asked for come first: a submission without them is not one. */
+    const { requires, documents } = await documentsFor(t.linkId);
+    const missing = missingDocs(
+      requires,
+      documents.map((d) => d.kind),
+    );
+    if (missing.length) {
+      return {
+        success: false,
+        error: `Upload the ${missing.map((k) => DOC_LABEL[k]).join(' and the ')} before submitting.`,
+      };
+    }
+
+    /* A line carrying a proposed rate or pricing unit goes to a buyer before Ops can validate it. */
     const { rows } = await rrsmPool.query<QueryResultRow>(
       `UPDATE rrsm_cycle_lines l
           SET stage = 'submitted', returned_to = NULL,
+              change_status = CASE WHEN l.supplier_rate IS NOT NULL OR l.supplier_uom IS NOT NULL
+                                   THEN 'pending' ELSE NULL END,
               submitted_by = $4, submitted_at = NOW(), updated_at = NOW()
          FROM rrsm_service_lines s
         WHERE l.service_line_id = s.id
           AND l.cycle_id = $1 AND s.supplier_code = $2
           AND l.stage IN ('awaiting_supplier', 'returned')
-        RETURNING l.id, l.qty, l.rate`,
+        RETURNING l.id, l.qty, l.rate, l.change_status`,
       [t.cycleId, t.supplierCode, t.linkId, email],
     );
 
@@ -303,8 +427,15 @@ export async function submitRrsmCycle(
     for (const r of rows) {
       await rrsmPool.query(
         `INSERT INTO rrsm_activity_log (cycle_line_id, cycle_id, actor, action, to_stage, note)
-         VALUES ($1, $2, $3, 'submitted', 'submitted', 'Submitted by the supplier')`,
-        [Number(r.id), t.cycleId, email],
+         VALUES ($1, $2, $3, 'submitted', 'submitted', $4)`,
+        [
+          Number(r.id),
+          t.cycleId,
+          email,
+          r.change_status === 'pending'
+            ? 'Submitted by the supplier with a different rate or pricing unit, for buyer review'
+            : 'Submitted by the supplier',
+        ],
       );
     }
 
@@ -339,6 +470,75 @@ export async function submitRrsmCycle(
     return { success: true, moved: rows.length };
   } catch (err) {
     log.error('submitRrsmCycle.failed', err);
+    return { success: false, error: 'Something went wrong. Try again.' };
+  }
+}
+
+/* ─── documents ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Upload the Delivery Note or the Timesheet for this month. One of each per invitation; uploading
+ * again replaces it. Takes FormData because it carries a file.
+ *
+ * Every check a public endpoint needs: the token resolves, the session proves a verified address,
+ * the link is still accepting, and the file is a permitted type and size (judged by its extension,
+ * not by what the browser claims).
+ */
+export async function uploadRrsmDocument(form: FormData): Promise<SupplierResult> {
+  try {
+    const token = String(form.get('token') ?? '');
+    const sessionToken = String(form.get('sessionToken') ?? '');
+    const kind = String(form.get('kind') ?? '') as DocKind;
+    const file = form.get('file');
+
+    const t = await targetForToken(token);
+    if (!t || !t.accepting) return { success: false, error: 'That link is no longer open.' };
+    const email = await sessionEmailFor(t.linkId, sessionToken);
+    if (!email) return { success: false, error: 'Your session has expired. Request a new code.' };
+    if (kind !== 'delivery_note' && kind !== 'timesheet') {
+      return { success: false, error: 'Unknown document.' };
+    }
+    if (!(file instanceof File)) return { success: false, error: 'Choose a file to upload.' };
+
+    const ok = checkDoc({ name: file.name, size: file.size });
+    if (!ok.ok) return { success: false, error: ok.error };
+
+    const bytes = Buffer.from(await file.arrayBuffer());
+    await rrsmPool.query(
+      `INSERT INTO rrsm_submission_documents
+         (link_id, kind, file_name, content_type, size_bytes, content, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (link_id, kind) DO UPDATE
+         SET file_name = EXCLUDED.file_name, content_type = EXCLUDED.content_type,
+             size_bytes = EXCLUDED.size_bytes, content = EXCLUDED.content,
+             uploaded_by = EXCLUDED.uploaded_by, uploaded_at = NOW()`,
+      [t.linkId, kind, ok.name, ok.contentType, bytes.length, bytes, email],
+    );
+    return { success: true };
+  } catch (err) {
+    log.error('uploadRrsmDocument.failed', err);
+    return { success: false, error: 'The upload did not go through. Try again.' };
+  }
+}
+
+/** Remove an uploaded document before submitting. */
+export async function removeRrsmDocument(
+  token: string,
+  sessionToken: string,
+  kind: DocKind,
+): Promise<SupplierResult> {
+  try {
+    const t = await targetForToken(token);
+    if (!t || !t.accepting) return { success: false, error: 'That link is no longer open.' };
+    const email = await sessionEmailFor(t.linkId, sessionToken);
+    if (!email) return { success: false, error: 'Your session has expired. Request a new code.' };
+    await rrsmPool.query(`DELETE FROM rrsm_submission_documents WHERE link_id = $1 AND kind = $2`, [
+      t.linkId,
+      String(kind),
+    ]);
+    return { success: true };
+  } catch (err) {
+    log.error('removeRrsmDocument.failed', err);
     return { success: false, error: 'Something went wrong. Try again.' };
   }
 }

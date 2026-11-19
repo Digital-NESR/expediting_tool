@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Check,
   Copy,
+  FileText,
   Loader2,
   Mail,
   MailCheck,
@@ -30,6 +31,7 @@ import {
   type InvitationBoard,
   type InvitationRow,
 } from '@/app/actions/rrsm/invitations';
+import { DOC_KINDS, DOC_LABEL } from '@/lib/rrsm/submission';
 
 const BRAND = '#307c4c';
 
@@ -56,6 +58,9 @@ export default function InvitationsPanel({
     failed: { supplier: string; reason: string }[];
   } | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  /* What the next send asks for. Both by default: the buyer unticks what a supplier does not owe. */
+  const [requireDn, setRequireDn] = useState(true);
+  const [requireTs, setRequireTs] = useState(true);
 
   useEffect(() => {
     if (preview) return;
@@ -68,7 +73,7 @@ export default function InvitationsPanel({
     };
   }, [countryCode, preview]);
 
-  const rows = board?.rows ?? [];
+  const rows = useMemo(() => board?.rows ?? [], [board]);
 
   const counts = useMemo(
     () => ({
@@ -105,7 +110,10 @@ export default function InvitationsPanel({
     setBusy(true);
     setError('');
     setResult(null);
-    const r = await sendRrsmInvitations(board.cycleId, [...picked]);
+    const r = await sendRrsmInvitations(board.cycleId, [...picked], {
+      deliveryNote: requireDn,
+      timesheet: requireTs,
+    });
     if (!r.success) {
       setError(r.error ?? 'That did not work.');
     } else {
@@ -156,6 +164,30 @@ export default function InvitationsPanel({
           <b className="text-slate-900">{counts.done}</b> submitted
         </p>
         <div className="flex-1" />
+        {board.canSend && (
+          <fieldset className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] text-slate-700">
+            <legend className="sr-only">Documents the supplier must upload</legend>
+            <span className="font-semibold text-slate-500">Must upload:</span>
+            <label className="inline-flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={requireDn}
+                onChange={(e) => setRequireDn(e.target.checked)}
+                className="h-4 w-4 accent-[#307c4c]"
+              />
+              {DOC_LABEL.delivery_note}
+            </label>
+            <label className="inline-flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={requireTs}
+                onChange={(e) => setRequireTs(e.target.checked)}
+                className="h-4 w-4 accent-[#307c4c]"
+              />
+              {DOC_LABEL.timesheet}
+            </label>
+          </fieldset>
+        )}
         <button
           onClick={selectUnasked}
           disabled={!counts.never}
@@ -166,7 +198,7 @@ export default function InvitationsPanel({
         <button
           onClick={() => void send()}
           disabled={!picked.size || busy || !board.canSend}
-          title={board.canSend ? undefined : 'Only Ops or an admin sends invitations'}
+          title={board.canSend ? undefined : 'Only a buyer or an admin sends invitations'}
           className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-40"
           style={{ background: BRAND }}
         >
@@ -207,6 +239,7 @@ export default function InvitationsPanel({
                 <th className="px-2 py-2.5 text-right font-semibold">Lines</th>
                 <th className="px-3 py-2.5 text-left font-semibold">Goes to</th>
                 <th className="px-3 py-2.5 text-left font-semibold">State</th>
+                <th className="px-3 py-2.5 text-left font-semibold">Documents</th>
                 <th className="px-3 py-2.5 text-right font-semibold">Link</th>
               </tr>
             </thead>
@@ -224,7 +257,7 @@ export default function InvitationsPanel({
               ))}
               {!rows.length && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-[13.5px] text-slate-500">
+                  <td colSpan={7} className="px-4 py-12 text-center text-[13.5px] text-slate-500">
                     No supplier has anything on hire this cycle.
                   </td>
                 </tr>
@@ -310,6 +343,10 @@ function Row({
         )}
       </td>
 
+      <td className="px-3 py-2.5">
+        <Documents row={row} />
+      </td>
+
       <td className="px-3 py-2.5 text-right">
         {row.url ? (
           <button
@@ -325,6 +362,40 @@ function Row({
         )}
       </td>
     </tr>
+  );
+}
+
+/** Per kind: uploaded (a download link), required and missing, or not asked for. */
+function Documents({ row }: { row: InvitationRow }) {
+  if (!row.url) return <span className="text-[11.5px] text-slate-300">—</span>;
+  return (
+    <div className="space-y-0.5">
+      {DOC_KINDS.map((kind) => {
+        const doc = row.documents.find((d) => d.kind === kind);
+        const required =
+          kind === 'delivery_note' ? row.requires.deliveryNote : row.requires.timesheet;
+        if (doc)
+          return (
+            <a
+              key={kind}
+              href={`/api/rrsm/documents/${doc.id}`}
+              className="flex items-center gap-1 text-[11.5px] font-medium text-[#1d4f31] hover:underline"
+              title={doc.fileName}
+            >
+              <FileText className="h-3 w-3 shrink-0" />
+              <span className="truncate">{DOC_LABEL[kind]}</span>
+            </a>
+          );
+        return (
+          <div
+            key={kind}
+            className={`text-[11.5px] ${required ? 'text-amber-700' : 'text-slate-300'}`}
+          >
+            {DOC_LABEL[kind]} {required ? '· required' : '· not asked'}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

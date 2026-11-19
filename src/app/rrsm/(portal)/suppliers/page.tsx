@@ -1,10 +1,10 @@
 import { getRrsmScope } from '@/app/actions/rrsm/overview';
 import InvitationsPanel from '../../InvitationsPanel';
-import RrsmShell, { RrsmNoCountry, RrsmNotYourRole } from '../../components/RrsmShell';
+import RrsmShell, { RrsmNoCountry } from '../../components/RrsmShell';
 
 export const dynamic = 'force-dynamic';
 
-/** Ops' chase: who has been sent this month's link, and who has answered. */
+/** The month's invitations: buyers send them, Ops and buyers see who has answered. */
 export default async function RrsmSuppliersPage({
   searchParams,
 }: {
@@ -17,15 +17,9 @@ export default async function RrsmSuppliersPage({
     <RrsmShell
       scope={scope}
       title="Supplier invitations"
-      subtitle="Send each supplier this month's submission link and see who has answered. Suppliers confirm their own lines before Ops validate them."
+      subtitle="Send each supplier this month's submission link, choose which documents they must upload, and see who has answered. Suppliers confirm their lines before Ops validate them."
     >
-      {!scope.country ? (
-        <RrsmNoCountry />
-      ) : !scope.canValidate ? (
-        <RrsmNotYourRole what="Inviting suppliers" />
-      ) : (
-        <InvitationsPanel countryCode={scope.country.code} />
-      )}
+      {!scope.country ? <RrsmNoCountry /> : <InvitationsPanel countryCode={scope.country.code} />}
     </RrsmShell>
   );
 }

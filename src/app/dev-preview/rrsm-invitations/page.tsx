@@ -33,6 +33,8 @@ const BOARD: InvitationBoard = {
       sentAt: '2026-10-26',
       sentTo: ['ahmed@automak.com', 'accounts@automak.com'],
       submittedAt: null,
+      requires: { deliveryNote: true, timesheet: true },
+      documents: [{ id: 1, kind: 'delivery_note', fileName: 'DN-Nov.pdf' }],
     },
     {
       supplierCode: '1103542',
@@ -44,6 +46,8 @@ const BOARD: InvitationBoard = {
       sentAt: '2026-10-26',
       sentTo: ['ops@palisade.com.kw'],
       submittedAt: '2026-11-03',
+      requires: { deliveryNote: true, timesheet: false },
+      documents: [{ id: 2, kind: 'delivery_note', fileName: 'Palisade-DN.pdf' }],
     },
     {
       supplierCode: '1102721',
@@ -55,6 +59,8 @@ const BOARD: InvitationBoard = {
       sentAt: null,
       sentTo: [],
       submittedAt: null,
+      requires: { deliveryNote: false, timesheet: false },
+      documents: [],
     },
     {
       supplierCode: '1103573',
@@ -66,6 +72,8 @@ const BOARD: InvitationBoard = {
       sentAt: null,
       sentTo: [],
       submittedAt: null,
+      requires: { deliveryNote: true, timesheet: true },
+      documents: [],
     },
   ],
 };

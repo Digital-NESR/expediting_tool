@@ -3,7 +3,8 @@
 import type { QueryResultRow } from 'pg';
 import rrsmPool from '@/lib/db-rrsm';
 import { logger } from '@/lib/logger';
-import { canAccessCountry, currentRrsmActor, type RrsmActor } from '@/lib/rrsm/access';
+import { canAccessCountry, currentRrsmActor, rolesIn, type RrsmActor } from '@/lib/rrsm/access';
+import type { DocKind } from '@/lib/rrsm/submission';
 import { sendRrsmMail, supplierInvitationMail } from '@/lib/rrsm/notify';
 import { submissionUrl } from '@/lib/rrsm/supplier-access';
 
@@ -11,8 +12,9 @@ import { submissionUrl } from '@/lib/rrsm/supplier-access';
  * Asking suppliers to confirm their month.
  *
  * The step between opening a cycle and anyone being able to submit: a link per supplier per
- * cycle, and an email carrying it. Ops own this, the same people who open the cycle — a buyer
- * has nothing to act on until the submissions are in.
+ * cycle, and an email carrying it. Buyers send them, and choose per invitation which documents
+ * (Delivery Note, Timesheet) the supplier must upload before they can submit. Ops see the same
+ * list, since their validation waits on the submissions.
  *
  * EVERY EXPORT IS A PUBLIC POST ENDPOINT, so each one resolves the actor and re-checks the
  * country the cycle belongs to, read from the row rather than taken from the caller.
@@ -33,6 +35,9 @@ export interface InvitationRow {
   sentAt: string | null;
   sentTo: string[];
   submittedAt: string | null;
+  /** What this invitation asked for, and what has been uploaded against it. */
+  requires: { deliveryNote: boolean; timesheet: boolean };
+  documents: { id: number; kind: DocKind; fileName: string }[];
 }
 
 export interface InvitationBoard {
@@ -69,12 +74,9 @@ async function actorOrThrow(): Promise<RrsmActor> {
   return actor;
 }
 
-/** Ops or an admin. The same gate as opening a cycle, because this is the other half of it. */
+/** A buyer or an admin (user decision, 19 Nov 2026: buyers send invitations, Ops do not). */
 function canSendIn(actor: RrsmActor, code: string): boolean {
-  if (actor.isAdmin) return true;
-  return actor.grants.some(
-    (g) => g.countryCode === code && (g.role === 'ops' || g.role === 'admin'),
-  );
+  return rolesIn(actor, code).canBuy;
 }
 
 /** The country a cycle belongs to, read from the row. A cycle id from a browser proves nothing. */
@@ -115,7 +117,12 @@ export async function getRrsmInvitations(countryCode: string): Promise<Invitatio
               sup.contact_emails,
               COUNT(l.id)::int AS lines,
               COUNT(l.id) FILTER (WHERE l.stage IN ('awaiting_supplier', 'returned'))::int AS awaiting,
-              lk.token, lk.sent_at, lk.sent_to, lk.submitted_at
+              lk.token, lk.sent_at, lk.sent_to, lk.submitted_at,
+              COALESCE(lk.requires_delivery_note, false) AS requires_dn,
+              COALESCE(lk.requires_timesheet, false) AS requires_ts,
+              (SELECT COALESCE(json_agg(json_build_object('id', d.id, 'kind', d.kind, 'fileName', d.file_name)
+                                ORDER BY d.kind), '[]'::json)
+                 FROM rrsm_submission_documents d WHERE d.link_id = lk.id) AS documents
          FROM rrsm_cycle_lines l
          JOIN rrsm_service_lines s ON s.id = l.service_line_id
          JOIN rrsm_suppliers sup   ON sup.code = s.supplier_code
@@ -123,7 +130,8 @@ export async function getRrsmInvitations(countryCode: string): Promise<Invitatio
                 ON lk.cycle_id = l.cycle_id AND lk.supplier_code = s.supplier_code
         WHERE l.cycle_id = $1
         GROUP BY s.supplier_code, sup.name, sup.contact_emails,
-                 lk.token, lk.sent_at, lk.sent_to, lk.submitted_at
+                 lk.id, lk.token, lk.sent_at, lk.sent_to, lk.submitted_at,
+                 lk.requires_delivery_note, lk.requires_timesheet
         ORDER BY sup.name`,
       [Number(cycle.id)],
     );
@@ -160,6 +168,10 @@ export async function getRrsmInvitations(countryCode: string): Promise<Invitatio
         sentAt: r.sent_at ? dateOnly(r.sent_at) : null,
         sentTo: (r.sent_to as string[] | null) ?? [],
         submittedAt: r.submitted_at ? dateOnly(r.submitted_at) : null,
+        requires: { deliveryNote: Boolean(r.requires_dn), timesheet: Boolean(r.requires_ts) },
+        documents: ((r.documents as { id: number; kind: DocKind; fileName: string }[]) ?? []).map(
+          (d) => ({ id: Number(d.id), kind: d.kind, fileName: String(d.fileName) }),
+        ),
       })),
     };
   } catch (err) {
@@ -182,13 +194,14 @@ export async function getRrsmInvitations(countryCode: string): Promise<Invitatio
 export async function sendRrsmInvitations(
   cycleId: number,
   supplierCodes: string[],
+  requires?: { deliveryNote?: boolean; timesheet?: boolean },
 ): Promise<InviteResult> {
   try {
     const id = Number(cycleId);
     const country = await countryOfCycle(id);
     const actor = await actorOrThrow();
     if (!canAccessCountry(actor, country, 'buyer') || !canSendIn(actor, country)) {
-      return { success: false, error: 'Only Ops or an admin sends invitations.' };
+      return { success: false, error: 'Only a buyer or an admin sends invitations.' };
     }
 
     const wanted = (supplierCodes ?? []).map((c) => String(c).trim()).filter(Boolean);
@@ -226,11 +239,17 @@ export async function sendRrsmInvitations(
 
       // The link exists either way; only the mail depends on there being somewhere to send it.
       const { rows: linkRows } = await rrsmPool.query<QueryResultRow>(
-        `INSERT INTO rrsm_supplier_links (cycle_id, supplier_code)
-         VALUES ($1, $2)
-         ON CONFLICT (cycle_id, supplier_code) DO UPDATE SET supplier_code = EXCLUDED.supplier_code
+        /* The documents this invitation asks for are set on every send, so re-sending with a
+         different choice changes what the supplier is asked for (until they have submitted). */
+        `INSERT INTO rrsm_supplier_links (cycle_id, supplier_code, requires_delivery_note, requires_timesheet)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (cycle_id, supplier_code) DO UPDATE
+           SET requires_delivery_note = CASE WHEN rrsm_supplier_links.submitted_at IS NULL
+                 THEN EXCLUDED.requires_delivery_note ELSE rrsm_supplier_links.requires_delivery_note END,
+               requires_timesheet = CASE WHEN rrsm_supplier_links.submitted_at IS NULL
+                 THEN EXCLUDED.requires_timesheet ELSE rrsm_supplier_links.requires_timesheet END
          RETURNING id, token`,
-        [id, code],
+        [id, code, Boolean(requires?.deliveryNote), Boolean(requires?.timesheet)],
       );
       const link = linkRows[0];
 

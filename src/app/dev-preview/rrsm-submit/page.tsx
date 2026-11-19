@@ -32,11 +32,20 @@ const BASE: SupplierView = {
   verifiedAs: null,
   lines: [],
   codeTtlSeconds: 120,
+  currency: 'KWD',
+  uoms: [
+    { code: 'month', label: 'Month' },
+    { code: 'day', label: 'Day' },
+    { code: 'headcount', label: 'Headcount' },
+  ],
+  requires: { deliveryNote: true, timesheet: true },
+  documents: [],
 };
 
 const VERIFIED: SupplierView = {
   ...BASE,
   verifiedAs: 'ahmed@automak.com',
+  documents: [{ kind: 'delivery_note', fileName: 'DN-Nov-2026.pdf', uploadedAt: '2026-11-19' }],
   lines: [
     {
       id: 1,
@@ -49,6 +58,10 @@ const VERIFIED: SupplierView = {
       previousQty: 1,
       stage: 'awaiting_supplier',
       remarks: '',
+      rate: 250,
+      supplierRate: null,
+      supplierUom: null,
+      changeStatus: null,
     },
     {
       id: 2,
@@ -61,6 +74,10 @@ const VERIFIED: SupplierView = {
       previousQty: 1,
       stage: 'awaiting_supplier',
       remarks: '',
+      rate: 275,
+      supplierRate: 290,
+      supplierUom: null,
+      changeStatus: null,
     },
     {
       id: 3,
@@ -73,6 +90,10 @@ const VERIFIED: SupplierView = {
       previousQty: 1,
       stage: 'returned',
       remarks: 'Off hire on 12 November',
+      rate: 200,
+      supplierRate: null,
+      supplierUom: null,
+      changeStatus: null,
     },
     {
       id: 4,
@@ -85,6 +106,10 @@ const VERIFIED: SupplierView = {
       previousQty: null,
       stage: 'awaiting_supplier',
       remarks: '',
+      rate: 410,
+      supplierRate: null,
+      supplierUom: null,
+      changeStatus: null,
     },
   ],
 };

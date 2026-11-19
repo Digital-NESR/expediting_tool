@@ -21,6 +21,7 @@ import {
   type SapStatus,
 } from '@/lib/rrsm/sap';
 import { readPrCandidates, readSapStatus } from '@/lib/rrsm/sap-status';
+import type { DocKind } from '@/lib/rrsm/submission';
 
 /**
  * The monthly cycle, for the Ops and Buyer screens.
@@ -54,6 +55,11 @@ export interface BoardLine {
   opsNote: string;
   /** Last cycle's figures for this same service line, or null when it is new this month. */
   previous: { qty: number; rate: number | null } | null;
+  /** A rate / pricing unit the supplier proposed on their submission; null where unchanged. */
+  supplierRate: number | null;
+  supplierUom: string | null;
+  /** 'pending' blocks Ops validation until a buyer accepts or rejects it. */
+  changeStatus: 'pending' | 'accepted' | 'rejected' | null;
 }
 
 export interface BoardSupplier {
@@ -61,6 +67,9 @@ export interface BoardSupplier {
   name: string;
   paymentTerms: string;
   lines: BoardLine[];
+  /** The documents this month's invitation asked for, and what the supplier uploaded. */
+  requires: { deliveryNote: boolean; timesheet: boolean };
+  documents: { id: number; kind: DocKind; fileName: string }[];
 }
 
 export interface RrsmBoard {
@@ -176,7 +185,9 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
               l.supplier_invoice, COALESCE(l.ops_note, '') AS ops_note,
               l.on_hire, l.days,
               s.description, COALESCE(s.asset_ref, '') AS asset_ref, s.segment,
-              s.cost_center, COALESCE(s.service_number, '') AS service_number, s.uom,
+              s.cost_center, COALESCE(s.service_number, '') AS service_number,
+              COALESCE(l.uom, s.uom) AS uom,
+              l.supplier_rate, l.supplier_uom, l.change_status,
               s.supplier_code, sup.name AS supplier_name,
               COALESCE(s.payment_terms, '') AS payment_terms,
               prev.qty AS prev_qty, prev.rate AS prev_rate
@@ -208,10 +219,35 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
           name: String(r.supplier_name),
           paymentTerms: String(r.payment_terms ?? ''),
           lines: [],
+          requires: { deliveryNote: false, timesheet: false },
+          documents: [],
         };
         suppliers.set(code, group);
       }
       group.lines.push(toBoardLine(r));
+    }
+
+    /* Each supplier's invitation: what it asked for and what came back. One query for the cycle. */
+    const { rows: linkRows } = await rrsmPool.query<QueryResultRow>(
+      `SELECT k.supplier_code, k.requires_delivery_note, k.requires_timesheet,
+              COALESCE(json_agg(json_build_object('id', d.id, 'kind', d.kind, 'fileName', d.file_name)
+                                ORDER BY d.kind) FILTER (WHERE d.id IS NOT NULL), '[]'::json) AS documents
+         FROM rrsm_supplier_links k
+         LEFT JOIN rrsm_submission_documents d ON d.link_id = k.id
+        WHERE k.cycle_id = $1
+        GROUP BY k.id`,
+      [Number(c.id)],
+    );
+    for (const k of linkRows) {
+      const group = suppliers.get(String(k.supplier_code));
+      if (!group) continue;
+      group.requires = {
+        deliveryNote: Boolean(k.requires_delivery_note),
+        timesheet: Boolean(k.requires_timesheet),
+      };
+      group.documents = (
+        (k.documents as { id: number; kind: DocKind; fileName: string }[]) ?? []
+      ).map((d) => ({ id: Number(d.id), kind: d.kind, fileName: String(d.fileName) }));
     }
 
     const sap = await readSapStatus(
@@ -297,6 +333,10 @@ function toBoardLine(r: QueryResultRow): BoardLine {
       r.prev_qty === null || r.prev_qty === undefined
         ? null
         : { qty: Number(r.prev_qty), rate: r.prev_rate === null ? null : Number(r.prev_rate) },
+    supplierRate:
+      r.supplier_rate === null || r.supplier_rate === undefined ? null : Number(r.supplier_rate),
+    supplierUom: r.supplier_uom ? String(r.supplier_uom) : null,
+    changeStatus: r.change_status ? (String(r.change_status) as BoardLine['changeStatus']) : null,
   };
 }
 
@@ -457,6 +497,21 @@ export async function moveRrsmLine(input: {
           : null;
     if (!as) return { success: false, error: 'That move is not yours to make.' };
 
+    /* A supplier's proposed rate or pricing unit is a buyer's decision, and Ops validating the
+       line first would validate a value nobody has agreed. */
+    if (input.to === 'validated') {
+      const { rows: pending } = await rrsmPool.query<QueryResultRow>(
+        `SELECT change_status FROM rrsm_cycle_lines WHERE id = $1`,
+        [Number(input.lineId)],
+      );
+      if (pending[0]?.change_status === 'pending') {
+        return {
+          success: false,
+          error: 'The supplier changed the rate or pricing unit. A buyer has to review it first.',
+        };
+      }
+    }
+
     const returnedTo = input.to === 'returned' ? (as === 'buyer' ? 'ops' : 'buyer') : null;
 
     await rrsmPool.query(
@@ -544,6 +599,124 @@ export async function saveBuyerRefs(input: {
     return { success: true };
   } catch (err) {
     log.error('saveBuyerRefs.failed', err, { lineId: input?.lineId });
+    return { success: false, error: (err as Error).message };
+  }
+}
+
+/* ─── Buyer: a supplier's proposed rate or pricing unit ──────────────────────────────────── */
+
+/**
+ * Accept or reject what a supplier proposed for one line.
+ *
+ * Accepting sets this month's rate and pricing unit to the proposal. `updateRegister` also writes
+ * them to the service register, so next month opens on them; that is logged in the register's own
+ * trail like any other register edit. Rejecting keeps the agreed terms. Either way the line can
+ * then be validated by Ops; a buyer who wants the supplier to look again uses Return.
+ */
+export async function decideSupplierChange(input: {
+  lineId: number;
+  accept: boolean;
+  updateRegister?: boolean;
+  note?: string;
+}): Promise<RrsmResult> {
+  const lineId = Number(input?.lineId);
+  try {
+    const { country } = await countryOfLine(lineId);
+    const actor = await requireCountry(country);
+    if (!rolesIn(actor, country).canBuy) {
+      return { success: false, error: 'Only a buyer or an admin decides on a supplier change.' };
+    }
+    const note = String(input?.note ?? '')
+      .trim()
+      .slice(0, 500);
+
+    const client = await rrsmPool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query<QueryResultRow>(
+        `SELECT l.id, l.cycle_id, l.rate, COALESCE(l.uom, s.uom) AS uom, s.uom AS register_uom,
+                l.supplier_rate, l.supplier_uom, l.change_status,
+                s.id AS service_line_id, s.rate AS register_rate, s.supplier_code
+           FROM rrsm_cycle_lines l JOIN rrsm_service_lines s ON s.id = l.service_line_id
+          WHERE l.id = $1
+          FOR UPDATE OF l`,
+        [lineId],
+      );
+      const r = rows[0];
+      if (!r || r.change_status !== 'pending') {
+        await client.query('ROLLBACK');
+        return { success: false, error: 'There is no supplier change waiting on this line.' };
+      }
+
+      const newRate = r.supplier_rate === null ? r.rate : r.supplier_rate;
+      const newUom = r.supplier_uom ?? r.uom;
+      const describe = `rate ${r.rate ?? '—'} → ${newRate ?? '—'}, unit ${r.uom} → ${newUom}`;
+
+      if (input.accept) {
+        await client.query(
+          `UPDATE rrsm_cycle_lines
+              SET rate = $2::numeric, uom = CASE WHEN $3::text = $4::text THEN NULL ELSE $3::text END,
+                  change_status = 'accepted', change_decided_by = $5, change_decided_at = NOW(),
+                  change_note = NULLIF($6, ''), updated_at = NOW()
+            WHERE id = $1`,
+          [lineId, newRate, newUom, r.register_uom, actor.email, note],
+        );
+        if (input.updateRegister) {
+          await client.query(
+            `UPDATE rrsm_service_lines SET rate = $2, uom = $3, updated_at = NOW() WHERE id = $1`,
+            [Number(r.service_line_id), newRate, newUom],
+          );
+          const changes: Record<string, [unknown, unknown]> = {};
+          if (Number(r.register_rate) !== Number(newRate))
+            changes.rate = [r.register_rate, newRate];
+          if (r.register_uom !== newUom) changes.uom = [r.register_uom, newUom];
+          await client.query(
+            `INSERT INTO rrsm_register_log
+               (country_code, service_line_id, supplier_code, actor, action, changes, note)
+             VALUES ($1, $2, $3, $4, 'line_updated', $5::jsonb, $6)`,
+            [
+              country,
+              Number(r.service_line_id),
+              String(r.supplier_code),
+              actor.email,
+              JSON.stringify(changes),
+              'Supplier-proposed terms accepted on the monthly cycle' + (note ? `: ${note}` : ''),
+            ],
+          );
+        }
+      } else {
+        await client.query(
+          `UPDATE rrsm_cycle_lines
+              SET change_status = 'rejected', change_decided_by = $2, change_decided_at = NOW(),
+                  change_note = NULLIF($3, ''), updated_at = NOW()
+            WHERE id = $1`,
+          [lineId, actor.email, note],
+        );
+      }
+
+      await client.query(
+        `INSERT INTO rrsm_activity_log (cycle_line_id, cycle_id, actor, action, note)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          lineId,
+          Number(r.cycle_id),
+          actor.email,
+          input.accept ? 'supplier_change_accepted' : 'supplier_change_rejected',
+          describe +
+            (input.accept && input.updateRegister ? '; register updated' : '') +
+            (note ? `; ${note}` : ''),
+        ],
+      );
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+    return { success: true };
+  } catch (err) {
+    log.error('decideSupplierChange.failed', err, { lineId });
     return { success: false, error: (err as Error).message };
   }
 }

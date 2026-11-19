@@ -166,7 +166,7 @@ export default function RrsmDashboardClient({
               ? `${suppliers.notInvited} not sent · ${suppliers.waiting} waiting · ${suppliers.submitted} submitted`
               : 'No cycle open'
           }
-          href={can('validate') ? href('/rrsm/suppliers') : null}
+          href={href('/rrsm/suppliers')}
           tone={cycle && suppliers.notInvited ? 'warn' : 'plain'}
         />
         <Tile

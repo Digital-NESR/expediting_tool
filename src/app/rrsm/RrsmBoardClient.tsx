@@ -18,13 +18,14 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Check, Loader2, Undo2 } from 'lucide-react';
+import { AlertTriangle, Check, FileText, Loader2, Undo2 } from 'lucide-react';
 import {
   closeValidatedLines,
   moveRrsmLine,
   openRrsmCycle,
   saveBuyerRefs,
   saveOpsLine,
+  decideSupplierChange,
   type BoardLine,
   type RrsmBoard,
 } from '@/app/actions/rrsm/cycle';
@@ -45,6 +46,7 @@ import {
   type SapStatus,
 } from '@/lib/rrsm/sap';
 import PrLinkDialog from './PrLinkDialog';
+import { DOC_KINDS, DOC_LABEL } from '@/lib/rrsm/submission';
 import {
   ERP_STATUS_LABEL,
   STAGE_LABEL,
@@ -73,10 +75,12 @@ const STAGE_TONE: Record<CycleStage, string> = {
 };
 
 /** What the PR & PO page can narrow itself to, by where each line is between PR and service entry. */
-type SapFilter = 'all' | 'no_pr' | 'pr_waiting' | 'under_release' | 'no_entry' | 'not_in_sap';
+type SapFilter =
+  'all' | 'supplier_change' | 'no_pr' | 'pr_waiting' | 'under_release' | 'no_entry' | 'not_in_sap';
 
 const SAP_FILTERS: [SapFilter, string][] = [
   ['all', 'All lines'],
+  ['supplier_change', 'Supplier changes to review'],
   ['no_pr', 'No PR linked'],
   ['pr_waiting', 'PR, no PO yet'],
   ['under_release', 'PO under release'],
@@ -101,6 +105,7 @@ function primaryPo(pos: string[], sap: SapStatus): SapPo | undefined {
 function sapFilterMatches(filter: SapFilter, line: BoardLine, sap: SapStatus): boolean {
   if (filter === 'all') return true;
   const ls = lineSap(line, sap);
+  if (filter === 'supplier_change') return line.changeStatus === 'pending';
   if (filter === 'no_pr') return ls.stage === 'no_pr';
   if (filter === 'pr_waiting') return ls.stage !== 'no_pr' && ls.stage !== 'po';
   const po = primaryPo(ls.pos, sap);
@@ -147,6 +152,7 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
   const filterCount = useMemo(() => {
     const n: Record<SapFilter, number> = {
       all: lines.length,
+      supplier_change: 0,
       no_pr: 0,
       pr_waiting: 0,
       under_release: 0,
@@ -332,6 +338,7 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
               >
                 <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5">
                   <h2 className="text-[13.5px] font-semibold text-slate-800">{s.name}</h2>
+                  <SupplierDocs supplier={s} />
                   <span className="font-mono text-[11px] text-slate-400">{s.code}</span>
                   {s.paymentTerms && (
                     <span className="rounded bg-white px-1.5 py-0.5 font-mono text-[10.5px] text-slate-500">
@@ -484,7 +491,10 @@ function Row({
   const moves = [
     ...(canValidate ? movesFor(line.stage, 'ops') : []),
     ...(canBuy ? movesFor(line.stage, 'buyer') : []),
-  ].filter((v, i, a) => a.indexOf(v) === i);
+  ]
+    .filter((v, i, a) => a.indexOf(v) === i)
+    /* Ops cannot validate a line whose supplier-proposed terms a buyer has not decided on. */
+    .filter((to) => !(to === 'validated' && line.changeStatus === 'pending'));
 
   return (
     <tr className="border-t border-slate-100 align-middle">
@@ -503,6 +513,17 @@ function Row({
               <span>{line.costCenter}</span>
               {line.serviceNumber && <span>SN {line.serviceNumber}</span>}
             </div>
+            <SupplierChange
+              line={line}
+              money={money}
+              canDecide={canBuy}
+              busy={working}
+              onDecide={(accept, updateRegister) =>
+                void onRun(key, () =>
+                  decideSupplierChange({ lineId: line.id, accept, updateRegister }),
+                )
+              }
+            />
             {line.opsNote && !opsEditable && (
               <div className="mt-0.5 text-[11.5px] italic text-slate-500">{line.opsNote}</div>
             )}
@@ -715,6 +736,125 @@ function Row({
 }
 
 /* ─── bits ───────────────────────────────────────────────────────────────────────────────── */
+
+/** The supplier's Delivery Note and Timesheet, as downloads, or what is still owed. */
+function SupplierDocs({
+  supplier,
+}: {
+  supplier: {
+    requires: { deliveryNote: boolean; timesheet: boolean };
+    documents: { id: number; kind: 'delivery_note' | 'timesheet'; fileName: string }[];
+  };
+}) {
+  const items = DOC_KINDS.map((kind) => {
+    const doc = supplier.documents.find((d) => d.kind === kind);
+    const required =
+      kind === 'delivery_note' ? supplier.requires.deliveryNote : supplier.requires.timesheet;
+    return { kind, doc, required };
+  }).filter((i) => i.doc || i.required);
+  if (!items.length) return null;
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      {items.map(({ kind, doc }) =>
+        doc ? (
+          <a
+            key={kind}
+            href={`/api/rrsm/documents/${doc.id}`}
+            title={doc.fileName}
+            className="inline-flex items-center gap-1 rounded bg-[#e6f1ea] px-1.5 py-0.5 text-[10.5px] font-semibold text-[#1d4f31] hover:underline"
+          >
+            <FileText className="h-3 w-3" />
+            {DOC_LABEL[kind]}
+          </a>
+        ) : (
+          <span
+            key={kind}
+            className="rounded bg-amber-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-amber-700"
+          >
+            {DOC_LABEL[kind]} not uploaded
+          </span>
+        ),
+      )}
+    </span>
+  );
+}
+
+/**
+ * A supplier's proposed rate or pricing unit on this line: waiting for a buyer, or what the buyer
+ * decided. The buyer accepts (optionally writing it to the register too) or rejects.
+ */
+function SupplierChange({
+  line,
+  money,
+  canDecide,
+  busy,
+  onDecide,
+}: {
+  line: BoardLine;
+  money: Intl.NumberFormat;
+  canDecide: boolean;
+  busy: boolean;
+  onDecide: (accept: boolean, updateRegister: boolean) => void;
+}) {
+  const [toRegister, setToRegister] = useState(true);
+  if (!line.changeStatus) return null;
+  const proposedRate = line.supplierRate ?? line.rate;
+  const proposedUom = line.supplierUom ?? line.uom;
+  const terms = (rate: number | null, uom: string) =>
+    `${rate === null ? '—' : money.format(rate)} per ${uom}`;
+
+  if (line.changeStatus !== 'pending') {
+    return (
+      <div className="mt-1 text-[11px] text-slate-500">
+        Supplier proposed {terms(proposedRate, proposedUom)} ·{' '}
+        <b className={line.changeStatus === 'accepted' ? 'text-[#1d4f31]' : 'text-red-600'}>
+          {line.changeStatus === 'accepted' ? 'accepted' : 'rejected'}
+        </b>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-1.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-[11.5px] text-amber-900">
+      <div className="font-semibold">
+        Supplier changed the terms: {terms(proposedRate, proposedUom)}
+      </div>
+      <div className="text-amber-800">
+        Agreed: {terms(line.rate, line.uom)}
+        {canDecide ? '' : ' · waiting for buyer review before validation'}
+      </div>
+      {canDecide && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onDecide(true, toRegister)}
+            className="rounded bg-[#307c4c] px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-40"
+          >
+            Accept
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onDecide(false, false)}
+            className="rounded bg-white px-2 py-1 text-[11px] font-semibold text-red-700 ring-1 ring-red-200 disabled:opacity-40"
+          >
+            Reject
+          </button>
+          <label className="inline-flex items-center gap-1.5 text-[11px]">
+            <input
+              type="checkbox"
+              checked={toRegister}
+              onChange={(e) => setToRegister(e.target.checked)}
+              className="h-3.5 w-3.5 accent-[#307c4c]"
+            />
+            Also update the service register
+          </label>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const RELEASE_TONE: Record<SapPo['release'], string> = {
   released: 'bg-[#e6f1ea] text-[#1d4f31]',

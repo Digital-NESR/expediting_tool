@@ -14,16 +14,34 @@
    to test whether a guessed address belongs to this supplier.
    ───────────────────────────────────────────────────────────── */
 
-import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Check, Loader2, Mail, ShieldCheck } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, Check, FileText, Loader2, Mail, ShieldCheck, Upload } from 'lucide-react';
 import {
+  removeRrsmDocument,
   requestRrsmCode,
   saveRrsmSupplierLines,
   submitRrsmCycle,
+  uploadRrsmDocument,
   verifyRrsmCode,
   type SupplierLine,
   type SupplierView,
 } from '@/app/actions/rrsm/supplier';
+import {
+  ACCEPT_ATTR,
+  DOC_KINDS,
+  DOC_LABEL,
+  checkDoc,
+  missingDocs,
+  type DocKind,
+} from '@/lib/rrsm/submission';
+
+/** A line as the supplier edits it: the agreed terms, plus what they say applies. */
+type EditRow = SupplierLine & { rateText: string; unit: string };
+
+function toEdit(l: SupplierLine): EditRow {
+  const rate = l.supplierRate ?? l.rate;
+  return { ...l, rateText: rate === null ? '' : String(rate), unit: l.supplierUom ?? l.uom };
+}
 
 const BRAND = '#307c4c';
 
@@ -37,8 +55,18 @@ export default function SubmitClient({ token, initial }: { token: string; initia
   const [picked, setPicked] = useState(0);
   const [code, setCode] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(0);
-  const [rows, setRows] = useState<SupplierLine[]>(initial.lines);
+  const [rows, setRows] = useState<EditRow[]>(initial.lines.map(toEdit));
   const [done, setDone] = useState(false);
+
+  const money = useMemo(
+    () => new Intl.NumberFormat('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    [],
+  );
+  const unitLabel = useMemo(() => new Map(view.uoms.map((u) => [u.code, u.label])), [view.uoms]);
+  const missing = missingDocs(
+    view.requires,
+    view.documents.map((d) => d.kind),
+  );
 
   useEffect(() => {
     if (secondsLeft <= 0) return;
@@ -135,7 +163,7 @@ export default function SubmitClient({ token, initial }: { token: string; initia
     const fresh = await getFresh(token, r.sessionToken);
     if (fresh) {
       setView(fresh);
-      setRows(fresh.lines);
+      setRows(fresh.lines.map(toEdit));
     }
     setNotice('');
     setBusy(null);
@@ -167,7 +195,45 @@ export default function SubmitClient({ token, initial }: { token: string; initia
     setBusy(null);
   }
 
+  async function upload(kind: DocKind, file: File) {
+    if (!sessionToken) return;
+    const ok = checkDoc({ name: file.name, size: file.size });
+    if (!ok.ok) {
+      setError(ok.error);
+      return;
+    }
+    setBusy('doc:' + kind);
+    setError('');
+    const form = new FormData();
+    form.set('token', token);
+    form.set('sessionToken', sessionToken);
+    form.set('kind', kind);
+    form.set('file', file);
+    const r = await uploadRrsmDocument(form);
+    if (!r.success) setError(r.error ?? 'The upload did not go through.');
+    else await refreshDocs();
+    setBusy(null);
+  }
+
+  async function removeDoc(kind: DocKind) {
+    if (!sessionToken) return;
+    setBusy('doc:' + kind);
+    setError('');
+    const r = await removeRrsmDocument(token, sessionToken, kind);
+    if (!r.success) setError(r.error ?? 'That did not work.');
+    else await refreshDocs();
+    setBusy(null);
+  }
+
+  /* Only the documents are refreshed: re-reading the lines would throw away unsaved edits. */
+  async function refreshDocs() {
+    if (!sessionToken) return;
+    const fresh = await getFresh(token, sessionToken);
+    if (fresh) setView((v) => ({ ...v, documents: fresh.documents, requires: fresh.requires }));
+  }
+
   const verified = Boolean(view.verifiedAs || sessionToken);
+  const changedCount = rows.filter((r) => isChanged(r)).length;
 
   return (
     <Shell>
@@ -267,33 +333,52 @@ export default function SubmitClient({ token, initial }: { token: string; initia
               Confirm what was used in {period}
             </h2>
             <p className="mt-1.5 text-[13.5px] leading-relaxed text-slate-600">
-              These are the items NESR has on hire from you. Correct anything that is wrong, untick
-              anything that came off hire during the month, then submit. Last month&apos;s figures
-              are shown so you are checking rather than typing from scratch.
+              These are the items NESR has on hire from you, at the agreed rate. Correct anything
+              that is wrong, untick anything that came off hire during the month, upload the
+              documents below, then submit. Last month&apos;s figures are shown so you are checking
+              rather than typing from scratch.
+            </p>
+            <p className="mt-2 text-[13px] leading-relaxed text-slate-500">
+              If the rate or the pricing unit is not what you charge, change it on the line.
+              NESR&apos;s buyer reviews every change before the month is validated, so it may be
+              accepted or sent back to you.
             </p>
           </Card>
 
           <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[40rem] text-[13px]">
+              <table className="w-full min-w-[58rem] text-[13px]">
                 <thead>
                   <tr className="bg-slate-50 text-[10.5px] uppercase tracking-wider text-slate-400">
                     <th className="px-4 py-2.5 text-left font-semibold">Item</th>
                     <th className="px-2 py-2.5 text-left font-semibold">On hire</th>
                     <th className="px-2 py-2.5 text-right font-semibold">Days</th>
                     <th className="px-2 py-2.5 text-right font-semibold">Quantity</th>
+                    <th className="px-2 py-2.5 text-right font-semibold">Rate ({view.currency})</th>
+                    <th className="px-2 py-2.5 text-left font-semibold">Pricing unit</th>
+                    <th className="px-2 py-2.5 text-right font-semibold">Cost</th>
                     <th className="px-2 py-2.5 text-right font-semibold">Last month</th>
                     <th className="px-4 py-2.5 text-left font-semibold">Note</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((r, i) => (
-                    <tr key={r.id} className="border-t border-slate-100">
+                    <tr
+                      key={r.id}
+                      className={`border-t border-slate-100 ${isChanged(r) ? 'bg-amber-50/50' : ''}`}
+                    >
                       <td className="px-4 py-2.5">
                         <div className="font-medium text-slate-800">{r.description}</div>
                         <div className="mt-0.5 font-mono text-[10.5px] text-slate-400">
-                          {r.assetRef} {r.uom}
+                          {r.assetRef}
                         </div>
+                        {isChanged(r) && (
+                          <div className="mt-1 text-[11.5px] text-amber-700">
+                            Changed from {r.rate === null ? '—' : money.format(r.rate)} per{' '}
+                            {(unitLabel.get(r.uom) ?? r.uom).toLowerCase()}. NESR&apos;s buyer will
+                            review it.
+                          </div>
+                        )}
                       </td>
                       <td className="px-2 py-2.5">
                         <input
@@ -316,6 +401,36 @@ export default function SubmitClient({ token, initial }: { token: string; initia
                           onChange={(v) => patch(i, { qty: Number(v || 0) })}
                         />
                       </td>
+                      <td className="px-2 py-2.5 text-right">
+                        <input
+                          inputMode="decimal"
+                          value={r.rateText}
+                          onChange={(e) => patch(i, { rateText: e.target.value })}
+                          aria-label={`${r.description} rate`}
+                          className={`w-24 rounded border px-2 py-1 text-right font-mono text-[12.5px] outline-none focus:border-[#6AAF8E] ${
+                            rateChanged(r) ? 'border-amber-400 bg-amber-50' : 'border-slate-200'
+                          }`}
+                        />
+                      </td>
+                      <td className="px-2 py-2.5">
+                        <select
+                          value={r.unit}
+                          onChange={(e) => patch(i, { unit: e.target.value })}
+                          aria-label={`${r.description} pricing unit`}
+                          className={`rounded border px-1.5 py-1 text-[12.5px] outline-none ${
+                            r.unit !== r.uom ? 'border-amber-400 bg-amber-50' : 'border-slate-200'
+                          }`}
+                        >
+                          {view.uoms.map((u) => (
+                            <option key={u.code} value={u.code}>
+                              per {u.label.toLowerCase()}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-2 py-2.5 text-right font-mono text-[12.5px] font-semibold text-slate-800">
+                        {money.format((Number(r.qty) || 0) * (Number(r.rateText) || 0))}
+                      </td>
                       <td className="px-2 py-2.5 text-right font-mono text-[12.5px] text-slate-400">
                         {r.previousQty === null ? '—' : r.previousQty}
                       </td>
@@ -332,7 +447,7 @@ export default function SubmitClient({ token, initial }: { token: string; initia
                   {!rows.length && (
                     <tr>
                       <td
-                        colSpan={6}
+                        colSpan={9}
                         className="px-4 py-10 text-center text-[13.5px] text-slate-500"
                       >
                         NESR has nothing on hire from you this month. There is nothing to confirm.
@@ -344,11 +459,36 @@ export default function SubmitClient({ token, initial }: { token: string; initia
             </div>
           </div>
 
+          {/* ── documents ─────────────────────────────────────── */}
+          {rows.length > 0 && (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {DOC_KINDS.map((kind) => (
+                <DocBox
+                  key={kind}
+                  kind={kind}
+                  required={
+                    kind === 'delivery_note' ? view.requires.deliveryNote : view.requires.timesheet
+                  }
+                  doc={view.documents.find((d) => d.kind === kind)}
+                  busy={busy === 'doc:' + kind}
+                  disabled={busy !== null}
+                  onUpload={(file) => void upload(kind, file)}
+                  onRemove={() => void removeDoc(kind)}
+                />
+              ))}
+            </div>
+          )}
+
           {rows.length > 0 && (
             <div className="mt-4 flex flex-wrap items-center gap-2.5">
               <button
                 onClick={() => void submit()}
-                disabled={busy !== null}
+                disabled={busy !== null || missing.length > 0}
+                title={
+                  missing.length
+                    ? `Upload the ${missing.map((k) => DOC_LABEL[k]).join(' and the ')} first`
+                    : undefined
+                }
                 className="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-[13.5px] font-semibold text-white disabled:opacity-50"
                 style={{ background: BRAND }}
               >
@@ -362,7 +502,13 @@ export default function SubmitClient({ token, initial }: { token: string; initia
               >
                 {busy === 'save' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save for later'}
               </button>
-              <p className="text-[12.5px] text-slate-500">Once you submit, this link closes.</p>
+              <p className="text-[12.5px] text-slate-500">
+                {missing.length
+                  ? `Upload the ${missing.map((k) => DOC_LABEL[k]).join(' and the ')} to submit.`
+                  : changedCount
+                    ? `Once you submit, this link closes. ${changedCount} changed rate${changedCount === 1 ? '' : 's'} will go to NESR's buyer for review.`
+                    : 'Once you submit, this link closes.'}
+              </p>
             </div>
           )}
         </>
@@ -370,9 +516,19 @@ export default function SubmitClient({ token, initial }: { token: string; initia
     </Shell>
   );
 
-  function patch(i: number, change: Partial<SupplierLine>) {
+  function patch(i: number, change: Partial<EditRow>) {
     setRows((prev) => prev.map((r, j) => (j === i ? { ...r, ...change } : r)));
   }
+}
+
+function rateChanged(r: EditRow): boolean {
+  const typed = r.rateText.trim() === '' ? null : Number(r.rateText);
+  if (typed === null || !Number.isFinite(typed)) return false;
+  return r.rate === null || Math.round((typed - r.rate) * 1000) !== 0;
+}
+
+function isChanged(r: EditRow): boolean {
+  return rateChanged(r) || r.unit !== r.uom;
 }
 
 async function getFresh(token: string, sessionToken: string): Promise<SupplierView | null> {
@@ -384,17 +540,108 @@ async function getFresh(token: string, sessionToken: string): Promise<SupplierVi
   }
 }
 
-function payload(rows: SupplierLine[]) {
+function payload(rows: EditRow[]) {
   return rows.map((r) => ({
     id: r.id,
     qty: Number(r.qty) || 0,
     days: r.days === null ? null : Number(r.days),
     onHire: r.onHire,
     remarks: r.remarks,
+    rate: r.rateText.trim() === '' ? null : Number(r.rateText),
+    uom: r.unit,
   }));
 }
 
 /* ─── bits ───────────────────────────────────────────────────────────────────────────────── */
+
+/** One document: required or optional, the uploaded file, or a picker. */
+function DocBox({
+  kind,
+  required,
+  doc,
+  busy,
+  disabled,
+  onUpload,
+  onRemove,
+}: {
+  kind: DocKind;
+  required: boolean;
+  doc?: { fileName: string; uploadedAt: string };
+  busy: boolean;
+  disabled: boolean;
+  onUpload: (file: File) => void;
+  onRemove: () => void;
+}) {
+  const input = useRef<HTMLInputElement>(null);
+  return (
+    <div
+      className={`rounded-xl border bg-white p-4 ${
+        doc ? 'border-[#a9d3bb]' : required ? 'border-amber-300' : 'border-slate-200'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-[14px] font-semibold text-slate-900">{DOC_LABEL[kind]}</h3>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${
+            required ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-500'
+          }`}
+        >
+          {required ? 'Required' : 'Optional'}
+        </span>
+      </div>
+
+      {doc ? (
+        <div className="mt-3 flex items-center gap-2 text-[13px]">
+          <FileText className="h-4 w-4 shrink-0 text-[#1d4f31]" />
+          <span className="min-w-0 flex-1 truncate text-slate-700" title={doc.fileName}>
+            {doc.fileName}
+          </span>
+          <button
+            type="button"
+            onClick={() => input.current?.click()}
+            disabled={disabled}
+            className="text-[12px] font-semibold text-slate-600 hover:underline disabled:opacity-40"
+          >
+            Replace
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={disabled}
+            className="text-[12px] font-semibold text-red-600 hover:underline disabled:opacity-40"
+          >
+            Remove
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => input.current?.click()}
+          disabled={disabled}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 px-3 py-4 text-[13px] font-medium text-slate-600 hover:border-[#6AAF8E] hover:bg-[#f3f9f5] disabled:opacity-40"
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+          {busy ? 'Uploading…' : 'Choose a file'}
+        </button>
+      )}
+      <p className="mt-2 text-[11.5px] text-slate-400">
+        PDF, image, Excel, Word or CSV, up to 4 MB.
+      </p>
+
+      <input
+        ref={input}
+        type="file"
+        accept={ACCEPT_ATTR}
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) onUpload(file);
+        }}
+      />
+    </div>
+  );
+}
 
 function Num({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
@@ -437,7 +684,7 @@ function Card({ children }: { children: React.ReactNode }) {
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-[100dvh] bg-slate-50 font-sans">
-      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">{children}</div>
+      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6">{children}</div>
       <p className="pb-10 text-center text-[11.5px] text-slate-400">
         National Energy Services Reunited · this link is personal to your company
       </p>
