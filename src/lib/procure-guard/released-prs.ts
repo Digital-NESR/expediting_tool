@@ -32,6 +32,12 @@ export interface ReleasedPrOption {
   requisitioner: string;
   /** Release date as `yyyy-mm-dd`, or '' where the feed has none. */
   releasedOn: string;
+  /**
+   * True when any line is still under release in SAP (release indicator X). The feed has carried
+   * these since 23 Nov 2026; until then it held only fully released lines (indicator 2). Still
+   * offered, but tagged, so a requester sees the PR is not approved yet.
+   */
+  underRelease: boolean;
 }
 
 /**
@@ -71,7 +77,8 @@ export async function searchReleasedPrs(
               MIN(NULLIF(trim(description), ''))               AS description,
               MIN(NULLIF(trim(country), ''))                   AS country,
               MIN(NULLIF(trim(requisitioner), ''))             AS requisitioner,
-              MAX(pr_release_date_final)                       AS released_on
+              MAX(pr_release_date_final)                       AS released_on,
+              bool_or(trim(COALESCE(release_indicator, '')) = 'X') AS under_release
          FROM released_prs
         WHERE ($1 = '' OR trim(purchase_requisition) LIKE $1 || '%' OR description ILIKE '%' || $1 || '%')
         GROUP BY trim(purchase_requisition)
@@ -89,6 +96,7 @@ export async function searchReleasedPrs(
       country: String(r.country ?? ''),
       requisitioner: String(r.requisitioner ?? ''),
       releasedOn: r.released_on instanceof Date ? r.released_on.toISOString().slice(0, 10) : '',
+      underRelease: Boolean(r.under_release),
     }));
   } catch (err) {
     /* An empty list rather than a thrown page. This is a type-ahead beside a field that accepts

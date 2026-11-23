@@ -29,7 +29,11 @@ import { logger } from '@/lib/logger';
 
 const log = logger('rrsm-released-prs');
 
-/** Every row in this slice is `closed = ''` and `release_indicator = '2'`, so released and open. */
+/**
+ * Every row in this slice is `closed = ''` and not yet on a PO. Most are fully released
+ * (`release_indicator = '2'`); since 23 Nov 2026 the feed also carries lines still under release
+ * (`'X'`), which are returned flagged rather than dropped.
+ */
 const SERVICES = `account_classification_description = 'Services'`;
 
 /** Enough rows to find what you meant, few enough to read without scrolling. */
@@ -47,6 +51,8 @@ export interface ServicePrSummary {
   requisitioner: string;
   /** Release date as `yyyy-mm-dd`, or '' where the feed has none. */
   releasedOn: string;
+  /** True when any line is still under release in SAP (release indicator X). */
+  underRelease: boolean;
 }
 
 export interface ServicePrLine {
@@ -61,6 +67,8 @@ export interface ServicePrLine {
   materialGroup: string;
   plant: string;
   deliveryDate: string;
+  /** Still under release in SAP (release indicator X). */
+  underRelease: boolean;
 }
 
 /**
@@ -108,7 +116,8 @@ export async function listServicePrs(
               MIN(NULLIF(trim(description), ''))     AS description,
               MIN(NULLIF(trim(country), ''))         AS country,
               MIN(NULLIF(trim(requisitioner), ''))   AS requisitioner,
-              MAX(pr_release_date_final)             AS released_on
+              MAX(pr_release_date_final)             AS released_on,
+              bool_or(trim(COALESCE(release_indicator, '')) = 'X') AS under_release
          FROM released_prs
         WHERE ${SERVICES}
           AND ($1 = '' OR trim(purchase_requisition) LIKE $1 || '%'
@@ -145,7 +154,8 @@ export async function servicePrLines(pr: string): Promise<ServicePrLine[]> {
               trim(unit_of_measure)      AS uom,
               trim(material_group)       AS material_group,
               trim(plant)                AS plant,
-              delivery_date
+              delivery_date,
+              trim(COALESCE(release_indicator, '')) = 'X' AS under_release
          FROM released_prs
         WHERE ${SERVICES} AND trim(purchase_requisition) = $1
         ORDER BY trim(item_of_requisition)`,
@@ -161,6 +171,7 @@ export async function servicePrLines(pr: string): Promise<ServicePrLine[]> {
       materialGroup: String(r.material_group ?? ''),
       plant: String(r.plant ?? ''),
       deliveryDate: asDate(r.delivery_date),
+      underRelease: Boolean(r.under_release),
     }));
   } catch (err) {
     log.error('servicePrLines.failed', err, { pr: number });
@@ -176,6 +187,7 @@ function toSummary(r: QueryResultRow): ServicePrSummary {
     country: String(r.country ?? ''),
     requisitioner: String(r.requisitioner ?? ''),
     releasedOn: asDate(r.released_on),
+    underRelease: Boolean(r.under_release),
   };
 }
 

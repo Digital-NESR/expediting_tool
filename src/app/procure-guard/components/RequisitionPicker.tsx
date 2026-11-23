@@ -57,6 +57,8 @@ export default function RequisitionPicker({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [highlight, setHighlight] = useState(0);
+  /* PRs picked from the list that SAP still has under release, so their chip keeps the tag. */
+  const [underRelease, setUnderRelease] = useState<Set<string>>(new Set());
   const boxRef = useRef<HTMLDivElement>(null);
   const emitted = useRef<string | null>(null);
 
@@ -117,7 +119,8 @@ export default function RequisitionPicker({
     return () => document.removeEventListener('mousedown', onDocClick);
   }, []);
 
-  const add = (pr: string) => {
+  const add = (pr: string, stillUnderRelease = false) => {
+    if (stillUnderRelease) setUnderRelease((cur) => new Set(cur).add(pr));
     setChips((current) => (current.includes(pr) ? current : [...current, pr]));
     setDraft('');
     setOpen(false);
@@ -136,7 +139,7 @@ export default function RequisitionPicker({
       const picked = open && results.length > 0 && !typedIsUsable ? results[highlight] : null;
       if (picked) {
         if (e.key !== 'Tab') e.preventDefault();
-        add(picked.pr);
+        add(picked.pr, picked.underRelease);
         return;
       }
       if (REQUISITION_PATTERN.test(typed)) {
@@ -190,6 +193,7 @@ export default function RequisitionPicker({
               className="inline-flex items-center gap-1.5 rounded-md border border-[#307c4c]/30 bg-[#307c4c]/10 py-1 pl-2.5 pr-1.5 text-sm font-semibold text-[#1f5733]"
             >
               <span className="font-mono">{pr}</span>
+              {underRelease.has(pr) && <UnderReleaseTag />}
               <button
                 type="button"
                 onClick={() => remove(pr)}
@@ -249,25 +253,26 @@ export default function RequisitionPicker({
                 key={r.pr}
                 type="button"
                 onMouseEnter={() => setHighlight(i)}
-                onClick={() => add(r.pr)}
+                onClick={() => add(r.pr, r.underRelease)}
                 disabled={chips.includes(r.pr)}
                 className={`flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left transition disabled:opacity-40 ${
                   i === highlight && !typedIsUsable ? 'bg-[#307c4c]/10' : 'hover:bg-slate-50'
                 }`}
               >
                 <span className="flex w-full items-baseline justify-between gap-2">
-                  <span className="font-mono text-sm font-semibold text-slate-900">{r.pr}</span>
-                  {r.releasedOn && <span className="text-[0.6875rem] text-slate-400">{r.releasedOn}</span>}
+                  <span className="flex items-center gap-1.5">
+                    <span className="font-mono text-sm font-semibold text-slate-900">{r.pr}</span>
+                    {r.underRelease && <UnderReleaseTag />}
+                  </span>
+                  {r.releasedOn && (
+                    <span className="text-[0.6875rem] text-slate-400">{r.releasedOn}</span>
+                  )}
                 </span>
                 {r.description && (
                   <span className="line-clamp-1 text-xs text-slate-600">{r.description}</span>
                 )}
                 <span className="text-[0.6875rem] text-slate-400">
-                  {[
-                    r.country,
-                    r.requisitioner,
-                    `${r.lines} ${r.lines === 1 ? 'line' : 'lines'}`,
-                  ]
+                  {[r.country, r.requisitioner, `${r.lines} ${r.lines === 1 ? 'line' : 'lines'}`]
                     .filter(Boolean)
                     .join(' · ')}
                 </span>
@@ -277,5 +282,20 @@ export default function RequisitionPicker({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * SAP still has this PR under release (release indicator X): it can be referenced, but it is not
+ * approved yet. Shown on the suggestion and on the chip once picked.
+ */
+function UnderReleaseTag() {
+  return (
+    <span
+      title="This PR is still under release in SAP and not fully approved yet"
+      className="rounded bg-amber-100 px-1.5 py-0.5 font-sans text-[0.625rem] font-semibold uppercase tracking-wide text-amber-800"
+    >
+      Still under release
+    </span>
   );
 }
