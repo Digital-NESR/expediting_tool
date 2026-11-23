@@ -3,6 +3,7 @@
 import type { QueryResultRow } from 'pg';
 import rrsmPool from '@/lib/db-rrsm';
 import { logger } from '@/lib/logger';
+import { currentActor } from '@/lib/require-access';
 import {
   currentRrsmActor,
   resolveRrsmCountry,
@@ -484,6 +485,12 @@ export async function saveRecurrentService(input: {
     if (problem) return { success: false, error: problem };
     /* A PO with no annual value: take the value and currency from SAP, when SAP has the PO. */
     const draft = { ...input.draft };
+    /* A new service's buyer is the buyer adding it. */
+    if (!input.id) {
+      const who = await currentActor();
+      draft.buyerEmail = actor.email;
+      draft.buyerName = who?.name && who.name !== who.email ? who.name : '';
+    }
     if (draft.lastPoNumber.trim() && !draft.annualValue.trim()) {
       const sap = await sapValueOf(
         draft.lastPoNumber,

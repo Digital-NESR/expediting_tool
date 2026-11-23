@@ -973,14 +973,17 @@ function DetailsForm({
           disabled={ro}
           onChange={(requesters) => setD({ ...d, requesters })}
         />
-        <PersonField
-          label="Buyer"
-          name={d.buyerName}
-          email={d.buyerEmail}
-          disabled={ro}
-          onPick={(name, email) => setD({ ...d, buyerName: name, buyerEmail: email })}
-        />
-        {text('approver', 'Approver')}
+        {/* A new service's buyer is whoever adds it (set on the server); an existing one can be
+            handed to another buyer. */}
+        {row && (
+          <PersonField
+            label="Buyer"
+            name={d.buyerName}
+            email={d.buyerEmail}
+            disabled={ro}
+            onPick={(name, email) => setD({ ...d, buyerName: name, buyerEmail: email })}
+          />
+        )}
         {text('requestType', 'Request type')}
         <Field label="Comments" wide>
           <textarea
