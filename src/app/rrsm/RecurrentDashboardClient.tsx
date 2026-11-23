@@ -150,6 +150,10 @@ export default function RecurrentDashboardClient({ board }: { board: RecurrentBo
   const serviceHref = (id: number) => `${href('/rrsm/recurrent')}&service=${id}`;
   const maxMonth = Math.max(1, ...data.months.map((m) => m.rows.length));
   const money = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 0 });
+  const compact = new Intl.NumberFormat('en-US', {
+    notation: 'compact',
+    maximumFractionDigits: 2,
+  });
   const open = (t: string, rows: RecurrentRow[]) => rows.length && setDrill({ title: t, rows });
 
   return (
@@ -221,11 +225,9 @@ export default function RecurrentDashboardClient({ board }: { board: RecurrentBo
               icon={CheckCircle2}
               label="Annual value"
               value={null}
-              text={
-                data.values.length
-                  ? data.values.map(([c, v]) => `${money.format(v)} ${c}`).join(' · ')
-                  : '—'
-              }
+              amounts={[...data.values]
+                .sort((a, b) => b[1] - a[1])
+                .map(([c, v]) => [compact.format(v), c, money.format(v)])}
               detail={
                 data.valuedRows.length
                   ? `Recorded on ${data.valuedRows.length} of ${data.live.length}`
@@ -387,7 +389,7 @@ function Tile({
   icon: Icon,
   label,
   value,
-  text,
+  amounts = [],
   detail,
   tone,
   onClick,
@@ -395,7 +397,8 @@ function Tile({
   icon: typeof Repeat;
   label: string;
   value: number | null;
-  text?: string;
+  /** Money per currency, largest first, as [short, currency, exact]: the first is the headline. */
+  amounts?: [string, string, string][];
   detail: string;
   tone: 'plain' | 'warn' | 'danger' | 'info';
   onClick: () => void;
@@ -423,13 +426,25 @@ function Tile({
       <p className="mt-3 text-[12.5px] font-semibold text-slate-500">{label}</p>
       {value !== null ? (
         <p className={`mt-0.5 text-3xl font-bold tracking-tight ${valueTone}`}>{value}</p>
+      ) : amounts.length ? (
+        <>
+          <p
+            className="mt-0.5 truncate text-3xl font-bold tracking-tight text-slate-900"
+            title={`${amounts[0][2]} ${amounts[0][1]}`}
+          >
+            {amounts[0][0]}
+            <span className="ml-1 text-[13px] font-semibold tracking-normal text-slate-400">
+              {amounts[0][1]}
+            </span>
+          </p>
+          {amounts.slice(1).map(([n, c, exact]) => (
+            <p key={c} className="text-[13px] font-semibold text-slate-600" title={`${exact} ${c}`}>
+              + {n} <span className="font-medium text-slate-400">{c}</span>
+            </p>
+          ))}
+        </>
       ) : (
-        <p
-          className="mt-1.5 truncate text-[17px] font-bold tracking-tight text-slate-900"
-          title={text}
-        >
-          {text}
-        </p>
+        <p className="mt-0.5 text-3xl font-bold tracking-tight text-slate-300">—</p>
       )}
       <p className="mt-1 text-[12px] leading-snug text-slate-500">{detail}</p>
     </button>
