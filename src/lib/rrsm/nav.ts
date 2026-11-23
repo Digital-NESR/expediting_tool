@@ -14,6 +14,7 @@ export type RrsmNavId =
   | 'renewals'
   | 'register'
   | 'history'
+  | 'recurrent'
   | 'help';
 
 /** What a page asks of the reader in the country being shown. */
@@ -24,7 +25,7 @@ export interface RrsmNavItem {
   path: string;
   label: string;
   /** Section heading the item sits under in the sidebar. */
-  group: 'overview' | 'cycle' | 'records' | 'support';
+  group: 'overview' | 'cycle' | 'records' | 'recurrent' | 'support';
   needs: RrsmNeed;
 }
 
@@ -59,6 +60,14 @@ export const RRSM_NAV: readonly RrsmNavItem[] = [
     needs: 'any',
   },
   { id: 'history', path: '/rrsm/history', label: 'Cycle history', group: 'records', needs: 'any' },
+  /* Annual contracts, subscriptions and AMCs: renewed, not billed monthly. Its own module. */
+  {
+    id: 'recurrent',
+    path: '/rrsm/recurrent',
+    label: 'Recurrent services',
+    group: 'recurrent',
+    needs: 'any',
+  },
   { id: 'help', path: '/rrsm/help', label: 'Help & Training', group: 'support', needs: 'any' },
 ];
 
@@ -66,13 +75,35 @@ export const RRSM_NAV_GROUP_LABEL: Record<RrsmNavItem['group'], string> = {
   overview: '',
   cycle: 'This month',
   records: 'Records',
+  recurrent: 'Recurrent services',
   support: '',
 };
 
 export interface RrsmRoles {
   canBuy: boolean;
   canValidate: boolean;
+  /** Admins see every page regardless of role. */
+  isAdmin?: boolean;
 }
+
+/** What a country runs (Admin -> RRSM). Defaults are how every country worked before. */
+export interface RrsmCountrySteps {
+  supplier: boolean;
+  ops: boolean;
+  rentals?: boolean;
+  recurrent?: boolean;
+}
+
+/** The pages that belong to the monthly rentals module. */
+const RENTAL_PAGES: RrsmNavId[] = [
+  'dashboard',
+  'suppliers',
+  'validation',
+  'purchasing',
+  'renewals',
+  'register',
+  'history',
+];
 
 /** True when this reader may open a page that asks `need` of them. */
 export function meetsNeed(need: RrsmNeed, roles: RrsmRoles): boolean {
@@ -88,14 +119,21 @@ export function meetsNeed(need: RrsmNeed, roles: RrsmRoles): boolean {
  */
 export function visibleNav(
   roles: RrsmRoles,
-  steps: { supplier: boolean; ops: boolean } = { supplier: true, ops: true },
+  steps: RrsmCountrySteps = { supplier: true, ops: true },
 ): RrsmNavItem[] {
-  return RRSM_NAV.filter(
-    (item) =>
-      meetsNeed(item.needs, roles) &&
-      !(item.id === 'suppliers' && !steps.supplier) &&
-      !(item.id === 'validation' && !steps.ops),
-  );
+  const rentals = steps.rentals ?? true;
+  const recurrent = steps.recurrent ?? false;
+  /* Somebody who is neither buyer, validator nor admin here is a requester (or a bare viewer):
+     the rentals pages have nothing for them to do. */
+  const onlyRequester = !roles.canBuy && !roles.canValidate && !roles.isAdmin;
+  return RRSM_NAV.filter((item) => {
+    if (!meetsNeed(item.needs, roles)) return false;
+    if (item.id === 'suppliers' && !steps.supplier) return false;
+    if (item.id === 'validation' && !steps.ops) return false;
+    if (RENTAL_PAGES.includes(item.id) && (!rentals || onlyRequester)) return false;
+    if (item.id === 'recurrent' && !recurrent) return false;
+    return true;
+  });
 }
 
 /**

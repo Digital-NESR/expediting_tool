@@ -27,7 +27,32 @@ describe('visibleNav', () => {
   });
 
   it('shows somebody holding both roles every page, in sidebar order', () => {
-    expect(ids({ canBuy: true, canValidate: true })).toEqual(RRSM_NAV.map((i) => i.id));
+    const both = { canBuy: true, canValidate: true };
+    expect(
+      visibleNav(both, { supplier: true, ops: true, rentals: true, recurrent: true }).map(
+        (i) => i.id,
+      ),
+    ).toEqual(RRSM_NAV.map((i) => i.id));
+    // Recurrent services is a module of its own, off unless the country runs it.
+    expect(ids(both)).toEqual(RRSM_NAV.map((i) => i.id).filter((id) => id !== 'recurrent'));
+  });
+
+  it('shows a recurrent-only country (HQ Dubai) just Recurrent services and Help', () => {
+    const both = { canBuy: true, canValidate: true };
+    expect(
+      visibleNav(both, { supplier: true, ops: true, rentals: false, recurrent: true }).map(
+        (i) => i.id,
+      ),
+    ).toEqual(['recurrent', 'help']);
+  });
+
+  it('shows a service requester only Recurrent services and Help', () => {
+    const requester = { canBuy: false, canValidate: false };
+    expect(
+      visibleNav(requester, { supplier: true, ops: true, rentals: true, recurrent: true }).map(
+        (i) => i.id,
+      ),
+    ).toEqual(['recurrent', 'help']);
   });
 
   it('keeps renewals, the register, history and help open to either role', () => {
@@ -44,8 +69,9 @@ describe('visibleNav', () => {
 
   it('agrees with meetsNeed for every item, so the sidebar and the pages ask one question', () => {
     const roles = { canBuy: true, canValidate: false };
+    const steps = { supplier: true, ops: true, rentals: true, recurrent: true };
     for (const item of RRSM_NAV) {
-      expect(visibleNav(roles).includes(item)).toBe(meetsNeed(item.needs, roles));
+      expect(visibleNav(roles, steps).includes(item)).toBe(meetsNeed(item.needs, roles));
     }
   });
 });

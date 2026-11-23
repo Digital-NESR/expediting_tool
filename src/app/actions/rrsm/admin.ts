@@ -28,7 +28,7 @@ export interface RrsmTeamRow {
   id: number;
   email: string;
   name: string;
-  role: 'buyer' | 'ops' | 'admin';
+  role: 'buyer' | 'ops' | 'admin' | 'requester';
   countryCode: string;
   countryName: string;
   addedBy: string;
@@ -50,6 +50,7 @@ export async function getRrsmCountries(): Promise<RrsmCountryRow[]> {
   await requireRrsmAdmin();
   const { rows } = await rrsmPool.query<QueryResultRow>(
     `SELECT c.code, c.name, c.currency, c.flag, c.live, c.supplier_validation, c.ops_validation,
+            c.rentals_enabled, c.recurrent_enabled,
             (SELECT count(*)::int FROM rrsm_users u
               WHERE u.active AND u.country_code = c.code) AS users
        FROM rrsm_countries c
@@ -184,6 +185,32 @@ export async function setRrsmCountrySteps(
   }
 }
 
+/**
+ * Which RRSM modules a country runs: the monthly rentals cycle, recurrent services, or both.
+ * HQ Dubai runs recurrent services only (user decision, 23 Nov 2026). Switching a module off
+ * hides its pages; nothing is deleted.
+ */
+export async function setRrsmCountryModules(
+  code: string,
+  modules: { rentals: boolean; recurrent: boolean },
+): Promise<RrsmActionResult> {
+  try {
+    const admin = await requireRrsmAdmin();
+    const target = String(code ?? '').trim();
+    if (!target) return { success: false, error: 'No country given.' };
+    const { rowCount } = await rrsmPool.query(
+      `UPDATE rrsm_countries SET rentals_enabled = $2, recurrent_enabled = $3 WHERE code = $1`,
+      [target, Boolean(modules?.rentals), Boolean(modules?.recurrent)],
+    );
+    if (!rowCount) return { success: false, error: 'No such country.' };
+    log.info('country.modules', { code: target, ...modules, by: admin });
+    return { success: true };
+  } catch (err) {
+    log.error('setRrsmCountryModules.failed', err, { code });
+    return { success: false, error: (err as Error).message };
+  }
+}
+
 /** The whole team, newest first within a country. */
 export async function getRrsmTeam(): Promise<RrsmTeamRow[]> {
   await requireRrsmAdmin();
@@ -218,7 +245,7 @@ export async function getRrsmTeam(): Promise<RrsmTeamRow[]> {
 export async function setRrsmUser(input: {
   email: string;
   name?: string;
-  role: 'buyer' | 'ops' | 'admin';
+  role: 'buyer' | 'ops' | 'admin' | 'requester';
   countryCode: string;
 }): Promise<RrsmActionResult> {
   try {
@@ -231,7 +258,7 @@ export async function setRrsmUser(input: {
 
     if (!email || !email.includes('@'))
       return { success: false, error: 'A valid email is needed.' };
-    if (!['buyer', 'ops', 'admin'].includes(role))
+    if (!['buyer', 'ops', 'admin', 'requester'].includes(role))
       return { success: false, error: 'Unknown role.' };
     if (!country) return { success: false, error: 'Pick a country.' };
 

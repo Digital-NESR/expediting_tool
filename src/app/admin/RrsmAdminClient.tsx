@@ -23,6 +23,7 @@ import {
   removeRrsmUser,
   setRrsmCountryLive,
   setRrsmCountrySteps,
+  setRrsmCountryModules,
   setRrsmUser,
   type RrsmCountryRow,
   type RrsmTeamRow,
@@ -39,12 +40,15 @@ const ROLE_LABEL: Record<Role, string> = {
   buyer: 'Buyer',
   ops: 'Ops validator',
   admin: 'Central admin',
+  requester: 'Service requester',
 };
 
 const ROLE_HELP: Record<Role, string> = {
   buyer: 'Converts validated lines into a PO and records the ERP number.',
   ops: 'Confirms what was actually used — headcount, units, days. Never value.',
   admin: 'Runs the register and the cycle for the country.',
+  requester:
+    'Decides whether their own recurrent services are renewed. Sees only the services where they are the requester-validator.',
 };
 
 /**
@@ -109,6 +113,20 @@ export default function RrsmAdminClient({ preview }: { preview?: RrsmAdminPrevie
     setBusy('country:' + c.code);
     setError('');
     const r = await setRrsmCountryLive(c.code, !c.live);
+    if (!r.success) setError(r.error ?? 'That did not work.');
+    else await reload();
+    setBusy(null);
+  }
+
+  async function toggleModule(c: RrsmCountryRow, key: 'rentals' | 'recurrent') {
+    setBusy('modules:' + c.code);
+    setError('');
+    setNotice('');
+    const next = {
+      rentals: key === 'rentals' ? !c.rentalsEnabled : c.rentalsEnabled,
+      recurrent: key === 'recurrent' ? !c.recurrentEnabled : c.recurrentEnabled,
+    };
+    const r = await setRrsmCountryModules(c.code, next);
     if (!r.success) setError(r.error ?? 'That did not work.');
     else await reload();
     setBusy(null);
@@ -353,54 +371,90 @@ export default function RrsmAdminClient({ preview }: { preview?: RrsmAdminPrevie
 
                 <div className="flex shrink-0 flex-col items-end gap-1">
                   <div className="flex items-center gap-1.5">
+                    <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
+                      Modules
+                    </span>
                     {(
                       [
-                        ['supplier', 'Supplier validation', c.supplierValidation],
-                        ['ops', 'Ops validation', c.opsValidation],
+                        ['rentals', 'Monthly rentals', c.rentalsEnabled],
+                        ['recurrent', 'Recurrent services', c.recurrentEnabled],
                       ] as const
-                    ).map(([key, label, on]) => {
-                      const draft = stepDraft?.code === c.code ? stepDraft.steps : null;
-                      const value = draft ? draft[key] : on;
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          role="switch"
-                          aria-checked={value}
-                          onClick={() => {
-                            const base = draft ?? {
-                              supplier: c.supplierValidation,
-                              ops: c.opsValidation,
-                            };
-                            const steps = { ...base, [key]: !value };
-                            setNotice('');
-                            setStepDraft(
-                              steps.supplier === c.supplierValidation &&
-                                steps.ops === c.opsValidation
-                                ? null
-                                : { code: c.code, steps },
-                            );
-                          }}
-                          title={`${label}: ${value ? 'on' : 'off'}. Click to switch ${value ? 'off' : 'on'}.`}
-                          className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11.5px] font-semibold transition-colors ${
-                            value
-                              ? 'bg-[#e6f1ea] text-[#1d4f31] hover:bg-[#d6e8de]'
-                              : 'bg-slate-100 text-slate-400 line-through hover:bg-slate-200'
-                          } ${draft && draft[key] !== on ? 'ring-2 ring-amber-300' : ''}`}
-                        >
-                          {value ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-                          {label}
-                        </button>
-                      );
-                    })}
+                    ).map(([key, label, on]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        role="switch"
+                        aria-checked={on}
+                        disabled={busy === 'modules:' + c.code}
+                        onClick={() => void toggleModule(c, key)}
+                        title={`${label}: ${on ? 'on' : 'off'}. Click to switch ${on ? 'off' : 'on'}.`}
+                        className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11.5px] font-semibold transition-colors disabled:opacity-50 ${
+                          on
+                            ? 'bg-[#e6f1ea] text-[#1d4f31] hover:bg-[#d6e8de]'
+                            : 'bg-slate-100 text-slate-400 line-through hover:bg-slate-200'
+                        }`}
+                      >
+                        {on ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                        {label}
+                      </button>
+                    ))}
                   </div>
-                  <span className="text-[11px] text-slate-400">
-                    {describeSteps(
-                      stepDraft?.code === c.code
-                        ? stepDraft.steps
-                        : { supplier: c.supplierValidation, ops: c.opsValidation },
-                    )}
-                  </span>
+                  {c.rentalsEnabled && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
+                        Rentals steps
+                      </span>
+                      {(
+                        [
+                          ['supplier', 'Supplier validation', c.supplierValidation],
+                          ['ops', 'Ops validation', c.opsValidation],
+                        ] as const
+                      ).map(([key, label, on]) => {
+                        const draft = stepDraft?.code === c.code ? stepDraft.steps : null;
+                        const value = draft ? draft[key] : on;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            role="switch"
+                            aria-checked={value}
+                            onClick={() => {
+                              const base = draft ?? {
+                                supplier: c.supplierValidation,
+                                ops: c.opsValidation,
+                              };
+                              const steps = { ...base, [key]: !value };
+                              setNotice('');
+                              setStepDraft(
+                                steps.supplier === c.supplierValidation &&
+                                  steps.ops === c.opsValidation
+                                  ? null
+                                  : { code: c.code, steps },
+                              );
+                            }}
+                            title={`${label}: ${value ? 'on' : 'off'}. Click to switch ${value ? 'off' : 'on'}.`}
+                            className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11.5px] font-semibold transition-colors ${
+                              value
+                                ? 'bg-[#e6f1ea] text-[#1d4f31] hover:bg-[#d6e8de]'
+                                : 'bg-slate-100 text-slate-400 line-through hover:bg-slate-200'
+                            } ${draft && draft[key] !== on ? 'ring-2 ring-amber-300' : ''}`}
+                          >
+                            {value ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {c.rentalsEnabled && (
+                    <span className="text-[11px] text-slate-400">
+                      {describeSteps(
+                        stepDraft?.code === c.code
+                          ? stepDraft.steps
+                          : { supplier: c.supplierValidation, ops: c.opsValidation },
+                      )}
+                    </span>
+                  )}
                 </div>
 
                 <button

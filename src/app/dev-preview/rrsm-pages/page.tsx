@@ -26,6 +26,8 @@ const KW = {
   live: true,
   supplierValidation: true,
   opsValidation: true,
+  rentalsEnabled: true,
+  recurrentEnabled: false,
 };
 const AE = {
   code: 'AE',
@@ -35,6 +37,8 @@ const AE = {
   live: true,
   supplierValidation: true,
   opsValidation: true,
+  rentalsEnabled: true,
+  recurrentEnabled: false,
 };
 
 function scopeFor(role?: string): RrsmScope {
@@ -287,7 +291,12 @@ export default async function RrsmPagesPreview({
       : sp.steps === 'supplier'
         ? { supplierValidation: true, opsValidation: false }
         : sp.steps === 'ops'
-          ? { supplierValidation: false, opsValidation: true }
+          ? {
+              supplierValidation: false,
+              opsValidation: true,
+              rentalsEnabled: true,
+              recurrentEnabled: false,
+            }
           : null;
   const scope: RrsmScope =
     steps && base.country ? { ...base, country: { ...base.country, ...steps } } : base;

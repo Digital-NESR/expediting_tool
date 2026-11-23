@@ -15,7 +15,11 @@ import { currentActor, isToolAdminEmail, normalizeEmail } from '@/lib/require-ac
  * the half that is wrong is usually the half that grants.
  */
 
-export type RrsmRole = 'buyer' | 'ops' | 'admin';
+/**
+ * `requester` is a recurrent service's requester-validator: they decide whether their own services
+ * are renewed, and see nothing else (user decision, 23 Nov 2026).
+ */
+export type RrsmRole = 'buyer' | 'ops' | 'admin' | 'requester';
 
 /**
  * Ranked so a caller can ask for "ops or better" without enumerating.
@@ -24,7 +28,7 @@ export type RrsmRole = 'buyer' | 'ops' | 'admin';
  * neither contains the other. Ranking them equal is what stops "ops or better" quietly admitting
  * every buyer, which is the mistake the SOA module records making with its old `manager` rung.
  */
-const RANK: Record<RrsmRole, number> = { buyer: 0, ops: 0, admin: 1 };
+const RANK: Record<RrsmRole, number> = { buyer: 0, ops: 0, requester: 0, admin: 1 };
 
 export interface RrsmGrant {
   role: RrsmRole;
@@ -47,6 +51,9 @@ export interface RrsmCountryOption {
   /** Which validation steps this country runs (Admin -> RRSM). Both true unless switched off. */
   supplierValidation: boolean;
   opsValidation: boolean;
+  /** Which RRSM modules run in this country: monthly rentals, recurrent services, or both. */
+  rentalsEnabled: boolean;
+  recurrentEnabled: boolean;
 }
 
 /**
@@ -74,12 +81,16 @@ export function canAccessCountry(actor: RrsmActor, code: string, role: RrsmRole)
  * Exported so the sidebar, the overview and the board all ask the same question the same way;
  * a nav item that shows for somebody the page then refuses is the drift this file exists to stop.
  */
-export function rolesIn(actor: RrsmActor, code: string): { canBuy: boolean; canValidate: boolean } {
-  if (actor.isAdmin) return { canBuy: true, canValidate: true };
+export function rolesIn(
+  actor: RrsmActor,
+  code: string,
+): { canBuy: boolean; canValidate: boolean; isRequester: boolean } {
+  if (actor.isAdmin) return { canBuy: true, canValidate: true, isRequester: false };
   const here = actor.grants.filter((g) => g.countryCode === code);
   return {
     canBuy: here.some((g) => g.role === 'buyer' || g.role === 'admin'),
     canValidate: here.some((g) => g.role === 'ops' || g.role === 'admin'),
+    isRequester: here.some((g) => g.role === 'requester'),
   };
 }
 
@@ -137,9 +148,11 @@ export async function resolveRrsmCountry(
 
   const { rows } = await rrsmPool.query<QueryResultRow>(
     scope === 'all'
-      ? `SELECT code, name, currency, flag, live, supplier_validation, ops_validation FROM rrsm_countries
+      ? `SELECT code, name, currency, flag, live, supplier_validation, ops_validation,
+                 rentals_enabled, recurrent_enabled FROM rrsm_countries
           WHERE live ORDER BY sort_order, name`
-      : `SELECT code, name, currency, flag, live, supplier_validation, ops_validation FROM rrsm_countries
+      : `SELECT code, name, currency, flag, live, supplier_validation, ops_validation,
+                 rentals_enabled, recurrent_enabled FROM rrsm_countries
           WHERE live AND code = ANY($1) ORDER BY sort_order, name`,
     scope === 'all' ? [] : [scope],
   );
@@ -159,5 +172,7 @@ export function toCountryOption(r: QueryResultRow): RrsmCountryOption {
     /* Absent from a query that did not select them = the default, which is both steps on. */
     supplierValidation: r.supplier_validation === undefined ? true : Boolean(r.supplier_validation),
     opsValidation: r.ops_validation === undefined ? true : Boolean(r.ops_validation),
+    rentalsEnabled: r.rentals_enabled === undefined ? true : Boolean(r.rentals_enabled),
+    recurrentEnabled: r.recurrent_enabled === undefined ? false : Boolean(r.recurrent_enabled),
   };
 }

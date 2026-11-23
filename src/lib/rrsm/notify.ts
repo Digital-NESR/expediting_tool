@@ -23,6 +23,8 @@ export type RrsmMailKind =
   | 'supplier.submitted'
   | 'cycle.reminder'
   | 'renewal.reminder'
+  | 'recurrent.reminder'
+  | 'recurrent.decision'
   | 'line.returned';
 
 export interface RrsmMail {
@@ -169,6 +171,83 @@ export function supplierReminderMail(input: {
         `you can ignore this email.</p>`,
     ),
     meta: { supplier: input.supplierName, period: input.period, reminder: true },
+  };
+}
+
+/**
+ * A recurrent service is coming up for renewal: to its requester-validator, copied to the buyer.
+ * Sent at 90, 60, 30, 14, 7 and 0 days. One service per mail, because the decision is per service
+ * and a digest of twelve invites the reader to answer none of them.
+ */
+export function recurrentReminderMail(input: {
+  to: string[];
+  cc: string[];
+  serviceName: string;
+  description: string;
+  supplierName: string;
+  expiresOn: string;
+  daysLeft: number;
+  url: string;
+}): RrsmMail {
+  const when =
+    input.daysLeft < 0
+      ? `expired on <b>${esc(input.expiresOn)}</b>`
+      : input.daysLeft === 0
+        ? `expires <b>today</b> (${esc(input.expiresOn)})`
+        : `expires on <b>${esc(input.expiresOn)}</b>, in ${input.daysLeft} day${input.daysLeft === 1 ? '' : 's'}`;
+  return {
+    kind: 'recurrent.reminder',
+    to: input.to,
+    cc: input.cc,
+    subject:
+      input.daysLeft <= 0
+        ? `Renewal needed: ${input.serviceName} has expired`
+        : `Renewal due in ${input.daysLeft} days: ${input.serviceName}`,
+    bodyHtml: SHELL(
+      `<p>Your service <b>${esc(input.serviceName)}</b>` +
+        (input.description && input.description !== input.serviceName
+          ? ` (${esc(input.description)})`
+          : '') +
+        ` from ${esc(input.supplierName || 'its supplier')} ${when}.</p>` +
+        `<p>Please tell the buyer whether to <b>renew it as is</b>, <b>renew it with changes</b> ` +
+        `or <b>cancel</b> it.</p>` +
+        `<p style="margin:24px 0"><a href="${esc(input.url)}" ` +
+        `style="background:#307c4c;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:600;display:inline-block">` +
+        `Open your recurrent services</a></p>`,
+    ),
+    meta: { service: input.serviceName, daysLeft: input.daysLeft },
+  };
+}
+
+/** The requester has decided: to the buyer, who now renews or cancels it. */
+export function recurrentDecisionMail(input: {
+  to: string[];
+  cc: string[];
+  serviceName: string;
+  supplierName: string;
+  expiresOn: string;
+  decisionLabel: string;
+  note: string;
+  decidedBy: string;
+  url: string;
+}): RrsmMail {
+  return {
+    kind: 'recurrent.decision',
+    to: input.to,
+    cc: input.cc,
+    subject: `${input.decisionLabel}: ${input.serviceName}`,
+    bodyHtml: SHELL(
+      `<p><b>${esc(input.decidedBy)}</b> decided <b>${esc(input.decisionLabel.toLowerCase())}</b> ` +
+        `for <b>${esc(input.serviceName)}</b> (${esc(input.supplierName || 'supplier not recorded')}), ` +
+        `which expires on ${esc(input.expiresOn || 'an unrecorded date')}.</p>` +
+        (input.note
+          ? `<p style="padding:10px 14px;background:#f3f6f4;border-radius:8px">${esc(input.note)}</p>`
+          : '') +
+        `<p style="margin:24px 0"><a href="${esc(input.url)}" ` +
+        `style="background:#307c4c;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:600;display:inline-block">` +
+        `Open the service</a></p>`,
+    ),
+    meta: { service: input.serviceName, decision: input.decisionLabel },
   };
 }
 

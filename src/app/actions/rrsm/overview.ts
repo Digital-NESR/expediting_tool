@@ -35,6 +35,8 @@ export interface RrsmScope {
   canBuy: boolean;
   canValidate: boolean;
   isAdmin: boolean;
+  /** A recurrent service requester-validator here: sees only their own services. */
+  isRequester?: boolean;
 }
 
 async function actorOrThrow(): Promise<RrsmActor> {
@@ -47,7 +49,9 @@ export async function getRrsmScope(requestedCountry?: string | null): Promise<Rr
   const actor = await actorOrThrow();
   const { countryCode, available } = await resolveRrsmCountry(actor, requestedCountry);
   const country = available.find((c) => c.code === countryCode) ?? null;
-  const roles = country ? rolesIn(actor, country.code) : { canBuy: false, canValidate: false };
+  const roles = country
+    ? rolesIn(actor, country.code)
+    : { canBuy: false, canValidate: false, isRequester: false };
   return { country, available, ...roles, isAdmin: actor.isAdmin };
 }
 

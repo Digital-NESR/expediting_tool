@@ -21,6 +21,7 @@ import {
   History,
   LayoutDashboard,
   LayoutGrid,
+  Repeat,
   Library,
   Receipt,
   Send,
@@ -55,6 +56,7 @@ const ICONS: Record<RrsmNavId, typeof LayoutGrid> = {
   renewals: CalendarClock,
   register: Library,
   history: History,
+  recurrent: Repeat,
   help: CircleQuestionMark,
 };
 
@@ -79,6 +81,7 @@ export function rrsmRoleLabel(scope: RrsmScope): string {
   if (scope.canBuy && scope.canValidate) return 'Buyer & Ops validator';
   if (scope.canBuy) return 'Buyer';
   if (scope.canValidate) return 'Ops validator';
+  if (scope.isRequester) return 'Service requester';
   return 'Viewer';
 }
 
@@ -102,6 +105,8 @@ export default function RrsmSidebar({
   const items = visibleNav(scope, {
     supplier: scope.country?.supplierValidation ?? true,
     ops: scope.country?.opsValidation ?? true,
+    rentals: scope.country?.rentalsEnabled ?? true,
+    recurrent: scope.country?.recurrentEnabled ?? false,
   });
   const country = scope.country?.code ?? null;
 

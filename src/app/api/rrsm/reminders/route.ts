@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 // also be a public POST endpoint, letting any signed-in user trigger the mass send below without
 // the CRON_SECRET check. Same note, same reason, as /api/procure-guard/reminders.
 import { sendRrsmRenewalReminders } from '@/lib/rrsm/reminders';
+import { sendRecurrentReminders } from '@/lib/rrsm/recurrent-reminders';
 
 export const dynamic = 'force-dynamic';
 // A digest per recipient plus a webhook call each; give it room beyond the default.
@@ -46,7 +47,9 @@ async function handle(req: Request) {
 
   try {
     const result = await sendRrsmRenewalReminders();
-    return NextResponse.json({ ok: true, ...result });
+    /* Recurrent services ride the same daily run: same secret, same webhook, one cron entry. */
+    const recurrent = await sendRecurrentReminders();
+    return NextResponse.json({ ok: true, ...result, recurrent });
   } catch (err) {
     console.error('[api/rrsm/reminders]', err);
     return NextResponse.json({ ok: false, error: 'Reminder run failed.' }, { status: 500 });

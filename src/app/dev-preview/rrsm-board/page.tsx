@@ -54,6 +54,8 @@ const BOARD: RrsmBoard = {
     live: true,
     supplierValidation: true,
     opsValidation: true,
+    rentalsEnabled: true,
+    recurrentEnabled: false,
   },
   /* Two, so the picker is drawn rather than the locked label. Swap to one to see the other. */
   available: [
@@ -65,6 +67,8 @@ const BOARD: RrsmBoard = {
       live: true,
       supplierValidation: true,
       opsValidation: true,
+      rentalsEnabled: true,
+      recurrentEnabled: false,
     },
     {
       code: 'AE',
@@ -74,6 +78,8 @@ const BOARD: RrsmBoard = {
       live: true,
       supplierValidation: true,
       opsValidation: true,
+      rentalsEnabled: true,
+      recurrentEnabled: false,
     },
   ],
   canBuy: true,

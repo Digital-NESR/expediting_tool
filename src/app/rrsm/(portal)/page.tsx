@@ -26,6 +26,12 @@ export default async function RrsmPage({
   if (legacy) redirect(rrsmHref(legacy, sp.country));
 
   const scope = await getRrsmScope(sp.country ?? null);
+  /* A country without the rentals module (HQ Dubai runs recurrent services only), or a reader who
+     is only a service requester, has no rentals dashboard: open on Recurrent services. */
+  const requesterOnly = !scope.canBuy && !scope.canValidate && !scope.isAdmin;
+  if (scope.country?.recurrentEnabled && (!scope.country.rentalsEnabled || requesterOnly)) {
+    redirect(rrsmHref('/rrsm/recurrent', scope.country.code));
+  }
   const overview = scope.country ? await getRrsmOverview(scope.country.code) : null;
   return <RrsmDashboardClient scope={scope} overview={overview} />;
 }
