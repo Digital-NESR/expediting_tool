@@ -206,3 +206,64 @@ export async function loadRegistryFormRefs(taxonomy: TaxCategory[]): Promise<Reg
     approvalsEnabled: approvals,
   };
 }
+
+/** Approvals on or off, written straight to the registry (the caller checks it is an admin). */
+export async function setRegistryApprovals(actor: RegistryActor, enabled: boolean): Promise<void> {
+  await poolDb.exec(
+    `INSERT INTO catalog_setting (key, value, updated_by, updated_at)
+     VALUES ('approvals_enabled', ?::jsonb, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_by = EXCLUDED.updated_by,
+                                     updated_at = CURRENT_TIMESTAMP`,
+    [JSON.stringify(enabled === true), actor.email],
+  );
+  await poolDb.exec(
+    `INSERT INTO audit_log (action, target, user_name, user_email, detail) VALUES (?, ?, ?, ?, ?)`,
+    [
+      'Master data',
+      'Approvals',
+      actor.name,
+      actor.email,
+      enabled
+        ? 'Switched approvals on'
+        : 'Paused approvals: new entries activate without an approver',
+    ],
+  );
+}
+
+export { approvalsEnabled as registryApprovalsEnabled };
+
+/** Registry entries in the given countries, for matching RRSM rows against (migration). */
+export async function listRegistryForMatching(
+  countries: string[],
+): Promise<
+  {
+    code: string;
+    countryCode: string;
+    supplierCode: string;
+    itemName: string;
+    registryType: string | null;
+  }[]
+> {
+  if (!countries.length) return [];
+  const rows = await poolDb.sql<Record<string, unknown>[]>(
+    `SELECT e.code, e.country_code, s.vendor_code, e.item_name, e.registry_type
+       FROM catalog_entry e JOIN supplier s ON s.id = e.supplier_id
+      WHERE e.country_code = ANY(?) AND e.status <> 'Inactive'`,
+    [countries],
+  );
+  return rows.map((r) => ({
+    code: String(r.code),
+    countryCode: String(r.country_code),
+    supplierCode: String(r.vendor_code),
+    itemName: String(r.item_name),
+    registryType: (r.registry_type as string) ?? null,
+  }));
+}
+
+/** A merged Catalog entry starts showing in RRSM: give it its registry type if it had none. */
+export async function markRegistryType(code: string, type: RegistryType): Promise<void> {
+  await poolDb.exec(
+    `UPDATE catalog_entry SET registry_type = ? WHERE code = ? AND registry_type IS NULL`,
+    [type, code],
+  );
+}

@@ -141,6 +141,7 @@ export const ADMIN_APPS: AdminApp[] = [
     sections: [
       { id: 'countries', label: 'Countries & Team' },
       { id: 'access-approvals', label: 'Access requests' },
+      { id: 'service-registry', label: 'Service Registry' },
     ],
   },
   {
