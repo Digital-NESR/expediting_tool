@@ -48,7 +48,7 @@ const ROLE_HELP: Record<Role, string> = {
   ops: 'Confirms what was actually used — headcount, units, days. Never value.',
   admin: 'Runs the register and the cycle for the country.',
   requester:
-    'Decides whether their own recurrent services are renewed. Sees only the services where they are the requester-validator.',
+    'Not appointed here: anybody a buyer names as requester-validator on a recurrent service gets access to their own services automatically.',
 };
 
 /**
@@ -237,11 +237,15 @@ export default function RrsmAdminClient({ preview }: { preview?: RrsmAdminPrevie
               onChange={(e) => setRole(e.target.value as Role)}
               className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13.5px] outline-none"
             >
-              {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
-                <option key={r} value={r}>
-                  {ROLE_LABEL[r]}
-                </option>
-              ))}
+              {/* Service requesters are not appointed: being named on a recurrent service by a
+                  buyer is what gives them access. The label stays for any grant made earlier. */}
+              {(Object.keys(ROLE_LABEL) as Role[])
+                .filter((r) => r !== 'requester')
+                .map((r) => (
+                  <option key={r} value={r}>
+                    {ROLE_LABEL[r]}
+                  </option>
+                ))}
             </select>
           </label>
 

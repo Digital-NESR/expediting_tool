@@ -116,14 +116,33 @@ export const currentRrsmActor = cache(async (): Promise<RrsmActor | null> => {
     [email],
   );
 
-  return {
-    email,
-    isAdmin,
-    grants: rows.map((r) => ({
-      role: String(r.role) as RrsmRole,
-      countryCode: String(r.country_code),
-    })),
-  };
+  const grants: RrsmGrant[] = rows.map((r) => ({
+    role: String(r.role) as RrsmRole,
+    countryCode: String(r.country_code),
+  }));
+
+  /* A recurrent service's requester-validator has access because a buyer named them on the
+     service, with no separate grant from an admin (user decision, 23 Nov 2026). Derived here, the
+     one place access is decided, so the layout, the pages and the actions all agree; and it ends
+     by itself when they are no longer named on any service. What it opens is narrow: the
+     `requester` role sees only their own services. */
+  try {
+    const { rows: named } = await rrsmPool.query<QueryResultRow>(
+      `SELECT DISTINCT country_code FROM rrsm_recurrent_services
+        WHERE lower(requester_email) = $1`,
+      [email],
+    );
+    for (const r of named) {
+      const countryCode = String(r.country_code);
+      if (!grants.some((g) => g.role === 'requester' && g.countryCode === countryCode)) {
+        grants.push({ role: 'requester', countryCode });
+      }
+    }
+  } catch {
+    /* Before the recurrent tables exist (a fresh database mid-migration) nobody is named yet. */
+  }
+
+  return { email, isAdmin, grants };
 });
 
 /**
