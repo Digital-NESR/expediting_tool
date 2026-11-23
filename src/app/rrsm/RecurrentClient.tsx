@@ -16,6 +16,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
+import PoHistoryPanel from './PoHistoryPanel';
 import {
   AlertTriangle,
   FileText,
@@ -495,6 +496,7 @@ function ServiceDrawer({
 
           <DetailsForm row={row} board={board} busy={busy} run={run} onClose={onClose} />
 
+          {row && <PoHistoryPanel serviceId={row.id} />}
           {row && <Documents row={row} board={board} busy={busy} run={run} />}
           {row && <History serviceId={row.id} />}
         </div>

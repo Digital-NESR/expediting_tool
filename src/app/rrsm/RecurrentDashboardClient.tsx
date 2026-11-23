@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   AlertTriangle,
+  ArrowLeft,
   ArrowRight,
   BellOff,
   CalendarClock,
@@ -31,6 +32,8 @@ import {
 } from 'lucide-react';
 import type { RecurrentBoard, RecurrentRow } from '@/app/actions/rrsm/recurrent';
 import RrsmShell, { RrsmEmpty, RrsmNoCountry } from './components/RrsmShell';
+import PoHistoryPanel from './PoHistoryPanel';
+import DashboardSwitch from './components/DashboardSwitch';
 import { rrsmHref } from '@/lib/rrsm/nav';
 import { DECISION_LABEL, RECURRENT_STATUS_LABEL, type RecurrentStatus } from '@/lib/rrsm/recurrent';
 
@@ -60,6 +63,8 @@ function monthLabel(key: string, long = false): string {
 interface Drill {
   title: string;
   rows: RecurrentRow[];
+  /** Set when a single service was clicked: the pop-up opens straight on it. */
+  service?: RecurrentRow;
 }
 
 interface Group {
@@ -162,6 +167,9 @@ export default function RecurrentDashboardClient({ board }: { board: RecurrentBo
       title={title}
       subtitle={`Recurrent services for ${country.name}: annual contracts, subscriptions and AMCs, and where their renewals stand. Click any figure to see the services behind it.`}
     >
+      {country.recurrentEnabled && country.rentalsEnabled && (
+        <DashboardSwitch current="recurrent" countryCode={country.code} />
+      )}
       {!country.recurrentReminders && (
         <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-900">
           <BellOff className="mt-0.5 h-4 w-4 shrink-0" />
@@ -286,7 +294,7 @@ export default function RecurrentDashboardClient({ board }: { board: RecurrentBo
                     <ServiceLine
                       key={r.id}
                       r={r}
-                      href={serviceHref(r.id)}
+                      onOpen={() => setDrill({ title: '', rows: [r], service: r })}
                       right={r.renewal?.decision ? DECISION_LABEL[r.renewal.decision] : ''}
                     />
                   ))}
@@ -312,7 +320,7 @@ export default function RecurrentDashboardClient({ board }: { board: RecurrentBo
                     <ServiceLine
                       key={r.id}
                       r={r}
-                      href={serviceHref(r.id)}
+                      onOpen={() => setDrill({ title: '', rows: [r], service: r })}
                       right={`in ${r.daysLeft} d`}
                       tone="warn"
                     />
@@ -336,7 +344,7 @@ export default function RecurrentDashboardClient({ board }: { board: RecurrentBo
                     <ServiceLine
                       key={r.id}
                       r={r}
-                      href={serviceHref(r.id)}
+                      onOpen={() => setDrill({ title: '', rows: [r], service: r })}
                       right={`${-(r.daysLeft ?? 0)} d ago`}
                       tone="danger"
                     />
@@ -472,18 +480,22 @@ function Card({
 
 function ServiceLine({
   r,
-  href,
+  onOpen,
   right,
   tone,
 }: {
   r: RecurrentRow;
-  href: string;
+  onOpen: () => void;
   right: string;
   tone?: 'warn' | 'danger';
 }) {
   return (
     <li>
-      <Link href={href} className="flex items-center gap-3 py-2 text-[13px] hover:bg-slate-50/70">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex w-full items-center gap-3 py-2 text-left text-[13px] hover:bg-slate-50/70"
+      >
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium text-slate-800">
             {r.serviceName || r.description}
@@ -504,7 +516,7 @@ function ServiceLine({
         >
           {right}
         </span>
-      </Link>
+      </button>
     </li>
   );
 }
@@ -581,7 +593,10 @@ function Breakdown({
   );
 }
 
-/** The drill-down: every service behind the figure, each opening the service itself. */
+/**
+ * The drill-down: every service behind the figure. A service's name drills through to that
+ * service — its details and its PO history and cost from SAP — without leaving the dashboard.
+ */
 function ServicesModal({
   drill,
   serviceHref,
@@ -593,98 +608,189 @@ function ServicesModal({
   money: Intl.NumberFormat;
   onClose: () => void;
 }) {
+  const [service, setService] = useState<RecurrentRow | null>(drill.service ?? null);
+  /* Back to the list when the service was opened from it; straight out when it was opened alone. */
+  const fromList = !drill.service;
+
   useEffect(() => {
-    const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const k = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (service && fromList) setService(null);
+      else onClose();
+    };
     window.addEventListener('keydown', k);
     return () => window.removeEventListener('keydown', k);
-  }, [onClose]);
+  }, [onClose, service, fromList]);
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[60] flex items-start justify-center bg-slate-950/40 p-4 pt-[8vh]"
+      className="fixed inset-0 z-[60] flex items-start justify-center bg-slate-950/40 p-4 pt-[6vh]"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={drill.title}
+        aria-label={service ? service.serviceName || service.description : drill.title}
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
       >
         <header className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3.5">
-          <h2 className="text-[15px] font-semibold text-slate-900">
-            {drill.title}{' '}
-            <span className="font-normal text-slate-400">
-              · {drill.rows.length} service{drill.rows.length === 1 ? '' : 's'}
-            </span>
-          </h2>
+          {service ? (
+            <div className="min-w-0">
+              {fromList && (
+                <button
+                  type="button"
+                  onClick={() => setService(null)}
+                  className="mb-0.5 inline-flex items-center gap-1 text-[11.5px] font-semibold text-slate-500 hover:text-[#1d4f31]"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" /> {drill.title}
+                </button>
+              )}
+              <h2 className="flex items-center gap-2 truncate text-[15px] font-semibold text-slate-900">
+                <span className="truncate">{service.serviceName || service.description}</span>
+                <span
+                  className={`shrink-0 whitespace-nowrap rounded px-1.5 py-0.5 text-[10.5px] font-semibold ${STATUS_TONE[service.status]}`}
+                >
+                  {RECURRENT_STATUS_LABEL[service.status]}
+                </span>
+              </h2>
+            </div>
+          ) : (
+            <h2 className="text-[15px] font-semibold text-slate-900">
+              {drill.title}{' '}
+              <span className="font-normal text-slate-400">
+                · {drill.rows.length} service{drill.rows.length === 1 ? '' : 's'}
+              </span>
+            </h2>
+          )}
           <button
             onClick={onClose}
             aria-label="Close"
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"
+            className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"
           >
             <X className="h-4 w-4" />
           </button>
         </header>
-        <div className="overflow-auto">
-          <table className="w-full min-w-[48rem] table-fixed text-[13px]">
-            <colgroup>
-              <col />
-              <col className="w-[12rem]" />
-              <col className="w-36" />
-              <col className="w-28" />
-              <col className="w-28" />
-              <col className="w-36" />
-            </colgroup>
-            <thead className="sticky top-0">
-              <tr className="bg-slate-50 text-[10.5px] uppercase tracking-wider text-slate-400">
-                <th className="px-4 py-2 text-left font-semibold">Service</th>
-                <th className="px-3 py-2 text-left font-semibold">Supplier</th>
-                <th className="px-3 py-2 text-left font-semibold">Requester</th>
-                <th className="px-3 py-2 text-left font-semibold">Expiry</th>
-                <th className="px-3 py-2 text-right font-semibold">Value</th>
-                <th className="px-3 py-2 text-left font-semibold">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {drill.rows.map((r) => (
-                <tr key={r.id} className="border-t border-slate-100 hover:bg-slate-50/70">
-                  <td className="px-4 py-2">
-                    <Link
-                      href={serviceHref(r.id)}
-                      className="block truncate font-medium text-[#1d4f31] hover:underline"
-                      title={r.description}
-                    >
-                      {r.serviceName || r.description}
-                    </Link>
-                    <div className="truncate text-[11px] text-slate-400">{r.department || '—'}</div>
-                  </td>
-                  <td className="truncate px-3 py-2 text-slate-600" title={r.supplierName}>
-                    {r.supplierName || '—'}
-                  </td>
-                  <td className="truncate px-3 py-2 text-slate-600" title={r.requesterEmail}>
-                    {r.requesterName || r.requesterEmail || '—'}
-                  </td>
-                  <td className="px-3 py-2 font-mono text-[12px] text-slate-700">
-                    {r.contractExpiry || '—'}
-                  </td>
-                  <td className="px-3 py-2 text-right font-mono text-[12px] text-slate-700">
-                    {r.annualValue === null ? '—' : `${money.format(r.annualValue)} ${r.currency}`}
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[10.5px] font-semibold ${STATUS_TONE[r.status]}`}
-                    >
-                      {RECURRENT_STATUS_LABEL[r.status]}
-                    </span>
-                  </td>
+
+        {service ? (
+          <ServiceDetail r={service} href={serviceHref(service.id)} money={money} />
+        ) : (
+          <div className="overflow-auto">
+            <table className="w-full min-w-[48rem] table-fixed text-[13px]">
+              <colgroup>
+                <col />
+                <col className="w-[12rem]" />
+                <col className="w-36" />
+                <col className="w-28" />
+                <col className="w-28" />
+                <col className="w-36" />
+              </colgroup>
+              <thead className="sticky top-0">
+                <tr className="bg-slate-50 text-[10.5px] uppercase tracking-wider text-slate-400">
+                  <th className="px-4 py-2 text-left font-semibold">Service</th>
+                  <th className="px-3 py-2 text-left font-semibold">Supplier</th>
+                  <th className="px-3 py-2 text-left font-semibold">Requester</th>
+                  <th className="px-3 py-2 text-left font-semibold">Expiry</th>
+                  <th className="px-3 py-2 text-right font-semibold">Value</th>
+                  <th className="px-3 py-2 text-left font-semibold">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {drill.rows.map((r) => (
+                  <tr key={r.id} className="border-t border-slate-100 hover:bg-slate-50/70">
+                    <td className="px-4 py-2">
+                      <button
+                        type="button"
+                        onClick={() => setService(r)}
+                        className="block w-full truncate text-left font-medium text-[#1d4f31] hover:underline"
+                        title={`${r.description} — open the service and its PO history`}
+                      >
+                        {r.serviceName || r.description}
+                      </button>
+                      <div className="truncate text-[11px] text-slate-400">
+                        {r.department || '—'}
+                      </div>
+                    </td>
+                    <td className="truncate px-3 py-2 text-slate-600" title={r.supplierName}>
+                      {r.supplierName || '—'}
+                    </td>
+                    <td className="truncate px-3 py-2 text-slate-600" title={r.requesterEmail}>
+                      {r.requesterName || r.requesterEmail || '—'}
+                    </td>
+                    <td className="px-3 py-2 font-mono text-[12px] text-slate-700">
+                      {r.contractExpiry || '—'}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono text-[12px] text-slate-700">
+                      {r.annualValue === null
+                        ? '—'
+                        : `${money.format(r.annualValue)} ${r.currency}`}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[10.5px] font-semibold ${STATUS_TONE[r.status]}`}
+                      >
+                        {RECURRENT_STATUS_LABEL[r.status]}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>,
     document.body,
+  );
+}
+
+/** One service, drilled through: the facts that matter for its renewal, then its PO history. */
+function ServiceDetail({
+  r,
+  href,
+  money,
+}: {
+  r: RecurrentRow;
+  href: string;
+  money: Intl.NumberFormat;
+}) {
+  const facts: [string, string][] = [
+    ['Supplier', r.supplierName || '—'],
+    ['Requester-validator', r.requesterName || r.requesterEmail || '—'],
+    ['Department', r.department || '—'],
+    [
+      'Contract expiry',
+      r.contractExpiry
+        ? `${r.contractExpiry}${r.daysLeft !== null ? ` (${r.daysLeft < 0 ? `${-r.daysLeft} d ago` : `in ${r.daysLeft} d`})` : ''}`
+        : '—',
+    ],
+    ['Last PO', r.lastPoNumber || '—'],
+    ['Annual value', r.annualValue === null ? '—' : `${money.format(r.annualValue)} ${r.currency}`],
+  ];
+  return (
+    <div className="space-y-4 overflow-y-auto px-5 py-4">
+      {r.description && r.description !== r.serviceName && (
+        <p className="text-[13px] text-slate-600">{r.description}</p>
+      )}
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-2.5 sm:grid-cols-3">
+        {facts.map(([k, v]) => (
+          <div key={k} className="min-w-0">
+            <dt className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
+              {k}
+            </dt>
+            <dd className="truncate text-[13px] text-slate-800" title={v}>
+              {v}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <PoHistoryPanel serviceId={r.id} />
+      <Link
+        href={href}
+        className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#1d4f31] hover:underline"
+      >
+        Open in Recurrent services to edit or renew <ArrowRight className="h-4 w-4" />
+      </Link>
+    </div>
   );
 }

@@ -8,7 +8,8 @@
  * `/rrsm?view=` was how the four tabs were addressed before each became its own page, and renewal
  * reminders already in people's inboxes carry it. Those links are redirected rather than broken.
  *
- * A country that runs only recurrent services (HQ Dubai) gets the recurrent dashboard here. A
+ * A country that runs only recurrent services (HQ Dubai) gets the recurrent dashboard here; one
+ * that runs both gets the rentals one, with a switch to the recurrent one (`?board=recurrent`). A
  * reader who is only a service requester has no dashboard: they land on their own services.
  */
 import { redirect } from 'next/navigation';
@@ -23,7 +24,7 @@ export const dynamic = 'force-dynamic';
 export default async function RrsmPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ country?: string; view?: string }>;
+  searchParams?: Promise<{ country?: string; view?: string; board?: string }>;
 }) {
   const sp = searchParams ? await searchParams : {};
 
@@ -35,7 +36,10 @@ export default async function RrsmPage({
   if (scope.country?.recurrentEnabled && requesterOnly) {
     redirect(rrsmHref('/rrsm/recurrent', scope.country.code));
   }
-  if (scope.country?.recurrentEnabled && !scope.country.rentalsEnabled) {
+  if (
+    scope.country?.recurrentEnabled &&
+    (!scope.country.rentalsEnabled || sp.board === 'recurrent')
+  ) {
     const board = await getRecurrentBoard(scope.country.code);
     return <RecurrentDashboardClient board={board} />;
   }

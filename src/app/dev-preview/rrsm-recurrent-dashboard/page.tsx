@@ -5,10 +5,15 @@
 import { notFound } from 'next/navigation';
 import RecurrentDashboardClient from '@/app/rrsm/RecurrentDashboardClient';
 import { previewBoard } from '../rrsm-recurrent/fixture';
+import PreviewPoHistory from '../rrsm-recurrent/PreviewPoHistory';
 
 export const dynamic = 'force-dynamic';
 
 export default async function RecurrentDashboardPreview() {
   if (process.env.NODE_ENV === 'production') notFound();
-  return <RecurrentDashboardClient board={previewBoard(false)} />;
+  return (
+    <PreviewPoHistory>
+      <RecurrentDashboardClient board={previewBoard(false)} />
+    </PreviewPoHistory>
+  );
 }

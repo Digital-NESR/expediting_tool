@@ -7,6 +7,7 @@
 import { notFound } from 'next/navigation';
 import RecurrentClient from '@/app/rrsm/RecurrentClient';
 import { previewBoard } from './fixture';
+import PreviewPoHistory from './PreviewPoHistory';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,5 +18,9 @@ export default async function RecurrentPreview({
 }) {
   if (process.env.NODE_ENV === 'production') notFound();
   const sp = searchParams ? await searchParams : {};
-  return <RecurrentClient board={previewBoard(sp.as === 'requester')} />;
+  return (
+    <PreviewPoHistory>
+      <RecurrentClient board={previewBoard(sp.as === 'requester')} />
+    </PreviewPoHistory>
+  );
 }

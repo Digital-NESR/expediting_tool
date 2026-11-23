@@ -28,6 +28,7 @@ import type { RrsmOverview, RrsmScope } from '@/app/actions/rrsm/overview';
 import { STAGE_LABEL, periodLabel, type CycleStage } from '@/lib/rrsm/cycle';
 import { meetsNeed, rrsmHref, type RrsmNeed } from '@/lib/rrsm/nav';
 import RrsmShell, { RrsmEmpty, RrsmNoCountry } from './components/RrsmShell';
+import DashboardSwitch from './components/DashboardSwitch';
 
 const STAGE_ORDER: CycleStage[] = [
   'awaiting_supplier',
@@ -80,6 +81,10 @@ export default function RrsmDashboardClient({
           : `No cycle has been opened for ${country.name} yet.`
       }
     >
+      {country.recurrentEnabled && country.rentalsEnabled && (
+        <DashboardSwitch current="rentals" countryCode={country.code} />
+      )}
+
       {/* ── the month ─────────────────────────────────────────── */}
       {cycle ? (
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

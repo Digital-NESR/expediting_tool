@@ -27,6 +27,7 @@ import {
 } from '@/lib/rrsm/recurrent';
 import { daysUntil } from '@/lib/rrsm/renewals';
 import { EMPTY_SAP, type SapStatus } from '@/lib/rrsm/sap';
+import { readPoHistory, type PoHistory } from '@/lib/rrsm/po-history-read';
 import { readSapStatus } from '@/lib/rrsm/sap-status';
 import { checkDoc } from '@/lib/rrsm/submission';
 import { appBase } from '@/lib/rrsm/supplier-access';
@@ -304,6 +305,50 @@ export async function getRecurrentHistory(serviceId: number): Promise<
   } catch (err) {
     log.error('getRecurrentHistory.failed', err, { serviceId });
     return [];
+  }
+}
+
+/**
+ * The service's POs in SAP, year on year. Read-only on Materials DB; the same people who may see
+ * the service's change history may see this.
+ */
+export async function getRecurrentPoHistory(serviceId: number): Promise<PoHistory> {
+  const empty: PoHistory = { ok: false, pos: [], years: [] };
+  try {
+    const id = Number(serviceId);
+    const actor = await actorOrThrow();
+    const owner = await serviceOwner(id);
+    const roles = rolesIn(actor, owner.country);
+    const mine =
+      owner.requesterEmail && owner.requesterEmail.toLowerCase() === actor.email.toLowerCase();
+    if (!roles.canBuy && !mine) return empty;
+
+    const { rows } = await rrsmPool.query<QueryResultRow>(
+      `SELECT s.service_name, s.description, s.supplier_name, s.supplier_code, s.last_po_number,
+              ARRAY(SELECT new_po_number FROM rrsm_recurrent_renewals
+                     WHERE service_id = s.id AND new_po_number IS NOT NULL) AS renewal_pos,
+              ARRAY(SELECT x FROM rrsm_recurrent_log l,
+                           LATERAL jsonb_array_elements_text(l.changes -> 'lastPoNumber') x
+                     WHERE l.service_id = s.id AND jsonb_typeof(l.changes -> 'lastPoNumber') = 'array'
+                   ) AS logged_pos
+         FROM rrsm_recurrent_services s WHERE s.id = $1`,
+      [id],
+    );
+    const s = rows[0];
+    if (!s) return empty;
+    return await readPoHistory({
+      text: `${txt(s.service_name)} ${txt(s.description)}`,
+      supplierName: txt(s.supplier_name),
+      supplierCode: txt(s.supplier_code),
+      recorded: [
+        txt(s.last_po_number),
+        ...((s.renewal_pos as string[] | null) ?? []),
+        ...((s.logged_pos as string[] | null) ?? []),
+      ].filter((p) => /^\d{6,12}$/.test(p)),
+    });
+  } catch (err) {
+    log.error('getRecurrentPoHistory.failed', err, { serviceId });
+    return empty;
   }
 }
 
