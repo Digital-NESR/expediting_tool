@@ -18,6 +18,7 @@ import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import PoHistoryPanel from './PoHistoryPanel';
 import type { PoValue } from '@/lib/rrsm/po-history-read';
+import type { RrsmSupplierOption } from '@/lib/rrsm/avl';
 import {
   AlertTriangle,
   FileText,
@@ -34,6 +35,7 @@ import {
   decideRecurrentRenewal,
   deleteRecurrentService,
   getRecurrentHistory,
+  searchRecurrentSuppliers,
   lookupRecurrentPo,
   removeRecurrentDocument,
   saveRecurrentService,
@@ -50,6 +52,7 @@ import {
   PERIOD_LABEL,
   RECURRENT_STATUS_LABEL,
   RENEWAL_PERIODS,
+  RECURRENT_DEPARTMENTS,
   cleanPeople,
   peopleShort,
   type Person,
@@ -734,6 +737,129 @@ function PoIssueTag({ issue, po }: { issue: PoIssue; po?: SapPo }) {
   );
 }
 
+/**
+ * Vendor code and vendor name, each searchable against SourceGuide's supplier AVL. Picking a
+ * supplier from either fills both, and the contact email(s) from the vendor master. Typing without
+ * picking still works, for a supplier not in SAP yet.
+ */
+function SupplierFields({
+  d,
+  setD,
+  disabled,
+  countryCode,
+}: {
+  d: RecurrentDraft;
+  setD: React.Dispatch<React.SetStateAction<RecurrentDraft>>;
+  disabled: boolean;
+  countryCode: string;
+}) {
+  const [active, setActive] = useState<'supplierCode' | 'supplierName' | null>(null);
+  const [options, setOptions] = useState<RrsmSupplierOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function type(field: 'supplierCode' | 'supplierName', value: string) {
+    setD((prev) => ({ ...prev, [field]: value }));
+    setActive(field);
+    if (timer.current) clearTimeout(timer.current);
+    if (value.trim().length < 2) {
+      setOptions([]);
+      return;
+    }
+    timer.current = setTimeout(async () => {
+      setLoading(true);
+      const found = await searchRecurrentSuppliers({ countryCode, query: value });
+      setOptions(found);
+      setLoading(false);
+    }, 250);
+  }
+
+  function pick(o: RrsmSupplierOption) {
+    setD((prev) => {
+      const sameVendor = prev.supplierCode.trim() === o.code;
+      return {
+        ...prev,
+        supplierCode: o.code,
+        supplierName: o.name,
+        /* The vendor master's address(es) when it has any; a different supplier's old contact
+           would be wrong, so it is cleared rather than kept. */
+        supplierContactEmail: o.email || (sameVendor ? prev.supplierContactEmail : ''),
+        supplierContactName: sameVendor ? prev.supplierContactName : '',
+      };
+    });
+    setActive(null);
+    setOptions([]);
+  }
+
+  const list = (field: 'supplierCode' | 'supplierName') =>
+    active === field && (loading || options.length > 0) ? (
+      <>
+        <div className="fixed inset-0 z-10" onClick={() => setActive(null)} />
+        <ul className="absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+          {loading && !options.length && (
+            <li className="px-3 py-2 text-[12px] text-slate-400">Searching the supplier AVL…</li>
+          )}
+          {options.map((o) => (
+            <li key={o.code}>
+              <button
+                type="button"
+                onClick={() => pick(o)}
+                className="flex w-full items-start gap-2 px-3 py-1.5 text-left hover:bg-slate-50"
+              >
+                <span className="shrink-0 font-mono text-[11.5px] text-slate-500">{o.code}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12.5px] text-slate-800">{o.name}</span>
+                  {o.email && (
+                    <span className="block truncate text-[11px] text-slate-400">{o.email}</span>
+                  )}
+                </span>
+                {o.blocked && (
+                  <span className="shrink-0 rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
+                    Blocked
+                  </span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </>
+    ) : null;
+
+  return (
+    <>
+      <Field label="Vendor code (SAP)" as="div">
+        <div className="relative">
+          <input
+            value={d.supplierCode}
+            onChange={(e) => type('supplierCode', e.target.value)}
+            onFocus={() => setActive('supplierCode')}
+            disabled={disabled}
+            inputMode="numeric"
+            placeholder="Search by code"
+            autoComplete="off"
+            className={INPUT}
+          />
+          {list('supplierCode')}
+        </div>
+      </Field>
+      <Field label="Vendor name" as="div">
+        <div className="relative">
+          <input
+            value={d.supplierName}
+            onChange={(e) => type('supplierName', e.target.value)}
+            onFocus={() => setActive('supplierName')}
+            disabled={disabled}
+            placeholder="Search the supplier AVL"
+            autoComplete="off"
+            className={INPUT}
+          />
+          {list('supplierName')}
+        </div>
+      </Field>
+    </>
+  );
+}
+
 type SapLookup = {
   state: 'idle' | 'loading' | 'found' | 'missing' | 'error';
   for: string;
@@ -894,7 +1020,22 @@ function DetailsForm({
             <option value="cancelled">Cancelled</option>
           </select>
         </Field>
-        {text('department', 'Department')}
+        <Field label="Department">
+          <select value={d.department} onChange={set('department')} disabled={ro} className={INPUT}>
+            <option value="">Choose…</option>
+            {[
+              ...RECURRENT_DEPARTMENTS,
+              ...(d.department &&
+              !(RECURRENT_DEPARTMENTS as readonly string[]).includes(d.department)
+                ? [d.department]
+                : []),
+            ].map((x) => (
+              <option key={x} value={x}>
+                {x}
+              </option>
+            ))}
+          </select>
+        </Field>
         <Field label="Contract renewal period">
           <select
             value={d.renewalPeriod}
@@ -963,10 +1104,11 @@ function DetailsForm({
             />
           </div>
         </Field>
-        {text('supplierCode', 'Vendor code (SAP)')}
-        {text('supplierName', 'Vendor name')}
+        <SupplierFields d={d} setD={setD} disabled={ro} countryCode={board.country?.code ?? ''} />
         {text('supplierContactName', 'Supplier contact name')}
-        {text('supplierContactEmail', 'Supplier contact email', { type: 'email' })}
+        {text('supplierContactEmail', 'Supplier contact email(s)', {
+          placeholder: 'name@supplier.com; other@supplier.com',
+        })}
         <PeopleField
           label="Requester-validators"
           people={d.requesters}
@@ -984,7 +1126,6 @@ function DetailsForm({
             onPick={(name, email) => setD({ ...d, buyerName: name, buyerEmail: email })}
           />
         )}
-        {text('requestType', 'Request type')}
         <Field label="Comments" wide>
           <textarea
             value={d.comments}

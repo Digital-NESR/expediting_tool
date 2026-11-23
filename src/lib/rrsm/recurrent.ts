@@ -210,6 +210,33 @@ export interface RecurrentDraft {
   comments: string;
 }
 
+/** "a@x.com,b@y.com ; a@x.com" → "a@x.com; b@y.com" (valid addresses only, each once). */
+export function cleanEmails(raw: string | null | undefined): string {
+  const seen = new Set<string>();
+  for (const part of String(raw ?? '').split(/[;,\s]+/)) {
+    const e = part.trim().toLowerCase();
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) seen.add(e);
+  }
+  return [...seen].join('; ');
+}
+
+/**
+ * The departments a recurrent service belongs to. A stored value outside the list (from an
+ * import) still shows in the dropdown, so editing a service never silently changes it.
+ */
+export const RECURRENT_DEPARTMENTS = [
+  'Administration',
+  'Business Development',
+  'Finance',
+  'HR',
+  'IT',
+  'Legal',
+  'Maintenance',
+  'Operations',
+  'QHSE',
+  'Supply Chain',
+] as const;
+
 export const EMPTY_RECURRENT_DRAFT: RecurrentDraft = {
   description: '',
   serviceName: '',
@@ -248,11 +275,11 @@ export function checkRecurrent(d: RecurrentDraft): string | null {
   ] as const) {
     if (v.trim() && !ISO.test(v.trim())) return `The ${label} must be a date.`;
   }
-  for (const [label, v] of [
-    ['supplier contact email', d.supplierContactEmail],
-    ['buyer email', d.buyerEmail],
-  ] as const) {
-    if (v.trim() && !EMAIL.test(v.trim())) return `The ${label} is not an email address.`;
+  if (d.buyerEmail.trim() && !EMAIL.test(d.buyerEmail.trim()))
+    return 'The buyer email is not an email address.';
+  /* A supplier can have several contacts: "a@x.com; b@y.com". */
+  for (const e of d.supplierContactEmail.split(/[;,\s]+/).filter(Boolean)) {
+    if (!EMAIL.test(e)) return `The supplier contact email "${e}" is not an email address.`;
   }
   for (const p of d.requesters ?? []) {
     if (p.email.trim() && !EMAIL.test(p.email.trim())) {

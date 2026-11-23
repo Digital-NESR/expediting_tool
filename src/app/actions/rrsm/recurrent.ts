@@ -18,6 +18,7 @@ import {
   RENEWAL_PERIODS,
   canDecideRenewal,
   checkRecurrent,
+  cleanEmails,
   cleanPeople,
   isRequesterOf,
   poIssue,
@@ -40,6 +41,7 @@ import {
   type PoValue,
 } from '@/lib/rrsm/po-history-read';
 import { readSapStatus } from '@/lib/rrsm/sap-status';
+import { searchRrsmSuppliers, type RrsmSupplierOption } from '@/lib/rrsm/avl';
 import { checkDoc } from '@/lib/rrsm/submission';
 import { appBase } from '@/lib/rrsm/supplier-access';
 
@@ -423,6 +425,21 @@ async function sapValueOf(poNumber: string, text: string, supplierName: string) 
   }
 }
 
+/** Supplier type-ahead for the service form, from SourceGuide's AVL. Buyers only. */
+export async function searchRecurrentSuppliers(input: {
+  countryCode: string;
+  query: string;
+}): Promise<RrsmSupplierOption[]> {
+  try {
+    const actor = await actorOrThrow();
+    if (!rolesIn(actor, String(input?.countryCode ?? '')).canBuy) return [];
+    return await searchRrsmSuppliers(String(input?.query ?? '').slice(0, 80));
+  } catch (err) {
+    log.error('searchRecurrentSuppliers.failed', err);
+    return [];
+  }
+}
+
 /* ─── buyers: add, edit, remove ──────────────────────────────────────────────────────────── */
 
 /* The plain columns. The requesters list is saved beside them (with its first person copied into
@@ -459,7 +476,8 @@ function valuesOf(d: RecurrentDraft): (string | number | null)[] {
   return FIELDS.map(([k]) => {
     const v = String(d[k] ?? '').trim();
     if (k === 'annualValue') return v ? Number(v.replace(/,/g, '')) : null;
-    if (k === 'buyerEmail' || k === 'supplierContactEmail') return v ? v.toLowerCase() : null;
+    if (k === 'buyerEmail') return v ? v.toLowerCase() : null;
+    if (k === 'supplierContactEmail') return cleanEmails(v) || null;
     if (k === 'currency') return v ? v.toUpperCase() : null;
     return v || null;
   });

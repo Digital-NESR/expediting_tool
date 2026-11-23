@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   EMPTY_RECURRENT_DRAFT,
   canDecideRenewal,
+  cleanEmails,
   cleanPeople,
   peopleShort,
   poIssue,
@@ -147,5 +148,20 @@ describe('poIssue', () => {
   it('flags only a missing number when SAP could not be read', () => {
     expect(poIssue({ ...base, sapRead: false, createdOn: null })).toBeNull();
     expect(poIssue({ ...base, sapRead: false, poNumber: '' })).toBe('missing');
+  });
+});
+
+describe('cleanEmails', () => {
+  it('keeps each valid address once, lower-cased, separated by "; "', () => {
+    expect(cleanEmails('A@x.com,b@y.com ; a@x.com  not-an-email')).toBe('a@x.com; b@y.com');
+    expect(cleanEmails('')).toBe('');
+  });
+});
+
+describe('checkRecurrent supplier contact emails', () => {
+  const ok = { ...EMPTY_RECURRENT_DRAFT, description: 'LMS' };
+  it('accepts several addresses and names the bad one', () => {
+    expect(checkRecurrent({ ...ok, supplierContactEmail: 'a@x.com; b@y.com' })).toBeNull();
+    expect(checkRecurrent({ ...ok, supplierContactEmail: 'a@x.com; bob' })).toMatch(/"bob"/);
   });
 });
