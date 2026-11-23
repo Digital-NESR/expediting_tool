@@ -19,9 +19,11 @@ import {
   checkRecurrent,
   cleanPeople,
   isRequesterOf,
+  poIssue,
   recurrentStatus,
   suggestNextExpiry,
   type Person,
+  type PoIssue,
   type RecurrentDraft,
   type RecurrentStatus,
   type RecurrentStoredStatus,
@@ -94,6 +96,8 @@ export interface RecurrentRow {
   documents: { id: number; kind: RecurrentDocKind; fileName: string; uploadedAt: string }[];
   /** True when the reader may decide on this service's renewal. */
   canDecide: boolean;
+  /** Why the buyer should update the PO number (none, not in SAP, or old), or null. */
+  poIssue: PoIssue | null;
 }
 
 export interface RecurrentBoard {
@@ -275,6 +279,7 @@ export async function getRecurrentBoard(requestedCountry?: string | null): Promi
             requesters: requestersOf(r),
             canBuy: roles.canBuy,
           }),
+        poIssue: null, // set below, once SAP has been read
       };
     });
 
@@ -282,6 +287,16 @@ export async function getRecurrentBoard(requestedCountry?: string | null): Promi
       out.map((r) => r.lastPoNumber),
       [],
     );
+    for (const r of out) {
+      r.poIssue = poIssue({
+        active: r.storedStatus === 'active',
+        poNumber: r.lastPoNumber,
+        period: r.renewalPeriod,
+        sapRead: sap.ok,
+        createdOn: sap.pos[r.lastPoNumber]?.createdOn || null,
+        today,
+      });
+    }
     return { ...empty, rows: out, sap };
   } catch (err) {
     log.error('getRecurrentBoard.failed', err, { country: country.code });

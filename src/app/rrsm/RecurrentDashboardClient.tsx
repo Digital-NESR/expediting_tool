@@ -25,6 +25,7 @@ import {
   BellOff,
   CalendarClock,
   CheckCircle2,
+  FileWarning,
   Clock,
   Repeat,
   Send,
@@ -38,6 +39,7 @@ import { rrsmHref } from '@/lib/rrsm/nav';
 import {
   DECISION_LABEL,
   RECURRENT_STATUS_LABEL,
+  PO_ISSUE_LABEL,
   peopleShort,
   type RecurrentStatus,
 } from '@/lib/rrsm/recurrent';
@@ -94,6 +96,7 @@ export default function RecurrentDashboardClient({ board }: { board: RecurrentBo
     const withBuyer = live.filter((r) => r.status === 'awaiting_buyer');
     const cancelled = board.rows.filter((r) => r.storedStatus === 'cancelled');
     const noExpiry = live.filter((r) => r.status === 'no_expiry');
+    const poToUpdate = live.filter((r) => r.poIssue !== null);
 
     /* The next twelve months of expiries, by month, including the current one. */
     const now = new Date();
@@ -143,6 +146,7 @@ export default function RecurrentDashboardClient({ board }: { board: RecurrentBo
       withBuyer,
       cancelled,
       noExpiry,
+      poToUpdate,
       months,
       byDepartment: group((r) => [r.department]),
       byRequester: group((r) => r.requesters.map((p) => p.name || p.email)),
@@ -254,6 +258,30 @@ export default function RecurrentDashboardClient({ board }: { board: RecurrentBo
               onClick={() => open('Services with an annual value', data.valuedRows)}
             />
           </div>
+
+          {data.poToUpdate.length > 0 && (
+            <button
+              type="button"
+              onClick={() => open('PO number to update', data.poToUpdate)}
+              className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-left text-[13px] text-amber-900 hover:bg-amber-100/70"
+            >
+              <FileWarning className="h-4 w-4 shrink-0" />
+              <span className="font-semibold">
+                {data.poToUpdate.length} service{data.poToUpdate.length === 1 ? '' : 's'} need
+                {data.poToUpdate.length === 1 ? 's' : ''} the PO number updated
+              </span>
+              <span className="text-amber-800/80">
+                {(['missing', 'old', 'not_in_sap'] as const)
+                  .map((k) => [k, data.poToUpdate.filter((r) => r.poIssue === k).length] as const)
+                  .filter(([, n]) => n)
+                  .map(([k, n]) => `${n} ${PO_ISSUE_LABEL[k].toLowerCase()}`)
+                  .join(' · ')}
+              </span>
+              <span className="ml-auto inline-flex items-center gap-1 font-semibold">
+                See them <ArrowRight className="h-3.5 w-3.5" />
+              </span>
+            </button>
+          )}
 
           <div className="grid gap-4 lg:grid-cols-2">
             <Card title="Expiring in the next 12 months" icon={Clock}>
@@ -781,7 +809,10 @@ function ServiceDetail({
         ? `${r.contractExpiry}${r.daysLeft !== null ? ` (${r.daysLeft < 0 ? `${-r.daysLeft} d ago` : `in ${r.daysLeft} d`})` : ''}`
         : '—',
     ],
-    ['Last PO', r.lastPoNumber || '—'],
+    [
+      'Last PO',
+      (r.lastPoNumber || '—') + (r.poIssue ? ` (${PO_ISSUE_LABEL[r.poIssue].toLowerCase()})` : ''),
+    ],
     ['Annual value', r.annualValue === null ? '—' : `${money.format(r.annualValue)} ${r.currency}`],
   ];
   return (

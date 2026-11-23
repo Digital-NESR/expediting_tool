@@ -53,6 +53,8 @@ import {
   cleanPeople,
   peopleShort,
   type Person,
+  type PoIssue,
+  PO_ISSUE_LABEL,
   type RecurrentDraft,
   type RecurrentStatus,
   type RenewalDecision,
@@ -71,13 +73,15 @@ const STATUS_TONE: Record<RecurrentStatus, string> = {
   no_expiry: 'bg-slate-100 text-slate-500',
 };
 
-type Filter = 'all' | 'attention' | 'due' | 'expired' | 'awaiting_buyer' | 'active' | 'cancelled';
+type Filter =
+  'all' | 'attention' | 'due' | 'expired' | 'awaiting_buyer' | 'po' | 'active' | 'cancelled';
 
 const FILTERS: [Filter, string][] = [
   ['attention', 'Needs attention'],
   ['due', 'Due ≤ 90 days'],
   ['expired', 'Expired'],
   ['awaiting_buyer', 'With buyer'],
+  ['po', 'PO to update'],
   ['active', 'Active'],
   ['cancelled', 'Cancelled'],
   ['all', 'All'],
@@ -86,7 +90,13 @@ const FILTERS: [Filter, string][] = [
 function matches(f: Filter, r: RecurrentRow): boolean {
   if (f === 'all') return true;
   if (f === 'attention')
-    return r.status === 'due' || r.status === 'expired' || r.status === 'awaiting_buyer';
+    return (
+      r.status === 'due' ||
+      r.status === 'expired' ||
+      r.status === 'awaiting_buyer' ||
+      r.poIssue !== null
+    );
+  if (f === 'po') return r.poIssue !== null;
   return r.status === f;
 }
 
@@ -344,7 +354,11 @@ export default function RecurrentClient({
                     <div className="font-mono text-[12px] text-slate-700">
                       {r.lastPoNumber || '—'}
                     </div>
-                    <PoState po={board.sap.pos[r.lastPoNumber]} />
+                    {r.poIssue ? (
+                      <PoIssueTag issue={r.poIssue} po={board.sap.pos[r.lastPoNumber]} />
+                    ) : (
+                      <PoState po={board.sap.pos[r.lastPoNumber]} />
+                    )}
                   </td>
                   <td className="px-3 py-2.5">
                     <span
@@ -701,6 +715,25 @@ function RenewalPanel({
 const INPUT =
   'w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[13px] outline-none focus:border-[#307c4c] disabled:bg-slate-50 disabled:text-slate-600';
 
+/** On a service whose PO the buyer should update: why, with the old PO's date when SAP has it. */
+function PoIssueTag({ issue, po }: { issue: PoIssue; po?: SapPo }) {
+  return (
+    <span
+      className="mt-0.5 inline-block whitespace-nowrap rounded bg-amber-50 px-1.5 py-0.5 text-[10.5px] font-semibold text-amber-800"
+      title={
+        issue === 'missing'
+          ? 'No PO number recorded. The buyer should add the current one.'
+          : issue === 'not_in_sap'
+            ? 'SAP does not have this PO number. Check it, or wait a load if it is brand new.'
+            : 'This PO is older than the billing period, so a newer one should exist. Update it.'
+      }
+    >
+      {PO_ISSUE_LABEL[issue]}
+      {issue === 'old' && po?.createdOn ? ` · ${po.createdOn.slice(0, 7)}` : ''}
+    </span>
+  );
+}
+
 type SapLookup = {
   state: 'idle' | 'loading' | 'found' | 'missing' | 'error';
   for: string;
@@ -900,6 +933,15 @@ function DetailsForm({
               </button>
             )}
           </div>
+          {row?.poIssue && sap.state === 'idle' && d.lastPoNumber === row.lastPoNumber && (
+            <p className="text-[11.5px] font-medium text-amber-800">
+              {row.poIssue === 'missing'
+                ? 'No PO on record: add the current PO number.'
+                : row.poIssue === 'not_in_sap'
+                  ? 'SAP does not have this PO number: check it.'
+                  : 'This PO is out of date: enter the current PO number.'}
+            </p>
+          )}
           <SapPoHint sap={sap} onUse={() => sap.po && applyPo(sap.po, true)} current={d} />
         </Field>
         {text('lastPoValidTill', 'Last PO valid till', { type: 'date' })}

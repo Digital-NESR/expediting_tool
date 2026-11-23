@@ -4,6 +4,7 @@ import {
   canDecideRenewal,
   cleanPeople,
   peopleShort,
+  poIssue,
   checkRecurrent,
   parsePeriod,
   recurrentStatus,
@@ -120,5 +121,31 @@ describe('checkRecurrent', () => {
     expect(checkRecurrent({ ...ok, annualValue: 'lots' })).toMatch(/number/);
     expect(checkRecurrent({ ...ok, annualValue: '1000' })).toMatch(/currency/);
     expect(checkRecurrent({ ...ok, lastPoNumber: 'PO-1' })).toMatch(/PO number/);
+  });
+});
+
+describe('poIssue', () => {
+  const base = {
+    active: true,
+    poNumber: '5160001121',
+    period: 'yearly' as const,
+    sapRead: true,
+    createdOn: '2026-06-18',
+    today: new Date('2026-11-23T00:00:00Z'),
+  };
+  it('flags a missing, unknown or out-of-date PO on an active service', () => {
+    expect(poIssue({ ...base, poNumber: ' ' })).toBe('missing');
+    expect(poIssue({ ...base, createdOn: null })).toBe('not_in_sap');
+    expect(poIssue({ ...base, createdOn: '2025-09-30' })).toBe('old');
+    expect(poIssue(base)).toBeNull();
+  });
+  it('allows one billing period plus a month, and leaves cancelled services alone', () => {
+    expect(poIssue({ ...base, createdOn: '2025-10-30' })).toBeNull();
+    expect(poIssue({ ...base, period: 'quarterly', createdOn: '2026-07-01' })).toBe('old');
+    expect(poIssue({ ...base, active: false, poNumber: '' })).toBeNull();
+  });
+  it('flags only a missing number when SAP could not be read', () => {
+    expect(poIssue({ ...base, sapRead: false, createdOn: null })).toBeNull();
+    expect(poIssue({ ...base, sapRead: false, poNumber: '' })).toBe('missing');
   });
 });

@@ -43,6 +43,7 @@ function row(p: Partial<RecurrentRow> & Pick<RecurrentRow, 'id' | 'serviceName'>
     suggestedExpiry: '2028-04-30',
     documents: [],
     canDecide: true,
+    poIssue: null,
     ...p,
   } as RecurrentRow;
 }
@@ -65,6 +66,7 @@ const ROWS: RecurrentRow[] = [
   }),
   row({
     id: 2,
+    poIssue: 'old',
     annualValue: 827796,
     currency: 'USD',
     serviceName: 'Nitro PDF',
@@ -79,6 +81,7 @@ const ROWS: RecurrentRow[] = [
   }),
   row({
     id: 3,
+    poIssue: 'missing',
     serviceName: 'Zoho Analytics',
     description: 'Reporting Solution',
     contractExpiry: '2026-12-15',

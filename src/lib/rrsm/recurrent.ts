@@ -140,6 +140,42 @@ export function isRequesterOf(email: string, requesters: readonly Person[]): boo
 }
 
 /** Who may record a requester's decision: any of the service's requesters, a buyer, or an admin. */
+/* ─── the PO on record ───────────────────────────────────────────────────────────────────── */
+
+/**
+ * Why an active service's PO needs the buyer: none recorded, SAP does not know the number, or SAP
+ * raised it longer ago than one billing period (plus a month's grace), so a newer PO should exist.
+ */
+export type PoIssue = 'missing' | 'not_in_sap' | 'old';
+
+export const PO_ISSUE_LABEL: Record<PoIssue, string> = {
+  missing: 'No PO',
+  not_in_sap: 'PO not in SAP',
+  old: 'Old PO',
+};
+
+export function poIssue(input: {
+  active: boolean;
+  poNumber: string;
+  period: RenewalPeriod;
+  /** Whether SAP could be read at all; when not, only a missing number is flagged. */
+  sapRead: boolean;
+  /** The PO's creation date in SAP (yyyy-mm-dd), or null when SAP does not have it. */
+  createdOn: string | null;
+  today: Date;
+}): PoIssue | null {
+  if (!input.active) return null;
+  if (!input.poNumber.trim()) return 'missing';
+  if (!input.sapRead) return null;
+  if (!input.createdOn) return 'not_in_sap';
+  const created = new Date(input.createdOn + 'T00:00:00Z');
+  if (Number.isNaN(created.getTime())) return null;
+  const limit = new Date(created);
+  /* "Other" periods are treated as yearly. */
+  limit.setUTCMonth(limit.getUTCMonth() + (PERIOD_MONTHS[input.period] ?? 12) + 1);
+  return input.today > limit ? 'old' : null;
+}
+
 export function canDecideRenewal(input: {
   actorEmail: string;
   requesters: readonly Person[];
