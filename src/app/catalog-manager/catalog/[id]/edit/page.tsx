@@ -9,6 +9,7 @@ import {
   getSuppliers,
   getPendingApprovalCount,
   getApprovalThresholds,
+  getApprovalsEnabled,
 } from '@/app/actions/catalog-manager';
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import { SPEND_TAXONOMY } from '@/lib/catalog-taxonomy.server';
@@ -23,17 +24,27 @@ export default async function EditCatalogEntryPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [actor, entry, countries, currencies, uoms, suppliers, pendingCount, thresholds] =
-    await Promise.all([
-      getCatalogActor(),
-      getCatalogEntry(Number(id)),
-      getCountries(),
-      getCurrencies(),
-      getUoms(),
-      getSuppliers(),
-      getPendingApprovalCount(),
-      getApprovalThresholds(),
-    ]);
+  const [
+    actor,
+    entry,
+    countries,
+    currencies,
+    uoms,
+    suppliers,
+    pendingCount,
+    thresholds,
+    approvalsEnabled,
+  ] = await Promise.all([
+    getCatalogActor(),
+    getCatalogEntry(Number(id)),
+    getCountries(),
+    getCurrencies(),
+    getUoms(),
+    getSuppliers(),
+    getPendingApprovalCount(),
+    getApprovalThresholds(),
+    getApprovalsEnabled(),
+  ]);
   if (!entry) notFound();
   if (!actor.canCreate) redirect(`/catalog-manager/catalog/${id}`);
 
@@ -52,6 +63,7 @@ export default async function EditCatalogEntryPage({
       scope="ALL"
       pendingCount={pendingCount}
       thresholds={thresholds}
+      approvalsEnabled={approvalsEnabled}
       roleLabel={getPermissionProfile(actor.role).description}
       canApprove={actor.canApprove}
       canAdmin={actor.canAdmin}

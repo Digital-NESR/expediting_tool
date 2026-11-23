@@ -142,6 +142,11 @@ export interface ApprovalDecisionRow {
 
 /* ---------- the catalog entry (flattened view the UI consumes) ---------- */
 export interface CatalogEntry {
+  /* Service Registry (shared with RRSM). Optional so older fixtures still type-check. */
+  sap_service_number?: string | null;
+  registry_type?: 'rental' | 'recurrent' | null;
+  registry_source?: 'catalog' | 'rrsm';
+  rate_to_confirm?: boolean;
   id: number;
   code: string;
   country_code: string;

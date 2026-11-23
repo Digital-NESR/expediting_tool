@@ -13,14 +13,16 @@ import {
   CODE_NEXTVAL,
   approvalsEnabled,
   dbOn,
+  ENTRY_SELECT,
   insertCatalogEntry,
+  mapEntry,
+  updateCatalogEntryCore,
   loadApproverScopes,
   loadCurrencyRates,
   loadEntryRefLookups,
   loadThresholdRules,
   poolDb,
   resolveApproverLabel,
-  resolveRefs,
   upsertSupplier,
   writeAudit,
   type ApproverScope,
@@ -44,7 +46,6 @@ import {
   effectiveThresholdUsd,
   toUsd,
   usdRatesFrom,
-  type UsdRates,
   isExpiringSoon,
   sirionUrlFor,
   INCOTERM_CODES,
@@ -683,81 +684,6 @@ export async function getApprovableEntryIds(entryIds: number[]): Promise<number[
    ENTRY READ — flatten catalog_entry + current rate_version + joins.
 ============================================================================ */
 
-const ENTRY_SELECT = `
-  SELECT
-    e.id, e.code, e.country_code,
-    c.name AS country_name, c.flag AS country_flag,
-    e.supplier_id, s.name AS supplier_name, s.vendor_code AS supplier_code, e.manager,
-    e.spend_type, e.category_id, cat.name AS category_name,
-    e.subcategory_id, sub.name AS subcategory_name,
-    e.family, e.commodity, e.unspsc_code, e.item_name, e.description,
-    e.uom_id, u.name AS uom_name,
-    rv.unit_price, rv.currency_code,
-    rv.effective_date::text AS effective_date, rv.expiry_date::text AS expiry_date,
-    e.status, e.tier_label, e.current_version_no AS version_no,
-    e.sirion_contract_id, e.sirion_url, e.notes, e.incoterms, e.incoterms_location, e.lead_time_days,
-    e.approver_name, e.approval_comment,
-    e.created_by, e.created_at::text AS created_at,
-    e.modified_by, e.modified_at::text AS modified_at
-  FROM catalog_entry e
-  JOIN supplier s ON s.id = e.supplier_id
-  JOIN country c ON c.code = e.country_code
-  LEFT JOIN spend_category cat ON cat.id = e.category_id
-  LEFT JOIN spend_subcategory sub ON sub.id = e.subcategory_id
-  LEFT JOIN unit_of_measure u ON u.id = e.uom_id
-  LEFT JOIN rate_version rv ON rv.entry_id = e.id AND rv.version_no = e.current_version_no
-`;
-
-function mapEntry(row: QueryResultRow, rates: UsdRates): CatalogEntry {
-  const price = Number(row.unit_price ?? 0);
-  const ccy = String(row.currency_code ?? 'USD');
-  return {
-    id: Number(row.id),
-    code: String(row.code),
-    country_code: String(row.country_code),
-    country_name: String(row.country_name),
-    country_flag: row.country_flag ?? null,
-    supplier_id: Number(row.supplier_id),
-    supplier_name: String(row.supplier_name),
-    supplier_code: String(row.supplier_code),
-    manager: row.manager ?? null,
-    spend_type: (row.spend_type as SpendType) ?? null,
-    category_id: row.category_id ? Number(row.category_id) : null,
-    category_name: row.category_name ?? null,
-    subcategory_id: row.subcategory_id ? Number(row.subcategory_id) : null,
-    subcategory_name: row.subcategory_name ?? null,
-    family: row.family ?? null,
-    commodity: row.commodity ?? null,
-    unspsc_code: row.unspsc_code ?? null,
-    item_name: String(row.item_name),
-    description: row.description ?? null,
-    uom_id: row.uom_id ? Number(row.uom_id) : null,
-    uom_name: row.uom_name ?? null,
-    unit_price: price,
-    currency_code: ccy,
-    usd_equivalent: toUsd(price, ccy, rates),
-    effective_date: row.effective_date ? String(row.effective_date).slice(0, 10) : '',
-    expiry_date: row.expiry_date ? String(row.expiry_date).slice(0, 10) : null,
-    status: row.status as CatalogStatus,
-    tier_label: String(row.tier_label),
-    version_no: Number(row.version_no ?? 1),
-    sirion_contract_id: row.sirion_contract_id ?? null,
-    sirion_url: row.sirion_url ?? null,
-    notes: row.notes ?? null,
-    incoterms: row.incoterms ?? null,
-    incoterms_location: row.incoterms_location ?? null,
-    lead_time_days: row.lead_time_days != null ? Number(row.lead_time_days) : null,
-    approver_name: row.approver_name ?? null,
-    approval_comment: row.approval_comment ?? null,
-    created_by: row.created_by ?? null,
-    created_at: row.created_at ? String(row.created_at).slice(0, 10) : '',
-    modified_by: row.modified_by ?? null,
-    modified_at: row.modified_at ? String(row.modified_at).slice(0, 10) : '',
-    documents: [],
-    history: [],
-  };
-}
-
 export interface CatalogListFilters {
   country?: string; // 'ALL' or a code
   status?: CatalogStatus; // narrows in SQL — the approvals queue only ever wants 'Pending Approval'
@@ -1383,91 +1309,7 @@ export async function updateCatalogEntry(
     withTransaction(catalogManagerPool, async (client) => {
       const db = dbOn(client);
 
-      const current = await db.sql<{ code: string; current_version_no: number }[]>(
-        `SELECT code, current_version_no FROM catalog_entry WHERE id = ?`,
-        [entryId],
-      );
-      if (!current[0]) throw new Error('Entry not found.');
-      const nextVersion = Number(current[0].current_version_no) + 1;
-
-      const supplierId = await upsertSupplier(
-        input.supplier_name,
-        input.supplier_code,
-        input.manager,
-        db,
-      );
-      const { categoryId, spendType, subId, uomId } = await resolveRefs(input, db);
-      const usd = toUsd(input.unit_price, input.currency_code, await loadCurrencyRates(db));
-      const threshold = effectiveThresholdUsd(
-        await loadThresholdRules(db),
-        input.country_code,
-        categoryId,
-      );
-      const tier = approvalTier(usd, threshold);
-      const status: CatalogStatus =
-        mode === 'draft' ? 'Draft' : tier.needsApproval ? 'Pending Approval' : 'Active';
-      const approver =
-        status === 'Pending Approval'
-          ? await resolveApproverLabel(db, input.country_code, categoryId)
-          : null;
-
-      await db.exec(
-        `UPDATE catalog_entry SET
-        country_code = ?, supplier_id = ?, category_id = ?, subcategory_id = ?, uom_id = ?, spend_type = ?,
-        family = ?, commodity = ?, unspsc_code = ?, item_name = ?, description = ?,
-        sirion_contract_id = ?, sirion_url = ?, notes = ?, incoterms = ?, incoterms_location = ?, lead_time_days = ?, manager = ?,
-        status = ?, tier_label = ?, current_version_no = ?, approver_name = ?,
-        modified_by = ?, modified_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-        [
-          input.country_code,
-          supplierId,
-          categoryId,
-          subId,
-          uomId,
-          spendType,
-          input.family,
-          input.commodity,
-          input.unspsc_code,
-          input.item_name,
-          input.description,
-          input.sirion_contract_id,
-          input.sirion_url,
-          input.notes,
-          input.incoterms,
-          input.incoterms_location,
-          input.lead_time_days,
-          input.manager,
-          status,
-          tier.label,
-          nextVersion,
-          approver,
-          actor.name,
-          entryId,
-        ],
-      );
-      await db.exec(
-        `INSERT INTO rate_version (entry_id, version_no, unit_price, currency_code, effective_date, expiry_date, change_reason, modified_by)
-       VALUES (?, ?, ?, ?, ?, ?, 'Edited — new version saved', ?)`,
-        [
-          entryId,
-          nextVersion,
-          input.unit_price,
-          input.currency_code,
-          input.effective_date,
-          input.expiry_date,
-          actor.name,
-        ],
-      );
-      await writeAudit(
-        'Edit',
-        current[0].code,
-        actor.name,
-        actor.email,
-        `Edited entry — version ${nextVersion} saved`,
-        db,
-      );
-      return { id: entryId, status };
+      return updateCatalogEntryCore(db, actor, entryId, input, mode);
     }),
   );
 }

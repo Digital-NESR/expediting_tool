@@ -10,7 +10,7 @@ import {
   type ThresholdRule,
   type UsdRates,
 } from '@/lib/catalog-manager-utils';
-import type { CatalogStatus, SpendType } from '@/types/catalog-manager';
+import type { CatalogEntry, CatalogStatus, SpendType } from '@/types/catalog-manager';
 
 /**
  * The Service Registry's database core, shared by Catalog Manager and RRSM.
@@ -206,6 +206,8 @@ export interface CatalogEntryInput {
   incoterms: string | null;
   incoterms_location: string | null;
   lead_time_days: number | null;
+  /** The SAP service master number, where known (Service Registry). */
+  sap_service_number?: string | null;
 }
 
 /**
@@ -375,8 +377,8 @@ export async function insertCatalogEntry(
     `INSERT INTO catalog_entry
       (code, country_code, supplier_id, category_id, subcategory_id, uom_id, spend_type, family, commodity,
        unspsc_code, item_name, description, sirion_contract_id, sirion_url, notes, incoterms, incoterms_location, lead_time_days,
-       status, tier_label, current_version_no, manager, approver_name, created_by, modified_by)
-     VALUES (${CODE_NEXTVAL}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?) RETURNING id, code`,
+       status, tier_label, current_version_no, manager, approver_name, created_by, modified_by, sap_service_number)
+     VALUES (${CODE_NEXTVAL}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?) RETURNING id, code`,
     [
       input.country_code,
       supplierId,
@@ -401,6 +403,7 @@ export async function insertCatalogEntry(
       approver,
       actor.name,
       actor.name,
+      input.sap_service_number ?? null,
     ],
   );
   const id = Number(ins[0]?.id);
@@ -430,4 +433,189 @@ export async function insertCatalogEntry(
     db,
   );
   return { id, code, status };
+}
+
+/**
+ * The body of an entry edit, already inside a transaction: the entry row and its new rate version
+ * are one unit of work (a failure between them used to leave an orphan version whose number then
+ * collided with the next edit's). Callers check their own access first: Catalog Manager's
+ * updateCatalogEntry, and RRSM when a buyer changes a registry item.
+ */
+export async function updateCatalogEntryCore(
+  db: CatalogDb,
+  actor: RegistryActor,
+  entryId: number,
+  input: CatalogEntryInput,
+  mode: 'draft' | 'submit',
+  changeReason = 'Edited — new version saved',
+): Promise<{ id: number; status: CatalogStatus }> {
+  const current = await db.sql<{ code: string; current_version_no: number }[]>(
+    `SELECT code, current_version_no FROM catalog_entry WHERE id = ?`,
+    [entryId],
+  );
+  if (!current[0]) throw new Error('Entry not found.');
+  const nextVersion = Number(current[0].current_version_no) + 1;
+
+  const supplierId = await upsertSupplier(
+    input.supplier_name,
+    input.supplier_code,
+    input.manager,
+    db,
+  );
+  const { categoryId, spendType, subId, uomId } = await resolveRefs(input, db);
+  const usd = toUsd(input.unit_price, input.currency_code, await loadCurrencyRates(db));
+  const threshold = effectiveThresholdUsd(
+    await loadThresholdRules(db),
+    input.country_code,
+    categoryId,
+  );
+  const tier = approvalTier(usd, threshold);
+  const status: CatalogStatus =
+    mode === 'draft' ? 'Draft' : tier.needsApproval ? 'Pending Approval' : 'Active';
+  const approver =
+    status === 'Pending Approval'
+      ? await resolveApproverLabel(db, input.country_code, categoryId)
+      : null;
+
+  await db.exec(
+    `UPDATE catalog_entry SET
+    country_code = ?, supplier_id = ?, category_id = ?, subcategory_id = ?, uom_id = ?, spend_type = ?,
+    family = ?, commodity = ?, unspsc_code = ?, item_name = ?, description = ?,
+    sirion_contract_id = ?, sirion_url = ?, notes = ?, incoterms = ?, incoterms_location = ?, lead_time_days = ?, manager = ?,
+    sap_service_number = COALESCE(?, sap_service_number),
+    status = ?, tier_label = ?, current_version_no = ?, approver_name = ?,
+    modified_by = ?, modified_at = CURRENT_TIMESTAMP
+   WHERE id = ?`,
+    [
+      input.country_code,
+      supplierId,
+      categoryId,
+      subId,
+      uomId,
+      spendType,
+      input.family,
+      input.commodity,
+      input.unspsc_code,
+      input.item_name,
+      input.description,
+      input.sirion_contract_id,
+      input.sirion_url,
+      input.notes,
+      input.incoterms,
+      input.incoterms_location,
+      input.lead_time_days,
+      input.manager,
+      input.sap_service_number ?? null,
+      status,
+      tier.label,
+      nextVersion,
+      approver,
+      actor.name,
+      entryId,
+    ],
+  );
+  await db.exec(
+    `INSERT INTO rate_version (entry_id, version_no, unit_price, currency_code, effective_date, expiry_date, change_reason, modified_by)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      entryId,
+      nextVersion,
+      input.unit_price,
+      input.currency_code,
+      input.effective_date,
+      input.expiry_date,
+      changeReason,
+      actor.name,
+    ],
+  );
+  await writeAudit(
+    'Edit',
+    current[0].code,
+    actor.name,
+    actor.email,
+    `Edited entry — version ${nextVersion} saved`,
+    db,
+  );
+  return { id: entryId, status };
+}
+
+/** One registry item with its current rate, as both tools read it. */
+export const ENTRY_SELECT = `
+  SELECT
+    e.id, e.code, e.country_code,
+    c.name AS country_name, c.flag AS country_flag,
+    e.supplier_id, s.name AS supplier_name, s.vendor_code AS supplier_code, e.manager,
+    e.spend_type, e.category_id, cat.name AS category_name,
+    e.subcategory_id, sub.name AS subcategory_name,
+    e.family, e.commodity, e.unspsc_code, e.item_name, e.description,
+    e.uom_id, u.name AS uom_name,
+    rv.unit_price, rv.currency_code,
+    rv.effective_date::text AS effective_date, rv.expiry_date::text AS expiry_date,
+    e.status, e.tier_label, e.current_version_no AS version_no,
+    e.sirion_contract_id, e.sirion_url, e.notes, e.incoterms, e.incoterms_location, e.lead_time_days,
+    e.approver_name, e.approval_comment,
+    e.sap_service_number, e.registry_type, e.source AS registry_source, e.rate_to_confirm,
+    e.created_by, e.created_at::text AS created_at,
+    e.modified_by, e.modified_at::text AS modified_at
+  FROM catalog_entry e
+  JOIN supplier s ON s.id = e.supplier_id
+  JOIN country c ON c.code = e.country_code
+  LEFT JOIN spend_category cat ON cat.id = e.category_id
+  LEFT JOIN spend_subcategory sub ON sub.id = e.subcategory_id
+  LEFT JOIN unit_of_measure u ON u.id = e.uom_id
+  LEFT JOIN rate_version rv ON rv.entry_id = e.id AND rv.version_no = e.current_version_no
+`;
+
+export function mapEntry(row: QueryResultRow, rates: UsdRates): CatalogEntry {
+  const price = Number(row.unit_price ?? 0);
+  const ccy = String(row.currency_code ?? 'USD');
+  return {
+    id: Number(row.id),
+    code: String(row.code),
+    country_code: String(row.country_code),
+    country_name: String(row.country_name),
+    country_flag: row.country_flag ?? null,
+    supplier_id: Number(row.supplier_id),
+    supplier_name: String(row.supplier_name),
+    supplier_code: String(row.supplier_code),
+    manager: row.manager ?? null,
+    spend_type: (row.spend_type as SpendType) ?? null,
+    category_id: row.category_id ? Number(row.category_id) : null,
+    category_name: row.category_name ?? null,
+    subcategory_id: row.subcategory_id ? Number(row.subcategory_id) : null,
+    subcategory_name: row.subcategory_name ?? null,
+    family: row.family ?? null,
+    commodity: row.commodity ?? null,
+    unspsc_code: row.unspsc_code ?? null,
+    item_name: String(row.item_name),
+    description: row.description ?? null,
+    uom_id: row.uom_id ? Number(row.uom_id) : null,
+    uom_name: row.uom_name ?? null,
+    unit_price: price,
+    currency_code: ccy,
+    usd_equivalent: toUsd(price, ccy, rates),
+    effective_date: row.effective_date ? String(row.effective_date).slice(0, 10) : '',
+    expiry_date: row.expiry_date ? String(row.expiry_date).slice(0, 10) : null,
+    status: row.status as CatalogStatus,
+    tier_label: String(row.tier_label),
+    version_no: Number(row.version_no ?? 1),
+    sirion_contract_id: row.sirion_contract_id ?? null,
+    sirion_url: row.sirion_url ?? null,
+    notes: row.notes ?? null,
+    incoterms: row.incoterms ?? null,
+    incoterms_location: row.incoterms_location ?? null,
+    lead_time_days: row.lead_time_days != null ? Number(row.lead_time_days) : null,
+    approver_name: row.approver_name ?? null,
+    approval_comment: row.approval_comment ?? null,
+    sap_service_number: row.sap_service_number ?? null,
+    registry_type: row.registry_type ?? null,
+    registry_source: row.registry_source === 'rrsm' ? 'rrsm' : 'catalog',
+    rate_to_confirm: row.rate_to_confirm === true,
+    created_by: row.created_by ?? null,
+    created_at: row.created_at ? String(row.created_at).slice(0, 10) : '',
+    modified_by: row.modified_by ?? null,
+    modified_at: row.modified_at ? String(row.modified_at).slice(0, 10) : '',
+    documents: [],
+    history: [],
+  };
 }
