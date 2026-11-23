@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   EMPTY_SAP,
+  autoPrFor,
+  prNeedsCheck,
   cleanPrNumber,
   lineSap,
   rankCandidates,
@@ -182,5 +184,37 @@ describe('cleanPrNumber', () => {
     expect(cleanPrNumber('0010160065')).toBe('10160065');
     expect(cleanPrNumber('PR-123')).toBeNull();
     expect(cleanPrNumber('123')).toBeNull();
+  });
+});
+
+describe('autoPrFor', () => {
+  const c = (pr: string, value: number | null): PrCandidate => ({
+    pr,
+    pos: [],
+    value,
+    currency: 'AED',
+    createdOn: '2026-11-03',
+    description: '',
+  });
+  it('takes the one PR worth the line, exactly or within 1 %', () => {
+    expect(autoPrFor([c('1', 4500), c('2', 9000)], 4500)).toEqual({ pr: '1', reason: 'exact' });
+    expect(autoPrFor([c('1', 4530), c('2', 9000)], 4500)).toEqual({ pr: '1', reason: 'near' });
+  });
+  it("takes the vendor's only PR, which carries all its lines", () => {
+    expect(autoPrFor([c('7', 72890)], 46000)).toEqual({ pr: '7', reason: 'only' });
+  });
+  it('leaves it to the buyer when the value does not single one out', () => {
+    expect(autoPrFor([c('1', 4500), c('2', 4500)], 4500)).toBeNull();
+    expect(autoPrFor([c('1', 3000), c('2', 9000)], 4500)).toBeNull();
+    expect(autoPrFor([], 4500)).toBeNull();
+  });
+});
+
+describe('prNeedsCheck', () => {
+  it('asks a buyer to check near-value and only-PR links, not exact ones or their own', () => {
+    expect(prNeedsCheck('near')).toBe(true);
+    expect(prNeedsCheck('only')).toBe(true);
+    expect(prNeedsCheck('exact')).toBe(false);
+    expect(prNeedsCheck(null)).toBe(false);
   });
 });

@@ -197,6 +197,48 @@ export function rankCandidates(cands: PrCandidate[], lineValue: number): PrCandi
   );
 }
 
+/**
+ * How a PR was linked to a line without a buyer:
+ *   exact  the one PR worth the line's value to the fils: taken as sure;
+ *   near   the one PR within 1 % of it: for a buyer to check;
+ *   only   the vendor's only PR in the cycle window: for a buyer to check.
+ */
+export type PrAutoReason = 'exact' | 'near' | 'only';
+
+/** True when an automatic link is not sure enough to stand without a buyer's look. */
+export function prNeedsCheck(reason: PrAutoReason | null | undefined): boolean {
+  return reason === 'near' || reason === 'only';
+}
+
+/**
+ * The PR to link to a line on its own, or null when a buyer should choose.
+ *
+ * SAP's rental PRs name no vendor (on the UAE's November cycle none of 97 did), so a PR can be
+ * tied to a supplier only once SAP has raised a PO from it. From then on, among the vendor's
+ * service PRs on POs in the cycle window:
+ *   - exactly one PR worth the line's value (to the fils, else within 1 %), or
+ *   - the vendor's only PR, which carries all of that vendor's lines for the month.
+ * Measured on the UAE's November cycle against the 208 lines linked by hand: 174 linked, 173
+ * right; the one miss was a PR raised outside the window. So an auto-linked PR is marked as
+ * such on the board, and the buyer can change it.
+ */
+export function autoPrFor(
+  cands: PrCandidate[],
+  lineValue: number,
+): { pr: string; reason: PrAutoReason } | null {
+  if (!cands.length) return null;
+  const exact = cands.filter((c) => c.value !== null && Math.abs(c.value - lineValue) < 0.01);
+  if (exact.length === 1) return { pr: exact[0].pr, reason: 'exact' };
+  if (!exact.length && lineValue > 0) {
+    const near = cands.filter(
+      (c) => c.value !== null && Math.abs(c.value - lineValue) / lineValue <= 0.01,
+    );
+    if (near.length === 1) return { pr: near[0].pr, reason: 'near' };
+  }
+  if (cands.length === 1) return { pr: cands[0].pr, reason: 'only' };
+  return null;
+}
+
 /** A PR number as SAP writes it: digits only, leading zeros dropped. Null when it is not one. */
 export function cleanPrNumber(raw: string): string | null {
   const s = String(raw ?? '').replace(/\s+/g, '');

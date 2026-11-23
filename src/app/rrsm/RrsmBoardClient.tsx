@@ -21,6 +21,7 @@ import { useRouter } from 'next/navigation';
 import { AlertTriangle, Check, FileText, Loader2, Undo2 } from 'lucide-react';
 import {
   closeValidatedLines,
+  confirmLinePr,
   moveRrsmLine,
   openRrsmCycle,
   saveBuyerRefs,
@@ -40,6 +41,7 @@ import {
   PR_RELEASE_LABEL,
   RECEIPT_LABEL,
   lineSap,
+  prNeedsCheck,
   summarisePos,
   type LineSap,
   type SapPo,
@@ -76,17 +78,93 @@ const STAGE_TONE: Record<CycleStage, string> = {
 
 /** What the PR & PO page can narrow itself to, by where each line is between PR and service entry. */
 type SapFilter =
-  'all' | 'supplier_change' | 'no_pr' | 'pr_waiting' | 'under_release' | 'no_entry' | 'not_in_sap';
+  | 'all'
+  | 'pr_check'
+  | 'supplier_change'
+  | 'no_pr'
+  | 'pr_waiting'
+  | 'under_release'
+  | 'no_entry'
+  | 'not_in_sap';
 
 const SAP_FILTERS: [SapFilter, string][] = [
   ['all', 'All lines'],
+  ['pr_check', 'Auto-linked PRs to check'],
+  ['no_pr', 'No PR found'],
   ['supplier_change', 'Supplier changes to review'],
-  ['no_pr', 'No PR linked'],
   ['pr_waiting', 'PR, no PO yet'],
   ['under_release', 'PO under release'],
   ['no_entry', 'Released, no service entry yet'],
   ['not_in_sap', 'PO not in SAP'],
 ];
+
+/**
+ * The month's PR matching at a glance, for the buyer at the start of the cycle: how many lines
+ * RRSM linked to a PR for certain, how many it linked but is not sure of, and how many it could
+ * not match at all. Each count opens those lines.
+ */
+function PrReview({
+  lines,
+  filter,
+  onFilter,
+  onConfirmAll,
+  busy,
+}: {
+  lines: BoardLine[];
+  filter: SapFilter;
+  onFilter: (f: SapFilter) => void;
+  onConfirmAll: () => void;
+  busy: boolean;
+}) {
+  const sure = lines.filter((l) => l.prAuto === 'exact').length;
+  const check = lines.filter((l) => prNeedsCheck(l.prAuto)).length;
+  const none = lines.filter((l) => !l.prNumber).length;
+  const byBuyer = lines.filter((l) => l.prNumber && !l.prAuto).length;
+  const tile = (f: SapFilter | null, n: number, label: string, hint: string, tone: string) => (
+    <button
+      type="button"
+      disabled={!f || !n}
+      onClick={() => f && onFilter(filter === f ? 'all' : f)}
+      aria-pressed={f !== null && filter === f}
+      className={`flex-1 rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-default ${
+        f && filter === f ? 'border-[#307c4c] ring-1 ring-[#307c4c]' : 'border-slate-200'
+      } ${f && n ? 'hover:border-[#307c4c]/50' : ''}`}
+    >
+      <span className={`block text-[20px] font-bold leading-tight ${n ? tone : 'text-slate-300'}`}>
+        {n}
+      </span>
+      <span className="block text-[12px] font-semibold text-slate-700">{label}</span>
+      <span className="block text-[11px] leading-snug text-slate-500">{hint}</span>
+    </button>
+  );
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-[13.5px] font-semibold text-slate-800">PR matching this month</h2>
+        {check > 0 && (
+          <button
+            type="button"
+            onClick={onConfirmAll}
+            disabled={busy}
+            className="text-[12px] font-semibold text-[#1d4f31] hover:underline disabled:opacity-50"
+          >
+            {busy ? 'Confirming…' : `Confirm all ${check} to check`}
+          </button>
+        )}
+      </div>
+      <p className="mt-0.5 text-[11.5px] text-slate-500">
+        RRSM links a line to its PR once SAP has a PO from that supplier. Check the uncertain ones
+        and link the rest by hand.
+      </p>
+      <div className="mt-2.5 flex flex-col gap-2 sm:flex-row">
+        {tile(null, sure, 'Matched', 'One PR worth exactly the line', 'text-[#1d4f31]')}
+        {tile('pr_check', check, 'To check', 'Linked, but not certain', 'text-amber-600')}
+        {tile('no_pr', none, 'No PR found', 'Nothing in SAP to match yet', 'text-red-600')}
+        {tile(null, byBuyer, 'Linked by a buyer', 'Or confirmed', 'text-slate-700')}
+      </div>
+    </section>
+  );
+}
 
 /** The PO whose status a line shows: the least advanced of its POs, so nothing waiting hides. */
 function primaryPo(pos: string[], sap: SapStatus): SapPo | undefined {
@@ -106,6 +184,7 @@ function sapFilterMatches(filter: SapFilter, line: BoardLine, sap: SapStatus): b
   if (filter === 'all') return true;
   const ls = lineSap(line, sap);
   if (filter === 'supplier_change') return line.changeStatus === 'pending';
+  if (filter === 'pr_check') return prNeedsCheck(line.prAuto);
   if (filter === 'no_pr') return ls.stage === 'no_pr';
   if (filter === 'pr_waiting') return ls.stage !== 'no_pr' && ls.stage !== 'po';
   const po = primaryPo(ls.pos, sap);
@@ -152,6 +231,7 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
   const filterCount = useMemo(() => {
     const n: Record<SapFilter, number> = {
       all: lines.length,
+      pr_check: 0,
       supplier_change: 0,
       no_pr: 0,
       pr_waiting: 0,
@@ -292,6 +372,26 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
         />
       ) : (
         <>
+          {/* ── this month's PR matching: what RRSM linked, what to check, what it could not ── */}
+          {view === 'buyer' && lines.length > 0 && board.sap.ok && (
+            <PrReview
+              lines={lines}
+              filter={sapFilter}
+              onFilter={setSapFilter}
+              busy={busy === 'confirm-all'}
+              onConfirmAll={() => {
+                const ids = lines.filter((l) => prNeedsCheck(l.prAuto)).map((l) => l.id);
+                if (
+                  ids.length &&
+                  window.confirm(
+                    `Confirm all ${ids.length} automatically linked PRs as checked? Do this only after looking at them.`,
+                  )
+                )
+                  void run('confirm-all', () => confirmLinePr(ids));
+              }}
+            />
+          )}
+
           {/* ── SAP, live: what the buyer used to type by hand ── */}
           {view === 'buyer' && lines.length > 0 && (
             <section className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
@@ -589,7 +689,41 @@ function Row({
           <td className="px-2 py-2.5">
             <div className="flex items-center gap-1.5">
               {line.prNumber ? (
-                <span className="font-mono text-[12px] text-slate-800">{line.prNumber}</span>
+                <>
+                  <span className="font-mono text-[12px] text-slate-800">{line.prNumber}</span>
+                  {line.prAuto === 'exact' && (
+                    <span
+                      className="rounded bg-[#e6f1ea] px-1 py-0.5 text-[10px] font-semibold text-[#1d4f31]"
+                      title="Linked automatically: the one PR from this supplier in SAP worth exactly this line."
+                    >
+                      Auto
+                    </span>
+                  )}
+                  {prNeedsCheck(line.prAuto) && (
+                    <>
+                      <span
+                        className="rounded bg-amber-50 px-1 py-0.5 text-[10px] font-semibold text-amber-800"
+                        title={
+                          line.prAuto === 'near'
+                            ? 'Linked automatically, not certain: the one PR from this supplier within 1% of this line. Confirm it or Change it.'
+                            : "Linked automatically, not certain: this supplier's only PR in SAP for the cycle, but its value differs from the line's. Confirm it or Change it."
+                        }
+                      >
+                        Check
+                      </span>
+                      {canLink && (
+                        <button
+                          type="button"
+                          onClick={() => void onRun(key, () => confirmLinePr([line.id]))}
+                          className="rounded px-1.5 py-0.5 text-[11px] font-semibold text-[#1d4f31] hover:bg-[#e6f1ea]"
+                          title="This PR is right"
+                        >
+                          Confirm
+                        </button>
+                      )}
+                    </>
+                  )}
+                </>
               ) : (
                 <span className="text-[12px] text-slate-400">—</span>
               )}

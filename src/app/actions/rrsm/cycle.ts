@@ -14,9 +14,11 @@ import {
 import { canMove, cycleWindow, isoDate, type CycleStage, type ErpStatus } from '@/lib/rrsm/cycle';
 import {
   EMPTY_SAP,
+  autoPrFor,
   cleanPrNumber,
   lineSap,
   rankCandidates,
+  type PrAutoReason,
   type PrCandidate,
   type SapStatus,
 } from '@/lib/rrsm/sap';
@@ -61,6 +63,8 @@ export interface BoardLine {
   supplierUom: string | null;
   /** 'pending' blocks Ops validation until a buyer accepts or rejects it. */
   changeStatus: 'pending' | 'accepted' | 'rejected' | null;
+  /** Set when RRSM linked the PR on its own from SAP (see autoPrFor); null when a buyer did. */
+  prAuto: PrAutoReason | null;
 }
 
 export interface BoardSupplier {
@@ -204,7 +208,7 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
               s.description, COALESCE(s.asset_ref, '') AS asset_ref, s.segment,
               s.cost_center, COALESCE(s.service_number, '') AS service_number,
               COALESCE(l.uom, s.uom) AS uom,
-              l.supplier_rate, l.supplier_uom, l.change_status,
+              l.supplier_rate, l.supplier_uom, l.change_status, l.pr_link_source,
               s.supplier_code, sup.name AS supplier_name,
               COALESCE(s.payment_terms, '') AS payment_terms,
               prev.qty AS prev_qty, prev.rate AS prev_rate
@@ -267,9 +271,15 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
       ).map((d) => ({ id: Number(d.id), kind: d.kind, fileName: String(d.fileName) }));
     }
 
+    /* Lines with no PR get one on their own once SAP has a PO naming the vendor (SAP's rental
+       PRs carry no vendor, so the PO is the first place a PR meets its supplier). Only when the
+       PR is clear-cut; see autoPrFor. Written with `pr_number IS NULL` in the WHERE, so a
+       buyer linking at the same moment wins. */
+    await autoLinkPrs(Number(c.id), dateOnly(c.opens_on), dateOnly(c.closes_on), suppliers);
+
     const sap = await readSapStatus(
-      rows.map((r) => String(r.po_number ?? '')),
-      rows.map((r) => String(r.pr_number ?? '')),
+      [...suppliers.values()].flatMap((g) => g.lines.map((l) => l.poNumber)),
+      [...suppliers.values()].flatMap((g) => g.lines.map((l) => l.prNumber)),
     );
 
     /* A line with a PR and no PO gets the PO SAP raised from that PR, recorded on the line, once
@@ -325,6 +335,58 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
   }
 }
 
+/** The window SAP POs are looked for in: a week before the cycle opens to a week after it closes. */
+function shiftDays(iso: string, days: number): string {
+  const d = new Date(iso + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+async function autoLinkPrs(
+  cycleId: number,
+  opensOn: string,
+  closesOn: string,
+  suppliers: Map<string, BoardSupplier>,
+): Promise<void> {
+  const from = shiftDays(opensOn, -7);
+  const to = shiftDays(closesOn, 8);
+  for (const group of suppliers.values()) {
+    const open = group.lines.filter((l) => !l.prNumber && l.stage !== 'closed');
+    if (!open.length) continue;
+    const cands = await readPrCandidates(group.code, from, to);
+    if (!cands?.length) continue;
+    for (const line of open) {
+      const pick = autoPrFor(cands, line.value);
+      if (!pick) continue;
+      try {
+        const done = await rrsmPool.query(
+          `UPDATE rrsm_cycle_lines SET pr_number = $2, pr_link_source = $3, updated_at = NOW()
+            WHERE id = $1 AND COALESCE(pr_number, '') = '' RETURNING id`,
+          [line.id, pick.pr, pick.reason],
+        );
+        if (!done.rowCount) continue;
+        line.prNumber = pick.pr;
+        line.prAuto = pick.reason;
+        await rrsmPool.query(
+          `INSERT INTO rrsm_activity_log (cycle_line_id, cycle_id, actor, action, note)
+           VALUES ($1, $2, 'sap: Materials DB', 'pr_auto_linked', $3)`,
+          [
+            line.id,
+            cycleId,
+            pick.reason === 'exact'
+              ? `PR ${pick.pr} linked: the one ${group.name} PR in SAP worth exactly this line`
+              : pick.reason === 'near'
+                ? `PR ${pick.pr} linked, to check: the one ${group.name} PR within 1% of this line`
+                : `PR ${pick.pr} linked, to check: ${group.name}'s only PR in SAP for this cycle`,
+          ],
+        );
+      } catch (err) {
+        log.error('autoLinkPrs.failed', err, { lineId: line.id });
+      }
+    }
+  }
+}
+
 function toBoardLine(r: QueryResultRow): BoardLine {
   return {
     id: Number(r.id),
@@ -354,6 +416,7 @@ function toBoardLine(r: QueryResultRow): BoardLine {
       r.supplier_rate === null || r.supplier_rate === undefined ? null : Number(r.supplier_rate),
     supplierUom: r.supplier_uom ? String(r.supplier_uom) : null,
     changeStatus: r.change_status ? (String(r.change_status) as BoardLine['changeStatus']) : null,
+    prAuto: r.pr_link_source ? (String(r.pr_link_source) as PrAutoReason) : null,
   };
 }
 
@@ -864,7 +927,8 @@ export async function linkLinePr(input: {
         if (before === pr) continue;
         await client.query(
           `UPDATE rrsm_cycle_lines
-              SET pr_number = NULLIF($2, ''), po_number = NULL, updated_at = NOW()
+              SET pr_number = NULLIF($2, ''), po_number = NULL, pr_link_source = NULL,
+                  updated_at = NOW()
             WHERE id = $1`,
           [Number(t.id), pr],
         );
@@ -890,6 +954,38 @@ export async function linkLinePr(input: {
     return { success: true, linked };
   } catch (err) {
     log.error('linkLinePr.failed', err, { lineId: input?.lineId });
+    return { success: false, error: (err as Error).message };
+  }
+}
+
+/** A buyer agrees with a PR RRSM linked on its own: the line stops asking to be checked. */
+export async function confirmLinePr(lineIds: number[]): Promise<RrsmResult & { linked?: number }> {
+  try {
+    const ids = [...new Set((lineIds ?? []).map(Number))].filter(Number.isInteger);
+    if (!ids.length) return { success: true, linked: 0 };
+    const { country } = await countryOfLine(ids[0]);
+    const actor = await requireCountry(country);
+    if (!rolesIn(actor, country).canBuy) {
+      return { success: false, error: 'Only a buyer or an admin confirms PRs.' };
+    }
+    /* Only lines in that same country, and only ones still waiting for a check. */
+    const { rows } = await rrsmPool.query<QueryResultRow>(
+      `UPDATE rrsm_cycle_lines l SET pr_link_source = NULL, updated_at = NOW()
+         FROM rrsm_service_lines s
+        WHERE s.id = l.service_line_id AND s.country_code = $2 AND l.id = ANY($1)
+          AND l.pr_link_source IN ('near', 'only')
+        RETURNING l.id, l.pr_number`,
+      [ids, country],
+    );
+    for (const r of rows) {
+      await rrsmPool.query(
+        `INSERT INTO rrsm_activity_log (cycle_line_id, actor, action, note) VALUES ($1, $2, 'pr_confirmed', $3)`,
+        [Number(r.id), actor.email, `PR ${r.pr_number} confirmed`],
+      );
+    }
+    return { success: true, linked: rows.length };
+  } catch (err) {
+    log.error('confirmLinePr.failed', err);
     return { success: false, error: (err as Error).message };
   }
 }

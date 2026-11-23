@@ -41,6 +41,7 @@ function line(partial: Partial<BoardLine> & Pick<BoardLine, 'id' | 'description'
     supplierRate: null,
     supplierUom: null,
     changeStatus: null,
+    prAuto: null,
     ...partial,
   } as BoardLine;
 }
@@ -109,12 +110,14 @@ const BOARD: RrsmBoard = {
           description: 'CMT-TOYOTA PRADO-22X51902',
           assetRef: '22X51902',
           prNumber: '1037006100',
+          prAuto: 'only',
         }),
         line({
           id: 2,
           description: 'NISSAN URVAN HIGH ROOF 2021',
           assetRef: '21X87635',
           prNumber: '1037006101',
+          prAuto: 'exact',
           rate: 275,
           previous: { qty: 1, rate: 250 },
           opsNote: 'Rate renegotiated from 1 Nov',
