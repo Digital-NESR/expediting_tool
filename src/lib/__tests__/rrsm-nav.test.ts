@@ -37,13 +37,13 @@ describe('visibleNav', () => {
     expect(ids(both)).toEqual(RRSM_NAV.map((i) => i.id).filter((id) => id !== 'recurrent'));
   });
 
-  it('shows a recurrent-only country (HQ Dubai) just Recurrent services and Help', () => {
+  it('shows a recurrent-only country (HQ Dubai) its dashboard, Recurrent services and Help', () => {
     const both = { canBuy: true, canValidate: true };
     expect(
       visibleNav(both, { supplier: true, ops: true, rentals: false, recurrent: true }).map(
         (i) => i.id,
       ),
-    ).toEqual(['recurrent', 'help']);
+    ).toEqual(['dashboard', 'recurrent', 'help']);
   });
 
   it('shows a service requester only Recurrent services and Help', () => {

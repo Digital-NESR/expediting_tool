@@ -96,7 +96,6 @@ export interface RrsmCountrySteps {
 
 /** The pages that belong to the monthly rentals module. */
 const RENTAL_PAGES: RrsmNavId[] = [
-  'dashboard',
   'suppliers',
   'validation',
   'purchasing',
@@ -131,6 +130,9 @@ export function visibleNav(
     if (item.id === 'suppliers' && !steps.supplier) return false;
     if (item.id === 'validation' && !steps.ops) return false;
     if (RENTAL_PAGES.includes(item.id) && (!rentals || onlyRequester)) return false;
+    /* The dashboard serves whichever module runs: rentals, or recurrent services alone. A
+       requester has none; they land on their own services. */
+    if (item.id === 'dashboard' && ((!rentals && !recurrent) || onlyRequester)) return false;
     if (item.id === 'recurrent' && !recurrent) return false;
     return true;
   });

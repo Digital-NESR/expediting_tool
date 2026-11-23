@@ -683,18 +683,23 @@ function Field({
   label,
   children,
   wide,
+  as = 'label',
 }: {
   label: string;
   children: React.ReactNode;
   wide?: boolean;
+  /** "div" for a field whose control opens a popover: inside a <label>, a click on the
+   *  popover's click-away layer re-activates the label's button and reopens it. */
+  as?: 'label' | 'div';
 }) {
+  const Tag = as;
   return (
-    <label className={`flex flex-col gap-1 ${wide ? 'sm:col-span-2' : ''}`}>
+    <Tag className={`flex flex-col gap-1 ${wide ? 'sm:col-span-2' : ''}`}>
       <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
         {label}
       </span>
       {children}
-    </label>
+    </Tag>
   );
 }
 
@@ -877,7 +882,7 @@ function PersonField({
   const picker = usePickerAnchor();
   const { btnRef } = picker;
   return (
-    <Field label={label}>
+    <Field label={label} as="div">
       <button
         ref={btnRef}
         type="button"
