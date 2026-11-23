@@ -18,6 +18,17 @@ import {
 
 type SortKey = 'recent' | 'priceHi' | 'priceLo' | 'expiry' | 'supplier';
 
+/** Which list an item belongs to in the shared Service Registry. */
+function registryTypeOf(e: { registry_type?: 'rental' | 'recurrent' | null }): string {
+  return e.registry_type ?? 'catalog';
+}
+
+const REGISTRY_TYPE_OPTIONS = [
+  { value: 'rental', label: 'RRSM rentals' },
+  { value: 'recurrent', label: 'RRSM recurrent services' },
+  { value: 'catalog', label: 'Catalog only' },
+];
+
 function FacetGroup({
   title,
   options,
@@ -117,6 +128,8 @@ export default function CatalogListClient({
   const [cats, setCats] = useState<string[]>(initialCategory ? [initialCategory] : []);
   const [stypes, setStypes] = useState<string[]>([]);
   const [ctys, setCtys] = useState<string[]>([]);
+  /* Service Registry type: RRSM rentals, RRSM recurrent services, or Catalog-only items. */
+  const [rtypes, setRtypes] = useState<string[]>([]);
   const [includeInactive, setIncludeInactive] = useState(false);
   const [expiringOnly, setExpiringOnly] = useState(initialExpiring);
   const [sort, setSort] = useState<SortKey>('recent');
@@ -128,14 +141,17 @@ export default function CatalogListClient({
     const cat: Record<string, number> = {},
       st: Record<string, number> = {},
       sty: Record<string, number> = {},
-      cty: Record<string, number> = {};
+      cty: Record<string, number> = {},
+      rt: Record<string, number> = {};
     entries.forEach((e) => {
+      const t = registryTypeOf(e);
+      rt[t] = (rt[t] ?? 0) + 1;
       if (e.category_name) cat[e.category_name] = (cat[e.category_name] ?? 0) + 1;
       st[e.status] = (st[e.status] ?? 0) + 1;
       if (e.spend_type) sty[e.spend_type] = (sty[e.spend_type] ?? 0) + 1;
       cty[e.country_code] = (cty[e.country_code] ?? 0) + 1;
     });
-    return { cat, st, sty, cty };
+    return { cat, st, sty, cty, rt };
   }, [entries]);
 
   const rows = useMemo(() => {
@@ -150,6 +166,7 @@ export default function CatalogListClient({
       if (cats.length && (!e.category_name || !cats.includes(e.category_name))) return false;
       if (stypes.length && (!e.spend_type || !stypes.includes(e.spend_type))) return false;
       if (ctys.length && !ctys.includes(e.country_code)) return false;
+      if (rtypes.length && !rtypes.includes(registryTypeOf(e))) return false;
       if (expiringOnly && !isExpiringSoon(e.status, e.expiry_date)) return false;
       if (q.trim()) {
         const hay =
@@ -168,15 +185,21 @@ export default function CatalogListClient({
       return 0;
     });
     return r;
-  }, [entries, status, cats, stypes, ctys, includeInactive, expiringOnly, q, sort]);
+  }, [entries, status, cats, stypes, ctys, rtypes, includeInactive, expiringOnly, q, sort]);
 
   const activeFilterCount =
-    status.length + cats.length + stypes.length + ctys.length + (expiringOnly ? 1 : 0);
+    status.length +
+    cats.length +
+    stypes.length +
+    ctys.length +
+    rtypes.length +
+    (expiringOnly ? 1 : 0);
   function clearAll() {
     setStatus([]);
     setCats([]);
     setStypes([]);
     setCtys([]);
+    setRtypes([]);
     setExpiringOnly(false);
     setIncludeInactive(false);
     setQ('');
@@ -284,7 +307,7 @@ export default function CatalogListClient({
 
   return (
     <CatalogManagerShell
-      title="Catalog"
+      title="Service Registry"
       roleLabel={roleLabel}
       canApprove={canApprove}
       canAdmin={canAdmin}
@@ -340,6 +363,13 @@ export default function CatalogListClient({
             </span>
             Expiring ≤ 30 days
           </button>
+          <FacetGroup
+            title="Registry type"
+            options={REGISTRY_TYPE_OPTIONS}
+            selected={rtypes}
+            onToggle={toggle(rtypes, setRtypes)}
+            counts={counts.rt}
+          />
           <FacetGroup
             title="Status"
             options={statusOpts}

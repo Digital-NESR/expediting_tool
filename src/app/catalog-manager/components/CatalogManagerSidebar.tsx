@@ -47,7 +47,7 @@ export default function CatalogManagerSidebar({
       { href: '/catalog-manager', label: 'Dashboard', icon: 'dashboard', section: 'Workspace' },
       {
         href: '/catalog-manager/catalog',
-        label: 'Services catalog',
+        label: 'Service Registry',
         icon: 'catalog',
         section: 'Workspace',
       },

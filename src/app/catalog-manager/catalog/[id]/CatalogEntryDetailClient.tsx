@@ -60,6 +60,7 @@ export default function CatalogEntryDetailClient({
   canApproveThis,
   canAdmin,
   homeCountry,
+  inRrsm,
 }: {
   entry: CatalogEntry;
   pendingCount: number;
@@ -69,6 +70,8 @@ export default function CatalogEntryDetailClient({
   canApproveThis: boolean;
   canAdmin: boolean;
   homeCountry: string | null;
+  /** The Service Registry's "In RRSM" panel, rendered by the server page. */
+  inRrsm?: React.ReactNode;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -203,6 +206,8 @@ export default function CatalogEntryDetailClient({
             </span>
           </div>
         )}
+
+        {inRrsm}
 
         {/* price hero */}
         <div className="relative flex items-center justify-between overflow-hidden rounded-2xl border border-[#307c4c]/20 bg-gradient-to-br from-[#eaf4ef] via-[#eaf4ef] to-white p-5 shadow-sm">

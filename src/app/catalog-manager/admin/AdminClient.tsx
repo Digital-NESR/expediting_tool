@@ -220,7 +220,7 @@ export default function AdminClient({
                     <StatCard
                       label="Active rates"
                       value={analytics.activeCount.toLocaleString()}
-                      sub="Services catalog"
+                      sub="Service Registry"
                       icon="catalog"
                       href="/catalog-manager/catalog?status=Active"
                     />

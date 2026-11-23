@@ -164,7 +164,7 @@ export default function CommandPalette() {
               {res.entries.length > 0 && (
                 <div className="px-2">
                   <p className="px-2 py-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
-                    Catalog entries
+                    Service Registry
                   </p>
                   {res.entries.map((e) => {
                     const idx = rowIndex(`e-${e.id}`);

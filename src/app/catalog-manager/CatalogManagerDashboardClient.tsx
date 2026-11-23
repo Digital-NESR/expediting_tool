@@ -182,7 +182,7 @@ export default function CatalogManagerDashboardClient({
                 </span>
               </h1>
               <p className="mt-3 max-w-[650px] text-[15px] leading-relaxed text-slate-600">
-                Search the services catalog &amp; PIR / inventory, jump into country views, or load
+                Search the Service Registry &amp; PIR / inventory, jump into country views, or load
                 a spreadsheet-backed catalog migration for {data.scope}.
               </p>
 
@@ -198,7 +198,7 @@ export default function CatalogManagerDashboardClient({
                     onFocus={() => {
                       if (query.trim().length >= 2) setOpen(true);
                     }}
-                    placeholder="Search services catalog & PIR — supplier, item, material, ID..."
+                    placeholder="Search Service Registry & PIR — supplier, item, material, ID..."
                     className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-slate-400"
                   />
                   {loading && <Spinner className="h-4 w-4 shrink-0 text-slate-300" />}
@@ -210,7 +210,7 @@ export default function CatalogManagerDashboardClient({
                   </button>
                 </form>
 
-                {/* live combined results — services catalog, suppliers, PIR / inventory */}
+                {/* live combined results — Service Registry, suppliers, PIR / inventory */}
                 {open && query.trim().length >= 2 && (
                   <div className="cm-scale-in absolute left-0 right-0 top-full z-30 mt-2 max-h-[62vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white py-2 text-left shadow-2xl shadow-slate-950/15">
                     {loading && !hasResults ? (
@@ -224,7 +224,7 @@ export default function CatalogManagerDashboardClient({
                         {res.entries.length > 0 && (
                           <div className="px-2">
                             <p className="px-2 py-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
-                              Services catalog
+                              Service Registry
                             </p>
                             {res.entries.map((e) => (
                               <button
@@ -311,7 +311,7 @@ export default function CatalogManagerDashboardClient({
                             onClick={() => go(catalogHref(scope, { q: query.trim() }))}
                             className="inline-flex items-center gap-1 font-semibold text-[#1d4f31] hover:underline"
                           >
-                            All in Services catalog{' '}
+                            All in Service Registry{' '}
                             <Icon name="arrowRight" className="h-3.5 w-3.5" />
                           </button>
                           <button

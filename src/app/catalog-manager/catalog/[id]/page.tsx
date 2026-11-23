@@ -8,6 +8,8 @@ import {
 } from '@/app/actions/catalog-manager';
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import CatalogEntryDetailClient from './CatalogEntryDetailClient';
+import InRrsmPanel from './InRrsmPanel';
+import { readRrsmUsage } from '@/lib/rrsm/registry-usage';
 
 export async function generateMetadata({
   params,
@@ -35,7 +37,11 @@ export default async function CatalogEntryDetailPage({
   if (!entry) notFound();
 
   // Server-computed (country AND spend category), same rule the decide action enforces.
-  const canApproveThis = (await getApprovableEntryIds([entry.id])).includes(entry.id);
+  const [approvable, usage] = await Promise.all([
+    getApprovableEntryIds([entry.id]),
+    readRrsmUsage(entry.code),
+  ]);
+  const canApproveThis = approvable.includes(entry.id);
 
   return (
     <CatalogEntryDetailClient
@@ -47,6 +53,13 @@ export default async function CatalogEntryDetailPage({
       canApproveThis={canApproveThis}
       canAdmin={actor.canAdmin}
       homeCountry={actor.country_code}
+      inRrsm={
+        <InRrsmPanel
+          usage={usage}
+          countryCode={entry.country_code}
+          registryType={entry.registry_type}
+        />
+      }
     />
   );
 }

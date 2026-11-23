@@ -8,7 +8,7 @@ import {
 import { getPermissionProfile } from '@/lib/catalog-manager-utils';
 import CatalogListClient from './CatalogListClient';
 
-export const metadata: Metadata = { title: 'NESR | Catalog - Catalog Manager' };
+export const metadata: Metadata = { title: 'NESR | Service Registry - Catalog Manager' };
 export const dynamic = 'force-dynamic';
 
 export default async function CatalogListPage({
