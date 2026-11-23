@@ -136,9 +136,12 @@ export const ADMIN_APPS: AdminApp[] = [
     color: '#307c4c',
     activeBg: '#eaf4ef',
     activeColor: '#1d4f31',
-    /* No countKey: RRSM has no access-request queue. Access is granted here directly, the way
-       Travel Portal's is, so there is nothing pending to badge. */
-    sections: [{ id: 'countries', label: 'Countries & Team' }],
+    /* Access requests: anybody without a grant asks for buyer access in a country from the
+       RRSM page itself; an admin decides here. Approving writes the buyer grant. */
+    sections: [
+      { id: 'countries', label: 'Countries & Team' },
+      { id: 'access-approvals', label: 'Access requests' },
+    ],
   },
   {
     id: 'learning-hub',

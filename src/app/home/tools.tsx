@@ -481,28 +481,24 @@ export const TOOLS: ToolDef[] = [
 
   {
     id: 'rrsm',
-    group: 'development',
+    group: 'online',
     keywords:
       'rrsm rental recurrent recurring services management hire lease equipment rental service agreement renewal off-hire',
     name: 'RRSM',
     subtitle: <>Rental &amp; Recurrent Services Management</>,
-    /* Description restates the name and stops there. The portal is not built and the design is
-       not readable from here yet, so anything about how it works would be invented -- and the
-       "Coming Soon" pill already carries the fact that it has not shipped, which is why the
-       Supply Chain Analytics entry does not say so in its description either. */
-    description: 'Manage NESR’s equipment rentals and recurring service agreements in one place.',
-    icon: <Forklift className="w-6 h-6 text-gray-400" />,
-    logoClass: 'bg-gray-100',
+    description:
+      'Monthly rentals and annual recurring services: supplier and Ops validation, PRs and POs from SAP, and renewals.',
+    icon: <Forklift className="w-6 h-6 text-[#307c4c]" />,
+    logoClass: 'bg-[#307c4c]/10',
     hoverClass: HOVER_GREEN,
-    accent: PREVIEW_GREY,
-    tone: 'preview',
+    accent: '#307c4c',
+    tone: 'live',
     route: '/rrsm',
-    /* Greyed and inert for everyone but a platform admin. The card is only the UI half of
-       that -- `src/app/rrsm/layout.tsx` carries the server-side gate, because this one is
-       bypassed by typing the URL. */
-    access: { kind: 'adminPreview' },
-    badge: { kind: 'preview' },
-    openLabel: 'Open preview →',
+    /* Open to everyone. RRSM's own layout is the gate: somebody with a grant (or named as a
+       recurrent service's requester) gets in; anybody else is asked to request buyer access for a
+       country, which an RRSM admin approves in Admin -> RRSM. */
+    access: { kind: 'always' },
+    badge: { kind: 'lock', label: 'Granted per country' },
     helpHref: '/help/rrsm',
   },
 

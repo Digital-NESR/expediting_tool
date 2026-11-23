@@ -35,6 +35,7 @@ describe('ACCESS_REVIEW_PATHS', () => {
 
   it('covers every tool that can raise a request', () => {
     expect(Object.keys(ACCESS_REVIEW_PATHS).sort()).toEqual([
+      'RRSM',
       'SC Agents Platform',
       'SOA Consolidation',
       'SourceGuide',

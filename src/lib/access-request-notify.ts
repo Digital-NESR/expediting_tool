@@ -44,6 +44,7 @@ export const ACCESS_REVIEW_PATHS = {
   'SOA Consolidation': '/admin/soa?section=access-approvals',
   SourceGuide: '/admin/sourceguide?section=access',
   'TI-TE': '/admin/tite?section=access-approvals',
+  RRSM: '/admin/rrsm?section=access-approvals',
 } as const;
 
 export type NotifiableTool = keyof typeof ACCESS_REVIEW_PATHS;
@@ -122,6 +123,7 @@ export const TOOL_PATHS: Record<NotifiableTool, string> = {
   'SOA Consolidation': '/soa-consolidation',
   SourceGuide: '/sourceguide',
   'TI-TE': '/ti-te',
+  RRSM: '/rrsm',
 };
 
 export interface AccessDecisionNotice {
