@@ -121,15 +121,17 @@ export const currentRrsmActor = cache(async (): Promise<RrsmActor | null> => {
     countryCode: String(r.country_code),
   }));
 
-  /* A recurrent service's requester-validator has access because a buyer named them on the
+  /* A recurrent service's requester-validators (any of them) have access because a buyer named them on the
      service, with no separate grant from an admin (user decision, 23 Nov 2026). Derived here, the
      one place access is decided, so the layout, the pages and the actions all agree; and it ends
      by itself when they are no longer named on any service. What it opens is narrow: the
      `requester` role sees only their own services. */
   try {
     const { rows: named } = await rrsmPool.query<QueryResultRow>(
-      `SELECT DISTINCT country_code FROM rrsm_recurrent_services
-        WHERE lower(requester_email) = $1`,
+      `SELECT DISTINCT country_code FROM rrsm_recurrent_services s
+        WHERE lower(s.requester_email) = $1
+           OR EXISTS (SELECT 1 FROM jsonb_array_elements(s.requesters) p
+                       WHERE lower(p ->> 'email') = $1)`,
       [email],
     );
     for (const r of named) {

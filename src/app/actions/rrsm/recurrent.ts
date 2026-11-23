@@ -17,8 +17,11 @@ import {
   RENEWAL_PERIODS,
   canDecideRenewal,
   checkRecurrent,
+  cleanPeople,
+  isRequesterOf,
   recurrentStatus,
   suggestNextExpiry,
+  type Person,
   type RecurrentDraft,
   type RecurrentStatus,
   type RecurrentStoredStatus,
@@ -62,8 +65,8 @@ export interface RecurrentRow {
   supplierName: string;
   supplierContactName: string;
   supplierContactEmail: string;
-  requesterName: string;
-  requesterEmail: string;
+  /** The requester-validators, in the buyer's order. Any of them decides on the renewal. */
+  requesters: Person[];
   buyerName: string;
   buyerEmail: string;
   approver: string;
@@ -118,12 +121,24 @@ function txt(v: unknown): string {
   return v === null || v === undefined ? '' : String(v);
 }
 
-/** The service's country and requester, read from the row. A service id proves nothing. */
+/** A service's requesters: the list, or the one legacy requester on a row saved before it. */
+function requestersOf(r: QueryResultRow): Person[] {
+  const list = cleanPeople(Array.isArray(r.requesters) ? (r.requesters as Person[]) : []);
+  if (list.length) return list;
+  return cleanPeople([{ name: txt(r.requester_name), email: txt(r.requester_email) }]);
+}
+
+/** Matches a service on which $N is one of the requesters (lower-cased email). */
+const REQUESTER_IS = (n: number) =>
+  `(EXISTS (SELECT 1 FROM jsonb_array_elements(s.requesters) p WHERE lower(p ->> 'email') = $${n})
+     OR lower(s.requester_email) = $${n})`;
+
+/** The service's country and requesters, read from the row. A service id proves nothing. */
 async function serviceOwner(
   id: number,
-): Promise<{ country: string; requesterEmail: string | null; recurrentOn: boolean }> {
+): Promise<{ country: string; requesters: Person[]; recurrentOn: boolean }> {
   const { rows } = await rrsmPool.query<QueryResultRow>(
-    `SELECT s.country_code, s.requester_email, c.recurrent_enabled
+    `SELECT s.country_code, s.requesters, s.requester_name, s.requester_email, c.recurrent_enabled
        FROM rrsm_recurrent_services s JOIN rrsm_countries c ON c.code = s.country_code
       WHERE s.id = $1`,
     [id],
@@ -131,7 +146,7 @@ async function serviceOwner(
   if (!rows[0]) throw new Error('No such service.');
   return {
     country: String(rows[0].country_code),
-    requesterEmail: rows[0].requester_email ? String(rows[0].requester_email) : null,
+    requesters: requestersOf(rows[0]),
     recurrentOn: Boolean(rows[0].recurrent_enabled),
   };
 }
@@ -174,9 +189,9 @@ export async function getRecurrentBoard(requestedCountry?: string | null): Promi
                ORDER BY x.due_on DESC LIMIT 1
          ) r ON TRUE
         WHERE s.country_code = $1
-          AND ($2::text IS NULL OR lower(s.requester_email) = $2)
+          AND ($2::text IS NULL OR ${REQUESTER_IS(2)})
         ORDER BY s.contract_expiry NULLS LAST, s.description`,
-      [country.code, empty.ownOnly ? actor.email : null],
+      [country.code, empty.ownOnly ? actor.email.toLowerCase() : null],
     );
 
     const ids = rows.map((r) => Number(r.id));
@@ -230,8 +245,7 @@ export async function getRecurrentBoard(requestedCountry?: string | null): Promi
         supplierName: txt(r.supplier_name),
         supplierContactName: txt(r.supplier_contact_name),
         supplierContactEmail: txt(r.supplier_contact_email),
-        requesterName: txt(r.requester_name),
-        requesterEmail: txt(r.requester_email),
+        requesters: requestersOf(r),
         buyerName: txt(r.buyer_name),
         buyerEmail: txt(r.buyer_email),
         approver: txt(r.approver),
@@ -253,7 +267,7 @@ export async function getRecurrentBoard(requestedCountry?: string | null): Promi
           String(r.status) === 'active' &&
           canDecideRenewal({
             actorEmail: actor.email,
-            requesterEmail: r.requester_email ? String(r.requester_email) : null,
+            requesters: requestersOf(r),
             canBuy: roles.canBuy,
           }),
       };
@@ -284,8 +298,7 @@ export async function getRecurrentHistory(serviceId: number): Promise<
     const actor = await actorOrThrow();
     const owner = await serviceOwner(Number(serviceId));
     const roles = rolesIn(actor, owner.country);
-    const mine =
-      owner.requesterEmail && owner.requesterEmail.toLowerCase() === actor.email.toLowerCase();
+    const mine = isRequesterOf(actor.email, owner.requesters);
     if (!roles.canBuy && !mine) return [];
     const { rows } = await rrsmPool.query<QueryResultRow>(
       `SELECT created_at, actor, action, COALESCE(note, '') AS note, changes
@@ -319,8 +332,7 @@ export async function getRecurrentPoHistory(serviceId: number): Promise<PoHistor
     const actor = await actorOrThrow();
     const owner = await serviceOwner(id);
     const roles = rolesIn(actor, owner.country);
-    const mine =
-      owner.requesterEmail && owner.requesterEmail.toLowerCase() === actor.email.toLowerCase();
+    const mine = isRequesterOf(actor.email, owner.requesters);
     if (!roles.canBuy && !mine) return empty;
 
     const { rows } = await rrsmPool.query<QueryResultRow>(
@@ -354,7 +366,9 @@ export async function getRecurrentPoHistory(serviceId: number): Promise<PoHistor
 
 /* ─── buyers: add, edit, remove ──────────────────────────────────────────────────────────── */
 
-const FIELDS: [keyof RecurrentDraft, string][] = [
+/* The plain columns. The requesters list is saved beside them (with its first person copied into
+   the legacy requester_name / requester_email columns). */
+const FIELDS: [Exclude<keyof RecurrentDraft, 'requesters'>, string][] = [
   ['description', 'description'],
   ['serviceName', 'service_name'],
   ['status', 'status'],
@@ -368,8 +382,6 @@ const FIELDS: [keyof RecurrentDraft, string][] = [
   ['supplierName', 'supplier_name'],
   ['supplierContactName', 'supplier_contact_name'],
   ['supplierContactEmail', 'supplier_contact_email'],
-  ['requesterName', 'requester_name'],
-  ['requesterEmail', 'requester_email'],
   ['buyerName', 'buyer_name'],
   ['buyerEmail', 'buyer_email'],
   ['approver', 'approver'],
@@ -379,12 +391,16 @@ const FIELDS: [keyof RecurrentDraft, string][] = [
   ['comments', 'comments'],
 ];
 
+/** How a person reads in the change log. */
+function label(p: Person): string {
+  return p.name && p.email ? `${p.name} <${p.email}>` : p.name || p.email;
+}
+
 function valuesOf(d: RecurrentDraft): (string | number | null)[] {
   return FIELDS.map(([k]) => {
     const v = String(d[k] ?? '').trim();
     if (k === 'annualValue') return v ? Number(v.replace(/,/g, '')) : null;
-    if (k === 'requesterEmail' || k === 'buyerEmail' || k === 'supplierContactEmail')
-      return v ? v.toLowerCase() : null;
+    if (k === 'buyerEmail' || k === 'supplierContactEmail') return v ? v.toLowerCase() : null;
     if (k === 'currency') return v ? v.toUpperCase() : null;
     return v || null;
   });
@@ -409,6 +425,9 @@ export async function saveRecurrentService(input: {
     const problem = checkRecurrent(input.draft);
     if (problem) return { success: false, error: problem };
     const values = valuesOf(input.draft);
+    const people = cleanPeople(input.draft.requesters);
+    const peopleJson = JSON.stringify(people);
+    const n = FIELDS.length;
 
     const client = await rrsmPool.connect();
     try {
@@ -420,11 +439,18 @@ export async function saveRecurrentService(input: {
           `SELECT * FROM rrsm_recurrent_services WHERE id = $1 FOR UPDATE`,
           [id],
         );
-        const sets = FIELDS.map(([, col], i) => `${col} = $${i + 2}`).join(', ');
+        const sets = FIELDS.map(([, col], i) => `${col} = ${i + 2}`).join(', ');
         await client.query(
-          `UPDATE rrsm_recurrent_services SET ${sets}, updated_at = NOW() WHERE id = $1`,
-          [id, ...values],
+          `UPDATE rrsm_recurrent_services
+              SET ${sets}, requesters = $${n + 2}::jsonb, requester_name = $${n + 3},
+                  requester_email = $${n + 4}, updated_at = NOW()
+            WHERE id = $1`,
+          [id, ...values, peopleJson, people[0]?.name || null, people[0]?.email || null],
         );
+        const wasPeople = requestersOf(before[0]);
+        if (JSON.stringify(wasPeople) !== peopleJson) {
+          changes.requesters = [wasPeople.map(label), people.map(label)];
+        }
         FIELDS.forEach(([key, col], i) => {
           const was = before[0][col] instanceof Date ? day(before[0][col]) : before[0][col];
           const now = values[i];
@@ -436,14 +462,23 @@ export async function saveRecurrentService(input: {
         });
       } else {
         const cols = FIELDS.map(([, col]) => col).join(', ');
-        const params = FIELDS.map((_, i) => `$${i + 3}`).join(', ');
+        const params = FIELDS.map((_, i) => `${i + 3}`).join(', ');
         const { rows } = await client.query<QueryResultRow>(
-          `INSERT INTO rrsm_recurrent_services (country_code, created_by, ${cols})
-           VALUES ($1, $2, ${params}) RETURNING id`,
-          [code, actor.email, ...values],
+          `INSERT INTO rrsm_recurrent_services
+                  (country_code, created_by, ${cols}, requesters, requester_name, requester_email)
+           VALUES ($1, $2, ${params}, $${n + 3}::jsonb, $${n + 4}, $${n + 5}) RETURNING id`,
+          [
+            code,
+            actor.email,
+            ...values,
+            peopleJson,
+            people[0]?.name || null,
+            people[0]?.email || null,
+          ],
         );
         id = Number(rows[0].id);
         changes = Object.fromEntries(FIELDS.map(([key], i) => [key, [null, values[i]]]));
+        if (people.length) changes.requesters = [null, people.map(label)];
       }
       if (Object.keys(changes).length) {
         await client.query(
@@ -534,11 +569,14 @@ export async function decideRecurrentRenewal(input: {
     if (
       !canDecideRenewal({
         actorEmail: actor.email,
-        requesterEmail: owner.requesterEmail,
+        requesters: owner.requesters,
         canBuy: roles.canBuy,
       })
     ) {
-      return { success: false, error: 'Only the service requester or a buyer decides on renewal.' };
+      return {
+        success: false,
+        error: "Only the service's requester-validators or a buyer decide on renewal.",
+      };
     }
     if (!(['renew', 'renew_changes', 'cancel'] as string[]).includes(input?.decision)) {
       return { success: false, error: 'Pick renew, renew with changes or cancel.' };
@@ -593,7 +631,10 @@ export async function decideRecurrentRenewal(input: {
         await sendRrsmMail(
           recurrentDecisionMail({
             to,
-            cc: [],
+            /* The other requesters, so they know it has been decided. */
+            cc: owner.requesters
+              .map((p) => p.email)
+              .filter((e) => e.includes('@') && e !== actor.email.toLowerCase() && !to.includes(e)),
             serviceName: txt(s.service_name) || txt(s.description),
             supplierName: txt(s.supplier_name),
             expiresOn: dueOn,
@@ -729,11 +770,14 @@ export async function uploadRecurrentDocument(form: FormData): Promise<Recurrent
     if (
       !canDecideRenewal({
         actorEmail: actor.email,
-        requesterEmail: owner.requesterEmail,
+        requesters: owner.requesters,
         canBuy: rolesIn(actor, owner.country).canBuy,
       })
     ) {
-      return { success: false, error: 'Only a buyer or the service requester adds documents.' };
+      return {
+        success: false,
+        error: "Only a buyer or the service's requester-validators add documents.",
+      };
     }
     if (!(['contract', 'quotation', 'other'] as string[]).includes(kind)) {
       return { success: false, error: 'Pick contract, quotation or other.' };

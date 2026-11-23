@@ -31,8 +31,7 @@ function row(p: Partial<RecurrentRow> & Pick<RecurrentRow, 'id' | 'serviceName'>
     supplierName: 'Freshworks Inc.',
     supplierContactName: 'Ishwarya Baskar',
     supplierContactEmail: 'ishwarya.baskar@freshworks.com',
-    requesterName: 'Riswan Parambath',
-    requesterEmail: 'rparambath@nesr.com',
+    requesters: [{ name: 'Riswan Parambath', email: 'rparambath@nesr.com' }],
     buyerName: 'Aswathy Nair',
     buyerEmail: 'anair1@nesr.com',
     approver: '',
@@ -100,8 +99,10 @@ const ROWS: RecurrentRow[] = [
     id: 4,
     serviceName: 'Medical Insurance',
     department: 'Finance',
-    requesterName: 'Tariq Al Balushi',
-    requesterEmail: 'talbalushi@nesr.com',
+    requesters: [
+      { name: 'Tariq Al Balushi', email: 'talbalushi@nesr.com' },
+      { name: 'Riswan Parambath', email: 'rparambath@nesr.com' },
+    ],
     supplierName: 'Abu Dhabi National Takaful Co',
     supplierCode: '1105483',
     contractExpiry: '2027-03-15',
@@ -130,7 +131,9 @@ export function previewBoard(requester: boolean): RecurrentBoard {
     isAdmin: false,
     isRequester: requester,
     ownOnly: requester,
-    rows: requester ? ROWS.filter((r) => r.requesterEmail === 'rparambath@nesr.com') : ROWS,
+    rows: requester
+      ? ROWS.filter((r) => r.requesters.some((p) => p.email === 'rparambath@nesr.com'))
+      : ROWS,
     sap: EMPTY_SAP,
   };
 }

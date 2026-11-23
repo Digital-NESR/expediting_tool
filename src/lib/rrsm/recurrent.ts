@@ -100,17 +100,52 @@ export function suggestNextExpiry(expiry: Date | null, period: RenewalPeriod): D
   return d;
 }
 
-/** Who may record a requester's decision: the service's requester, a buyer, or an admin. */
+/** A requester-validator. A service can have several; any one of them decides on the renewal. */
+export interface Person {
+  name: string;
+  email: string;
+}
+
+/** Trimmed, emails lower-cased, blanks dropped, each email once (the first spelling of the name wins). */
+export function cleanPeople(list: readonly Partial<Person>[] | null | undefined): Person[] {
+  const out: Person[] = [];
+  const seen = new Set<string>();
+  for (const p of list ?? []) {
+    const name = String(p?.name ?? '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const email = String(p?.email ?? '')
+      .trim()
+      .toLowerCase();
+    if (!name && !email) continue;
+    const key = email || 'name:' + name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ name, email });
+  }
+  return out;
+}
+
+/** "Riswan Parambath", "Riswan Parambath +1", or a dash: for a narrow table cell. */
+export function peopleShort(people: readonly Person[]): string {
+  if (!people.length) return '—';
+  const first = people[0].name || people[0].email;
+  return people.length > 1 ? `${first} +${people.length - 1}` : first;
+}
+
+/** True when the email is one of the service's requester-validators. */
+export function isRequesterOf(email: string, requesters: readonly Person[]): boolean {
+  const me = email.trim().toLowerCase();
+  return Boolean(me) && requesters.some((p) => p.email.trim().toLowerCase() === me);
+}
+
+/** Who may record a requester's decision: any of the service's requesters, a buyer, or an admin. */
 export function canDecideRenewal(input: {
   actorEmail: string;
-  requesterEmail: string | null;
+  requesters: readonly Person[];
   canBuy: boolean;
 }): boolean {
-  if (input.canBuy) return true;
-  return (
-    Boolean(input.requesterEmail) &&
-    input.actorEmail.trim().toLowerCase() === String(input.requesterEmail).trim().toLowerCase()
-  );
+  return input.canBuy || isRequesterOf(input.actorEmail, input.requesters);
 }
 
 /* ─── the record ─────────────────────────────────────────────────────────────────────────── */
@@ -129,8 +164,7 @@ export interface RecurrentDraft {
   supplierName: string;
   supplierContactName: string;
   supplierContactEmail: string;
-  requesterName: string;
-  requesterEmail: string;
+  requesters: Person[];
   buyerName: string;
   buyerEmail: string;
   approver: string;
@@ -154,8 +188,7 @@ export const EMPTY_RECURRENT_DRAFT: RecurrentDraft = {
   supplierName: '',
   supplierContactName: '',
   supplierContactEmail: '',
-  requesterName: '',
-  requesterEmail: '',
+  requesters: [],
   buyerName: '',
   buyerEmail: '',
   approver: '',
@@ -181,10 +214,14 @@ export function checkRecurrent(d: RecurrentDraft): string | null {
   }
   for (const [label, v] of [
     ['supplier contact email', d.supplierContactEmail],
-    ['requester email', d.requesterEmail],
     ['buyer email', d.buyerEmail],
   ] as const) {
     if (v.trim() && !EMAIL.test(v.trim())) return `The ${label} is not an email address.`;
+  }
+  for (const p of d.requesters ?? []) {
+    if (p.email.trim() && !EMAIL.test(p.email.trim())) {
+      return `${p.name || p.email}: the requester's email is not an email address.`;
+    }
   }
   if (d.annualValue.trim()) {
     const n = Number(d.annualValue.replace(/,/g, ''));

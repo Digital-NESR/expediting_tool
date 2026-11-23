@@ -35,7 +35,12 @@ import RrsmShell, { RrsmEmpty, RrsmNoCountry } from './components/RrsmShell';
 import PoHistoryPanel from './PoHistoryPanel';
 import DashboardSwitch from './components/DashboardSwitch';
 import { rrsmHref } from '@/lib/rrsm/nav';
-import { DECISION_LABEL, RECURRENT_STATUS_LABEL, type RecurrentStatus } from '@/lib/rrsm/recurrent';
+import {
+  DECISION_LABEL,
+  RECURRENT_STATUS_LABEL,
+  peopleShort,
+  type RecurrentStatus,
+} from '@/lib/rrsm/recurrent';
 
 const BRAND = '#307c4c';
 
@@ -102,16 +107,20 @@ export default function RecurrentDashboardClient({ board }: { board: RecurrentBo
       months.find((x) => x.key === monthKey(r.contractExpiry))?.rows.push(r);
     }
 
-    const group = (key: (r: RecurrentRow) => string): Group[] => {
+    /* A service counts once under each of its keys: a service with two requester-validators is
+       in both of their rows, so a column can add up to more than the number of services. */
+    const group = (keys: (r: RecurrentRow) => string[]): Group[] => {
       const map = new Map<string, Group>();
       for (const r of live) {
-        const k = key(r) || '—';
-        const g = map.get(k) ?? { name: k, all: [], expired: [], due: [], withBuyer: [] };
-        g.all.push(r);
-        if (r.status === 'expired') g.expired.push(r);
-        if (r.status === 'due') g.due.push(r);
-        if (r.status === 'awaiting_buyer') g.withBuyer.push(r);
-        map.set(k, g);
+        const ks = [...new Set(keys(r).filter(Boolean))];
+        for (const k of ks.length ? ks : ['—']) {
+          const g = map.get(k) ?? { name: k, all: [], expired: [], due: [], withBuyer: [] };
+          g.all.push(r);
+          if (r.status === 'expired') g.expired.push(r);
+          if (r.status === 'due') g.due.push(r);
+          if (r.status === 'awaiting_buyer') g.withBuyer.push(r);
+          map.set(k, g);
+        }
       }
       return [...map.values()].sort(
         (a, b) =>
@@ -135,8 +144,8 @@ export default function RecurrentDashboardClient({ board }: { board: RecurrentBo
       cancelled,
       noExpiry,
       months,
-      byDepartment: group((r) => r.department),
-      byRequester: group((r) => r.requesterName || r.requesterEmail),
+      byDepartment: group((r) => [r.department]),
+      byRequester: group((r) => r.requesters.map((p) => p.name || p.email)),
       values: [...values.entries()],
       valuedRows,
     };
@@ -501,7 +510,9 @@ function ServiceLine({
             {r.serviceName || r.description}
           </span>
           <span className="block truncate text-[11.5px] text-slate-500">
-            {[r.supplierName, r.requesterName].filter(Boolean).join(' · ')}
+            {[r.supplierName, r.requesters.length ? peopleShort(r.requesters) : '']
+              .filter(Boolean)
+              .join(' · ')}
           </span>
         </span>
         <span className="shrink-0 font-mono text-[11.5px] text-slate-500">{r.contractExpiry}</span>
@@ -714,8 +725,11 @@ function ServicesModal({
                     <td className="truncate px-3 py-2 text-slate-600" title={r.supplierName}>
                       {r.supplierName || '—'}
                     </td>
-                    <td className="truncate px-3 py-2 text-slate-600" title={r.requesterEmail}>
-                      {r.requesterName || r.requesterEmail || '—'}
+                    <td
+                      className="truncate px-3 py-2 text-slate-600"
+                      title={r.requesters.map((p) => p.name || p.email).join(', ')}
+                    >
+                      {peopleShort(r.requesters)}
                     </td>
                     <td className="px-3 py-2 font-mono text-[12px] text-slate-700">
                       {r.contractExpiry || '—'}
@@ -756,7 +770,10 @@ function ServiceDetail({
 }) {
   const facts: [string, string][] = [
     ['Supplier', r.supplierName || '—'],
-    ['Requester-validator', r.requesterName || r.requesterEmail || '—'],
+    [
+      r.requesters.length > 1 ? 'Requester-validators' : 'Requester-validator',
+      r.requesters.map((p) => p.name || p.email).join(', ') || '—',
+    ],
     ['Department', r.department || '—'],
     [
       'Contract expiry',

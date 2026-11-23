@@ -61,7 +61,7 @@ export async function sendRecurrentReminders(options?: {
   const { rows } = await rrsmPool.query<QueryResultRow>(
     `SELECT r.id AS renewal_id, r.due_on, r.reminders_sent,
             s.id, s.country_code, s.description, s.service_name, s.supplier_name,
-            s.requester_email, s.buyer_email
+            s.requester_email, s.requesters, s.buyer_email
        FROM rrsm_recurrent_renewals r
        JOIN rrsm_recurrent_services s ON s.id = r.service_id
        JOIN rrsm_countries c ON c.code = s.country_code
@@ -84,14 +84,26 @@ export async function sendRecurrentReminders(options?: {
     const step = dueReminder(due, today, sent);
     if (step === null) continue;
 
-    const requester = String(r.requester_email ?? '')
-      .trim()
-      .toLowerCase();
+    /* Every requester-validator on the service; the buyer is copied, or is the one told when
+       nobody is named. */
+    const listed = Array.isArray(r.requesters) ? (r.requesters as { email?: string }[]) : [];
+    const requesters = [
+      ...new Set(
+        [...listed.map((p) => p?.email), r.requester_email]
+          .map((e) =>
+            String(e ?? '')
+              .trim()
+              .toLowerCase(),
+          )
+          .filter((e) => e.includes('@')),
+      ),
+    ];
     const buyer = String(r.buyer_email ?? '')
       .trim()
       .toLowerCase();
-    const to = requester.includes('@') ? [requester] : buyer.includes('@') ? [buyer] : [];
-    const cc = requester.includes('@') && buyer.includes('@') && buyer !== requester ? [buyer] : [];
+    const to = requesters.length ? requesters : buyer.includes('@') ? [buyer] : [];
+    const cc =
+      requesters.length && buyer.includes('@') && !requesters.includes(buyer) ? [buyer] : [];
     if (!to.length) {
       summary.orphaned++;
       continue;

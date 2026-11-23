@@ -48,6 +48,9 @@ import {
   PERIOD_LABEL,
   RECURRENT_STATUS_LABEL,
   RENEWAL_PERIODS,
+  cleanPeople,
+  peopleShort,
+  type Person,
   type RecurrentDraft,
   type RecurrentStatus,
   type RenewalDecision,
@@ -106,8 +109,7 @@ function draftOf(r: RecurrentRow): RecurrentDraft {
     supplierName: r.supplierName,
     supplierContactName: r.supplierContactName,
     supplierContactEmail: r.supplierContactEmail,
-    requesterName: r.requesterName,
-    requesterEmail: r.requesterEmail,
+    requesters: r.requesters,
     buyerName: r.buyerName,
     buyerEmail: r.buyerEmail,
     approver: r.approver,
@@ -161,7 +163,7 @@ export default function RecurrentClient({
             r.serviceName,
             r.description,
             r.supplierName,
-            r.requesterName,
+            ...r.requesters.flatMap((p) => [p.name, p.email]),
             r.lastPoNumber,
             r.department,
           ]
@@ -318,8 +320,11 @@ export default function RecurrentClient({
                     )}
                   </td>
                   <td className="truncate px-3 py-2.5 text-slate-600">{r.department || '—'}</td>
-                  <td className="truncate px-3 py-2.5 text-slate-600" title={r.requesterEmail}>
-                    {r.requesterName || r.requesterEmail || '—'}
+                  <td
+                    className="truncate px-3 py-2.5 text-slate-600"
+                    title={r.requesters.map((p) => p.name || p.email).join(', ')}
+                  >
+                    {peopleShort(r.requesters)}
                   </td>
                   <td className="px-3 py-2.5">
                     <div className="font-mono text-[12px] text-slate-700">
@@ -728,14 +733,16 @@ function DetailsForm({
   run: Run;
   onClose: () => void;
 }) {
+  /** The draft's plain text fields (everything but the requesters list). */
+  type TextKey = Exclude<keyof RecurrentDraft, 'requesters'>;
   const [d, setD] = useState<RecurrentDraft>(
     row ? draftOf(row) : { ...EMPTY_RECURRENT_DRAFT, currency: board.country?.currency ?? '' },
   );
   const ro = !board.canEdit;
-  const set = (k: keyof RecurrentDraft) => (e: { target: { value: string } }) =>
+  const set = (k: TextKey) => (e: { target: { value: string } }) =>
     setD({ ...d, [k]: e.target.value });
   const text = (
-    k: keyof RecurrentDraft,
+    k: TextKey,
     label: string,
     opts?: { wide?: boolean; type?: string; placeholder?: string },
   ) => (
@@ -804,12 +811,11 @@ function DetailsForm({
         {text('supplierName', 'Vendor name')}
         {text('supplierContactName', 'Supplier contact name')}
         {text('supplierContactEmail', 'Supplier contact email', { type: 'email' })}
-        <PersonField
-          label="Requester-validator"
-          name={d.requesterName}
-          email={d.requesterEmail}
+        <PeopleField
+          label="Requester-validators"
+          people={d.requesters}
           disabled={ro}
-          onPick={(name, email) => setD({ ...d, requesterName: name, requesterEmail: email })}
+          onChange={(requesters) => setD({ ...d, requesters })}
         />
         <PersonField
           label="Buyer"
@@ -873,6 +879,77 @@ function DetailsForm({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Several people from the Azure AD directory: one chip each, removable, and "Add" for another.
+ * Any one of a service's requester-validators decides on the renewal.
+ */
+function PeopleField({
+  label,
+  people,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  people: Person[];
+  disabled: boolean;
+  onChange: (people: Person[]) => void;
+}) {
+  const picker = usePickerAnchor();
+  const { btnRef } = picker;
+  return (
+    <Field label={label} as="div" wide>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {people.map((p) => (
+          <span
+            key={p.email || p.name}
+            className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 py-1 pl-2.5 pr-1.5 text-[12.5px] text-slate-700"
+            title={p.email}
+          >
+            <UserRound className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+            <span className="truncate">{p.name || p.email}</span>
+            {p.name && p.email && (
+              <span className="hidden truncate text-[11px] text-slate-400 sm:inline">
+                {p.email}
+              </span>
+            )}
+            {!disabled && (
+              <button
+                type="button"
+                onClick={() => onChange(people.filter((x) => x !== p))}
+                aria-label={`Remove ${p.name || p.email}`}
+                className="rounded-full p-0.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </span>
+        ))}
+        {!people.length && disabled && <span className="text-[13px] text-slate-400">—</span>}
+        {!disabled && (
+          <button
+            ref={btnRef}
+            type="button"
+            onClick={picker.toggle}
+            className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-2.5 py-1 text-[12.5px] font-medium text-slate-600 hover:border-[#307c4c] hover:text-[#1d4f31]"
+          >
+            <Plus className="h-3.5 w-3.5" />{' '}
+            {people.length ? 'Add another' : 'Add from the directory'}
+          </button>
+        )}
+      </div>
+      <PickerPortal
+        open={picker.open}
+        pos={picker.pos}
+        onPick={(emp) => {
+          onChange(cleanPeople([...people, { name: emp.name, email: emp.email }]));
+          picker.close();
+        }}
+        onClose={picker.close}
+      />
+    </Field>
   );
 }
 

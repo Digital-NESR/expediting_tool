@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   EMPTY_RECURRENT_DRAFT,
   canDecideRenewal,
+  cleanPeople,
+  peopleShort,
   checkRecurrent,
   parsePeriod,
   recurrentStatus,
@@ -60,24 +62,47 @@ describe('parsePeriod', () => {
 });
 
 describe('canDecideRenewal', () => {
-  it('lets the service requester or a buyer decide, nobody else', () => {
+  const two = [
+    { name: 'Riswan Parambath', email: 'rparambath@nesr.com' },
+    { name: 'Deborah Dionio', email: 'ddionio@nesr.com' },
+  ];
+  it('lets any of the service requesters or a buyer decide, nobody else', () => {
     expect(
-      canDecideRenewal({
-        actorEmail: 'RPARAMBATH@nesr.com',
-        requesterEmail: 'rparambath@nesr.com',
-        canBuy: false,
-      }),
+      canDecideRenewal({ actorEmail: 'RPARAMBATH@nesr.com', requesters: two, canBuy: false }),
     ).toBe(true);
     expect(
-      canDecideRenewal({
-        actorEmail: 'x@nesr.com',
-        requesterEmail: 'rparambath@nesr.com',
-        canBuy: false,
-      }),
-    ).toBe(false);
-    expect(canDecideRenewal({ actorEmail: 'x@nesr.com', requesterEmail: null, canBuy: true })).toBe(
-      true,
+      canDecideRenewal({ actorEmail: 'ddionio@nesr.com', requesters: two, canBuy: false }),
+    ).toBe(true);
+    expect(canDecideRenewal({ actorEmail: 'x@nesr.com', requesters: two, canBuy: false })).toBe(
+      false,
     );
+    expect(canDecideRenewal({ actorEmail: 'x@nesr.com', requesters: [], canBuy: true })).toBe(true);
+  });
+});
+
+describe('cleanPeople and peopleShort', () => {
+  it('trims, lower-cases emails, drops blanks and repeats', () => {
+    expect(
+      cleanPeople([
+        { name: ' Riswan  Parambath ', email: 'RParambath@nesr.com ' },
+        { name: 'Riswan P', email: 'rparambath@nesr.com' },
+        { name: '', email: '' },
+        { name: 'Deborah Dionio', email: '' },
+      ]),
+    ).toEqual([
+      { name: 'Riswan Parambath', email: 'rparambath@nesr.com' },
+      { name: 'Deborah Dionio', email: '' },
+    ]);
+  });
+  it('shortens a list for a table cell', () => {
+    expect(peopleShort([])).toBe('—');
+    expect(peopleShort([{ name: 'A', email: 'a@x.com' }])).toBe('A');
+    expect(
+      peopleShort([
+        { name: 'A', email: 'a@x.com' },
+        { name: '', email: 'b@x.com' },
+      ]),
+    ).toBe('A +1');
   });
 });
 
@@ -89,7 +114,9 @@ describe('checkRecurrent', () => {
   it('refuses bad dates, emails, values and PO numbers', () => {
     expect(checkRecurrent({ ...ok, description: ' ' })).toMatch(/Describe/);
     expect(checkRecurrent({ ...ok, contractExpiry: '5/31/2026' })).toMatch(/date/);
-    expect(checkRecurrent({ ...ok, requesterEmail: 'riswan' })).toMatch(/email/);
+    expect(checkRecurrent({ ...ok, requesters: [{ name: 'Riswan', email: 'riswan' }] })).toMatch(
+      /email/,
+    );
     expect(checkRecurrent({ ...ok, annualValue: 'lots' })).toMatch(/number/);
     expect(checkRecurrent({ ...ok, annualValue: '1000' })).toMatch(/currency/);
     expect(checkRecurrent({ ...ok, lastPoNumber: 'PO-1' })).toMatch(/PO number/);

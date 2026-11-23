@@ -25,17 +25,18 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   try {
     const { rows } = await rrsmPool.query(
-      `SELECT d.file_name, d.content_type, d.content, s.country_code, s.requester_email
+      `SELECT d.file_name, d.content_type, d.content, s.country_code,
+              (lower(s.requester_email) = $2 OR EXISTS (
+                 SELECT 1 FROM jsonb_array_elements(s.requesters) p WHERE lower(p ->> 'email') = $2
+              )) AS mine
          FROM rrsm_recurrent_documents d
          JOIN rrsm_recurrent_services s ON s.id = d.service_id
         WHERE d.id = $1`,
-      [documentId],
+      [documentId, actor.email.toLowerCase()],
     );
     const row = rows[0];
     if (!row) return new NextResponse('Not found', { status: 404 });
-    const mine =
-      row.requester_email &&
-      String(row.requester_email).toLowerCase() === actor.email.toLowerCase();
+    const mine = row.mine === true;
     if (!mine && !rolesIn(actor, String(row.country_code)).canBuy) {
       return new NextResponse('Not found', { status: 404 });
     }
