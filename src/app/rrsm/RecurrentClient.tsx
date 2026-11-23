@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import PoHistoryPanel from './PoHistoryPanel';
+import type { PoValue } from '@/lib/rrsm/po-history-read';
 import {
   AlertTriangle,
   FileText,
@@ -33,6 +34,7 @@ import {
   decideRecurrentRenewal,
   deleteRecurrentService,
   getRecurrentHistory,
+  lookupRecurrentPo,
   removeRecurrentDocument,
   saveRecurrentService,
   uploadRecurrentDocument,
@@ -654,6 +656,10 @@ function RenewalPanel({
                   className={INPUT}
                 />
               </Field>
+              <p className="text-[11.5px] text-slate-500 sm:col-span-3">
+                The new PO&apos;s value and currency are read from SAP and become the annual value,
+                once SAP has the PO.
+              </p>
               <div className="sm:col-span-3">
                 <button
                   type="button"
@@ -694,6 +700,60 @@ function RenewalPanel({
 
 const INPUT =
   'w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[13px] outline-none focus:border-[#307c4c] disabled:bg-slate-50 disabled:text-slate-600';
+
+type SapLookup = {
+  state: 'idle' | 'loading' | 'found' | 'missing' | 'error';
+  for: string;
+  po?: PoValue;
+  error?: string;
+};
+
+/** Under the PO field: what SAP says the PO is worth, and "Use" when it differs from the form. */
+function SapPoHint({
+  sap,
+  current,
+  onUse,
+}: {
+  sap: SapLookup;
+  current: RecurrentDraft;
+  onUse: () => void;
+}) {
+  if (sap.state === 'idle' || sap.state === 'loading') return null;
+  if (sap.state === 'error')
+    return <p className="text-[11.5px] text-red-600">{sap.error || 'SAP could not be read.'}</p>;
+  if (sap.state === 'missing' || !sap.po)
+    return (
+      <p className="text-[11.5px] text-slate-500">
+        PO {sap.for} is not in SAP yet (new POs can take a load or two to appear). Enter the value
+        by hand, or check again later.
+      </p>
+    );
+  const po = sap.po;
+  const money = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
+  const same =
+    Number(current.annualValue.replace(/,/g, '')) === po.value &&
+    current.currency.trim().toUpperCase() === po.currency.toUpperCase();
+  return (
+    <p className="text-[11.5px] leading-snug text-slate-500">
+      <span className="font-semibold text-[#1d4f31]">
+        SAP: {money.format(po.value)} {po.currency}
+      </span>{' '}
+      · {po.created} · {po.description}
+      {po.otherLines > 0 && <> · {po.otherLines} other line(s) on this PO left out</>}
+      {same ? (
+        <span className="ml-1 text-[#1d4f31]">· filled in</span>
+      ) : (
+        <button
+          type="button"
+          onClick={onUse}
+          className="ml-1.5 font-semibold text-[#1d4f31] underline underline-offset-2"
+        >
+          Use this value
+        </button>
+      )}
+    </p>
+  );
+}
 
 function Field({
   label,
@@ -739,6 +799,37 @@ function DetailsForm({
     row ? draftOf(row) : { ...EMPTY_RECURRENT_DRAFT, currency: board.country?.currency ?? '' },
   );
   const ro = !board.canEdit;
+
+  /* The PO's value from SAP: looked up when the buyer leaves the PO field (or presses "SAP").
+     It fills a blank annual value by itself; an existing value is only replaced on "Use". */
+  const [sap, setSap] = useState<SapLookup>({ state: 'idle', for: '' });
+  function applyPo(po: PoValue, replace: boolean) {
+    setD((prev) => ({
+      ...prev,
+      annualValue: replace || !prev.annualValue.trim() ? String(po.value) : prev.annualValue,
+      currency: replace || !prev.annualValue.trim() ? po.currency || prev.currency : prev.currency,
+      supplierCode: prev.supplierCode.trim() || po.supplierCode,
+      supplierName: prev.supplierName.trim() || po.supplierName,
+    }));
+  }
+  async function checkPo(force: boolean) {
+    const po = d.lastPoNumber.trim();
+    if (ro || !board.country || !/^\d{6,12}$/.test(po)) return;
+    if (!force && (sap.for === po || po === (row?.lastPoNumber ?? ''))) return;
+    setSap({ state: 'loading', for: po });
+    const r = await lookupRecurrentPo({
+      countryCode: board.country.code,
+      poNumber: po,
+      serviceName: d.serviceName,
+      description: d.description,
+      supplierName: d.supplierName,
+    });
+    if (!r.ok) return setSap({ state: 'error', for: po, error: r.error });
+    if (!r.po) return setSap({ state: 'missing', for: po });
+    setSap({ state: 'found', for: po, po: r.po });
+    if (r.po.value > 0) applyPo(r.po, false);
+  }
+
   const set = (k: TextKey) => (e: { target: { value: string } }) =>
     setD({ ...d, [k]: e.target.value });
   const text = (
@@ -787,7 +878,30 @@ function DetailsForm({
         </Field>
         {text('poRenewalPeriod', 'PO renewal period')}
         {text('contractExpiry', 'Contract expiry', { type: 'date' })}
-        {text('lastPoNumber', 'Last PO number')}
+        <Field label="Last PO number">
+          <div className="flex gap-1.5">
+            <input
+              value={d.lastPoNumber}
+              onChange={set('lastPoNumber')}
+              onBlur={() => void checkPo(false)}
+              disabled={ro}
+              inputMode="numeric"
+              className={INPUT}
+            />
+            {!ro && (
+              <button
+                type="button"
+                onClick={() => void checkPo(true)}
+                disabled={!/^\d{6,12}$/.test(d.lastPoNumber.trim()) || sap.state === 'loading'}
+                title="Read this PO's value and currency from SAP"
+                className="shrink-0 rounded-lg border border-slate-200 px-2.5 text-[12px] font-semibold text-slate-600 hover:border-[#307c4c] hover:text-[#1d4f31] disabled:opacity-40"
+              >
+                {sap.state === 'loading' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'SAP'}
+              </button>
+            )}
+          </div>
+          <SapPoHint sap={sap} onUse={() => sap.po && applyPo(sap.po, true)} current={d} />
+        </Field>
         {text('lastPoValidTill', 'Last PO valid till', { type: 'date' })}
         <Field label="Annual value (optional)">
           <div className="flex gap-1.5">

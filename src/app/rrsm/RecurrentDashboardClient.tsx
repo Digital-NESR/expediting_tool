@@ -456,7 +456,7 @@ function Tile({
           </p>
           {amounts.slice(1).map(([n, c, exact]) => (
             <p key={c} className="text-[13px] font-semibold text-slate-600" title={`${exact} ${c}`}>
-              + {n} <span className="font-medium text-slate-400">{c}</span>
+              {n} <span className="font-medium text-slate-400">{c}</span>
             </p>
           ))}
         </>

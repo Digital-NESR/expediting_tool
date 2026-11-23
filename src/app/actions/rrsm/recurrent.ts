@@ -30,7 +30,12 @@ import {
 } from '@/lib/rrsm/recurrent';
 import { daysUntil } from '@/lib/rrsm/renewals';
 import { EMPTY_SAP, type SapStatus } from '@/lib/rrsm/sap';
-import { readPoHistory, type PoHistory } from '@/lib/rrsm/po-history-read';
+import {
+  readPoHistory,
+  readPoValue,
+  type PoHistory,
+  type PoValue,
+} from '@/lib/rrsm/po-history-read';
 import { readSapStatus } from '@/lib/rrsm/sap-status';
 import { checkDoc } from '@/lib/rrsm/submission';
 import { appBase } from '@/lib/rrsm/supplier-access';
@@ -364,6 +369,44 @@ export async function getRecurrentPoHistory(serviceId: number): Promise<PoHistor
   }
 }
 
+/**
+ * A PO's value for a service, read from SAP while the buyer types it in, so the form can fill the
+ * annual value and currency. Buyers only (they are the ones who edit); read-only on Materials DB.
+ */
+export async function lookupRecurrentPo(input: {
+  countryCode: string;
+  poNumber: string;
+  serviceName: string;
+  description: string;
+  supplierName: string;
+}): Promise<{ ok: boolean; po: PoValue | null; error?: string }> {
+  try {
+    const actor = await actorOrThrow();
+    if (!rolesIn(actor, String(input?.countryCode ?? '')).canBuy) {
+      return { ok: false, po: null, error: 'Only a buyer or an admin edits recurrent services.' };
+    }
+    const po = await readPoValue({
+      poNumber: String(input?.poNumber ?? ''),
+      text: `${String(input?.serviceName ?? '')} ${String(input?.description ?? '')}`,
+      supplierName: String(input?.supplierName ?? ''),
+    });
+    return { ok: true, po };
+  } catch (err) {
+    log.error('lookupRecurrentPo.failed', err, { po: input?.poNumber });
+    return { ok: false, po: null, error: 'SAP could not be read just now.' };
+  }
+}
+
+/** SAP's value for the PO, or null; never throws (a save must not fail because SAP is down). */
+async function sapValueOf(poNumber: string, text: string, supplierName: string) {
+  try {
+    return await readPoValue({ poNumber, text, supplierName });
+  } catch (err) {
+    log.error('sapValueOf.failed', err, { poNumber });
+    return null;
+  }
+}
+
 /* ─── buyers: add, edit, remove ──────────────────────────────────────────────────────────── */
 
 /* The plain columns. The requesters list is saved beside them (with its first person copied into
@@ -424,8 +467,21 @@ export async function saveRecurrentService(input: {
     }
     const problem = checkRecurrent(input.draft);
     if (problem) return { success: false, error: problem };
-    const values = valuesOf(input.draft);
-    const people = cleanPeople(input.draft.requesters);
+    /* A PO with no annual value: take the value and currency from SAP, when SAP has the PO. */
+    const draft = { ...input.draft };
+    if (draft.lastPoNumber.trim() && !draft.annualValue.trim()) {
+      const sap = await sapValueOf(
+        draft.lastPoNumber,
+        `${draft.serviceName} ${draft.description}`,
+        draft.supplierName,
+      );
+      if (sap && sap.value > 0) {
+        draft.annualValue = String(sap.value);
+        draft.currency = sap.currency || draft.currency;
+      }
+    }
+    const values = valuesOf(draft);
+    const people = cleanPeople(draft.requesters);
     const peopleJson = JSON.stringify(people);
     const n = FIELDS.length;
 
@@ -694,7 +750,8 @@ export async function completeRecurrentRenewal(input: {
     try {
       await client.query('BEGIN');
       const { rows: before } = await client.query<QueryResultRow>(
-        `SELECT contract_expiry, last_po_number, last_po_valid_till, status
+        `SELECT contract_expiry, last_po_number, last_po_valid_till, status, annual_value, currency,
+                service_name, description, supplier_name
            FROM rrsm_recurrent_services WHERE id = $1 FOR UPDATE`,
         [id],
       );
@@ -708,14 +765,27 @@ export async function completeRecurrentRenewal(input: {
                new_po_number = EXCLUDED.new_po_number, new_expiry = EXCLUDED.new_expiry`,
         [id, dueOn, actor.email, po, input.outcome === 'renewed' ? expiry : ''],
       );
+      /* The new PO's value, from SAP, is the service's annual value from now on. */
+      const sap =
+        input.outcome === 'renewed' && po
+          ? await sapValueOf(
+              po,
+              `${txt(b.service_name)} ${txt(b.description)}`,
+              txt(b.supplier_name),
+            )
+          : null;
+      const newValue = sap && sap.value > 0 ? sap : null;
       if (input.outcome === 'renewed') {
         await client.query(
           `UPDATE rrsm_recurrent_services
               SET contract_expiry = $2::date,
                   last_po_number = COALESCE(NULLIF($3, ''), last_po_number),
-                  last_po_valid_till = $4::date, updated_at = NOW()
+                  last_po_valid_till = $4::date,
+                  annual_value = COALESCE($5::numeric, annual_value),
+                  currency = COALESCE($6, currency),
+                  updated_at = NOW()
             WHERE id = $1`,
-          [id, expiry, po, validTill],
+          [id, expiry, po, validTill, newValue?.value ?? null, newValue?.currency || null],
         );
       } else {
         await client.query(
@@ -737,6 +807,12 @@ export async function completeRecurrentRenewal(input: {
                   contractExpiry: [day(b.contract_expiry), expiry],
                   lastPoNumber: [b.last_po_number, po || b.last_po_number],
                   lastPoValidTill: [day(b.last_po_valid_till), validTill],
+                  ...(newValue
+                    ? {
+                        annualValue: [b.annual_value, newValue.value],
+                        currency: [b.currency, newValue.currency],
+                      }
+                    : {}),
                 }
               : { status: [b.status, 'cancelled'] },
           ),
