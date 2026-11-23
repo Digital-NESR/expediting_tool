@@ -203,6 +203,16 @@ export default function RecurrentClient({ board }: { board: RecurrentBoard }) {
         ) : undefined
       }
     >
+      {!board.ownOnly && !board.country.recurrentReminders && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-900">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            Reminders are switched off for {board.country.name}: nobody is emailed yet. Correct the
+            expiry dates and POs, then an RRSM admin switches reminders on in Admin → RRSM.
+          </span>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         {FILTERS.map(([f, label]) => (
           <button

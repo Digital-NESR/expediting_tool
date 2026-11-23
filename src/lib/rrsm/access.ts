@@ -54,6 +54,8 @@ export interface RrsmCountryOption {
   /** Which RRSM modules run in this country: monthly rentals, recurrent services, or both. */
   rentalsEnabled: boolean;
   recurrentEnabled: boolean;
+  /** Recurrent-service reminders are mailed (off until an admin switches them on). */
+  recurrentReminders: boolean;
 }
 
 /**
@@ -149,10 +151,10 @@ export async function resolveRrsmCountry(
   const { rows } = await rrsmPool.query<QueryResultRow>(
     scope === 'all'
       ? `SELECT code, name, currency, flag, live, supplier_validation, ops_validation,
-                 rentals_enabled, recurrent_enabled FROM rrsm_countries
+                 rentals_enabled, recurrent_enabled, recurrent_reminders FROM rrsm_countries
           WHERE live ORDER BY sort_order, name`
       : `SELECT code, name, currency, flag, live, supplier_validation, ops_validation,
-                 rentals_enabled, recurrent_enabled FROM rrsm_countries
+                 rentals_enabled, recurrent_enabled, recurrent_reminders FROM rrsm_countries
           WHERE live AND code = ANY($1) ORDER BY sort_order, name`,
     scope === 'all' ? [] : [scope],
   );
@@ -174,5 +176,7 @@ export function toCountryOption(r: QueryResultRow): RrsmCountryOption {
     opsValidation: r.ops_validation === undefined ? true : Boolean(r.ops_validation),
     rentalsEnabled: r.rentals_enabled === undefined ? true : Boolean(r.rentals_enabled),
     recurrentEnabled: r.recurrent_enabled === undefined ? false : Boolean(r.recurrent_enabled),
+    recurrentReminders:
+      r.recurrent_reminders === undefined ? false : Boolean(r.recurrent_reminders),
   };
 }

@@ -50,7 +50,7 @@ export async function getRrsmCountries(): Promise<RrsmCountryRow[]> {
   await requireRrsmAdmin();
   const { rows } = await rrsmPool.query<QueryResultRow>(
     `SELECT c.code, c.name, c.currency, c.flag, c.live, c.supplier_validation, c.ops_validation,
-            c.rentals_enabled, c.recurrent_enabled,
+            c.rentals_enabled, c.recurrent_enabled, c.recurrent_reminders,
             (SELECT count(*)::int FROM rrsm_users u
               WHERE u.active AND u.country_code = c.code) AS users
        FROM rrsm_countries c
@@ -192,15 +192,26 @@ export async function setRrsmCountrySteps(
  */
 export async function setRrsmCountryModules(
   code: string,
-  modules: { rentals: boolean; recurrent: boolean },
+  modules: { rentals: boolean; recurrent: boolean; reminders?: boolean },
 ): Promise<RrsmActionResult> {
   try {
     const admin = await requireRrsmAdmin();
     const target = String(code ?? '').trim();
     if (!target) return { success: false, error: 'No country given.' };
     const { rowCount } = await rrsmPool.query(
-      `UPDATE rrsm_countries SET rentals_enabled = $2, recurrent_enabled = $3 WHERE code = $1`,
-      [target, Boolean(modules?.rentals), Boolean(modules?.recurrent)],
+      /* Reminders follow the module off (no module, no mail), and are otherwise left as they are
+         unless given: switching the module on never starts the mail by itself. */
+      `UPDATE rrsm_countries
+          SET rentals_enabled = $2, recurrent_enabled = $3,
+              recurrent_reminders = CASE WHEN NOT $3 THEN FALSE
+                                         ELSE COALESCE($4, recurrent_reminders) END
+        WHERE code = $1`,
+      [
+        target,
+        Boolean(modules?.rentals),
+        Boolean(modules?.recurrent),
+        typeof modules?.reminders === 'boolean' ? modules.reminders : null,
+      ],
     );
     if (!rowCount) return { success: false, error: 'No such country.' };
     log.info('country.modules', { code: target, ...modules, by: admin });

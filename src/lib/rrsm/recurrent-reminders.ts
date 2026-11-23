@@ -10,6 +10,9 @@
  * earliest step it missed and marks every step the clock has reached as spent, so a service
  * loaded already overdue gets one "expired" mail, not six in a row. Once the requester has
  * decided, the reminders stop: the renewal is the buyer's to finish.
+ *
+ * Only in countries that are live, run the module AND have reminders switched on: the module can
+ * be visible while buyers correct the register, without mailing anybody about stale dates.
  */
 
 import type { QueryResultRow } from 'pg';
@@ -48,7 +51,7 @@ export async function sendRecurrentReminders(options?: {
      SELECT s.id, s.contract_expiry
        FROM rrsm_recurrent_services s
        JOIN rrsm_countries c ON c.code = s.country_code
-      WHERE c.live AND c.recurrent_enabled AND s.status = 'active'
+      WHERE c.live AND c.recurrent_enabled AND c.recurrent_reminders AND s.status = 'active'
         AND s.contract_expiry IS NOT NULL
         AND s.contract_expiry <= $1::date + ($2 || ' days')::interval
      ON CONFLICT (service_id, due_on) DO NOTHING`,
@@ -63,7 +66,7 @@ export async function sendRecurrentReminders(options?: {
        JOIN rrsm_recurrent_services s ON s.id = r.service_id
        JOIN rrsm_countries c ON c.code = s.country_code
       WHERE NOT r.completed AND r.decision IS NULL
-        AND c.live AND c.recurrent_enabled AND s.status = 'active'
+        AND c.live AND c.recurrent_enabled AND c.recurrent_reminders AND s.status = 'active'
         AND s.contract_expiry = r.due_on`,
   );
 

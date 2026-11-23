@@ -21,6 +21,7 @@ const HQ = {
   opsValidation: true,
   rentalsEnabled: false,
   recurrentEnabled: true,
+  recurrentReminders: false,
 };
 
 function row(p: Partial<RecurrentRow> & Pick<RecurrentRow, 'id' | 'serviceName'>): RecurrentRow {

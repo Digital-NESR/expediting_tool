@@ -118,13 +118,14 @@ export default function RrsmAdminClient({ preview }: { preview?: RrsmAdminPrevie
     setBusy(null);
   }
 
-  async function toggleModule(c: RrsmCountryRow, key: 'rentals' | 'recurrent') {
+  async function toggleModule(c: RrsmCountryRow, key: 'rentals' | 'recurrent' | 'reminders') {
     setBusy('modules:' + c.code);
     setError('');
     setNotice('');
     const next = {
       rentals: key === 'rentals' ? !c.rentalsEnabled : c.rentalsEnabled,
       recurrent: key === 'recurrent' ? !c.recurrentEnabled : c.recurrentEnabled,
+      reminders: key === 'reminders' ? !c.recurrentReminders : c.recurrentReminders,
     };
     const r = await setRrsmCountryModules(c.code, next);
     if (!r.success) setError(r.error ?? 'That did not work.');
@@ -399,6 +400,39 @@ export default function RrsmAdminClient({ preview }: { preview?: RrsmAdminPrevie
                       </button>
                     ))}
                   </div>
+                  {/* Its own switch, off by default: the module can be on (visible, editable) while
+                      buyers correct the dates, without mailing requesters about stale expiries. */}
+                  {c.recurrentEnabled && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">
+                        Recurrent
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={c.recurrentReminders}
+                        disabled={busy === 'modules:' + c.code}
+                        onClick={() => void toggleModule(c, 'reminders')}
+                        title={
+                          c.recurrentReminders
+                            ? 'Renewal reminders are emailed (90/60/30/14/7/0 days). Click to stop.'
+                            : 'No reminders are emailed. Click to start them at the next daily run (06:00 UTC).'
+                        }
+                        className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11.5px] font-semibold transition-colors disabled:opacity-50 ${
+                          c.recurrentReminders
+                            ? 'bg-[#e6f1ea] text-[#1d4f31] hover:bg-[#d6e8de]'
+                            : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                        }`}
+                      >
+                        {c.recurrentReminders ? (
+                          <Check className="h-3 w-3" />
+                        ) : (
+                          <X className="h-3 w-3" />
+                        )}
+                        {c.recurrentReminders ? 'Sending reminders' : 'Reminders off'}
+                      </button>
+                    </div>
+                  )}
                   {c.rentalsEnabled && (
                     <div className="flex items-center gap-1.5">
                       <span className="text-[10.5px] font-semibold uppercase tracking-wider text-slate-400">

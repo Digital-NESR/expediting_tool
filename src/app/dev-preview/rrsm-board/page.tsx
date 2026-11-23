@@ -56,6 +56,7 @@ const BOARD: RrsmBoard = {
     opsValidation: true,
     rentalsEnabled: true,
     recurrentEnabled: false,
+    recurrentReminders: false,
   },
   /* Two, so the picker is drawn rather than the locked label. Swap to one to see the other. */
   available: [
@@ -69,6 +70,7 @@ const BOARD: RrsmBoard = {
       opsValidation: true,
       rentalsEnabled: true,
       recurrentEnabled: false,
+      recurrentReminders: false,
     },
     {
       code: 'AE',
@@ -80,6 +82,7 @@ const BOARD: RrsmBoard = {
       opsValidation: true,
       rentalsEnabled: true,
       recurrentEnabled: false,
+      recurrentReminders: false,
     },
   ],
   canBuy: true,

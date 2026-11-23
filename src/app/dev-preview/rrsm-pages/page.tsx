@@ -28,6 +28,7 @@ const KW = {
   opsValidation: true,
   rentalsEnabled: true,
   recurrentEnabled: false,
+  recurrentReminders: false,
 };
 const AE = {
   code: 'AE',
@@ -39,6 +40,7 @@ const AE = {
   opsValidation: true,
   rentalsEnabled: true,
   recurrentEnabled: false,
+  recurrentReminders: false,
 };
 
 function scopeFor(role?: string): RrsmScope {
@@ -296,6 +298,7 @@ export default async function RrsmPagesPreview({
               opsValidation: true,
               rentalsEnabled: true,
               recurrentEnabled: false,
+              recurrentReminders: false,
             }
           : null;
   const scope: RrsmScope =
