@@ -7,9 +7,10 @@ export const dynamic = 'force-dynamic';
 export default async function RrsmRecurrentPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ country?: string }>;
+  searchParams?: Promise<{ country?: string; service?: string }>;
 }) {
   const sp = searchParams ? await searchParams : {};
   const board = await getRecurrentBoard(sp.country ?? null);
-  return <RecurrentClient board={board} />;
+  const service = Number(sp.service);
+  return <RecurrentClient board={board} openId={Number.isInteger(service) ? service : null} />;
 }

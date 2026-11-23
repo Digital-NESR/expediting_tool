@@ -124,12 +124,21 @@ function daysText(d: number | null): string {
   return `in ${d} day${d === 1 ? '' : 's'}`;
 }
 
-export default function RecurrentClient({ board }: { board: RecurrentBoard }) {
+export default function RecurrentClient({
+  board,
+  openId = null,
+}: {
+  board: RecurrentBoard;
+  /** A service to open on arrival, from a dashboard link (?service=ID). */
+  openId?: number | null;
+}) {
   const router = useRouter();
   const [filter, setFilter] = useState<Filter>(board.ownOnly ? 'all' : 'attention');
   const [query, setQuery] = useState('');
   const [dept, setDept] = useState('');
-  const [open, setOpen] = useState<RecurrentRow | 'new' | null>(null);
+  const [open, setOpen] = useState<RecurrentRow | 'new' | null>(
+    () => board.rows.find((r) => r.id === openId) ?? null,
+  );
 
   const departments = useMemo(
     () => [...new Set(board.rows.map((r) => r.department).filter(Boolean))].sort(),
