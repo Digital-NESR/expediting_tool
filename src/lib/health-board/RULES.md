@@ -164,6 +164,8 @@ written down per KPI in `procedures/` beside this file, so the next month is don
   Country" export (Global = sum), via `scripts/health-board-icpo-from-export.mjs`.
 - `procedures/dsoh.md`: DSOH, with countries from the live table (the same reading in missed
   months) and Global from the month-on-month export, via `scripts/health-board-dsoh.mjs`.
+- `procedures/otd.md`: On-Time Delivery from the "On Time Delivery" export (× 100, Global = mean
+  of the countries), via `scripts/health-board-otd-from-export.mjs`.
 
 ## Uploading (UX phase 5)
 
