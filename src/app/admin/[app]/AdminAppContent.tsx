@@ -179,9 +179,6 @@ const ScsaExtensionsPanel = dynamic(
 /* ── Supply Chain Analytics ── */
 const RrsmAdminClient = dynamic(() => import('../RrsmAdminClient'), { loading });
 const RrsmAccessRequestsClient = dynamic(() => import('../RrsmAccessRequestsClient'), { loading });
-const ServiceRegistryAdminClient = dynamic(() => import('../ServiceRegistryAdminClient'), {
-  loading,
-});
 const TravelAnalyticsGrantsClient = dynamic(() => import('../TravelAnalyticsGrantsClient'), {
   loading,
 });
@@ -320,8 +317,6 @@ export default function AdminAppContent(props: AdminAppContentProps) {
       return <RrsmAdminClient />;
     case 'rrsm/access-approvals':
       return <RrsmAccessRequestsClient />;
-    case 'rrsm/service-registry':
-      return <ServiceRegistryAdminClient />;
 
     /* ── Supply Chain Self-Assessment ── */
     case 'self-assessment/questions':
