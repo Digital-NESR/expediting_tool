@@ -154,6 +154,9 @@ written down per KPI in `procedures/` beside this file, so the next month is don
 - `procedures/inventory-reduction.md`: Inventory Reduction from the two "Inventory$ MoM by
   Country" exports (EOS DMCC/JAFZA excluded, KSA Hydraulic Fracturing subtracted, Global = sum),
   via `scripts/health-board-inventory-from-export.mjs`.
+- `procedures/slow-moving.md`: Slow-Moving Inventory > 2 Years from the live-only Power BI
+  snapshot (filters checked, file used as it is, Global = the file's Total, missed months get the
+  same snapshot), via `scripts/health-board-slow-moving-from-snapshot.mjs`.
 
 ## Uploading (UX phase 5)
 
