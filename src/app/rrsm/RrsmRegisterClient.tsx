@@ -779,7 +779,7 @@ function ItemRows({
                 onClick={onEdit}
                 className="rounded px-2 py-1 text-[12px] font-semibold text-slate-500 hover:bg-slate-100"
               >
-                Edit
+                Edit item
               </button>
             </>
           )}

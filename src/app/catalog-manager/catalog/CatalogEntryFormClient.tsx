@@ -71,7 +71,7 @@ export default function CatalogEntryFormClient({
           </h1>
           <p className="mt-1 text-sm text-slate-500">
             {isEdit
-              ? 'Saving creates a new version; history is retained.'
+              ? 'Saving keeps the earlier rate in the item’s rate history.'
               : 'Add a supplier service or indirect-item rate. It shows in RRSM too.'}
           </p>
         </div>

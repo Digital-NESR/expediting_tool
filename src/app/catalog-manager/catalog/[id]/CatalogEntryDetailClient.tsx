@@ -544,7 +544,7 @@ export default function CatalogEntryDetailClient({
                 href={`/catalog-manager/catalog/${entry.id}/edit`}
                 className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-[#6aaf8e] active:scale-[0.98]"
               >
-                <Icon name="edit" className="h-4 w-4" /> Edit (new version)
+                <Icon name="edit" className="h-4 w-4" /> Edit item
               </Link>
             </>
           )}
