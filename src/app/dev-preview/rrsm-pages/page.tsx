@@ -15,6 +15,7 @@ import type { RegisterEditorData } from '@/app/actions/rrsm/register';
 import RrsmDashboardClient from '@/app/rrsm/RrsmDashboardClient';
 import RrsmHistoryClient from '@/app/rrsm/RrsmHistoryClient';
 import RrsmRegisterClient from '@/app/rrsm/RrsmRegisterClient';
+import { PREVIEW_REFS, PREVIEW_REGISTRY, PREVIEW_UNIT_LINKS } from './registry-fixture';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,6 +99,7 @@ const NO_CYCLE: RrsmOverview = {
 function reg(partial: Partial<RegisterRow> & Pick<RegisterRow, 'id' | 'description'>): RegisterRow {
   return {
     supplierCode: '100482',
+    registryCode: '',
     supplierName: 'Al Mulla Rental Co.',
     category: 'Transportation',
     assetRef: '',
@@ -309,14 +311,24 @@ export default async function RrsmPagesPreview({
       return (
         <RrsmRegisterClient
           scope={scope}
-          rows={REGISTER}
+          rows={REGISTER.map((r) => ({ ...r, registryCode: PREVIEW_UNIT_LINKS[r.id] ?? '' }))}
           /* Ops read the register; buyers and admins edit it. */
           editor={{ ...EDITOR, canEdit: scope.canBuy }}
+          registry={{ ok: true, items: PREVIEW_REGISTRY }}
+          previewRefs={PREVIEW_REFS}
           preview
         />
       );
     case 'register-empty':
-      return <RrsmRegisterClient scope={scope} rows={[]} editor={EDITOR} preview />;
+      return (
+        <RrsmRegisterClient
+          scope={scope}
+          rows={[]}
+          editor={EDITOR}
+          registry={{ ok: true, items: [] }}
+          preview
+        />
+      );
     case 'history':
       return <RrsmHistoryClient scope={scope} rows={HISTORY} />;
     case 'empty':

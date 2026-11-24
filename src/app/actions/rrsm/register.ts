@@ -4,6 +4,8 @@ import type { PoolClient, QueryResultRow } from 'pg';
 import rrsmPool from '@/lib/db-rrsm';
 import { logger } from '@/lib/logger';
 import { canAccessCountry, currentRrsmActor, rolesIn, type RrsmActor } from '@/lib/rrsm/access';
+import { getRegistryItems } from '@/lib/service-registry/registry';
+import { rrsmUom } from '@/lib/service-registry/migrate-plan';
 import {
   checkOffHireDate,
   checkServiceLine,
@@ -185,7 +187,8 @@ class Refusal extends Error {
 }
 
 function fail(err: unknown, where: string, context: Record<string, unknown>): RegisterResult {
-  if (err instanceof Refusal) return { success: false, error: err.message, fieldErrors: err.fieldErrors };
+  if (err instanceof Refusal)
+    return { success: false, error: err.message, fieldErrors: err.fieldErrors };
   log.error(`${where}.failed`, err, context);
   return { success: false, error: (err as Error).message || 'That did not save.' };
 }
@@ -286,9 +289,34 @@ export async function saveServiceLine(input: {
   countryCode: string;
   id?: number | null;
   draft: ServiceLineDraft;
+  /** The Service Registry item this unit belongs to (CAT-nnnn). Its rate and terms win. */
+  registryCode?: string | null;
 }): Promise<RegisterResult> {
   try {
     const id = input?.id ? Number(input.id) : null;
+    const registryCode = String(input?.registryCode ?? '').trim() || null;
+    /* A unit under a registry item takes the item's supplier, unit, rate, category and SAP
+       service number, read from the registry rather than trusted from the form. */
+    let draft = input.draft;
+    if (registryCode) {
+      const item = (await getRegistryItems([registryCode])).get(registryCode);
+      if (!item) throw new Refusal('That registry item no longer exists.');
+      if (item.country_code !== clean(input?.countryCode))
+        throw new Refusal('That registry item belongs to another country.');
+      const supplierCode = item.supplier_code.replace(/^0+(?=\d)/, '');
+      await rrsmPool.query(
+        `INSERT INTO rrsm_suppliers (code, name) VALUES ($1, $2) ON CONFLICT (code) DO NOTHING`,
+        [supplierCode, item.supplier_name],
+      );
+      draft = {
+        ...draft,
+        supplierCode,
+        uom: rrsmUom(item.uom_name ?? ''),
+        rate: item.rate_to_confirm ? draft.rate : String(item.unit_price),
+        category: item.subcategory_name || item.category_name || draft.category,
+        serviceNumber: item.sap_service_number || draft.serviceNumber,
+      };
+    }
 
     return await inTransaction(async (client) => {
       /* For an edit, the country is the row's own, whatever the caller said. */
@@ -301,10 +329,11 @@ export async function saveServiceLine(input: {
         [before ? String(before.uom) : ''],
       );
       const checked = checkServiceLine(
-        input.draft,
+        draft,
         uomRows.map((r) => String(r.code)),
       );
-      if (!checked.ok) throw new Refusal('Some fields need attention.', asFieldErrors(checked.errors));
+      if (!checked.ok)
+        throw new Refusal('Some fields need attention.', asFieldErrors(checked.errors));
       const v = checked.value;
 
       const { rows: sup } = await client.query<QueryResultRow>(
@@ -364,6 +393,11 @@ export async function saveServiceLine(input: {
           [...params, country],
         );
         const newId = Number(rows[0].id);
+        if (registryCode)
+          await client.query(`UPDATE rrsm_service_lines SET registry_code = $2 WHERE id = $1`, [
+            newId,
+            registryCode,
+          ]);
         await writeLog(client, {
           country,
           lineId: newId,
@@ -377,6 +411,13 @@ export async function saveServiceLine(input: {
       }
 
       const changes = diffValues(rowToValues(before), v);
+      if (registryCode && before.registry_code !== registryCode) {
+        await client.query(`UPDATE rrsm_service_lines SET registry_code = $2 WHERE id = $1`, [
+          id,
+          registryCode,
+        ]);
+        changes.registryCode = [before.registry_code ?? null, registryCode];
+      }
       if (!Object.keys(changes).length) return { success: true, id: id! };
 
       await client.query(
@@ -552,7 +593,8 @@ export async function saveSupplier(input: {
     const actor = await requireEditor(country);
 
     const checked = checkSupplier(input.draft);
-    if (!checked.ok) throw new Refusal('Some fields need attention.', asFieldErrors(checked.errors));
+    if (!checked.ok)
+      throw new Refusal('Some fields need attention.', asFieldErrors(checked.errors));
     const v = checked.value;
 
     return await inTransaction(async (client) => {

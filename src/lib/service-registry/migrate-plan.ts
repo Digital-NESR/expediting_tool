@@ -354,3 +354,21 @@ export function planMigration(input: {
   }
   return { items: [...byKey.values()], skipped };
 }
+
+/** A registry unit of measure as RRSM codes it ("Month" → month). Anything else counts as a unit. */
+export function rrsmUom(catalogUom: string): string {
+  const back: Record<string, string> = {
+    month: 'month',
+    day: 'day',
+    hour: 'hour',
+    'per person': 'headcount',
+    each: 'unit',
+  };
+  return (
+    back[
+      String(catalogUom ?? '')
+        .trim()
+        .toLowerCase()
+    ] ?? 'unit'
+  );
+}

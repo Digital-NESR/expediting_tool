@@ -41,7 +41,7 @@ import {
 const INPUT =
   'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors placeholder:text-slate-300 focus:border-[#307c4c] disabled:bg-slate-50 disabled:text-slate-500';
 
-function Drawer({
+export function Drawer({
   title,
   subtitle,
   onClose,
@@ -52,7 +52,8 @@ function Drawer({
   subtitle?: string;
   onClose: () => void;
   children: React.ReactNode;
-  footer: React.ReactNode;
+  /** Buttons along the bottom; left out when the content carries its own (the registry form). */
+  footer?: React.ReactNode;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -89,15 +90,25 @@ function Drawer({
           </button>
         </header>
         <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">{children}</div>
-        <footer className="shrink-0 border-t border-slate-100 bg-slate-50/70 px-5 py-3">
-          {footer}
-        </footer>
+        {footer && (
+          <footer className="shrink-0 border-t border-slate-100 bg-slate-50/70 px-5 py-3">
+            {footer}
+          </footer>
+        )}
       </aside>
     </>
   );
 }
 
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+function Section({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
     <section>
       <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{title}</h3>
@@ -249,17 +260,33 @@ export function draftFromRow(r: RegisterRow): ServiceLineDraft {
   };
 }
 
+/** The Service Registry item a unit belongs to, as the unit editor needs it. */
+export interface UnitRegistryItem {
+  code: string;
+  itemName: string;
+  supplierCode: string;
+  supplierName: string;
+  unitPrice: number;
+  uomCode: string;
+  rateToConfirm: boolean;
+  category: string;
+  serviceNumber: string;
+}
+
 export function LineDrawer({
   countryCode,
   currency,
   editor,
   categories,
   line,
+  item,
   preview,
   onClose,
   onSaved,
   onAddSupplier,
 }: {
+  /** The registry item this unit is (or is to be) under; its supplier, rate and unit win. */
+  item?: UnitRegistryItem | null;
   countryCode: string;
   currency: string;
   editor: RegisterEditorData;
@@ -274,7 +301,19 @@ export function LineDrawer({
   onAddSupplier: () => void;
 }) {
   const [draft, setDraft] = useState<ServiceLineDraft>(() =>
-    line ? draftFromRow(line) : { ...EMPTY_LINE_DRAFT },
+    line
+      ? draftFromRow(line)
+      : item
+        ? {
+            ...EMPTY_LINE_DRAFT,
+            supplierCode: item.supplierCode,
+            description: item.itemName,
+            uom: item.uomCode,
+            rate: item.rateToConfirm ? '' : String(item.unitPrice),
+            category: item.category,
+            serviceNumber: item.serviceNumber,
+          }
+        : { ...EMPTY_LINE_DRAFT },
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
@@ -324,7 +363,13 @@ export function LineDrawer({
     }
     void run(
       'save',
-      () => saveServiceLine({ countryCode, id: line?.id ?? null, draft }),
+      () =>
+        saveServiceLine({
+          countryCode,
+          id: line?.id ?? null,
+          draft,
+          registryCode: item?.code ?? null,
+        }),
       line ? 'Line saved.' : 'Line added to the register.',
     );
   }
@@ -343,6 +388,9 @@ export function LineDrawer({
   }
 
   const ro = !editor.canEdit || offHired;
+  /* Under a registry item, its supplier, unit and rate are the item's: changed on the item. */
+  const fromItem = !!item;
+  const rateLocked = ro || (fromItem && !item!.rateToConfirm);
   const supplier = editor.suppliers.find((s) => s.code === draft.supplierCode);
 
   return (
@@ -370,6 +418,14 @@ export function LineDrawer({
       }
     >
       {error && <Banner tone="error">{error}</Banner>}
+      {item && (
+        <Banner tone="info">
+          A unit of Service Registry item <b className="font-mono">{item.code}</b>, {item.itemName}.
+          Its supplier, unit and rate come from the item; change them there.
+          {item.rateToConfirm &&
+            ' The item’s rate is still to be confirmed, so set it here for now.'}
+        </Banner>
+      )}
       {offHired && (
         <Banner tone="info">
           Off hire since {line?.offHireDate || 'an earlier date'}. Put it back on hire to change it.
@@ -378,22 +434,28 @@ export function LineDrawer({
 
       <Section title="Supplier">
         <Field label="Supplier" required wide error={errors.supplierCode}>
-          <select
-            value={draft.supplierCode}
-            disabled={ro}
-            onChange={(e) => set('supplierCode', e.target.value)}
-            className={INPUT}
-          >
-            <option value="">Pick a supplier…</option>
-            {editor.suppliers
-              .filter((s) => s.active || s.code === draft.supplierCode)
-              .map((s) => (
-                <option key={s.code} value={s.code}>
-                  {s.name} · {s.code}
-                </option>
-              ))}
-          </select>
-          {!ro && (
+          {fromItem ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[13px] text-slate-700">
+              {item!.supplierName} · <span className="font-mono">{item!.supplierCode}</span>
+            </div>
+          ) : (
+            <select
+              value={draft.supplierCode}
+              disabled={ro}
+              onChange={(e) => set('supplierCode', e.target.value)}
+              className={INPUT}
+            >
+              <option value="">Pick a supplier…</option>
+              {editor.suppliers
+                .filter((s) => s.active || s.code === draft.supplierCode)
+                .map((s) => (
+                  <option key={s.code} value={s.code}>
+                    {s.name} · {s.code}
+                  </option>
+                ))}
+            </select>
+          )}
+          {!ro && !fromItem && (
             <span className="mt-1 block text-[12px] text-slate-400">
               Not listed?{' '}
               <button
@@ -490,7 +552,7 @@ export function LineDrawer({
         <Field label={`Rate (${currency})`} error={errors.rate} hint="Blank if not agreed yet.">
           <input
             value={draft.rate}
-            disabled={ro}
+            disabled={rateLocked}
             inputMode="decimal"
             onChange={(e) => set('rate', e.target.value)}
             className={`${INPUT} text-right font-mono`}
@@ -499,7 +561,7 @@ export function LineDrawer({
         <Field label="Per" required error={errors.uom}>
           <select
             value={draft.uom}
-            disabled={ro}
+            disabled={ro || fromItem}
             onChange={(e) => set('uom', e.target.value)}
             className={INPUT}
           >
@@ -585,7 +647,11 @@ export function LineDrawer({
             className={INPUT}
           />
         </Field>
-        <Field label="Contract ends" error={errors.contractEndsOn} hint="Blank for a standing arrangement.">
+        <Field
+          label="Contract ends"
+          error={errors.contractEndsOn}
+          hint="Blank for a standing arrangement."
+        >
           <input
             type="date"
             value={draft.contractEndsOn}
@@ -620,8 +686,8 @@ export function LineDrawer({
           {offHired ? (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-[13px] text-slate-600">
-                Came back, or off hired by mistake? Put it back and the next month opened will
-                carry it again.
+                Came back, or off hired by mistake? Put it back and the next month opened will carry
+                it again.
               </p>
               <GhostButton
                 disabled={busy === 'back'}
@@ -732,8 +798,8 @@ export function LineDrawer({
                     <ul className="mt-1 space-y-0.5 text-[12px] text-slate-600">
                       {Object.entries(h.changes).map(([k, [a, b]]) => (
                         <li key={k}>
-                          {FIELD_LABEL[k] ?? k}: <span className="text-slate-400">{show(a)}</span>{' '}
-                          → <b className="font-semibold">{show(b)}</b>
+                          {FIELD_LABEL[k] ?? k}: <span className="text-slate-400">{show(a)}</span> →{' '}
+                          <b className="font-semibold">{show(b)}</b>
                         </li>
                       ))}
                     </ul>

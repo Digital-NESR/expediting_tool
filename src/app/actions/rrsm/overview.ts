@@ -303,6 +303,8 @@ export interface RegisterRow {
   entity: string;
   purchasingGroup: string;
   plant: string;
+  /** The Service Registry item this unit belongs to (CAT-nnnn), or '' before it is linked. */
+  registryCode: string;
   active: boolean;
   /** Cycles that have carried this line. Above zero, it can be off-hired but not deleted. */
   cycles: number;
@@ -331,7 +333,7 @@ export async function getRrsmRegister(countryCode: string): Promise<RegisterRow[
               COALESCE(s.requester_email, '') AS requester_email, s.active,
               COALESCE(s.entity, '') AS entity,
               COALESCE(s.purchasing_group, '') AS purchasing_group,
-              COALESCE(s.plant, '') AS plant,
+              COALESCE(s.plant, '') AS plant, COALESCE(s.registry_code, '') AS registry_code,
               (SELECT count(*)::int FROM rrsm_cycle_lines c WHERE c.service_line_id = s.id)
                 AS cycles
          FROM rrsm_service_lines s
@@ -364,6 +366,7 @@ export async function getRrsmRegister(countryCode: string): Promise<RegisterRow[
       entity: String(r.entity ?? ''),
       purchasingGroup: String(r.purchasing_group ?? ''),
       plant: String(r.plant ?? ''),
+      registryCode: String(r.registry_code ?? ''),
       active: Boolean(r.active),
       cycles: Number(r.cycles ?? 0),
     }));

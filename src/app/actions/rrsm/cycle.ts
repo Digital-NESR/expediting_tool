@@ -23,6 +23,7 @@ import {
   type SapStatus,
 } from '@/lib/rrsm/sap';
 import { readPrCandidates, readSapStatus } from '@/lib/rrsm/sap-status';
+import { pushRateToRegistry, syncRatesFromRegistry } from '@/lib/rrsm/registry-sync';
 import type { DocKind } from '@/lib/rrsm/submission';
 import { openingStage, stageAfterBuyerDecision, type CycleSteps } from '@/lib/rrsm/steps';
 
@@ -475,6 +476,10 @@ export async function openRrsmCycle(countryCode: string, period: string): Promis
        straight to Ops, and with neither step they open ready for the PO. */
     const start = openingStage(await stepsOf(countryCode, client));
 
+    /* Units linked to a Service Registry item take the item's current rate first, so a rate
+       changed in the Catalog reaches this month. */
+    await syncRatesFromRegistry(client, countryCode, actor.email);
+
     /* The rate comes from the register (today's agreed rate) and the quantity from last month's
        confirmed figure, defaulting to 1 where there is no history. */
     await client.query(
@@ -723,7 +728,8 @@ export async function decideSupplierChange(input: {
       const { rows } = await client.query<QueryResultRow>(
         `SELECT l.id, l.cycle_id, l.rate, COALESCE(l.uom, s.uom) AS uom, s.uom AS register_uom,
                 l.supplier_rate, l.supplier_uom, l.change_status,
-                s.id AS service_line_id, s.rate AS register_rate, s.supplier_code
+                s.id AS service_line_id, s.rate AS register_rate, s.supplier_code,
+                s.registry_code
            FROM rrsm_cycle_lines l JOIN rrsm_service_lines s ON s.id = l.service_line_id
           WHERE l.id = $1
           FOR UPDATE OF l`,
@@ -807,6 +813,18 @@ export async function decideSupplierChange(input: {
         ],
       );
       await client.query('COMMIT');
+
+      /* The register is shared with the Catalog: the unit's registry item takes the new rate as
+         a new version, and its other units follow. After the commit, best effort. */
+      if (input.accept && input.updateRegister && r.registry_code && newRate !== null) {
+        await pushRateToRegistry({
+          actor: { name: actor.email, email: actor.email },
+          code: String(r.registry_code),
+          countryCode: country,
+          rate: Number(newRate),
+          reason: 'Supplier-proposed rate accepted in RRSM' + (note ? `: ${note}` : ''),
+        });
+      }
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
       throw err;
