@@ -13,9 +13,9 @@
  * board's aliases (KSA → Saudi Arabia, Jordon → Jordan). The export is a minimal xlsx that exceljs
  * cannot open, so the sheet XML is read directly.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
-import JSZip from 'jszip';
+import { writeFileSync } from 'node:fs';
 import { createJiti } from 'jiti';
+import { readMinimalXlsx, requireFilters } from './lib/minimal-xlsx.mjs';
 
 const jiti = createJiti(import.meta.url);
 const { normaliseCountry, MONTHS } = await jiti.import('../src/lib/health-board/definitions.ts');
@@ -43,31 +43,8 @@ const NEEDED = [
   '4YSUPPLY-DELETION_INDICATOR_KEY is',
 ];
 
-const zip = await JSZip.loadAsync(readFileSync(FILE));
-const sheet = await zip.file('xl/worksheets/sheet1.xml')?.async('string');
-if (!sheet) throw new Error(`${FILE}: no sheet1 in the workbook`);
-const decode = (s) =>
-  s
-    .replace(/&gt;/g, '>')
-    .replace(/&lt;/g, '<')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&');
-const rows = [...sheet.matchAll(/<x:row[^>]*>(.*?)<\/x:row>|<x:row\s*\/>/gs)].map((m) =>
-  [
-    ...(m[1] ?? '').matchAll(
-      /<x:c[^>]*>(?:<x:is><x:t[^>]*>(.*?)<\/x:t><\/x:is>|<x:v>(.*?)<\/x:v>)<\/x:c>/gs,
-    ),
-  ].map((c) => decode(c[1] ?? c[2] ?? '')),
-);
-
-const filters = rows.map((r) => r.join(' ')).find((t) => t.startsWith('Applied filters')) ?? '';
-const missing = NEEDED.filter((f) => !filters.includes(f));
-if (missing.length) {
-  throw new Error(
-    `${FILE}: missing filter(s): ${missing.join('; ')}\nIts filters were:\n${filters}`,
-  );
-}
+const rows = await readMinimalXlsx(FILE);
+requireFilters(FILE, rows, NEEDED);
 if (rows[0]?.[0] !== 'Reporting Country - Finance' || rows[0]?.[2] !== 'On Time Delivery') {
   throw new Error(`${FILE}: unexpected header ${JSON.stringify(rows[0])}`);
 }
