@@ -13,12 +13,12 @@ export default function ProcureGuardViewersManager({
   requestType,
   requestId,
   viewers,
-  hasAccess,
+  canManage,
 }: {
   requestType: ProcureGuardRequestType;
   requestId: number;
   viewers: string[];
-  hasAccess: boolean;
+  canManage: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -49,7 +49,7 @@ export default function ProcureGuardViewersManager({
         People added here can view this request and receive its status updates. Add anyone, anytime.
       </p>
 
-      {hasAccess && (
+      {canManage && (
         <div className="mt-3">
           <EmployeeAutocomplete
             placeholder="Add a viewer by name or email…"
@@ -67,7 +67,7 @@ export default function ProcureGuardViewersManager({
       <div className="mt-3">
         {viewers.length === 0 ? (
           <p className="text-sm text-slate-500">
-            No extra viewers yet{hasAccess ? ' — add one above.' : '.'}
+            No extra viewers yet{canManage ? ' — add one above.' : '.'}
           </p>
         ) : (
           <div className="flex flex-wrap gap-1.5">
@@ -77,7 +77,7 @@ export default function ProcureGuardViewersManager({
                 className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[0.6875rem] font-semibold text-slate-700"
               >
                 {email}
-                {hasAccess && (
+                {canManage && (
                   <button
                     type="button"
                     onClick={() => remove(email)}

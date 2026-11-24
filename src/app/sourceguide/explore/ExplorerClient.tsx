@@ -285,7 +285,7 @@ export default function ExplorerClient({
           onQuery={setSupplierQuery}
           onSelect={reveal}
           withCountry={withCountry}
-          hasAccess={data.hasAccess}
+          canManage={data.canManage}
           countryName={scopeLabel}
         />
       </div>
@@ -410,7 +410,7 @@ function Panel({
   onQuery,
   onSelect,
   withCountry,
-  hasAccess,
+  canManage,
   countryName,
 }: {
   node: TreeNode | null;
@@ -421,7 +421,7 @@ function Panel({
   onQuery: (v: string) => void;
   onSelect: (node: TreeNode) => void;
   withCountry: (href: string) => string;
-  hasAccess: boolean;
+  canManage: boolean;
   countryName: string | null;
 }) {
   if (!node) {
@@ -522,7 +522,7 @@ function Panel({
               ? `No supplier is mapped here${countryName ? ` in ${countryName}` : ''} yet.`
               : 'No supplier here matches that filter.'}
           </p>
-          {totalSuppliers === 0 && hasAccess && (
+          {totalSuppliers === 0 && canManage && (
             <Link
               href={withCountry('/sourceguide/mappings')}
               className="mt-2 inline-block text-[12.5px] font-semibold hover:underline"

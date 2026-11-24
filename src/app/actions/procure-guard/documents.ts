@@ -328,13 +328,13 @@ async function loadRequestForViewerManagement(
   const ownsRequest =
     String(request.requested_by_email).toLowerCase() === actor.email.toLowerCase();
   const isPureViewer = actor.permissions.accessView === 'viewer';
-  const hasAccess =
+  const canManage =
     ownsRequest ||
     (!isPureViewer &&
       (actor.permissions.canViewAll
         ? actorCanAccessRequestScope(actor, request)
         : actorCanAccessRequesterSideRequest(actor, request)));
-  if (!hasAccess)
+  if (!canManage)
     return { error: 'You do not have access to manage viewers on this request.' as const };
   return { table, request };
 }

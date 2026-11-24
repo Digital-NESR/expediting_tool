@@ -4,7 +4,7 @@
 
 import sourceGuidePool from '@/lib/db-sourceguide';
 import { readUser } from '@/lib/sourceguide/access';
-import { hasAccess } from '@/lib/sourceguide/can-manage';
+import { canManage } from '@/lib/sourceguide/can-manage';
 import { isCentrallyBlocked } from '@/lib/sourceguide/blocked';
 import { getCommodityIndex, getCountriesLite, getMappingFacts } from '@/lib/sourceguide/indexes';
 import { readFailed } from '@/lib/sourceguide/internals';
@@ -39,7 +39,7 @@ export interface SgExplorerDataset {
   suppliers: RollupSupplier[];
   countries: { code: string; name: string; tone: string | null }[];
   /** Whether this reader can edit mappings anywhere — drives the "fix this gap" link only. */
-  hasAccess: boolean;
+  canManage: boolean;
 }
 
 const EMPTY: SgExplorerDataset = {
@@ -47,7 +47,7 @@ const EMPTY: SgExplorerDataset = {
   facts: [],
   suppliers: [],
   countries: [],
-  hasAccess: false,
+  canManage: false,
 };
 
 export async function getExplorerDataset(): Promise<SgExplorerDataset> {
@@ -88,7 +88,7 @@ export async function getExplorerDataset(): Promise<SgExplorerDataset> {
         blocked: isCentrallyBlocked(r.central_block_status),
       })),
       countries,
-      hasAccess: hasAccess(user),
+      canManage: canManage(user),
     };
   } catch (err) {
     readFailed('getExplorerDataset', err);

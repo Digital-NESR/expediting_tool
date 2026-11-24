@@ -31,8 +31,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       return new NextResponse('Document not found', { status: 404 });
     }
 
-    const hasAccess = await canViewLaptopRequest(doc.request_id);
-    if (!hasAccess) {
+    const canView = await canViewLaptopRequest(doc.request_id);
+    if (!canView) {
       return new NextResponse('Forbidden', { status: 403 });
     }
 

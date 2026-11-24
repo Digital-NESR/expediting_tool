@@ -19,6 +19,6 @@ export interface SgManageFacts {
 }
 
 /** An admin, or a champion holding at least one country. */
-export function hasAccess(u: SgManageFacts): boolean {
+export function canManage(u: SgManageFacts): boolean {
   return u.isAdmin || (!u.viewOnly && u.approvedCountries.length > 0);
 }
