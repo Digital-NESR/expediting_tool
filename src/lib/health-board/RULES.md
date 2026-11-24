@@ -61,6 +61,9 @@ rejected, not guessed.
   unit and direction ("↓ US$ · lower is better") show in a card beside the name the moment it is
   hovered or tabbed to (owner: keep this information, just not as a second line), and
   the name column widens to fit names on one line when the months leave room.
+- The overview has side margins (owner, 24 Nov 2026): 48px a side on a laptop, and on wide screens
+  the board stops at 1,560px and centres. January–December still fit at 1366px without scrolling
+  sideways (checked with simulated November and December columns).
 
 ## YTD (per KPI)
 

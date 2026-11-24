@@ -190,7 +190,7 @@ function Row({
       data-row
       className="group cursor-pointer border-b border-slate-100 last:border-0 hover:bg-[#307c4c]/5 data-[selected]:bg-[#307c4c]/[0.14]"
     >
-      <td className="group/kpi sticky left-0 z-10 min-w-[170px] bg-white py-1 pl-4 pr-2 text-left text-[12.5px] font-medium leading-tight text-slate-800 group-hover:bg-[#f3f8f5] group-data-[selected]:bg-[#dbeae0] group-data-[selected]:shadow-[inset_4px_0_0_#307c4c] hover:z-30">
+      <td className="group/kpi sticky left-0 z-10 min-w-[140px] bg-white py-1 pl-3 pr-2 text-left text-[12px] font-medium leading-tight text-slate-800 group-hover:bg-[#f3f8f5] group-data-[selected]:bg-[#dbeae0] group-data-[selected]:shadow-[inset_4px_0_0_#307c4c] hover:z-30">
         {href ? (
           <Link
             href={href}
@@ -225,7 +225,7 @@ function Row({
           {row.baseline === null ? '–' : formatCompact(unit, row.baseline)}
         </Sourced>
       </td>
-      <td className="px-1.5 py-1 text-center">
+      <td className="px-1 py-1 text-center">
         <Sourced title={row.targetWords ? src('Target') : undefined}>
           <TargetChip words={row.targetWords} unit={unit} />
         </Sourced>
@@ -237,7 +237,7 @@ function Row({
         return (
           <td
             key={m}
-            className={`whitespace-nowrap px-1 py-1 text-right text-[12px] tabular-nums text-slate-800 ${
+            className={`whitespace-nowrap px-[3px] py-1 text-right text-[11.5px] tabular-nums text-slate-800 ${
               m === latest ? 'bg-[#307c4c]/[0.05] font-semibold' : ''
             }`}
           >
@@ -444,7 +444,9 @@ export default function HealthBoardOverview({
   const ctx: ExplainContext = { year, country, provenance, frontiers, readMeHref };
 
   return (
-    <div className="flex flex-col gap-4">
+    /* Side margins (owner): a little on laptops, and on wide screens the board stops at 1560px and
+       centres, so spare width becomes margin rather than an over-wide KPI name column. */
+    <div className="mx-auto flex w-full max-w-[1560px] flex-col gap-4 lg:px-4 xl:px-6">
       {/* Title band */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#307c4c] px-5 py-3 text-white">
         <h1 className="text-lg font-semibold tracking-tight">
@@ -533,17 +535,17 @@ export default function HealthBoardOverview({
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-[12px] font-semibold text-slate-600">
-                  <th className="sticky left-0 z-20 bg-slate-50 py-2 pl-4 pr-3 text-left">KPI</th>
+                  <th className="sticky left-0 z-20 bg-slate-50 py-2 pl-3 pr-2 text-left">KPI</th>
                   <th className="px-2 py-2 text-right leading-tight">
                     Baseline
                     <br />
                     {year - 1}
                   </th>
-                  <th className="px-1.5 py-2 text-center">Target</th>
+                  <th className="px-1 py-2 text-center">Target</th>
                   {months.map((m) => (
                     <th
                       key={m}
-                      className={`px-1 py-2 text-right ${
+                      className={`px-[3px] py-2 text-right ${
                         m === latest ? 'bg-[#307c4c]/[0.08] text-[#1d4f31]' : ''
                       }`}
                     >
@@ -561,7 +563,7 @@ export default function HealthBoardOverview({
                     <th
                       colSpan={columns}
                       scope="rowgroup"
-                      className="sticky left-0 px-4 py-1 text-left text-[11.5px] font-semibold uppercase tracking-wide text-[#1d4f31]"
+                      className="sticky left-0 px-3 py-1 text-left text-[11.5px] font-semibold uppercase tracking-wide text-[#1d4f31]"
                     >
                       {g.category}
                     </th>
