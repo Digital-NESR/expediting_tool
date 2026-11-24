@@ -94,6 +94,20 @@ Against the numeric Target for that KPI, year and country:
   titled "No. of Active Vendors by Month"; "comparted"; cards said "Baseline 2024" / "YTD 2025"
   in every year). OTD's "YE = Average of Q4 Months" is left off: it contradicts the YTD rule above.
 
+## Country comparison
+
+- One KPI across every country: `/supply-chain-analytics/health-board/compare?kpi=<slug>&year=`.
+  Reached from the overview ("Country comparison") and each detail page ("Compare countries").
+  Opens on PC/PR, as Power BI did.
+- A "Select KPI" menu grouped by that year's categories, with all 28 KPIs that have a page
+  (Power BI's menu had 25; owner's decision to add PIR, T&E, PO < 250 $ and SourceGuide).
+- One row per country that has rows for the KPI that year, in the country list's order (owner's
+  choice over Power BI's alphabetical order). Each row is built by the same code as the overview
+  row, so a country reads the same on both pages, arrows and YTD dot included (Power BI's table
+  had neither; owner's decision to add them). Country names link to that country's detail page.
+- Months: January to the latest month with data, as on the overview. Power BI's table stopped at
+  May and was never extended.
+
 ## Fixes against Power BI (the native numbers differ from Power BI here, on purpose)
 
 1. **Duplicate rows were added together.** Power BI SUMs every row, so two rows for one cell

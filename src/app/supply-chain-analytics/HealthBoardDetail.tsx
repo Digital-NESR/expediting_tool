@@ -178,6 +178,7 @@ export default function HealthBoardDetail({
   years,
   hrefFor,
   overviewHref,
+  compareHref,
 }: {
   detail: KpiDetail;
   page: KpiPage;
@@ -185,6 +186,8 @@ export default function HealthBoardDetail({
   /** This KPI's page for another year or country. */
   hrefFor: (year: number, country: Country) => string;
   overviewHref: string;
+  /** This KPI across every country. */
+  compareHref: string;
 }) {
   const { year, country, kpi } = detail;
   return (
@@ -203,7 +206,15 @@ export default function HealthBoardDetail({
           {page.note && <p className="text-[13px] text-white/70">{page.note}</p>}
         </div>
         <div className="flex flex-col items-end gap-2">
-          <YearNav years={years} year={year} href={(y) => hrefFor(y, country)} />
+          <div className="flex items-center gap-3">
+            <Link
+              href={compareHref}
+              className="rounded-lg bg-white/10 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/20"
+            >
+              Compare countries
+            </Link>
+            <YearNav years={years} year={year} href={(y) => hrefFor(y, country)} />
+          </div>
           <p className="text-right text-[12px] text-white/75">
             Data Source: {page.source}
             {page.sourceNote && <span className="block">{page.sourceNote}</span>}

@@ -5,6 +5,7 @@
  */
 
 import {
+  COUNTRIES,
   KPIS,
   MONTHS,
   QUARTER_MONTHS,
@@ -148,6 +149,25 @@ export function status(
   return value <= target + band ? 'amber' : 'red';
 }
 
+/**
+ * Each KPI's category for a year, from every country's rows. A KPI is filed under one category a
+ * year; if an upload ever disagrees, the most common wins (and the upload preview says so).
+ */
+export function categoriesFor(values: readonly KpiValue[], year: number): Map<string, string> {
+  const votes = new Map<string, Map<string, number>>();
+  for (const v of values) {
+    if (v.year !== year) continue;
+    const vs = votes.get(v.kpi) ?? new Map<string, number>();
+    vs.set(v.category, (vs.get(v.category) ?? 0) + 1);
+    votes.set(v.kpi, vs);
+  }
+  const out = new Map<string, string>();
+  for (const [kpi, vs] of votes) {
+    out.set(kpi, [...vs.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0]);
+  }
+  return out;
+}
+
 /** One country's cells for a year, by KPI and period. */
 function cellsFor(
   values: readonly KpiValue[],
@@ -224,6 +244,62 @@ export function buildDetail(
   };
 }
 
+/** One KPI's row for one country: the numbers, and each shown month with its trend arrow.
+ *  The overview and the country comparison both build rows here. */
+function rowFor(
+  kpi: KpiDefinition,
+  cells: Map<Period, KpiValue>,
+  months: readonly Month[],
+): Omit<OverviewRow, 'category'> {
+  const s = summarise(kpi, cells);
+  const rowMonths: OverviewRow['months'] = {};
+  for (const m of months) {
+    const prev = previousPeriod(kpi, m);
+    rowMonths[m] = {
+      value: s.monthly[m] ?? null,
+      trend: prev ? trend(kpi.direction, s.monthly[m] ?? null, s.val(prev)) : null,
+    };
+  }
+  return {
+    kpi,
+    baseline: s.baseline,
+    target: s.target,
+    targetWords: s.targetWords,
+    months: rowMonths,
+    ytd: s.ytd,
+    status: s.status,
+  };
+}
+
+export interface ComparisonRow extends Omit<OverviewRow, 'category'> {
+  country: Country;
+}
+
+export interface Comparison {
+  year: number;
+  kpi: KpiDefinition;
+  months: Month[];
+  /** Every country with rows for the KPI that year, in the country list's order. */
+  rows: ComparisonRow[];
+}
+
+/** One KPI across every country: Power BI's "KPIs Country Comparison" page. */
+export function buildComparison(
+  values: readonly KpiValue[],
+  year: number,
+  kpi: KpiDefinition,
+): Comparison {
+  const months = monthsShown(values, year);
+  const rows: ComparisonRow[] = [];
+  for (const country of COUNTRIES) {
+    const cells = cellsFor(values, year, country).get(kpi.code);
+    /* As in Power BI, a country with no rows for the KPI that year is not listed. */
+    if (!cells) continue;
+    rows.push({ country, ...rowFor(kpi, cells, months) });
+  }
+  return { year, kpi, months, rows };
+}
+
 /** The overview table for one year and one country. */
 export function buildOverview(
   values: readonly KpiValue[],
@@ -231,21 +307,8 @@ export function buildOverview(
   country: Country,
 ): Overview {
   const months = monthsShown(values, year);
-  const inYear = values.filter((v) => v.year === year);
-
-  /* Category per KPI for the year, from every country's rows (a KPI is filed under one category
-     a year; if an upload ever disagrees, the most common wins and the upload preview says so). */
-  const categoryVotes = new Map<string, Map<string, number>>();
-  for (const v of inYear) {
-    const votes = categoryVotes.get(v.kpi) ?? new Map<string, number>();
-    votes.set(v.category, (votes.get(v.category) ?? 0) + 1);
-    categoryVotes.set(v.kpi, votes);
-  }
-  const categoryOf = (code: string) => {
-    const votes = categoryVotes.get(code);
-    if (!votes) return null;
-    return [...votes.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
-  };
+  const categories = categoriesFor(values, year);
+  const categoryOf = (code: string) => categories.get(code) ?? null;
 
   const mine = cellsFor(values, year, country);
 
@@ -258,26 +321,7 @@ export function buildOverview(
     const category = categoryOf(kpi.code);
     if (!category) continue;
 
-    const s = summarise(kpi, cells);
-    const rowMonths: OverviewRow['months'] = {};
-    for (const m of months) {
-      const prev = previousPeriod(kpi, m);
-      rowMonths[m] = {
-        value: s.monthly[m] ?? null,
-        trend: prev ? trend(kpi.direction, s.monthly[m] ?? null, s.val(prev)) : null,
-      };
-    }
-
-    rows.push({
-      kpi,
-      category,
-      baseline: s.baseline,
-      target: s.target,
-      targetWords: s.targetWords,
-      months: rowMonths,
-      ytd: s.ytd,
-      status: s.status,
-    });
+    rows.push({ ...rowFor(kpi, cells, months), category });
   }
 
   const groups = new Map<string, OverviewRow[]>();

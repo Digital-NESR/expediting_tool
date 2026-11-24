@@ -98,3 +98,40 @@ describe('chart gridlines', () => {
     expect(ticksFor(-10_000_000, 0)).toEqual([-10_000_000, -7_500_000, -5_000_000, -2_500_000, 0]);
   });
 });
+
+describe('country comparison', () => {
+  it('lists every country with rows for the KPI, in the country list order, as overview rows', async () => {
+    const { buildComparison } = await import('@/lib/health-board/calc');
+    const values = [
+      v('KPI - OTD', 'January', 40, { country: 'Oman' }),
+      v('KPI - OTD', 'February', 45, { country: 'Oman' }),
+      v('KPI - OTD', 'January', 57.78),
+      v('KPI - OTD', 'Target', 60, { targetWords: '>= 60' }),
+      v('KPI - DSOH', 'January', 151, { country: 'Egypt' }),
+    ];
+    const kpi = kpiByCode('KPI - OTD')!;
+    const cmp = buildComparison(values, 2026, kpi);
+    expect(cmp.rows.map((r) => r.country)).toEqual(['Global', 'Oman']);
+    const oman = buildOverview(values, 2026, 'Oman').groups[0].rows[0];
+    const row = cmp.rows[1];
+    expect([row.ytd, row.status, row.months.February]).toEqual([
+      oman.ytd,
+      oman.status,
+      oman.months.February,
+    ]);
+    expect(cmp.rows[1].months.February?.trend).toEqual({ move: 'up', good: true });
+  });
+
+  it('works for a KPI that is not on the overview (ICPO), with its sum YTD', async () => {
+    const { buildComparison } = await import('@/lib/health-board/calc');
+    const cmp = buildComparison(
+      [
+        v('KPI - FMT - ICPO Transfer out', 'January', -100),
+        v('KPI - FMT - ICPO Transfer out', 'February', -50),
+      ],
+      2026,
+      kpiByCode('KPI - FMT - ICPO Transfer out')!,
+    );
+    expect(cmp.rows[0].ytd).toBe(-150);
+  });
+});

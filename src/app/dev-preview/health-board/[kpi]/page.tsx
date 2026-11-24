@@ -5,7 +5,11 @@
  */
 import { notFound } from 'next/navigation';
 import HealthBoardDetail from '@/app/supply-chain-analytics/HealthBoardDetail';
-import { detailHref, overviewHref } from '@/app/supply-chain-analytics/health-board/links';
+import {
+  compareHref,
+  detailHref,
+  overviewHref,
+} from '@/app/supply-chain-analytics/health-board/links';
 import { buildDetail } from '@/lib/health-board/calc';
 import { COUNTRIES, kpiByCode, type Country } from '@/lib/health-board/definitions';
 import { KPI_PAGES, kpiCodeForSlug } from '@/lib/health-board/pages';
@@ -42,6 +46,7 @@ export default async function HealthBoardKpiPreviewPage({
         years={years}
         hrefFor={(y, c) => detailHref(code, y, c, BASE)!}
         overviewHref={overviewHref(year, country, BASE)}
+        compareHref={compareHref(code, year, BASE)}
       />
     </main>
   );

@@ -20,7 +20,7 @@ const STATUS_STYLE: Record<Status, { dot: string; label: string }> = {
   red: { dot: 'bg-[#d64545]', label: 'Misses target by more than 10%' },
 };
 
-function TrendIcon({ trend }: { trend: Trend | null }) {
+export function TrendIcon({ trend }: { trend: Trend | null }) {
   if (!trend) return <span className="inline-block w-3.5" aria-hidden="true" />;
   if (trend.move === 'flat') {
     return (
@@ -36,7 +36,7 @@ function TrendIcon({ trend }: { trend: Trend | null }) {
   return <Icon className={`h-3.5 w-3.5 ${colour}`} strokeWidth={2.75} aria-label={label} />;
 }
 
-function StatusDot({ status }: { status: Status | null }) {
+export function StatusDot({ status }: { status: Status | null }) {
   if (!status) return <span className="inline-block h-2.5 w-2.5" aria-hidden="true" />;
   const s = STATUS_STYLE[status];
   return (
@@ -165,6 +165,7 @@ export default function HealthBoardOverview({
   years,
   hrefFor,
   detailHref,
+  compareHref,
 }: {
   overview: Overview;
   years: number[];
@@ -172,6 +173,8 @@ export default function HealthBoardOverview({
   hrefFor: (year: number, country: Country) => string;
   /** Where a KPI's name links to: its detail page for the same year and country. */
   detailHref: (kpiCode: string, year: number, country: Country) => string | null;
+  /** The country comparison page for this year. */
+  compareHref: string;
 }) {
   const { year, country, months, groups } = overview;
   const columns = 5 + months.length;
@@ -184,7 +187,15 @@ export default function HealthBoardOverview({
           Supply Chain <span className="font-normal text-white/70">|</span> Health Board (KPIs) -{' '}
           {year}
         </h1>
-        <YearNav years={years} year={year} href={(y) => hrefFor(y, country)} />
+        <div className="flex items-center gap-3">
+          <Link
+            href={compareHref}
+            className="rounded-lg bg-white/10 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/20"
+          >
+            Country comparison
+          </Link>
+          <YearNav years={years} year={year} href={(y) => hrefFor(y, country)} />
+        </div>
       </div>
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">

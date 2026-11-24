@@ -10,7 +10,11 @@
  */
 import { notFound } from 'next/navigation';
 import HealthBoardOverview from '@/app/supply-chain-analytics/HealthBoardOverview';
-import { detailHref, overviewHref } from '@/app/supply-chain-analytics/health-board/links';
+import {
+  compareHref,
+  detailHref,
+  overviewHref,
+} from '@/app/supply-chain-analytics/health-board/links';
 import { buildOverview } from '@/lib/health-board/calc';
 import { COUNTRIES, type Country } from '@/lib/health-board/definitions';
 import { loadYearValues, loadYears } from '@/lib/health-board/queries';
@@ -44,6 +48,7 @@ export default async function HealthBoardPreviewPage({
         years={years}
         hrefFor={hrefFor}
         detailHref={kpiHref}
+        compareHref={compareHref('KPI - P&L (PC/PR)', year, BASE)}
       />
     </main>
   );

@@ -22,3 +22,9 @@ export function detailHref(
   const page = KPI_PAGES[kpiCode];
   return page ? `${base}/${page.slug}?${query(year, country)}` : null;
 }
+
+/** The country comparison for one KPI and year. */
+export function compareHref(kpiCode: string, year: number, base = HEALTH_BOARD): string {
+  const slug = KPI_PAGES[kpiCode]?.slug ?? 'pl-pc-pr';
+  return `${base}/compare?${new URLSearchParams({ kpi: slug, year: String(year) }).toString()}`;
+}
