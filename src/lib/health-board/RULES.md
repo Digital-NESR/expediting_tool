@@ -177,6 +177,10 @@ written down per KPI in `procedures/` beside this file, so the next month is don
 - `procedures/po-under-250.md`: PO Value < 250 $ from the delivered-PO export (all of 2026
   replaced; Global = all POs under $250 ÷ all POs), via `scripts/health-board-po250-from-export.mjs`.
 
+- `procedures/supplier-count.md`: Supplier Count from the live "Active Suppliers by Purchase
+  Organization" export (the same snapshot in missed months; Global given by the owner), via
+  `scripts/health-board-suppliers-from-snapshot.mjs`.
+
 The Power BI "Export data" files (OTD, lead times, Slow Moving) are read by `scripts/lib/minimal-xlsx.mjs`.
 
 ## Uploading (UX phase 5)
