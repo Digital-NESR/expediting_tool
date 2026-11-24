@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import { Download } from 'lucide-react';
-import { currentSafeSignActor } from '@/lib/safesign/access';
+import { safesignPage } from '@/lib/safesign/page';
 import { topicMatrix } from '@/lib/safesign/read';
 import { formatDay, formatStamp } from '@/lib/safesign/model';
 import SafeSignShell, { BANNER_BUTTON_GHOST, CARD, Empty } from '../../../components/SafeSignShell';
@@ -9,10 +9,9 @@ import StatusPill from '../../../components/StatusPill';
 
 /** One topic: suppliers down the side, the topic's communications across the top. */
 export default async function TopicPage({ params }: { params: Promise<{ id: string }> }) {
-  const actor = await currentSafeSignActor();
-  if (!actor?.role) redirect('/login');
+  const { country, shell } = await safesignPage();
   const { id } = await params;
-  const matrix = await topicMatrix(Number(id));
+  const matrix = await topicMatrix(country.id, Number(id));
   if (!matrix) notFound();
 
   const done = matrix.rows.reduce((s, r) => s + r.done, 0);
@@ -20,7 +19,7 @@ export default async function TopicPage({ params }: { params: Promise<{ id: stri
 
   return (
     <SafeSignShell
-      user={{ name: actor.name, email: actor.email, role: actor.role }}
+      user={shell}
       title={matrix.topic.name}
       subtitle={
         total

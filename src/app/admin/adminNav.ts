@@ -182,6 +182,19 @@ export const ADMIN_APPS: AdminApp[] = [
       { id: 'extensions', label: 'Extension Requests' },
     ],
   },
+  {
+    id: 'safesign',
+    label: 'SafeSign',
+    color: '#307c4c',
+    activeBg: '#eaf4ef',
+    activeColor: '#1d4f31',
+    /* SafeSign runs per country like SOA: a sender works only in the countries given here.
+       Topics are shared by every country, so they are set here too rather than in the tool. */
+    sections: [
+      { id: 'country-team', label: 'Country Team' },
+      { id: 'topics', label: 'Topics' },
+    ],
+  },
 ];
 
 /* Tools that are visible in the sidebar but not yet built. Supply Chain Analytics left this

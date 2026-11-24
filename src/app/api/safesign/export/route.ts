@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import type { QueryResultRow } from 'pg';
 import { attachmentContentDisposition } from '@/lib/contentDisposition';
-import { hasAccess, currentSafeSignActor } from '@/lib/safesign/access';
+import { activeCountry, hasAccess, currentSafeSignActor } from '@/lib/safesign/access';
 import { ensureSafeSignSchema, safesignPool } from '@/lib/safesign/db';
 import { todayRiyadh } from '@/lib/safesign/delivery';
 import {
@@ -18,7 +18,8 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Status per supplier per document, as an Excel workbook. `?communication=<id>` or
- * `?topic=<id>` narrows it; with neither, every sent communication is included.
+ * `?topic=<id>` narrows it; with neither, every sent communication is included. Always only the
+ * country being worked on.
  *
  * Two sheets: "Status" (one row per supplier per communication, with who responded and when),
  * and "By supplier" (completed out of sent for each supplier).
@@ -28,6 +29,7 @@ export async function GET(req: NextRequest) {
   if (!actor) return new NextResponse('Unauthorized', { status: 401 });
   if (!hasAccess(actor)) return new NextResponse('Not found', { status: 404 });
   await ensureSafeSignSchema();
+  const country = await activeCountry(actor);
 
   const communication = Number(req.nextUrl.searchParams.get('communication')) || null;
   const topic = Number(req.nextUrl.searchParams.get('topic')) || null;
@@ -46,8 +48,9 @@ export async function GET(req: NextRequest) {
       WHERE c.status <> 'draft'
         AND ($1::bigint IS NULL OR c.id = $1)
         AND ($2::bigint IS NULL OR c.topic_id = $2)
+        AND c.country_id = $3
       ORDER BY t.name, c.sent_at, v.category, v.name`,
-    [communication, topic],
+    [communication, topic, country.id],
   );
 
   const today = todayRiyadh();
@@ -134,7 +137,7 @@ export async function GET(req: NextRequest) {
   return new Response(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': attachmentContentDisposition(`SafeSign status ${today}.xlsx`),
+      'Content-Disposition': attachmentContentDisposition(`SafeSign status ${country.name} ${today}.xlsx`),
       'Cache-Control': 'private, no-cache',
     },
   });

@@ -19,6 +19,8 @@ export interface DemoPersona {
   email: string;
   role: DemoRole;
   blurb: string;
+  /** Countries a demo sender works in (an admin has every country). */
+  countries?: string[];
 }
 
 export const DEMO_PERSONAS: DemoPersona[] = [
@@ -27,14 +29,15 @@ export const DEMO_PERSONAS: DemoPersona[] = [
     name: 'Demo Admin',
     email: 'demo.admin@safesign.invalid',
     role: 'admin',
-    blurb: 'Everything, plus who has access',
+    blurb: 'Every country, plus the admin panel',
   },
   {
     id: 'sender',
     name: 'Demo Sender (Sourcing)',
     email: 'demo.sender@safesign.invalid',
     role: 'sender',
-    blurb: 'Vendors, sending, reminders, plans, reports',
+    blurb: 'Saudi Arabia only: suppliers, sending, reminders, plans, reports',
+    countries: ['SA'],
   },
 ];
 

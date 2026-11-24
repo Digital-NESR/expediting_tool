@@ -5,21 +5,23 @@
  * The same layout as RRSM and ProcureGuard, so the tools feel like one platform.
  */
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   FileSignature,
+  Globe,
   Home,
   LayoutDashboard,
   Menu,
   Send,
-  Settings,
+  Shield,
   Users,
   X,
   CircleQuestionMark,
 } from 'lucide-react';
 import AppSidebar from '@/components/AppSidebar';
+import { setSafeSignCountry } from '@/app/actions/safesign/country';
 
 const PIN_KEY = 'safesign-sidebar-pinned';
 
@@ -30,15 +32,65 @@ export interface ShellUser {
   name: string;
   email: string;
   role: 'admin' | 'sender';
+  /** Countries this person may work in, and the one being shown. */
+  countries: { id: string; name: string }[];
+  country: { id: string; name: string };
+  /** May open /admin (country team and topics). */
+  platformAdmin?: boolean;
 }
 
 const NAV = [
   { href: '/safesign', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { href: '/safesign/communications', label: 'Communications', icon: Send },
-  { href: '/safesign/vendors', label: 'Vendor library', icon: Users },
-  { href: '/safesign/settings', label: 'Topics & users', icon: Settings },
+  { href: '/safesign/suppliers', label: 'Supplier library', icon: Users },
   { href: '/help/safesign', label: 'Help', icon: CircleQuestionMark },
 ];
+
+/**
+ * The country being worked on. A dropdown when there is more than one to choose from (admins,
+ * and senders in several countries); otherwise just the name. Switching re-renders every page for
+ * the new country on the server.
+ */
+export function CountrySwitch({ user, tone = 'light' }: { user: ShellUser; tone?: 'light' | 'plain' }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const box =
+    tone === 'light'
+      ? 'inline-flex items-center gap-1.5 rounded-lg border border-[#307c4c]/25 bg-[#307c4c]/5 px-2.5 py-1.5 text-xs font-semibold text-[#1d4f31]'
+      : 'flex items-center gap-1.5 text-sm font-semibold text-slate-800';
+  if (user.countries.length <= 1) {
+    return (
+      <span className={box} title="Country">
+        <Globe className="h-3.5 w-3.5" />
+        {user.country.name}
+      </span>
+    );
+  }
+  return (
+    <label className={box}>
+      <Globe className="h-3.5 w-3.5" />
+      <span className="sr-only">Country</span>
+      <select
+        value={user.country.id}
+        disabled={pending}
+        onChange={(e) => {
+          const id = e.target.value;
+          start(async () => {
+            const r = await setSafeSignCountry(id);
+            if (r.success) router.refresh();
+          });
+        }}
+        className="cursor-pointer bg-transparent pr-1 font-semibold outline-none disabled:opacity-50"
+      >
+        {user.countries.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
 
 const ROLE_LABEL: Record<ShellUser['role'], string> = {
   admin: 'Administrator',
@@ -120,6 +172,15 @@ function SafeSignSidebar({ isOpen, onClose, user }: { isOpen: boolean; onClose: 
               <Home className="h-4 w-4" />
               Back to NESR Home
             </Link>
+            <div className="mb-3 rounded-lg border border-[#307c4c]/20 bg-[#307c4c]/5 px-3 py-2.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Country</p>
+              <div className="mt-1">
+                <CountrySwitch user={user} tone="plain" />
+              </div>
+              {user.role === 'sender' && user.countries.length === 1 && (
+                <p className="mt-0.5 text-[11px] text-slate-500">You send for this country only.</p>
+              )}
+            </div>
             <div className="space-y-0.5">
               {NAV.map((item) => {
                 const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
@@ -140,6 +201,16 @@ function SafeSignSidebar({ isOpen, onClose, user }: { isOpen: boolean; onClose: 
                   </Link>
                 );
               })}
+              {user.platformAdmin && (
+                <Link
+                  href="/admin/safesign"
+                  onClick={closeOnNav}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                >
+                  <Shield className="h-4 w-4 text-slate-400" />
+                  Admin panel
+                </Link>
+              )}
             </div>
           </nav>
 
@@ -194,7 +265,8 @@ export default function SafeSignShell({
           <span className="hidden sm:inline">Home</span>
         </Link>
         <SafeSignMark />
-        <span className="truncate text-sm font-semibold text-slate-900">{title}</span>
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900">{title}</span>
+        <CountrySwitch user={user} />
       </header>
 
       <main className={`mx-auto space-y-4 px-4 py-4 sm:px-6 ${width === 'wide' ? 'max-w-[1400px]' : 'max-w-[900px]'}`}>

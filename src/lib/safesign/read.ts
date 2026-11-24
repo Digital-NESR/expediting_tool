@@ -10,6 +10,7 @@ import {
 } from './model';
 import { todayRiyadh } from './delivery';
 import { dateOnly } from './supplier-access';
+import { recipientsFor } from './suppliers';
 
 /**
  * Reads behind the staff pages. Callers check access first (requireSafeSignUser); nothing here does,
@@ -36,13 +37,9 @@ export interface Vendor {
   category: string;
   vendorCode: string;
   active: boolean;
-  contacts: Contact[];
-}
-
-export interface SafeSignUser {
-  email: string;
-  name: string;
-  role: 'sender';
+  /** Who it would go to today: master emails plus added, minus hidden. */
+  to: string[];
+  cc: string[];
 }
 
 const iso = (v: unknown): string | null =>
@@ -63,38 +60,25 @@ export async function listTopics(includeArchived = false): Promise<Topic[]> {
   }));
 }
 
-export async function listVendors(includeInactive = true): Promise<Vendor[]> {
+/** This country's supplier library, with who each one would be emailed. */
+export async function listVendors(countryId: string, includeInactive = true): Promise<Vendor[]> {
   await ensureSafeSignSchema();
   const { rows } = await safesignPool.query<QueryResultRow>(
-    `SELECT v.id, v.name, v.category, COALESCE(v.vendor_code, '') AS vendor_code, v.active,
-            COALESCE(json_agg(json_build_object('id', c.id, 'name', COALESCE(c.name, ''),
-                     'email', c.email, 'kind', c.kind) ORDER BY c.kind DESC, c.id)
-                     FILTER (WHERE c.id IS NOT NULL), '[]') AS contacts
-       FROM ss_vendors v
-       LEFT JOIN ss_vendor_contacts c ON c.vendor_id = v.id
-      ${includeInactive ? '' : 'WHERE v.active'}
-      GROUP BY v.id
-      ORDER BY v.category, v.name`,
+    `SELECT id, name, category, COALESCE(vendor_code, '') AS vendor_code, active
+       FROM ss_vendors
+      WHERE country_id = $1 ${includeInactive ? '' : 'AND active'}
+      ORDER BY category, name`,
+    [countryId],
   );
+  const recipients = await recipientsFor(rows.map((r) => Number(r.id)));
   return rows.map((r) => ({
     id: Number(r.id),
     name: String(r.name),
     category: String(r.category),
     vendorCode: String(r.vendor_code),
     active: Boolean(r.active),
-    contacts: (r.contacts as Contact[]).map((c) => ({ ...c, id: Number(c.id) })),
-  }));
-}
-
-export async function listUsers(): Promise<SafeSignUser[]> {
-  await ensureSafeSignSchema();
-  const { rows } = await safesignPool.query<QueryResultRow>(
-    `SELECT email, COALESCE(name, '') AS name, role FROM ss_users ORDER BY role, email`,
-  );
-  return rows.map((r) => ({
-    email: String(r.email),
-    name: String(r.name),
-    role: String(r.role) as SafeSignUser['role'],
+    to: recipients.get(Number(r.id))?.to ?? [],
+    cc: recipients.get(Number(r.id))?.cc ?? [],
   }));
 }
 
@@ -114,7 +98,7 @@ export interface CommunicationSummary {
   toReview: number;
 }
 
-export async function listCommunications(topicId?: number): Promise<CommunicationSummary[]> {
+export async function listCommunications(countryId: string, topicId?: number): Promise<CommunicationSummary[]> {
   await ensureSafeSignSchema();
   const today = todayRiyadh();
   const { rows } = await safesignPool.query<QueryResultRow>(
@@ -128,10 +112,10 @@ export async function listCommunications(topicId?: number): Promise<Communicatio
        FROM ss_communications c
        JOIN ss_topics t ON t.id = c.topic_id
        LEFT JOIN ss_requests r ON r.communication_id = c.id
-      ${topicId ? 'WHERE c.topic_id = $2' : ''}
+      WHERE c.country_id = $2 ${topicId ? 'AND c.topic_id = $3' : ''}
       GROUP BY c.id, t.name
       ORDER BY COALESCE(c.sent_at, c.created_at) DESC`,
-    topicId ? [today, topicId] : [today],
+    topicId ? [today, countryId, topicId] : [today, countryId],
   );
   return rows.map((r) => ({
     id: Number(r.id),
@@ -163,8 +147,8 @@ export interface TopicCard {
 }
 
 /** One card per topic: sent requests completed out of sent requests. */
-export async function topicCards(): Promise<TopicCard[]> {
-  const [topics, comms] = await Promise.all([listTopics(), listCommunications()]);
+export async function topicCards(countryId: string): Promise<TopicCard[]> {
+  const [topics, comms] = await Promise.all([listTopics(), listCommunications(countryId)]);
   return topics.map((t) => {
     const mine = comms.filter((c) => c.topicId === t.id && c.status !== 'draft');
     const done = mine.reduce((s, c) => s + c.done, 0);
@@ -204,7 +188,7 @@ export interface TopicMatrix {
 }
 
 /** Suppliers down the side, this topic's communications across the top. */
-export async function topicMatrix(topicId: number): Promise<TopicMatrix | null> {
+export async function topicMatrix(countryId: string, topicId: number): Promise<TopicMatrix | null> {
   await ensureSafeSignSchema();
   const topics = await listTopics(true);
   const topic = topics.find((t) => t.id === topicId);
@@ -213,8 +197,8 @@ export async function topicMatrix(topicId: number): Promise<TopicMatrix | null> 
 
   const { rows: cols } = await safesignPool.query<QueryResultRow>(
     `SELECT id, title, deadline, status FROM ss_communications
-      WHERE topic_id = $1 AND status <> 'draft' ORDER BY sent_at`,
-    [topicId],
+      WHERE topic_id = $1 AND country_id = $2 AND status <> 'draft' ORDER BY sent_at`,
+    [topicId, countryId],
   );
   const { rows: reqs } = await safesignPool.query<QueryResultRow>(
     `SELECT r.id, r.communication_id, r.vendor_id, r.status, r.responded_at, r.responded_name,
@@ -222,9 +206,9 @@ export async function topicMatrix(topicId: number): Promise<TopicMatrix | null> 
        FROM ss_requests r
        JOIN ss_communications c ON c.id = r.communication_id
        JOIN ss_vendors v ON v.id = r.vendor_id
-      WHERE c.topic_id = $1 AND c.status <> 'draft'
+      WHERE c.topic_id = $1 AND c.country_id = $2 AND c.status <> 'draft'
       ORDER BY v.category, v.name`,
-    [topicId],
+    [topicId, countryId],
   );
 
   const byVendor = new Map<number, TopicMatrix['rows'][number]>();
@@ -307,6 +291,7 @@ export interface RequestDetail {
 
 export interface CommunicationDetail {
   id: number;
+  countryId: string;
   topicId: number;
   topicName: string;
   title: string;
@@ -410,6 +395,7 @@ export async function getCommunication(id: number): Promise<CommunicationDetail 
 
   return {
     id: Number(c.id),
+    countryId: String(c.country_id),
     topicId: Number(c.topic_id),
     topicName: String(c.topic_name),
     title: String(c.title),

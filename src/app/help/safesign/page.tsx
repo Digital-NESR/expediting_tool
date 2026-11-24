@@ -46,8 +46,15 @@ export default function SafeSignHelpPage() {
       <h2 className={H2}>For the NESR team</h2>
       <ul className="mt-2 list-disc space-y-1.5 pl-5">
         <li className={LI}>
-          <b>Vendor library:</b> add suppliers with their category of work, the people who receive requests (TO) and
-          those copied (CC). Upload a list from Excel (a template is provided).
+          <b>Countries:</b> SafeSign works per country. You see the dashboard, suppliers and communications only of the
+          countries you are given in the admin panel (SafeSign, Country Team). Administrators see every country and
+          switch with the country dropdown at the top right.
+        </li>
+        <li className={LI}>
+          <b>Supplier library:</b> search the SAP vendor master by name or supplier code, filtered by whether you have
+          bought from them in your country, category of work, SAP status and email. The supplier&rsquo;s SAP emails are
+          the TO recipients (dark green). Add anyone extra (outlined) and they are remembered for that supplier next
+          time. You are always copied on what you send, and you can copy others too.
         </li>
         <li className={LI}>
           <b>New communication:</b> pick a topic, attach the documents, choose what you need back (acknowledge, sign the

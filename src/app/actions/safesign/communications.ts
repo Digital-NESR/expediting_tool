@@ -4,7 +4,12 @@ import { revalidatePath } from 'next/cache';
 import { withTransaction } from '@/lib/db/tx';
 import { AccessError } from '@/lib/require-access';
 import { logger } from '@/lib/logger';
-import { requireSafeSignUser } from '@/lib/safesign/access';
+import {
+  requireCommunicationAccess,
+  requireRequestAccess,
+  requireSafeSignCountry,
+} from '@/lib/safesign/access';
+import { recipientsFor } from '@/lib/safesign/suppliers';
 import { safesignPool, ensureSafeSignSchema } from '@/lib/safesign/db';
 import { remindRequests } from '@/lib/safesign/delivery';
 import {
@@ -25,7 +30,8 @@ import { dateOnly, respondUrl } from '@/lib/safesign/supplier-access';
 
 /**
  * Creating, sending and closing communications, reminding suppliers and reviewing plans.
- * Any SafeSign user; every export starts with requireSafeSignUser.
+ * Any SafeSign user, and only in their own countries: a new communication belongs to the country
+ * being worked on, and every action on an existing one checks its country first.
  */
 
 const log = logger('safesign-comms');
@@ -46,7 +52,7 @@ function fail(err: unknown, event: string): Result {
  */
 export async function createCommunication(form: FormData): Promise<Result> {
   try {
-    const actor = await requireSafeSignUser();
+    const { actor, country } = await requireSafeSignCountry();
     await ensureSafeSignSchema();
 
     const title = String(form.get('title') ?? '').trim();
@@ -92,9 +98,9 @@ export async function createCommunication(form: FormData): Promise<Result> {
       const { rows } = await client.query(
         `INSERT INTO ss_communications
            (topic_id, title, message, response_type, attachments, deadline,
-            remind_days_before, overdue_every_days, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-        [topicId, title, message, responseType, attachments, deadline, remindDaysBefore, overdueEveryDays, actor.email],
+            remind_days_before, overdue_every_days, created_by, country_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+        [topicId, title, message, responseType, attachments, deadline, remindDaysBefore, overdueEveryDays, actor.email, country.id],
       );
       const commId = Number(rows[0].id);
       for (const [i, f] of files.entries()) {
@@ -106,8 +112,8 @@ export async function createCommunication(form: FormData): Promise<Result> {
       }
       await client.query(
         `INSERT INTO ss_requests (communication_id, vendor_id)
-         SELECT $1, id FROM ss_vendors WHERE id = ANY($2::bigint[]) AND active`,
-        [commId, vendorIds],
+         SELECT $1, id FROM ss_vendors WHERE id = ANY($2::bigint[]) AND active AND country_id = $3`,
+        [commId, vendorIds, country.id],
       );
       await client.query(
         `INSERT INTO ss_events (communication_id, kind, actor, detail) VALUES ($1, 'communication.created', $2, $3)`,
@@ -125,7 +131,7 @@ export async function createCommunication(form: FormData): Promise<Result> {
 
 export async function deleteDraft(id: number): Promise<Result> {
   try {
-    await requireSafeSignUser();
+    await requireCommunicationAccess(id);
     await ensureSafeSignSchema();
     const { rowCount } = await safesignPool.query(
       `DELETE FROM ss_communications WHERE id = $1 AND status = 'draft'`,
@@ -145,7 +151,7 @@ export async function deleteDraft(id: number): Promise<Result> {
  */
 export async function sendCommunication(id: number): Promise<Result> {
   try {
-    const actor = await requireSafeSignUser();
+    const actor = await requireCommunicationAccess(id);
     await ensureSafeSignSchema();
 
     const { rows: comms } = await safesignPool.query(
@@ -157,22 +163,23 @@ export async function sendCommunication(id: number): Promise<Result> {
     if (c.status === 'closed') return { success: false, error: 'This communication is closed.' };
 
     const { rows: reqs } = await safesignPool.query(
-      `SELECT r.id, r.token, v.name AS vendor_name,
-              COALESCE(array_agg(ct.email) FILTER (WHERE ct.kind = 'to'), '{}') AS to_list,
-              COALESCE(array_agg(ct.email) FILTER (WHERE ct.kind = 'cc'), '{}') AS cc_list
+      `SELECT r.id, r.token, r.vendor_id, v.name AS vendor_name
          FROM ss_requests r
          JOIN ss_vendors v ON v.id = r.vendor_id
-         LEFT JOIN ss_vendor_contacts ct ON ct.vendor_id = v.id
-        WHERE r.communication_id = $1 AND r.sent_at IS NULL
-        GROUP BY r.id, v.name`,
+        WHERE r.communication_id = $1 AND r.sent_at IS NULL`,
       [id],
     );
+    /* TO: the vendor master's emails plus the ones the team added. CC: the added ones, and
+       always the person sending, so replies and the audit trail reach them. */
+    const recipients = await recipientsFor(reqs.map((r) => Number(r.vendor_id)));
+    const me = actor.email.toLowerCase();
 
     let sent = 0;
     const failed: string[] = [];
     for (const r of reqs) {
-      const to = (r.to_list as string[]) ?? [];
-      const cc = (r.cc_list as string[]) ?? [];
+      const found = recipients.get(Number(r.vendor_id));
+      const to = found?.to ?? [];
+      const cc = [...new Set([...(found?.cc ?? []), me])].filter((e) => !to.includes(e));
       if (!to.length) {
         failed.push(`${r.vendor_name} (no TO address)`);
         continue;
@@ -229,7 +236,7 @@ export async function sendCommunication(id: number): Promise<Result> {
 
 export async function remindSuppliers(communicationId: number, requestIds: number[]): Promise<Result> {
   try {
-    const actor = await requireSafeSignUser();
+    const actor = await requireCommunicationAccess(communicationId);
     await ensureSafeSignSchema();
     const r = await remindRequests(communicationId, requestIds, actor.email);
     revalidatePath(`/safesign/communications/${communicationId}`);
@@ -245,7 +252,7 @@ export async function remindSuppliers(communicationId: number, requestIds: numbe
 /** Stop accepting responses and stop reminders. Responses already in are kept. */
 export async function setCommunicationClosed(id: number, closed: boolean): Promise<Result> {
   try {
-    const actor = await requireSafeSignUser();
+    const actor = await requireCommunicationAccess(id);
     await ensureSafeSignSchema();
     await safesignPool.query(
       closed
@@ -269,7 +276,7 @@ export async function setCommunicationClosed(id: number, closed: boolean): Promi
 /** Move the deadline, e.g. to give suppliers more time. */
 export async function changeDeadline(id: number, deadline: string): Promise<Result> {
   try {
-    const actor = await requireSafeSignUser();
+    const actor = await requireCommunicationAccess(id);
     await ensureSafeSignSchema();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(deadline)) return { success: false, error: 'Choose a date.' };
     await safesignPool.query(`UPDATE ss_communications SET deadline = $2 WHERE id = $1`, [id, deadline]);
@@ -291,7 +298,7 @@ export async function reviewSubmission(
   comment: string,
 ): Promise<Result> {
   try {
-    const actor = await requireSafeSignUser();
+    const actor = await requireRequestAccess(requestId);
     await ensureSafeSignSchema();
     const note = String(comment ?? '').trim();
     if (decision === 'changes' && !note) {

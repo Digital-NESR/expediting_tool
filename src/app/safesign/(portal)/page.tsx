@@ -1,15 +1,13 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Download, Plus } from 'lucide-react';
-import { currentSafeSignActor } from '@/lib/safesign/access';
+import { safesignPage } from '@/lib/safesign/page';
 import { listCommunications, topicCards } from '@/lib/safesign/read';
 import { formatDay, RESPONSE_TYPE_LABEL } from '@/lib/safesign/model';
 import SafeSignShell, { BANNER_BUTTON, BANNER_BUTTON_GHOST, CARD, Empty } from '../components/SafeSignShell';
 
 export default async function SafeSignDashboard() {
-  const actor = await currentSafeSignActor();
-  if (!actor?.role) redirect('/login');
-  const [cards, comms] = await Promise.all([topicCards(), listCommunications()]);
+  const { country, shell } = await safesignPage();
+  const [cards, comms] = await Promise.all([topicCards(country.id), listCommunications(country.id)]);
   const recent = comms.slice(0, 8);
   const sentRequests = cards.reduce((s, c) => s + c.total, 0);
   const done = cards.reduce((s, c) => s + c.done, 0);
@@ -18,9 +16,9 @@ export default async function SafeSignDashboard() {
 
   return (
     <SafeSignShell
-      user={{ name: actor.name, email: actor.email, role: actor.role }}
+      user={shell}
       title="Dashboard"
-      subtitle="QHSE communications sent to suppliers, and who has acknowledged, signed or responded."
+      subtitle={`QHSE communications sent to suppliers in ${country.name}, and who has acknowledged, signed or responded.`}
       actions={
         <>
           <a href="/api/safesign/export" className={BANNER_BUTTON_GHOST}>
@@ -42,7 +40,7 @@ export default async function SafeSignDashboard() {
       <section>
         <h2 className="mb-2 mt-2 text-sm font-semibold text-slate-700">By topic</h2>
         {cards.length === 0 ? (
-          <Empty title="No topics yet" body="Add topics in Topics & users to group your communications." />
+          <Empty title="No topics yet" body="An administrator adds topics in the admin panel." />
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {cards.map((t) => (

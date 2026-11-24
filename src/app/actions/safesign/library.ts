@@ -1,217 +1,211 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { withTransaction } from '@/lib/db/tx';
 import { AccessError, normalizeEmail } from '@/lib/require-access';
 import { logger } from '@/lib/logger';
-import { requireSafeSignAdmin, requireSafeSignUser } from '@/lib/safesign/access';
+import { requireSafeSignCountry } from '@/lib/safesign/access';
 import { safesignPool, ensureSafeSignSchema } from '@/lib/safesign/db';
+import {
+  getSupplierCard,
+  masterSuppliers,
+  searchSuppliers,
+  supplierCategoriesFor,
+  type SupplierCard,
+  type SupplierRow,
+  type SupplierSearch,
+} from '@/lib/safesign/suppliers';
 
 /**
- * The vendor library, topics and the user list. Every export is a POST endpoint any signed-in
- * employee can call, so each starts with a role guard.
+ * The supplier library of the country being worked on. Suppliers come from the SAP vendor master
+ * (SourceGuide's supplier_avl); what is stored here is which of them are in this country's
+ * library and the recipients the team added or removed on top of the master's emails.
+ *
+ * Every export is a POST endpoint any signed-in employee can call, so each starts with
+ * requireSafeSignCountry, and the country always comes from the server, never the browser.
  */
 
 const log = logger('safesign-library');
 
-export type Result = { success: boolean; error?: string; id?: number };
-
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function fail(err: unknown, event: string): Result {
+export type CardResult = { success: boolean; error?: string; card?: SupplierCard | null };
+
+function fail(err: unknown, event: string): CardResult {
   if (err instanceof AccessError) return { success: false, error: err.message };
-  const code = (err as { code?: string })?.code;
-  if (code === '23505') return { success: false, error: 'That name is already in use.' };
   log.error(event, err);
   return { success: false, error: 'Something went wrong. Try again.' };
 }
 
-export interface VendorInput {
-  id?: number;
-  name: string;
-  category: string;
-  vendorCode?: string;
-  active?: boolean;
-  contacts: { name?: string; email: string; kind: 'to' | 'cc' }[];
+export async function searchLibrary(
+  input: Omit<SupplierSearch, 'countryId'>,
+): Promise<{ rows: SupplierRow[]; total: number }> {
+  const { country } = await requireSafeSignCountry();
+  return searchSuppliers({
+    countryId: country.id,
+    q: String(input?.q ?? '').slice(0, 100),
+    scope: input?.scope === 'library' || input?.scope === 'bought' ? input.scope : 'all',
+    category: String(input?.category ?? '').slice(0, 100),
+    status: input?.status === 'active' || input?.status === 'blocked' ? input.status : '',
+    email: input?.email === 'with' || input?.email === 'without' ? input.email : '',
+    offset: Number(input?.offset) || 0,
+  });
 }
 
-function cleanContacts(contacts: VendorInput['contacts']): VendorInput['contacts'] | string {
-  const out: VendorInput['contacts'] = [];
-  const seen = new Set<string>();
-  for (const c of contacts ?? []) {
-    const email = normalizeEmail(c?.email);
-    if (!email) continue;
-    if (!EMAIL.test(email)) return `"${c.email}" is not a valid email address.`;
-    if (seen.has(email)) continue;
-    seen.add(email);
-    out.push({ name: String(c?.name ?? '').trim(), email, kind: c?.kind === 'cc' ? 'cc' : 'to' });
-  }
-  if (!out.some((c) => c.kind === 'to')) return 'Add at least one TO address.';
-  return out;
-}
-
-export async function saveVendor(input: VendorInput): Promise<Result> {
+export async function loadSupplier(code: string): Promise<CardResult> {
   try {
-    const actor = await requireSafeSignUser();
-    await ensureSafeSignSchema();
-    const name = String(input?.name ?? '').trim();
-    const category = String(input?.category ?? '').trim() || 'General';
-    if (!name) return { success: false, error: 'Enter the supplier name.' };
-    const contacts = cleanContacts(input.contacts);
-    if (typeof contacts === 'string') return { success: false, error: contacts };
-
-    const id = await withTransaction(safesignPool, async (client) => {
-      let vendorId = Number(input.id) || 0;
-      if (vendorId) {
-        const { rowCount } = await client.query(
-          `UPDATE ss_vendors SET name = $2, category = $3, vendor_code = NULLIF($4, ''),
-                  active = $5, updated_at = NOW() WHERE id = $1`,
-          [vendorId, name, category, String(input.vendorCode ?? '').trim(), input.active !== false],
-        );
-        if (!rowCount) throw new AccessError('That supplier no longer exists.', 404);
-        await client.query(`DELETE FROM ss_vendor_contacts WHERE vendor_id = $1`, [vendorId]);
-      } else {
-        const { rows } = await client.query(
-          `INSERT INTO ss_vendors (name, category, vendor_code, created_by)
-           VALUES ($1, $2, NULLIF($3, ''), $4) RETURNING id`,
-          [name, category, String(input.vendorCode ?? '').trim(), actor.email],
-        );
-        vendorId = Number(rows[0].id);
-      }
-      for (const c of contacts) {
-        await client.query(
-          `INSERT INTO ss_vendor_contacts (vendor_id, name, email, kind) VALUES ($1, NULLIF($2, ''), $3, $4)`,
-          [vendorId, c.name, c.email, c.kind],
-        );
-      }
-      return vendorId;
-    });
-    revalidatePath('/safesign/vendors');
-    return { success: true, id };
+    const { country } = await requireSafeSignCountry();
+    return { success: true, card: await getSupplierCard(country.id, String(code ?? '').trim()) };
   } catch (err) {
-    return fail(err, 'saveVendor.failed');
+    return fail(err, 'loadSupplier.failed');
+  }
+}
+
+/** The library row for this supplier in this country, created (or re-activated) if needed. */
+async function ensureVendor(countryId: string, code: string, actorEmail: string): Promise<number> {
+  const master = (await masterSuppliers([code])).get(code);
+  if (!master) throw new AccessError('That supplier is not in the SAP vendor master.', 404);
+  const categories = await supplierCategoriesFor(countryId, code);
+  const { rows } = await safesignPool.query(
+    `INSERT INTO ss_vendors (name, category, vendor_code, country_id, created_by)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (country_id, vendor_code) WHERE vendor_code IS NOT NULL
+     DO UPDATE SET active = TRUE, name = EXCLUDED.name, updated_at = NOW()
+     RETURNING id`,
+    [master.name, categories[0] ?? 'Other', code, countryId, actorEmail],
+  );
+  return Number(rows[0].id);
+}
+
+async function vendorIdFor(countryId: string, code: string): Promise<number | null> {
+  const { rows } = await safesignPool.query(
+    `SELECT id FROM ss_vendors WHERE country_id = $1 AND vendor_code = $2`,
+    [countryId, code],
+  );
+  return rows[0] ? Number(rows[0].id) : null;
+}
+
+function done(countryId: string, code: string): Promise<CardResult> {
+  revalidatePath('/safesign/suppliers');
+  return getSupplierCard(countryId, code).then((card) => ({ success: true, card }));
+}
+
+export async function addToLibrary(code: string): Promise<CardResult> {
+  try {
+    const { actor, country } = await requireSafeSignCountry();
+    await ensureSafeSignSchema();
+    await ensureVendor(country.id, code, actor.email);
+    return done(country.id, code);
+  } catch (err) {
+    return fail(err, 'addToLibrary.failed');
+  }
+}
+
+/** Out of the library. Kept (inactive) once it has communications, so history stays intact. */
+export async function removeFromLibrary(code: string): Promise<CardResult> {
+  try {
+    const { country } = await requireSafeSignCountry();
+    await ensureSafeSignSchema();
+    const id = await vendorIdFor(country.id, code);
+    if (id) {
+      const { rows } = await safesignPool.query(`SELECT 1 FROM ss_requests WHERE vendor_id = $1 LIMIT 1`, [id]);
+      await safesignPool.query(
+        rows.length
+          ? `UPDATE ss_vendors SET active = FALSE, updated_at = NOW() WHERE id = $1`
+          : `DELETE FROM ss_vendors WHERE id = $1`,
+        [id],
+      );
+    }
+    return done(country.id, code);
+  } catch (err) {
+    return fail(err, 'removeFromLibrary.failed');
   }
 }
 
 /**
- * Bulk import from a pasted sheet or an uploaded Excel file, already parsed by the page into
- * rows. Matches on supplier name: an existing supplier keeps its row and gets its category and
- * contacts replaced; a new name is added.
+ * Add a recipient. Remembered for this supplier in this country, so the next communication to
+ * them includes it. Adding a master email that was removed brings it back instead.
  */
-export async function importVendors(
-  rows: VendorInput[],
-): Promise<Result & { added?: number; updated?: number; errors?: string[] }> {
+export async function addRecipient(input: { code: string; email: string; name?: string; kind: 'to' | 'cc' }): Promise<CardResult> {
   try {
-    await requireSafeSignUser();
+    const { actor, country } = await requireSafeSignCountry();
     await ensureSafeSignSchema();
-    const errors: string[] = [];
-    let added = 0;
-    let updated = 0;
-    const { rows: existing } = await safesignPool.query(`SELECT id, LOWER(name) AS key FROM ss_vendors`);
-    const byName = new Map(existing.map((r) => [String(r.key), Number(r.id)]));
-
-    for (const [i, row] of (rows ?? []).entries()) {
-      const name = String(row?.name ?? '').trim();
-      if (!name) continue;
-      const id = byName.get(name.toLowerCase());
-      const r = await saveVendor({ ...row, id });
-      if (!r.success) errors.push(`Row ${i + 1} (${name}): ${r.error}`);
-      else if (id) updated += 1;
-      else {
-        added += 1;
-        if (r.id) byName.set(name.toLowerCase(), r.id);
-      }
+    const code = String(input?.code ?? '').trim();
+    const email = normalizeEmail(input?.email);
+    const kind = input?.kind === 'cc' ? 'cc' : 'to';
+    if (!EMAIL.test(email)) return { success: false, error: 'Enter a valid email address.' };
+    if (kind === 'cc' && email === normalizeEmail(actor.email)) {
+      return { success: false, error: 'You are always copied already.' };
     }
-    revalidatePath('/safesign/vendors');
-    return { success: errors.length === 0, added, updated, errors };
-  } catch (err) {
-    return fail(err, 'importVendors.failed');
-  }
-}
 
-/** Deactivate rather than delete once a supplier has requests, so history stays intact. */
-export async function removeVendor(id: number): Promise<Result> {
-  try {
-    await requireSafeSignUser();
-    await ensureSafeSignSchema();
-    const { rows } = await safesignPool.query(`SELECT 1 FROM ss_requests WHERE vendor_id = $1 LIMIT 1`, [id]);
-    if (rows.length) {
-      await safesignPool.query(`UPDATE ss_vendors SET active = FALSE, updated_at = NOW() WHERE id = $1`, [id]);
-    } else {
-      await safesignPool.query(`DELETE FROM ss_vendors WHERE id = $1`, [id]);
-    }
-    revalidatePath('/safesign/vendors');
-    return { success: true };
-  } catch (err) {
-    return fail(err, 'removeVendor.failed');
-  }
-}
-
-export async function saveTopic(input: { id?: number; name: string; description?: string }): Promise<Result> {
-  try {
-    const actor = await requireSafeSignUser();
-    await ensureSafeSignSchema();
-    const name = String(input?.name ?? '').trim();
-    if (!name) return { success: false, error: 'Enter a topic name.' };
-    const description = String(input?.description ?? '').trim();
-    if (input.id) {
-      await safesignPool.query(`UPDATE ss_topics SET name = $2, description = NULLIF($3, '') WHERE id = $1`, [
-        input.id,
-        name,
-        description,
-      ]);
-    } else {
+    const vendorId = await ensureVendor(country.id, code, actor.email);
+    const restored = await safesignPool.query(
+      `DELETE FROM ss_vendor_contacts WHERE vendor_id = $1 AND kind = 'hidden' AND LOWER(email) = $2`,
+      [vendorId, email],
+    );
+    const card = await getSupplierCard(country.id, code);
+    const already =
+      card?.masterTo.includes(email) || card?.added.some((c) => c.email.toLowerCase() === email);
+    if (already && !restored.rowCount) return { success: false, error: 'That address is already on the list.' };
+    if (!already) {
       await safesignPool.query(
-        `INSERT INTO ss_topics (name, description, created_by) VALUES ($1, NULLIF($2, ''), $3)`,
-        [name, description, actor.email],
+        `INSERT INTO ss_vendor_contacts (vendor_id, name, email, kind, added_by)
+         VALUES ($1, NULLIF($2, ''), $3, $4, $5)`,
+        [vendorId, String(input?.name ?? '').trim(), email, kind, actor.email],
       );
     }
-    revalidatePath('/safesign', 'layout');
-    return { success: true };
+    return done(country.id, code);
   } catch (err) {
-    return fail(err, 'saveTopic.failed');
+    return fail(err, 'addRecipient.failed');
   }
 }
 
-export async function setTopicArchived(id: number, archived: boolean): Promise<Result> {
+/** Remove an added recipient. */
+export async function removeRecipient(code: string, contactId: number): Promise<CardResult> {
   try {
-    await requireSafeSignUser();
+    const { country } = await requireSafeSignCountry();
     await ensureSafeSignSchema();
-    await safesignPool.query(`UPDATE ss_topics SET archived = $2 WHERE id = $1`, [id, Boolean(archived)]);
-    revalidatePath('/safesign', 'layout');
-    return { success: true };
-  } catch (err) {
-    return fail(err, 'setTopicArchived.failed');
-  }
-}
-
-/** Give someone sender access. Admins are set in the environment, not here. */
-export async function saveUser(input: { email: string; name?: string }): Promise<Result> {
-  try {
-    const actor = await requireSafeSignAdmin();
-    await ensureSafeSignSchema();
-    const email = normalizeEmail(input?.email);
-    if (!EMAIL.test(email)) return { success: false, error: 'Enter a valid email address.' };
     await safesignPool.query(
-      `INSERT INTO ss_users (email, name, role, created_by) VALUES ($1, NULLIF($2, ''), 'sender', $3)
-       ON CONFLICT (email) DO UPDATE SET name = COALESCE(EXCLUDED.name, ss_users.name)`,
-      [email, String(input?.name ?? '').trim(), actor.email],
+      `DELETE FROM ss_vendor_contacts c USING ss_vendors v
+        WHERE c.id = $1 AND c.vendor_id = v.id AND v.country_id = $2 AND v.vendor_code = $3
+          AND c.kind IN ('to', 'cc')`,
+      [contactId, country.id, code],
     );
-    revalidatePath('/safesign/settings');
-    return { success: true };
+    return done(country.id, code);
   } catch (err) {
-    return fail(err, 'saveUser.failed');
+    return fail(err, 'removeRecipient.failed');
   }
 }
 
-export async function removeUser(email: string): Promise<Result> {
+/** Stop sending to one of the master's emails, for this country only. SAP is not changed. */
+export async function hideMasterEmail(code: string, email: string): Promise<CardResult> {
   try {
-    await requireSafeSignAdmin();
+    const { actor, country } = await requireSafeSignCountry();
     await ensureSafeSignSchema();
-    await safesignPool.query(`DELETE FROM ss_users WHERE email = $1`, [normalizeEmail(email)]);
-    revalidatePath('/safesign/settings');
-    return { success: true };
+    const e = normalizeEmail(email);
+    const vendorId = await ensureVendor(country.id, code, actor.email);
+    await safesignPool.query(
+      `INSERT INTO ss_vendor_contacts (vendor_id, email, kind, added_by)
+       VALUES ($1, $2, 'hidden', $3) ON CONFLICT DO NOTHING`,
+      [vendorId, e, actor.email],
+    );
+    return done(country.id, code);
   } catch (err) {
-    return fail(err, 'removeUser.failed');
+    return fail(err, 'hideMasterEmail.failed');
+  }
+}
+
+export async function restoreMasterEmail(code: string, hiddenId: number): Promise<CardResult> {
+  try {
+    const { country } = await requireSafeSignCountry();
+    await ensureSafeSignSchema();
+    await safesignPool.query(
+      `DELETE FROM ss_vendor_contacts c USING ss_vendors v
+        WHERE c.id = $1 AND c.vendor_id = v.id AND v.country_id = $2 AND v.vendor_code = $3
+          AND c.kind = 'hidden'`,
+      [hiddenId, country.id, code],
+    );
+    return done(country.id, code);
+  } catch (err) {
+    return fail(err, 'restoreMasterEmail.failed');
   }
 }

@@ -151,6 +151,10 @@ const SoaExcludedVendorsClient = dynamic(() => import('../SoaExcludedVendorsClie
 const SoaAccessApprovalsClient = dynamic(() => import('../SoaAccessApprovalsClient'), { loading });
 const SoaCountryTeamClient = dynamic(() => import('../SoaCountryTeamClient'), { loading });
 
+/* ── SafeSign ── */
+const SafeSignCountryTeamClient = dynamic(() => import('../SafeSignCountryTeamClient'), { loading });
+const SafeSignTopicsClient = dynamic(() => import('../SafeSignTopicsClient'), { loading });
+
 /* ── Learning Hub ── */
 const LearningHubAdminClient = dynamic(() => import('../../learning-hub/admin/AdminClient'), {
   loading,
@@ -326,6 +330,12 @@ export default function AdminAppContent(props: AdminAppContentProps) {
       return <ScsaChampionsPanel champions={props.scsaChampions ?? []} />;
     case 'self-assessment/extensions':
       return <ScsaExtensionsPanel requests={props.scsaExtensions ?? []} />;
+
+    /* ── SafeSign ── */
+    case 'safesign/country-team':
+      return <SafeSignCountryTeamClient />;
+    case 'safesign/topics':
+      return <SafeSignTopicsClient />;
 
     /* ── Supply Chain Analytics ── */
     case 'supply-chain-analytics/health-board-data':

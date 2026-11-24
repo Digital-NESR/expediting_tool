@@ -26,7 +26,17 @@ function inDays(n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-export default function NewCommunicationForm({ topics, vendors }: { topics: Topic[]; vendors: Vendor[] }) {
+export default function NewCommunicationForm({
+  topics,
+  vendors,
+  countryName,
+  sender,
+}: {
+  topics: Topic[];
+  vendors: Vendor[];
+  countryName: string;
+  sender: { name: string; email: string };
+}) {
   const router = useRouter();
   const [title, setTitle] = useState('');
   const [topicId, setTopicId] = useState<number>(topics[0]?.id ?? 0);
@@ -57,7 +67,7 @@ export default function NewCommunicationForm({ topics, vendors }: { topics: Topi
     });
   }
   function toggleCategory(cat: string) {
-    const ids = vendors.filter((v) => v.category === cat).map((v) => v.id);
+    const ids = vendors.filter((v) => v.category === cat && v.to.length).map((v) => v.id);
     const all = ids.every((id) => selected.has(id));
     setSelected((s) => {
       const n = new Set(s);
@@ -110,9 +120,9 @@ export default function NewCommunicationForm({ topics, vendors }: { topics: Topi
   if (!vendors.length) {
     return (
       <div className={`${CARD} p-8 text-center`}>
-        <p className="text-sm text-slate-600">Add suppliers to the vendor library first.</p>
-        <Link href="/safesign/vendors" className="mt-3 inline-block text-sm font-semibold text-[#307c4c] hover:underline">
-          Open the vendor library →
+        <p className="text-sm text-slate-600">Add suppliers to the {countryName} supplier library first.</p>
+        <Link href="/safesign/suppliers" className="mt-3 inline-block text-sm font-semibold text-[#307c4c] hover:underline">
+          Open the supplier library →
         </Link>
       </div>
     );
@@ -234,8 +244,8 @@ export default function NewCommunicationForm({ topics, vendors }: { topics: Topi
         <div className="flex flex-wrap gap-2">
           <span className="self-center text-xs text-slate-500">Select a whole category:</span>
           {categories.map((cat) => {
-            const ids = vendors.filter((v) => v.category === cat).map((v) => v.id);
-            const all = ids.every((id) => selected.has(id));
+            const ids = vendors.filter((v) => v.category === cat && v.to.length).map((v) => v.id);
+            const all = ids.length > 0 && ids.every((id) => selected.has(id));
             return (
               <button
                 key={cat}
@@ -252,22 +262,33 @@ export default function NewCommunicationForm({ topics, vendors }: { topics: Topi
         </div>
         <ul className="max-h-[340px] divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200">
           {shown.map((v) => {
-            const to = v.contacts.filter((c) => c.kind === 'to').length;
-            const cc = v.contacts.filter((c) => c.kind === 'cc').length;
+            const to = v.to.length;
+            const cc = v.cc.length;
             return (
               <li key={v.id}>
-                <label className="flex cursor-pointer items-center gap-3 px-3 py-2 text-sm hover:bg-slate-50">
-                  <input type="checkbox" checked={selected.has(v.id)} onChange={() => toggle(v.id)} />
+                <label
+                  className={`flex items-center gap-3 px-3 py-2 text-sm ${to ? 'cursor-pointer hover:bg-slate-50' : 'cursor-not-allowed opacity-60'}`}
+                  title={to ? `To: ${v.to.join(', ')}${cc ? `
+Cc: ${v.cc.join(', ')}` : ''}` : 'No TO email. Add one in the supplier library.'}
+                >
+                  <input type="checkbox" disabled={!to} checked={selected.has(v.id)} onChange={() => toggle(v.id)} />
                   <span className="min-w-0 flex-1 truncate font-medium text-slate-800">{v.name}</span>
                   <span className="text-xs text-slate-500">{v.category}</span>
-                  <span className="w-20 text-right text-xs text-slate-400">
-                    {to} to{cc ? ` · ${cc} cc` : ''}
+                  <span className={`w-24 text-right text-xs ${to ? 'text-slate-400' : 'font-semibold text-rose-600'}`}>
+                    {to ? `${to} to${cc ? ` · ${cc} cc` : ''}` : 'no email'}
                   </span>
                 </label>
               </li>
             );
           })}
         </ul>
+        <p className="text-xs text-slate-500">
+          You ({sender.name || sender.email}) are copied on every email. Recipients are managed in the{' '}
+          <Link href="/safesign/suppliers" className="font-semibold text-[#307c4c] hover:underline">
+            supplier library
+          </Link>
+          .
+        </p>
       </section>
 
       {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}

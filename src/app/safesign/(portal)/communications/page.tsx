@@ -1,7 +1,6 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { Plus } from 'lucide-react';
-import { currentSafeSignActor } from '@/lib/safesign/access';
+import { safesignPage } from '@/lib/safesign/page';
 import { listCommunications } from '@/lib/safesign/read';
 import { formatDay, RESPONSE_TYPE_LABEL } from '@/lib/safesign/model';
 import SafeSignShell, { BANNER_BUTTON, CARD, Empty } from '../../components/SafeSignShell';
@@ -13,15 +12,14 @@ const STATE: Record<string, string> = {
 };
 
 export default async function CommunicationsPage() {
-  const actor = await currentSafeSignActor();
-  if (!actor?.role) redirect('/login');
-  const comms = await listCommunications();
+  const { country, shell } = await safesignPage();
+  const comms = await listCommunications(country.id);
 
   return (
     <SafeSignShell
-      user={{ name: actor.name, email: actor.email, role: actor.role }}
+      user={shell}
       title="Communications"
-      subtitle="Every letter, policy and request sent to suppliers."
+      subtitle={`Every letter, policy and request sent to suppliers in ${country.name}.`}
       actions={
         <Link href="/safesign/communications/new" className={BANNER_BUTTON}>
           <Plus className="h-4 w-4" /> New communication
