@@ -174,6 +174,9 @@ written down per KPI in `procedures/` beside this file, so the next month is don
   (new months added, YTD replaced with Totals, "na" = no value, older months re-checked every
   time), via `scripts/health-board-pl-from-export.mjs`.
 
+- `procedures/po-under-250.md`: PO Value < 250 $ from the delivered-PO export (all of 2026
+  replaced; Global = all POs under $250 ÷ all POs), via `scripts/health-board-po250-from-export.mjs`.
+
 The Power BI "Export data" files (OTD, lead times, Slow Moving) are read by `scripts/lib/minimal-xlsx.mjs`.
 
 ## Uploading (UX phase 5)

@@ -388,7 +388,12 @@ export default function HealthBoardOverview({
     { label: 'On target', n: count('green'), dot: STATUS_STYLE.green.dot },
     { label: 'Within 10%', n: count('amber'), dot: STATUS_STYLE.amber.dot },
     { label: 'Off target', n: count('red'), dot: STATUS_STYLE.red.dot },
-    { label: 'No target or YTD', n: count(null), dot: null },
+    {
+      /* KPIs that moved the right way in the highlighted month against the month before. */
+      label: latest ? `Improved in ${latest}` : 'Improved on last month',
+      n: rows.filter((r) => latest && r.months[latest]?.trend?.good === true).length,
+      dot: null,
+    },
   ];
   const columns = 4 + months.length;
   const ctx: ExplainContext = { year, country, provenance, frontiers, readMeHref };
