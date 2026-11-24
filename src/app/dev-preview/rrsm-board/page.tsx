@@ -102,7 +102,7 @@ const BOARD: RrsmBoard = {
       code: '1101066',
       name: 'Automak Automotive Co. KSC',
       paymentTerms: 'NT30',
-      requires: { deliveryNote: true, timesheet: true },
+      requires: { deliveryNote: true, timesheet: true, invoice: true },
       documents: [{ id: 1, kind: 'delivery_note', fileName: 'DN-Nov.pdf' }],
       lines: [
         line({
@@ -165,7 +165,7 @@ const BOARD: RrsmBoard = {
       code: '1103542',
       name: 'Palisade Security Services',
       paymentTerms: 'NT90',
-      requires: { deliveryNote: false, timesheet: false },
+      requires: { deliveryNote: false, timesheet: false, invoice: false },
       documents: [],
       lines: [
         line({

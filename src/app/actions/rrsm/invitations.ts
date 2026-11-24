@@ -4,9 +4,9 @@ import type { QueryResultRow } from 'pg';
 import rrsmPool from '@/lib/db-rrsm';
 import { logger } from '@/lib/logger';
 import { canAccessCountry, currentRrsmActor, rolesIn, type RrsmActor } from '@/lib/rrsm/access';
-import type { DocKind } from '@/lib/rrsm/submission';
+import type { DocKind, DocRequirements } from '@/lib/rrsm/submission';
 import { sendRrsmMail, supplierInvitationMail, supplierReminderMail } from '@/lib/rrsm/notify';
-import { DOC_LABEL } from '@/lib/rrsm/submission';
+import { DOC_LABEL, missingDocs } from '@/lib/rrsm/submission';
 import { submissionUrl } from '@/lib/rrsm/supplier-access';
 
 /**
@@ -14,7 +14,7 @@ import { submissionUrl } from '@/lib/rrsm/supplier-access';
  *
  * The step between opening a cycle and anyone being able to submit: a link per supplier per
  * cycle, and an email carrying it. Buyers send them, and choose per invitation which documents
- * (Delivery Note, Timesheet) the supplier must upload before they can submit. Ops see the same
+ * (Delivery Note, Timesheet, Invoice) the supplier must upload before they can submit. Ops see the same
  * list, since their validation waits on the submissions.
  *
  * EVERY EXPORT IS A PUBLIC POST ENDPOINT, so each one resolves the actor and re-checks the
@@ -37,7 +37,7 @@ export interface InvitationRow {
   sentTo: string[];
   submittedAt: string | null;
   /** What this invitation asked for, and what has been uploaded against it. */
-  requires: { deliveryNote: boolean; timesheet: boolean };
+  requires: DocRequirements;
   documents: { id: number; kind: DocKind; fileName: string }[];
   /** The last reminder a buyer sent, and how many so far. */
   remindedAt: string | null;
@@ -129,6 +129,8 @@ export async function getRrsmInvitations(countryCode: string): Promise<Invitatio
                    ELSE lk.requires_delivery_note END AS requires_dn,
               CASE WHEN lk.id IS NULL THEN sup.requires_timesheet
                    ELSE lk.requires_timesheet END AS requires_ts,
+              CASE WHEN lk.id IS NULL THEN sup.requires_invoice
+                   ELSE lk.requires_invoice END AS requires_inv,
               (SELECT COALESCE(json_agg(json_build_object('id', d.id, 'kind', d.kind, 'fileName', d.file_name)
                                 ORDER BY d.kind), '[]'::json)
                  FROM rrsm_submission_documents d WHERE d.link_id = lk.id) AS documents
@@ -139,10 +141,10 @@ export async function getRrsmInvitations(countryCode: string): Promise<Invitatio
                 ON lk.cycle_id = l.cycle_id AND lk.supplier_code = s.supplier_code
         WHERE l.cycle_id = $1
         GROUP BY s.supplier_code, sup.name, sup.contact_emails,
-                 sup.requires_delivery_note, sup.requires_timesheet,
+                 sup.requires_delivery_note, sup.requires_timesheet, sup.requires_invoice,
                  lk.id, lk.token, lk.sent_at, lk.sent_to, lk.submitted_at,
                  lk.reminded_at, lk.reminder_count,
-                 lk.requires_delivery_note, lk.requires_timesheet
+                 lk.requires_delivery_note, lk.requires_timesheet, lk.requires_invoice
         ORDER BY sup.name`,
       [Number(cycle.id)],
     );
@@ -181,7 +183,11 @@ export async function getRrsmInvitations(countryCode: string): Promise<Invitatio
         submittedAt: r.submitted_at ? dateOnly(r.submitted_at) : null,
         remindedAt: r.reminded_at ? dateOnly(r.reminded_at) : null,
         reminders: Number(r.reminder_count ?? 0),
-        requires: { deliveryNote: Boolean(r.requires_dn), timesheet: Boolean(r.requires_ts) },
+        requires: {
+          deliveryNote: Boolean(r.requires_dn),
+          timesheet: Boolean(r.requires_ts),
+          invoice: Boolean(r.requires_inv),
+        },
         documents: ((r.documents as { id: number; kind: DocKind; fileName: string }[]) ?? []).map(
           (d) => ({ id: Number(d.id), kind: d.kind, fileName: String(d.fileName) }),
         ),
@@ -232,7 +238,7 @@ export async function sendRrsmInvitations(
        would mint a link for somebody who has nothing to confirm. */
     const { rows: eligible } = await rrsmPool.query<QueryResultRow>(
       `SELECT DISTINCT s.supplier_code, sup.name, sup.contact_emails,
-              sup.requires_delivery_note, sup.requires_timesheet
+              sup.requires_delivery_note, sup.requires_timesheet, sup.requires_invoice
          FROM rrsm_cycle_lines l
          JOIN rrsm_service_lines s ON s.id = l.service_line_id
          JOIN rrsm_suppliers sup   ON sup.code = s.supplier_code
@@ -254,15 +260,24 @@ export async function sendRrsmInvitations(
       const { rows: linkRows } = await rrsmPool.query<QueryResultRow>(
         /* The documents asked for are the supplier's defaults, set on every send, so a re-send
            picks up a change (until the supplier has submitted). */
-        `INSERT INTO rrsm_supplier_links (cycle_id, supplier_code, requires_delivery_note, requires_timesheet)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO rrsm_supplier_links
+           (cycle_id, supplier_code, requires_delivery_note, requires_timesheet, requires_invoice)
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (cycle_id, supplier_code) DO UPDATE
            SET requires_delivery_note = CASE WHEN rrsm_supplier_links.submitted_at IS NULL
                  THEN EXCLUDED.requires_delivery_note ELSE rrsm_supplier_links.requires_delivery_note END,
                requires_timesheet = CASE WHEN rrsm_supplier_links.submitted_at IS NULL
-                 THEN EXCLUDED.requires_timesheet ELSE rrsm_supplier_links.requires_timesheet END
+                 THEN EXCLUDED.requires_timesheet ELSE rrsm_supplier_links.requires_timesheet END,
+               requires_invoice = CASE WHEN rrsm_supplier_links.submitted_at IS NULL
+                 THEN EXCLUDED.requires_invoice ELSE rrsm_supplier_links.requires_invoice END
          RETURNING id, token`,
-        [id, code, Boolean(s.requires_delivery_note), Boolean(s.requires_timesheet)],
+        [
+          id,
+          code,
+          Boolean(s.requires_delivery_note),
+          Boolean(s.requires_timesheet),
+          Boolean(s.requires_invoice),
+        ],
       );
       const link = linkRows[0];
 
@@ -347,7 +362,7 @@ export async function sendRrsmReminders(
 
     const { rows: links } = await rrsmPool.query<QueryResultRow>(
       `SELECT lk.id, lk.token, lk.supplier_code, lk.sent_to, lk.requires_delivery_note,
-              lk.requires_timesheet, sup.name, sup.contact_emails,
+              lk.requires_timesheet, lk.requires_invoice, sup.name, sup.contact_emails,
               ARRAY(SELECT d.kind FROM rrsm_submission_documents d WHERE d.link_id = lk.id) AS uploaded
          FROM rrsm_supplier_links lk JOIN rrsm_suppliers sup ON sup.code = lk.supplier_code
         WHERE lk.cycle_id = $1 AND lk.supplier_code = ANY($2)
@@ -376,11 +391,15 @@ export async function sendRrsmReminders(
         failed.push({ supplier: name, reason: (err as Error).message });
         continue;
       }
-      const uploaded = ((lk.uploaded as string[] | null) ?? []).map(String);
-      const owed: string[] = [];
-      if (lk.requires_delivery_note && !uploaded.includes('delivery_note'))
-        owed.push(DOC_LABEL.delivery_note);
-      if (lk.requires_timesheet && !uploaded.includes('timesheet')) owed.push(DOC_LABEL.timesheet);
+      const uploaded = ((lk.uploaded as string[] | null) ?? []).map(String) as DocKind[];
+      const owed = missingDocs(
+        {
+          deliveryNote: Boolean(lk.requires_delivery_note),
+          timesheet: Boolean(lk.requires_timesheet),
+          invoice: Boolean(lk.requires_invoice),
+        },
+        uploaded,
+      ).map((k) => DOC_LABEL[k]);
 
       const mail = await sendRrsmMail(
         supplierReminderMail({
@@ -439,7 +458,7 @@ export async function sendRrsmReminders(
 export async function setRrsmDocRequirements(
   cycleId: number,
   supplierCodes: string[],
-  change: { deliveryNote?: boolean; timesheet?: boolean },
+  change: Partial<DocRequirements>,
 ): Promise<{ success: boolean; error?: string; updated?: number }> {
   try {
     const id = Number(cycleId);
@@ -451,7 +470,9 @@ export async function setRrsmDocRequirements(
     const wanted = (supplierCodes ?? []).map((c) => String(c).trim()).filter(Boolean);
     const dn = typeof change?.deliveryNote === 'boolean' ? change.deliveryNote : null;
     const ts = typeof change?.timesheet === 'boolean' ? change.timesheet : null;
-    if (!wanted.length || (dn === null && ts === null)) return { success: true, updated: 0 };
+    const inv = typeof change?.invoice === 'boolean' ? change.invoice : null;
+    if (!wanted.length || (dn === null && ts === null && inv === null))
+      return { success: true, updated: 0 };
 
     const client = await rrsmPool.connect();
     try {
@@ -459,20 +480,22 @@ export async function setRrsmDocRequirements(
       const { rows } = await client.query<QueryResultRow>(
         `UPDATE rrsm_suppliers sup
             SET requires_delivery_note = COALESCE($3, sup.requires_delivery_note),
-                requires_timesheet     = COALESCE($4, sup.requires_timesheet)
+                requires_timesheet     = COALESCE($4, sup.requires_timesheet),
+                requires_invoice       = COALESCE($5, sup.requires_invoice)
           WHERE sup.code = ANY($2)
             AND EXISTS (SELECT 1 FROM rrsm_cycle_lines l
                           JOIN rrsm_service_lines s ON s.id = l.service_line_id
                          WHERE l.cycle_id = $1 AND s.supplier_code = sup.code)
           RETURNING sup.code`,
-        [id, wanted, dn, ts],
+        [id, wanted, dn, ts, inv],
       );
       await client.query(
         `UPDATE rrsm_supplier_links
             SET requires_delivery_note = COALESCE($3, requires_delivery_note),
-                requires_timesheet     = COALESCE($4, requires_timesheet)
+                requires_timesheet     = COALESCE($4, requires_timesheet),
+                requires_invoice       = COALESCE($5, requires_invoice)
           WHERE cycle_id = $1 AND supplier_code = ANY($2) AND submitted_at IS NULL`,
-        [id, rows.map((r) => String(r.code)), dn, ts],
+        [id, rows.map((r) => String(r.code)), dn, ts, inv],
       );
       await client.query('COMMIT');
       return { success: true, updated: rows.length };

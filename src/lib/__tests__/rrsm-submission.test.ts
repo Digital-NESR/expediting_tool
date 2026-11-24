@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MAX_DOC_BYTES,
   checkDoc,
+  docList,
   hasProposal,
   missingDocs,
   proposalAgainst,
@@ -29,16 +30,35 @@ describe('checkDoc', () => {
 });
 
 describe('missingDocs', () => {
+  const req = (deliveryNote: boolean, timesheet: boolean, invoice = false) => ({
+    deliveryNote,
+    timesheet,
+    invoice,
+  });
   it('lists only required documents not uploaded', () => {
-    expect(missingDocs({ deliveryNote: true, timesheet: true }, [])).toEqual([
+    expect(missingDocs(req(true, true), [])).toEqual(['delivery_note', 'timesheet']);
+    expect(missingDocs(req(true, true), ['timesheet'])).toEqual(['delivery_note']);
+    expect(missingDocs(req(false, true), [])).toEqual(['timesheet']);
+    expect(missingDocs(req(false, false), [])).toEqual([]);
+  });
+  it('treats the Invoice like the other two', () => {
+    expect(missingDocs(req(true, true, true), [])).toEqual([
       'delivery_note',
       'timesheet',
+      'invoice',
     ]);
-    expect(missingDocs({ deliveryNote: true, timesheet: true }, ['timesheet'])).toEqual([
-      'delivery_note',
-    ]);
-    expect(missingDocs({ deliveryNote: false, timesheet: true }, [])).toEqual(['timesheet']);
-    expect(missingDocs({ deliveryNote: false, timesheet: false }, [])).toEqual([]);
+    expect(missingDocs(req(false, false, true), [])).toEqual(['invoice']);
+    expect(missingDocs(req(false, false, true), ['invoice'])).toEqual([]);
+  });
+});
+
+describe('docList', () => {
+  it('reads as a sentence', () => {
+    expect(docList(['invoice'])).toBe('the Invoice');
+    expect(docList(['delivery_note', 'invoice'])).toBe('the Delivery Note and the Invoice');
+    expect(docList(['delivery_note', 'timesheet', 'invoice'])).toBe(
+      'the Delivery Note, the Timesheet and the Invoice',
+    );
   });
 });
 

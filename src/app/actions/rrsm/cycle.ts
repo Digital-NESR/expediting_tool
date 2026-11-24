@@ -24,7 +24,7 @@ import {
 } from '@/lib/rrsm/sap';
 import { readPrCandidates, readSapStatus } from '@/lib/rrsm/sap-status';
 import { pushRateToRegistry, syncRatesFromRegistry } from '@/lib/rrsm/registry-sync';
-import type { DocKind } from '@/lib/rrsm/submission';
+import { NO_DOCS, type DocKind, type DocRequirements } from '@/lib/rrsm/submission';
 import { openingStage, stageAfterBuyerDecision, type CycleSteps } from '@/lib/rrsm/steps';
 
 /**
@@ -74,7 +74,7 @@ export interface BoardSupplier {
   paymentTerms: string;
   lines: BoardLine[];
   /** The documents this month's invitation asked for, and what the supplier uploaded. */
-  requires: { deliveryNote: boolean; timesheet: boolean };
+  requires: DocRequirements;
   documents: { id: number; kind: DocKind; fileName: string }[];
 }
 
@@ -241,7 +241,7 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
           name: String(r.supplier_name),
           paymentTerms: String(r.payment_terms ?? ''),
           lines: [],
-          requires: { deliveryNote: false, timesheet: false },
+          requires: NO_DOCS,
           documents: [],
         };
         suppliers.set(code, group);
@@ -251,7 +251,7 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
 
     /* Each supplier's invitation: what it asked for and what came back. One query for the cycle. */
     const { rows: linkRows } = await rrsmPool.query<QueryResultRow>(
-      `SELECT k.supplier_code, k.requires_delivery_note, k.requires_timesheet,
+      `SELECT k.supplier_code, k.requires_delivery_note, k.requires_timesheet, k.requires_invoice,
               COALESCE(json_agg(json_build_object('id', d.id, 'kind', d.kind, 'fileName', d.file_name)
                                 ORDER BY d.kind) FILTER (WHERE d.id IS NOT NULL), '[]'::json) AS documents
          FROM rrsm_supplier_links k
@@ -266,6 +266,7 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
       group.requires = {
         deliveryNote: Boolean(k.requires_delivery_note),
         timesheet: Boolean(k.requires_timesheet),
+        invoice: Boolean(k.requires_invoice),
       };
       group.documents = (
         (k.documents as { id: number; kind: DocKind; fileName: string }[]) ?? []

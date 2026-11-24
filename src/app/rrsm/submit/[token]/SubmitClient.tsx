@@ -28,9 +28,11 @@ import {
 } from '@/app/actions/rrsm/supplier';
 import {
   ACCEPT_ATTR,
+  DOC_FIELD,
   DOC_KINDS,
   DOC_LABEL,
   checkDoc,
+  docList,
   missingDocs,
   type DocKind,
 } from '@/lib/rrsm/submission';
@@ -461,14 +463,12 @@ export default function SubmitClient({ token, initial }: { token: string; initia
 
           {/* ── documents ─────────────────────────────────────── */}
           {rows.length > 0 && (
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
               {DOC_KINDS.map((kind) => (
                 <DocBox
                   key={kind}
                   kind={kind}
-                  required={
-                    kind === 'delivery_note' ? view.requires.deliveryNote : view.requires.timesheet
-                  }
+                  required={view.requires[DOC_FIELD[kind]]}
                   doc={view.documents.find((d) => d.kind === kind)}
                   busy={busy === 'doc:' + kind}
                   disabled={busy !== null}
@@ -484,11 +484,7 @@ export default function SubmitClient({ token, initial }: { token: string; initia
               <button
                 onClick={() => void submit()}
                 disabled={busy !== null || missing.length > 0}
-                title={
-                  missing.length
-                    ? `Upload the ${missing.map((k) => DOC_LABEL[k]).join(' and the ')} first`
-                    : undefined
-                }
+                title={missing.length ? `Upload ${docList(missing)} first` : undefined}
                 className="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-[13.5px] font-semibold text-white disabled:opacity-50"
                 style={{ background: BRAND }}
               >
@@ -504,7 +500,7 @@ export default function SubmitClient({ token, initial }: { token: string; initia
               </button>
               <p className="text-[12.5px] text-slate-500">
                 {missing.length
-                  ? `Upload the ${missing.map((k) => DOC_LABEL[k]).join(' and the ')} to submit.`
+                  ? `Upload ${docList(missing)} to submit.`
                   : changedCount
                     ? `Once you submit, this link closes. ${changedCount} changed rate${changedCount === 1 ? '' : 's'} will go to NESR's buyer for review.`
                     : 'Once you submit, this link closes.'}

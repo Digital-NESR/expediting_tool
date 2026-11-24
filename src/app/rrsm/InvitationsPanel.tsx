@@ -9,7 +9,7 @@
    done. The three states are kept visibly apart because a chase
    turns on the difference.
 
-   Documents: each supplier has its own Delivery Note / Timesheet
+   Documents: each supplier has its own Delivery Note / Timesheet / Invoice
    ticks, remembered for the next cycle, and the ticks in the
    toolbar set them for everyone listed at once. Buyers send;
    Ops see the same page read-only.
@@ -35,14 +35,20 @@ import {
   type InvitationBoard,
   type InvitationRow,
 } from '@/app/actions/rrsm/invitations';
-import { DOC_LABEL, type DocKind } from '@/lib/rrsm/submission';
+import {
+  DOC_FIELD,
+  DOC_KINDS,
+  DOC_LABEL,
+  type DocKind,
+  type DocRequirements,
+} from '@/lib/rrsm/submission';
 
 const BRAND = '#307c4c';
 
-const SHORT: Record<DocKind, string> = { delivery_note: 'DN', timesheet: 'TS' };
+const SHORT: Record<DocKind, string> = { delivery_note: 'DN', timesheet: 'TS', invoice: 'INV' };
 
-type Field = 'deliveryNote' | 'timesheet';
-const FIELD_OF: Record<DocKind, Field> = { delivery_note: 'deliveryNote', timesheet: 'timesheet' };
+type Field = keyof DocRequirements;
+const FIELD_OF = DOC_FIELD;
 
 /** '2026-11-19' → '19 Nov'. */
 function shortDate(iso: string | null): string {
@@ -225,7 +231,7 @@ export default function InvitationsPanel({
         {board.canSend && editable.length > 0 && (
           <div className="flex items-center gap-3 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] text-slate-700">
             <span className="font-semibold text-slate-500">Everyone must upload:</span>
-            {(['delivery_note', 'timesheet'] as DocKind[]).map((kind) => (
+            {DOC_KINDS.map((kind) => (
               <AllTick
                 key={kind}
                 label={DOC_LABEL[kind]}
@@ -330,14 +336,14 @@ export default function InvitationsPanel({
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[60rem] table-fixed text-[13px]">
+          <table className="w-full min-w-[65rem] table-fixed text-[13px]">
             <colgroup>
               <col className="w-10" />
               <col />
               <col className="w-14" />
               <col className="w-[15rem]" />
               <col className="w-28" />
-              <col className="w-28" />
+              <col className="w-48" />
               <col className="w-[8.5rem]" />
             </colgroup>
             <thead>
@@ -349,7 +355,7 @@ export default function InvitationsPanel({
                 <th className="px-3 py-2.5 text-left font-semibold">State</th>
                 <th
                   className="px-3 py-2.5 text-left font-semibold"
-                  title="DN = Delivery Note, TS = Timesheet. Ticked = the supplier must upload it."
+                  title="DN = Delivery Note, TS = Timesheet, INV = Invoice. Ticked = the supplier must upload it."
                 >
                   Must upload
                 </th>
@@ -387,7 +393,8 @@ export default function InvitationsPanel({
         </div>
       </div>
       <p className="mt-2 text-[11.5px] text-slate-400">
-        DN = Delivery Note, TS = Timesheet. A supplier&rsquo;s ticks are remembered for next month.
+        DN = Delivery Note, TS = Timesheet, INV = Invoice. A supplier&rsquo;s ticks are remembered
+        for next month.
       </p>
     </div>
   );
@@ -515,7 +522,7 @@ function Row({
 
       <td className="px-3 py-2">
         <div className="flex items-center gap-1.5">
-          {(['delivery_note', 'timesheet'] as DocKind[]).map((kind) => {
+          {DOC_KINDS.map((kind) => {
             const doc = row.documents.find((d) => d.kind === kind);
             const required = row.requires[FIELD_OF[kind]];
             if (doc) {

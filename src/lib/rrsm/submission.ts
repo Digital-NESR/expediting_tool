@@ -4,14 +4,31 @@
  * pricing unit. Pure, so the supplier page, the staff boards and the actions cannot disagree.
  */
 
-export type DocKind = 'delivery_note' | 'timesheet';
+export type DocKind = 'delivery_note' | 'timesheet' | 'invoice';
 
-export const DOC_KINDS: DocKind[] = ['delivery_note', 'timesheet'];
+export const DOC_KINDS: DocKind[] = ['delivery_note', 'timesheet', 'invoice'];
 
 export const DOC_LABEL: Record<DocKind, string> = {
   delivery_note: 'Delivery Note',
   timesheet: 'Timesheet',
+  invoice: 'Invoice',
 };
+
+/** Which documents an invitation asks for. One flag per DocKind. */
+export interface DocRequirements {
+  deliveryNote: boolean;
+  timesheet: boolean;
+  invoice: boolean;
+}
+
+/** The `DocRequirements` flag for each kind, so a screen can loop over DOC_KINDS. */
+export const DOC_FIELD: Record<DocKind, keyof DocRequirements> = {
+  delivery_note: 'deliveryNote',
+  timesheet: 'timesheet',
+  invoice: 'invoice',
+};
+
+export const NO_DOCS: DocRequirements = { deliveryNote: false, timesheet: false, invoice: false };
 
 /**
  * 4 MB. Uploads go through a server action, and on Vercel a function's request body is capped at
@@ -60,15 +77,17 @@ export function checkDoc(file: {
   return { ok: true, contentType, name };
 }
 
+/** 'the Delivery Note', 'the Delivery Note and the Invoice', 'the Delivery Note, the Timesheet and the Invoice'. */
+export function docList(kinds: DocKind[]): string {
+  const names = kinds.map((k) => 'the ' + DOC_LABEL[k]);
+  return names.length > 1
+    ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]
+    : (names[0] ?? '');
+}
+
 /** The mandatory documents not uploaded yet, in display order. */
-export function missingDocs(
-  required: { deliveryNote: boolean; timesheet: boolean },
-  uploaded: DocKind[],
-): DocKind[] {
-  const need: DocKind[] = [];
-  if (required.deliveryNote) need.push('delivery_note');
-  if (required.timesheet) need.push('timesheet');
-  return need.filter((k) => !uploaded.includes(k));
+export function missingDocs(required: DocRequirements, uploaded: DocKind[]): DocKind[] {
+  return DOC_KINDS.filter((k) => required[DOC_FIELD[k]] && !uploaded.includes(k));
 }
 
 /* ─── a supplier proposing a different rate or pricing unit ──────────────────────────────── */

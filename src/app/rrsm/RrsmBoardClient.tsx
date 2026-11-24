@@ -48,7 +48,13 @@ import {
   type SapStatus,
 } from '@/lib/rrsm/sap';
 import PrLinkDialog from './PrLinkDialog';
-import { DOC_KINDS, DOC_LABEL } from '@/lib/rrsm/submission';
+import {
+  DOC_FIELD,
+  DOC_KINDS,
+  DOC_LABEL,
+  type DocKind,
+  type DocRequirements,
+} from '@/lib/rrsm/submission';
 import {
   ERP_STATUS_LABEL,
   STAGE_LABEL,
@@ -885,19 +891,18 @@ function Row({
 
 /* ─── bits ───────────────────────────────────────────────────────────────────────────────── */
 
-/** The supplier's Delivery Note and Timesheet, as downloads, or what is still owed. */
+/** The supplier's Delivery Note, Timesheet and Invoice, as downloads, or what is still owed. */
 function SupplierDocs({
   supplier,
 }: {
   supplier: {
-    requires: { deliveryNote: boolean; timesheet: boolean };
-    documents: { id: number; kind: 'delivery_note' | 'timesheet'; fileName: string }[];
+    requires: DocRequirements;
+    documents: { id: number; kind: DocKind; fileName: string }[];
   };
 }) {
   const items = DOC_KINDS.map((kind) => {
     const doc = supplier.documents.find((d) => d.kind === kind);
-    const required =
-      kind === 'delivery_note' ? supplier.requires.deliveryNote : supplier.requires.timesheet;
+    const required = supplier.requires[DOC_FIELD[kind]];
     return { kind, doc, required };
   }).filter((i) => i.doc || i.required);
   if (!items.length) return null;

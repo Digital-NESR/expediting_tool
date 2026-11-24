@@ -9,7 +9,7 @@ const log = logger('rrsm-documents');
 export const dynamic = 'force-dynamic';
 
 /**
- * Serves one supplier document (Delivery Note or Timesheet) to NESR staff.
+ * Serves one supplier document (Delivery Note, Timesheet or Invoice) to NESR staff.
  *
  * A route handler rather than a server action because it returns bytes with their own content
  * type and disposition. Access follows the cycle: anyone holding an RRSM grant in the country the

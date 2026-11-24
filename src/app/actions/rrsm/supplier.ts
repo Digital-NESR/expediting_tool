@@ -15,11 +15,14 @@ import {
 } from '@/lib/rrsm/supplier-access';
 import { sendRrsmMail, supplierCodeMail, supplierSubmittedMail } from '@/lib/rrsm/notify';
 import {
-  DOC_LABEL,
+  DOC_KINDS,
+  NO_DOCS,
   checkDoc,
+  docList,
   missingDocs,
   proposalAgainst,
   type DocKind,
+  type DocRequirements,
 } from '@/lib/rrsm/submission';
 
 /**
@@ -80,7 +83,7 @@ export interface SupplierView {
   /** Pricing units a supplier may choose from. */
   uoms: { code: string; label: string }[];
   /** Which documents this invitation asks for, and what is uploaded. Only after verification. */
-  requires: { deliveryNote: boolean; timesheet: boolean };
+  requires: DocRequirements;
   documents: { kind: DocKind; fileName: string; uploadedAt: string }[];
 }
 
@@ -98,7 +101,7 @@ const DENIED: SupplierView = {
   codeTtlSeconds: CODE_TTL_SECONDS,
   currency: '',
   uoms: [],
-  requires: { deliveryNote: false, timesheet: false },
+  requires: NO_DOCS,
   documents: [],
 };
 
@@ -187,12 +190,13 @@ async function uomOptions(): Promise<{ code: string; label: string }[]> {
 }
 
 async function documentsFor(linkId: number): Promise<{
-  requires: { deliveryNote: boolean; timesheet: boolean };
+  requires: DocRequirements;
   documents: { kind: DocKind; fileName: string; uploadedAt: string }[];
 }> {
   const [link, docs] = await Promise.all([
     rrsmPool.query<QueryResultRow>(
-      `SELECT requires_delivery_note, requires_timesheet FROM rrsm_supplier_links WHERE id = $1`,
+      `SELECT requires_delivery_note, requires_timesheet, requires_invoice
+         FROM rrsm_supplier_links WHERE id = $1`,
       [linkId],
     ),
     rrsmPool.query<QueryResultRow>(
@@ -205,6 +209,7 @@ async function documentsFor(linkId: number): Promise<{
     requires: {
       deliveryNote: Boolean(link.rows[0]?.requires_delivery_note),
       timesheet: Boolean(link.rows[0]?.requires_timesheet),
+      invoice: Boolean(link.rows[0]?.requires_invoice),
     },
     documents: docs.rows.map((d) => ({
       kind: String(d.kind) as DocKind,
@@ -400,7 +405,7 @@ export async function submitRrsmCycle(
     if (missing.length) {
       return {
         success: false,
-        error: `Upload the ${missing.map((k) => DOC_LABEL[k]).join(' and the ')} before submitting.`,
+        error: `Upload ${docList(missing)} before submitting.`,
       };
     }
 
@@ -493,7 +498,7 @@ export async function submitRrsmCycle(
 /* ─── documents ──────────────────────────────────────────────────────────────────────────── */
 
 /**
- * Upload the Delivery Note or the Timesheet for this month. One of each per invitation; uploading
+ * Upload the Delivery Note, the Timesheet or the Invoice for this month. One of each per invitation; uploading
  * again replaces it. Takes FormData because it carries a file.
  *
  * Every check a public endpoint needs: the token resolves, the session proves a verified address,
@@ -511,7 +516,7 @@ export async function uploadRrsmDocument(form: FormData): Promise<SupplierResult
     if (!t || !t.accepting) return { success: false, error: 'That link is no longer open.' };
     const email = await sessionEmailFor(t.linkId, sessionToken);
     if (!email) return { success: false, error: 'Your session has expired. Request a new code.' };
-    if (kind !== 'delivery_note' && kind !== 'timesheet') {
+    if (!DOC_KINDS.includes(kind)) {
       return { success: false, error: 'Unknown document.' };
     }
     if (!(file instanceof File)) return { success: false, error: 'Choose a file to upload.' };

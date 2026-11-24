@@ -38,7 +38,7 @@ const BASE: SupplierView = {
     { code: 'day', label: 'Day' },
     { code: 'headcount', label: 'Headcount' },
   ],
-  requires: { deliveryNote: true, timesheet: true },
+  requires: { deliveryNote: true, timesheet: true, invoice: true },
   documents: [],
 };
 
