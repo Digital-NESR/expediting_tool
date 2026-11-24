@@ -157,6 +157,9 @@ written down per KPI in `procedures/` beside this file, so the next month is don
 - `procedures/slow-moving.md`: Slow-Moving Inventory > 2 Years from the live-only Power BI
   snapshot (filters checked, file used as it is, Global = the file's Total, missed months get the
   same snapshot), via `scripts/health-board-slow-moving-from-snapshot.mjs`.
+- `procedures/pr-to-po.md`: PR to PO Creation Days from the "AVG PO Creation Cycle Time [Days]"
+  export (new months only, since past months recalculate live; Global = mean of the countries;
+  negatives loaded as they are), via `scripts/health-board-pr-to-po-from-export.mjs`.
 
 ## Uploading (UX phase 5)
 
