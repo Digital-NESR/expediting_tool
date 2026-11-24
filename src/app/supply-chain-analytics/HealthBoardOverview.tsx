@@ -94,12 +94,12 @@ function TargetChip({ words, unit }: { words: string | null; unit?: KpiDefinitio
   );
 }
 
+/** "US$ · lower is better": under the name on phone cards, and the name's hover in the table. */
+const metaText = (kpi: KpiDefinition) =>
+  `${UNIT_WORD[kpi.unit]} · ${kpi.direction === 'higher' ? 'higher' : 'lower'} is better`;
+
 function KpiMeta({ kpi }: { kpi: KpiDefinition }) {
-  return (
-    <span className="block text-[11px] font-normal text-slate-400">
-      {UNIT_WORD[kpi.unit]} · {kpi.direction === 'higher' ? 'higher' : 'lower'} is better
-    </span>
-  );
+  return <span className="block text-[11px] font-normal text-slate-400">{metaText(kpi)}</span>;
 }
 
 /** What a row needs to explain its numbers on hover (UX phase 4). */
@@ -177,18 +177,21 @@ function Row({
       data-row
       className="group cursor-pointer border-b border-slate-100 last:border-0 hover:bg-[#307c4c]/5 data-[selected]:bg-[#307c4c]/[0.14]"
     >
-      <td className="sticky left-0 z-10 w-[190px] min-w-[170px] max-w-[200px] bg-white py-2 pl-4 pr-2 text-left text-[13px] font-medium leading-snug text-slate-800 group-hover:bg-[#f3f8f5] group-data-[selected]:bg-[#dbeae0] group-data-[selected]:shadow-[inset_4px_0_0_#307c4c]">
+      <td className="sticky left-0 z-10 min-w-[170px] bg-white py-1 pl-4 pr-2 text-left text-[12.5px] font-medium leading-tight text-slate-800 group-hover:bg-[#f3f8f5] group-data-[selected]:bg-[#dbeae0] group-data-[selected]:shadow-[inset_4px_0_0_#307c4c]">
         {href ? (
-          <Link href={href} className="hover:text-[#307c4c] hover:underline">
+          <Link
+            href={href}
+            title={metaText(row.kpi)}
+            className="hover:text-[#307c4c] hover:underline"
+          >
             {row.kpi.name}
           </Link>
         ) : (
-          row.kpi.name
+          <span title={metaText(row.kpi)}>{row.kpi.name}</span>
         )}
         <KpiInfo kpi={row.kpi} readMeHref={ctx.readMeHref} />
-        <KpiMeta kpi={row.kpi} />
       </td>
-      <td className="whitespace-nowrap px-2 py-2 text-right text-[12.5px] tabular-nums text-slate-600">
+      <td className="whitespace-nowrap px-2 py-1 text-right text-[12.5px] tabular-nums text-slate-600">
         <Sourced
           title={
             row.baseline === null
@@ -199,7 +202,7 @@ function Row({
           {row.baseline === null ? '–' : formatCompact(unit, row.baseline)}
         </Sourced>
       </td>
-      <td className="px-1.5 py-2 text-center">
+      <td className="px-1.5 py-1 text-center">
         <Sourced title={row.targetWords ? src('Target') : undefined}>
           <TargetChip words={row.targetWords} unit={unit} />
         </Sourced>
@@ -211,7 +214,7 @@ function Row({
         return (
           <td
             key={m}
-            className={`whitespace-nowrap px-1 py-2 text-right text-[12px] tabular-nums text-slate-800 ${
+            className={`whitespace-nowrap px-1 py-1 text-right text-[12px] tabular-nums text-slate-800 ${
               m === latest ? 'bg-[#307c4c]/[0.05] font-semibold' : ''
             }`}
           >
@@ -232,7 +235,7 @@ function Row({
           </td>
         );
       })}
-      <td className="sticky right-0 z-10 whitespace-nowrap border-l border-slate-100 bg-white px-2.5 py-2 text-right text-[13px] font-semibold tabular-nums text-slate-900 group-hover:bg-[#f3f8f5] group-data-[selected]:bg-[#dbeae0]">
+      <td className="sticky right-0 z-10 whitespace-nowrap border-l border-slate-100 bg-white px-2.5 py-1 text-right text-[13px] font-semibold tabular-nums text-slate-900 group-hover:bg-[#f3f8f5] group-data-[selected]:bg-[#dbeae0]">
         {row.ytd !== null ? (
           <Sourced title={ytdTitle}>
             <span className="inline-flex items-center justify-end gap-1.5">
@@ -535,7 +538,7 @@ export default function HealthBoardOverview({
                     <th
                       colSpan={columns}
                       scope="rowgroup"
-                      className="sticky left-0 px-4 py-1.5 text-left text-[12px] font-semibold uppercase tracking-wide text-[#1d4f31]"
+                      className="sticky left-0 px-4 py-1 text-left text-[11.5px] font-semibold uppercase tracking-wide text-[#1d4f31]"
                     >
                       {g.category}
                     </th>
