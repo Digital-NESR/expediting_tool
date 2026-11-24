@@ -34,9 +34,9 @@ const FIXTURE_TEAM: Omit<RrsmTeamRow, 'countryName'>[] = [
   },
   {
     id: 2,
-    email: 'o.validator@nesr.com',
+    email: 'o.buyer@nesr.com',
     name: 'Omar Haddad',
-    role: 'ops',
+    role: 'buyer',
     countryCode: 'AE',
     addedBy: 'admin@nesr.com',
     createdAt: '2026-11-12',
@@ -61,10 +61,10 @@ const FIXTURE_TEAM: Omit<RrsmTeamRow, 'countryName'>[] = [
   },
   {
     id: 5,
-    email: 'n.ops@nesr.com',
+    email: 'n.buyer@nesr.com',
     name: 'Noura Al Sabah',
-    role: 'ops',
-    countryCode: 'KW',
+    role: 'buyer',
+    countryCode: 'HQ',
     addedBy: 'admin@nesr.com',
     createdAt: '2026-11-12',
   },
@@ -83,7 +83,9 @@ export default async function RrsmAdminPreviewPage() {
   if (process.env.NODE_ENV === 'production') notFound();
 
   const { rows } = await rrsmPool.query<QueryResultRow>(
-    `SELECT code, name, currency, flag, live FROM rrsm_countries ORDER BY sort_order, name`,
+    `SELECT code, name, currency, flag, live, supplier_validation, ops_validation,
+            rentals_enabled, recurrent_enabled, recurrent_reminders
+       FROM rrsm_countries ORDER BY sort_order, name`,
   );
 
   const staffed = new Map<string, number>();
@@ -96,8 +98,6 @@ export default async function RrsmAdminPreviewPage() {
       /* AE forced live so the screen shows both states; nothing is written, this is the prop. */
       live: base.code === 'AE' ? true : base.live,
       users: staffed.get(base.code) ?? 0,
-      /* KW shown without Ops validation, so both states of the steps control are on screen. */
-      opsValidation: base.code === 'KW' ? false : base.opsValidation,
     };
   });
 

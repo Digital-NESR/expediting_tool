@@ -472,8 +472,9 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
 
           {view === 'ops' && !board.isAdmin && lines.length > 0 && (
             <p className="text-[12.5px] text-slate-500">
-              These are the lines a buyer sent you. Confirm what was used, then Validate each one
-              or Return it with a note. Supplier documents are beside each supplier&apos;s name.
+              These are the lines a buyer sent you. Confirm what was used, then Validate each one or
+              Return it to the buyer with the reason. Supplier documents are beside each
+              supplier&apos;s name.
             </p>
           )}
 
@@ -709,6 +710,9 @@ function Row({
   showOps: boolean;
 }) {
   const [linking, setLinking] = useState(false);
+  /* Return asks why before it goes: the reason is what the other side acts on. */
+  const [returning, setReturning] = useState(false);
+  const [reason, setReason] = useState('');
   const ls: LineSap = lineSap(line, sap);
   const sapPo = primaryPo(ls.pos, sap);
   const sapPr = ls.pr;
@@ -731,7 +735,10 @@ function Row({
      overlap, which is what makes "who changed this" answerable. */
   const opsEditable =
     canValidate &&
-    (line.stage === 'awaiting_supplier' || line.stage === 'returned' || line.stage === 'submitted');
+    (line.stage === 'awaiting_supplier' ||
+      line.stage === 'submitted' ||
+      /* A line Ops returned is the buyer's until it is sent back. */
+      (line.stage === 'returned' && line.returnedTo === 'ops'));
   const buyerEditable = canBuy && (line.stage === 'validated' || line.stage === 'returned');
 
   const key = 'line:' + line.id;
@@ -743,7 +750,11 @@ function Row({
   ]
     .filter((v, i, a) => a.indexOf(v) === i)
     /* Ops cannot validate a line whose supplier-proposed terms a buyer has not decided on. */
-    .filter((to) => !(to === 'validated' && line.changeStatus === 'pending'));
+    .filter((to) => !(to === 'validated' && line.changeStatus === 'pending'))
+    /* A line Ops returned waits on the buyer, who sends it to Ops again. */
+    .filter(
+      (to) => !(line.stage === 'returned' && line.returnedTo !== 'ops' && to === 'submitted'),
+    );
 
   return (
     <tr className="border-t border-slate-100 align-middle">
@@ -787,6 +798,25 @@ function Row({
                 )
               }
             />
+            {line.stage === 'returned' && line.returnReason && (
+              <div className="mt-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11.5px] text-red-800">
+                <b>
+                  Returned{line.returnedBy ? ` by ${line.returnedBy}` : ''}
+                  {line.returnedTo === 'buyer'
+                    ? ' to the buyer'
+                    : line.returnedTo === 'ops'
+                      ? ' to Ops'
+                      : ''}
+                  :
+                </b>{' '}
+                {line.returnReason}
+                {line.returnedTo === 'buyer' && view === 'buyer' && (
+                  <div className="mt-0.5 text-red-700">
+                    Sort it out, then tick it and send it to Ops again.
+                  </div>
+                )}
+              </div>
+            )}
             {line.opsNote && !opsEditable && (
               <div className="mt-0.5 text-[11.5px] italic text-slate-500">{line.opsNote}</div>
             )}
@@ -1013,8 +1043,12 @@ function Row({
           {moves.map((to) => (
             <button
               key={to}
-              onClick={() => void onRun(key, () => moveRrsmLine({ lineId: line.id, to }))}
-              disabled={working}
+              onClick={() =>
+                to === 'returned'
+                  ? setReturning(true)
+                  : void onRun(key, () => moveRrsmLine({ lineId: line.id, to }))
+              }
+              disabled={working || (to === 'returned' && returning)}
               className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[11.5px] font-semibold disabled:opacity-40 ${
                 to === 'returned'
                   ? 'bg-red-50 text-red-700 hover:bg-red-100'
@@ -1027,6 +1061,49 @@ function Row({
             </button>
           ))}
         </div>
+        {returning && (
+          <div className="ml-auto mt-2 w-full max-w-[13rem] rounded-lg border border-red-200 bg-red-50 p-2 text-left">
+            <label className="block text-[11px] font-semibold text-red-800">
+              Why are you returning it?
+              <textarea
+                autoFocus
+                rows={2}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder={
+                  view === 'ops'
+                    ? 'e.g. Vehicle was off site 10 to 25 Nov'
+                    : 'e.g. Quantity should be 1, the second unit left on 3 Nov'
+                }
+                className="mt-1 w-full rounded border border-red-200 bg-white px-2 py-1 text-[12px] font-normal text-slate-800 outline-none focus:border-red-400"
+              />
+            </label>
+            <div className="mt-1.5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setReturning(false);
+                  setReason('');
+                }}
+                className="text-[11.5px] font-medium text-slate-500 hover:underline"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!reason.trim() || working}
+                onClick={() =>
+                  void onRun(key, () =>
+                    moveRrsmLine({ lineId: line.id, to: 'returned', note: reason.trim() }),
+                  )
+                }
+                className="rounded bg-red-600 px-2 py-1 text-[11.5px] font-semibold text-white disabled:opacity-40"
+              >
+                {view === 'ops' ? 'Return to buyer' : 'Return to Ops'}
+              </button>
+            </div>
+          </div>
+        )}
       </td>
     </tr>
   );
@@ -1344,10 +1421,7 @@ function OpsValidatorTag({ line }: { line: BoardLine }) {
     return <div className="mt-1 text-[11px] text-slate-400">No Ops validator yet</div>;
   }
   return (
-    <div
-      className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-500"
-      title={v.email}
-    >
+    <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-500" title={v.email}>
       <UserRound className="h-3 w-3" />
       Ops: <span className="font-medium text-slate-700">{v.name}</span>
       {line.opsSentAt ? (
@@ -1386,6 +1460,7 @@ function OpsSendPanel({
   const waiting = open.filter((l) => !l.opsSentAt);
   const usual = waiting.filter((l) => l.opsValidator).length;
   const nobody = waiting.length - usual;
+  const returned = open.filter((l) => l.stage === 'returned' && l.returnedTo === 'buyer').length;
 
   /* When every ticked line already has the same usual validator, offer them first. */
   const tickedLines = lines.filter((l) => ticked.has(l.id));
@@ -1401,6 +1476,11 @@ function OpsSendPanel({
         <span className="text-[12px] text-slate-500">
           {sent} sent · {waiting.length} not sent
           {nobody > 0 ? ` (${nobody} with no validator)` : ''}
+          {returned > 0 && (
+            <b className="ml-1 text-red-700">
+              · {returned} returned by Ops, see the reason on the line
+            </b>
+          )}
         </span>
       </div>
       <p className="mt-0.5 text-[11.5px] text-slate-500">
@@ -1417,7 +1497,11 @@ function OpsSendPanel({
             className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-semibold text-white disabled:opacity-50"
             style={{ background: BRAND }}
           >
-            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            {busy ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Send className="h-3.5 w-3.5" />
+            )}
             Send {usual} to their usual validator{usual === 1 ? '' : 's'}
           </button>
         )}
@@ -1460,7 +1544,11 @@ function OpsSendPanel({
             }`}
             style={suggested ? undefined : { background: BRAND }}
           >
-            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserRound className="h-3.5 w-3.5" />}
+            {busy ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <UserRound className="h-3.5 w-3.5" />
+            )}
             {suggested ? 'Someone else…' : 'Pick validator and send…'}
           </button>
           <button

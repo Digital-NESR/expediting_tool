@@ -345,8 +345,8 @@ export default function RrsmRegisterClient({
           {unlinked.length > 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-900">
               {unlinked.length} unit{unlinked.length === 1 ? ' is' : 's are'} on hire but not under
-              a registry item yet (see Units). An RRSM admin moves them in Admin → RRSM → Service
-              Registry.
+              a registry item yet (see Units). They still run every month; ask the RRSM team to
+              put them under an item.
             </div>
           )}
           {!items.length ? (

@@ -283,6 +283,50 @@ export function supplierSubmittedMail(input: {
 }
 
 /**
+ * A line was returned (user decision, 24 Nov 2026). By Ops: to the country's buyers, who sort it
+ * out and send it to Ops again. By a buyer: to the line's validator, who looks again. The reason
+ * is required, and is the point of the mail.
+ */
+export function lineReturnedMail(input: {
+  to: string[];
+  cc: string[];
+  toWhom: 'buyer' | 'ops';
+  returnedBy: string;
+  reason: string;
+  supplier: string;
+  description: string;
+  assetRef: string;
+  countryName: string;
+  period: string;
+  url: string;
+}): RrsmMail {
+  const next =
+    input.toWhom === 'buyer'
+      ? 'Sort it out (with the supplier if needed), then send the line to Ops again from PR &amp; PO.'
+      : 'Please look at the line again, then Submit and Validate it, or Return it with a reason.';
+  return {
+    kind: 'line.returned',
+    to: input.to,
+    cc: input.cc,
+    subject: `Returned: ${input.description} (${input.supplier}, ${periodLabel(input.period)})`,
+    bodyHtml: SHELL(
+      `<p><b>${esc(input.returnedBy)}</b> returned a ${esc(periodLabel(input.period))} line in ` +
+        `${esc(input.countryName)}:</p>` +
+        `<p><b>${esc(input.description)}</b>` +
+        (input.assetRef ? ` · ${esc(input.assetRef)}` : '') +
+        `<br>${esc(input.supplier)}</p>` +
+        `<p style="padding:10px 14px;background:#fdf2f2;border-radius:8px;color:#7f1d1d">` +
+        `${esc(input.reason)}</p>` +
+        `<p>${next}</p>` +
+        `<p style="margin:24px 0"><a href="${esc(input.url)}" ` +
+        `style="background:#307c4c;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:600;display:inline-block">` +
+        `Open the line</a></p>`,
+    ),
+    meta: { returnedTo: input.toWhom, period: input.period },
+  };
+}
+
+/**
  * To an Ops validator, when a buyer sends them lines (user decision, 24 Nov 2026). One mail per
  * send, listing every line, because the validator's access is exactly these lines and they
  * should be able to see from the mail alone what they are being asked to confirm.
@@ -310,7 +354,9 @@ export function opsValidationMail(input: {
       (l) =>
         `<tr><td style="${cell}">${esc(l.supplier)}</td>` +
         `<td style="${cell}">${esc(l.description)}` +
-        (l.assetRef ? `<br><span style="color:#74837c;font-size:12px">${esc(l.assetRef)}</span>` : '') +
+        (l.assetRef
+          ? `<br><span style="color:#74837c;font-size:12px">${esc(l.assetRef)}</span>`
+          : '') +
         `</td><td style="${cell};white-space:nowrap">${esc(l.segment)}</td>` +
         `<td style="${cell};white-space:nowrap">${esc(l.costCenter)}</td></tr>`,
     )
@@ -326,7 +372,7 @@ export function opsValidationMail(input: {
         `<p><b>${esc(input.sentBy)}</b> has sent you ${n} rental line${n === 1 ? '' : 's'} in ` +
         `${esc(input.countryName)} to validate for ${esc(periodLabel(input.period))}. Please confirm ` +
         `what was actually used (on hire, days and quantity), then Validate each line or Return it ` +
-        `with a note.</p>` +
+        `with the reason.</p>` +
         `<table style="border-collapse:collapse;font-size:13px;width:100%;margin:14px 0">` +
         `<tr style="text-align:left;color:#74837c;font-size:11px;text-transform:uppercase">` +
         `<th style="${cell}">Supplier</th><th style="${cell}">Service</th>` +

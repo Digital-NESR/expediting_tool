@@ -22,7 +22,8 @@ export default async function RrsmHelpPage({
   searchParams?: Promise<{ country?: string }>;
 }) {
   const sp = searchParams ? await searchParams : {};
-  const scope = await getRrsmScope(sp.country ?? null);
+  /* 'validator': somebody who only validates lines sent to them reads Help too. */
+  const scope = await getRrsmScope(sp.country ?? null, 'validator');
   return (
     <RrsmShell scope={scope} title="Help & Training" hero={false} width="narrow">
       <div className="pb-12 pt-2">

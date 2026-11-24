@@ -356,7 +356,8 @@ export async function saveRrsmSupplierLines(
            FROM rrsm_service_lines s
           WHERE l.id = $1 AND l.service_line_id = s.id
             AND l.cycle_id = $2 AND s.supplier_code = $3
-            AND l.stage IN ('awaiting_supplier', 'returned')`,
+            AND (l.stage = 'awaiting_supplier'
+                 OR (l.stage = 'returned' AND l.returned_to = 'supplier'))`,
         [
           Number(line.id),
           t.cycleId,
@@ -432,7 +433,10 @@ export async function submitRrsmCycle(
          FROM rrsm_service_lines s
         WHERE l.service_line_id = s.id
           AND l.cycle_id = $1 AND s.supplier_code = $2
-          AND l.stage IN ('awaiting_supplier', 'returned')
+          /* A line returned to the buyer or to Ops is theirs now; a supplier re-submitting
+             their month must not quietly pick it up (24 Nov 2026). */
+          AND (l.stage = 'awaiting_supplier'
+               OR (l.stage = 'returned' AND l.returned_to = 'supplier'))
         RETURNING l.id, l.qty, l.rate, l.change_status, l.stage`,
       /* Every parameter is used: Postgres refuses one it cannot type, which is how this statement
          failed outright while it was passed the link id it never read. */

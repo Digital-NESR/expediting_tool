@@ -27,7 +27,7 @@ import { readPrCandidates, readSapStatus } from '@/lib/rrsm/sap-status';
 import { pushRateToRegistry, syncRatesFromRegistry } from '@/lib/rrsm/registry-sync';
 import { NO_DOCS, type DocKind, type DocRequirements } from '@/lib/rrsm/submission';
 import { openingStage, stageAfterBuyerDecision, type CycleSteps } from '@/lib/rrsm/steps';
-import { opsValidationMail, sendRrsmMail } from '@/lib/rrsm/notify';
+import { lineReturnedMail, opsValidationMail, sendRrsmMail } from '@/lib/rrsm/notify';
 import { boardUrl } from '@/lib/rrsm/supplier-access';
 import { normalizeEmail } from '@/lib/require-access';
 
@@ -73,6 +73,10 @@ export interface BoardLine {
   /** Who validates this line as Ops (picked by the buyer), and when it was sent to them. */
   opsValidator: { email: string; name: string } | null;
   opsSentAt: string | null;
+  /** Who a returned line is waiting on, and why it was returned. */
+  returnedTo: 'buyer' | 'ops' | 'supplier' | null;
+  returnReason: string;
+  returnedBy: string;
 }
 
 export interface BoardSupplier {
@@ -152,9 +156,10 @@ async function countryOfLine(lineId: number): Promise<{
   stage: CycleStage;
   opsValidatorEmail: string | null;
   opsSentAt: unknown;
+  returnedTo: string | null;
 }> {
   const { rows } = await rrsmPool.query<QueryResultRow>(
-    `SELECT c.country_code, l.stage, l.ops_validator_email, l.ops_sent_at
+    `SELECT c.country_code, l.stage, l.ops_validator_email, l.ops_sent_at, l.returned_to
        FROM rrsm_cycle_lines l JOIN rrsm_cycles c ON c.id = l.cycle_id
       WHERE l.id = $1`,
     [lineId],
@@ -165,6 +170,7 @@ async function countryOfLine(lineId: number): Promise<{
     stage: String(rows[0].stage) as CycleStage,
     opsValidatorEmail: rows[0].ops_validator_email ? String(rows[0].ops_validator_email) : null,
     opsSentAt: rows[0].ops_sent_at,
+    returnedTo: rows[0].returned_to ? String(rows[0].returned_to) : null,
   };
 }
 
@@ -190,11 +196,7 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
   const actor = await actorOrThrow();
   /* 'validator': somebody who only validates lines sent to them still gets the board, filtered
      to those lines below. */
-  const { countryCode, available } = await resolveRrsmCountry(
-    actor,
-    requestedCountry,
-    'validator',
-  );
+  const { countryCode, available } = await resolveRrsmCountry(actor, requestedCountry, 'validator');
 
   const empty: RrsmBoard = {
     country: null,
@@ -242,7 +244,9 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
               s.supplier_code, sup.name AS supplier_name,
               COALESCE(s.payment_terms, '') AS payment_terms,
               prev.qty AS prev_qty, prev.rate AS prev_rate,
-              l.ops_validator_email, l.ops_validator_name, l.ops_sent_at
+              l.ops_validator_email, l.ops_validator_name, l.ops_sent_at,
+              l.returned_to, COALESCE(l.return_reason, '') AS return_reason,
+              COALESCE(l.returned_by, '') AS returned_by
          FROM rrsm_cycle_lines l
          JOIN rrsm_service_lines s ON s.id = l.service_line_id
          JOIN rrsm_suppliers sup   ON sup.code = s.supplier_code
@@ -461,6 +465,9 @@ function toBoardLine(r: QueryResultRow): BoardLine {
         }
       : null,
     opsSentAt: r.ops_sent_at ? new Date(r.ops_sent_at as string).toISOString() : null,
+    returnedTo: r.returned_to ? (String(r.returned_to) as BoardLine['returnedTo']) : null,
+    returnReason: String(r.return_reason ?? ''),
+    returnedBy: String(r.returned_by ?? ''),
   };
 }
 
@@ -640,6 +647,18 @@ export async function moveRrsmLine(input: {
           : null;
     if (!as) return { success: false, error: 'That move is not yours to make.' };
 
+    /* A line Ops returned waits on the buyer, who sends it to Ops again; the validator who
+       returned it cannot quietly take it back (user decision, 24 Nov 2026). */
+    if (as === 'ops' && stage === 'returned' && line.returnedTo !== 'ops') {
+      return { success: false, error: 'This line is with the buyer. They send it back to Ops.' };
+    }
+
+    /* Every return says why: it is the one thing the person it goes to needs. */
+    const note = String(input?.note ?? '').trim();
+    if (input.to === 'returned' && !note) {
+      return { success: false, error: 'Say why you are returning the line.' };
+    }
+
     /* A supplier's proposed rate or pricing unit is a buyer's decision, and Ops validating the
        line first would validate a value nobody has agreed. */
     if (input.to === 'validated') {
@@ -657,34 +676,99 @@ export async function moveRrsmLine(input: {
 
     const returnedTo = input.to === 'returned' ? (as === 'buyer' ? 'ops' : 'buyer') : null;
 
+    /* Returned by Ops: it leaves the validator (they no longer see it) and waits on the buyer.
+       Returned by a buyer: it stays with its validator, who looks again. Moving on from a return
+       clears the reason; the log keeps it. */
     await rrsmPool.query(
       `UPDATE rrsm_cycle_lines
           SET stage = $2,
               returned_to = $3,
               validated_by = CASE WHEN $2 = 'validated' THEN $4 ELSE validated_by END,
               validated_at = CASE WHEN $2 = 'validated' THEN NOW() ELSE validated_at END,
+              return_reason = CASE WHEN $2 = 'returned' THEN $5 ELSE NULL END,
+              returned_by   = CASE WHEN $2 = 'returned' THEN $4 ELSE NULL END,
+              returned_at   = CASE WHEN $2 = 'returned' THEN NOW() ELSE NULL END,
+              ops_sent_at   = CASE WHEN $2 = 'returned' AND $3 = 'buyer' THEN NULL
+                                   ELSE ops_sent_at END,
               updated_at = NOW()
         WHERE id = $1`,
-      [Number(input.lineId), input.to, returnedTo, actor.email],
+      [Number(input.lineId), input.to, returnedTo, actor.email, note],
     );
+
+    if (input.to === 'returned') {
+      await mailReturn(Number(input.lineId), country, returnedTo as 'buyer' | 'ops', note, actor);
+    }
 
     await rrsmPool.query(
       `INSERT INTO rrsm_activity_log (cycle_line_id, actor, action, from_stage, to_stage, note)
        VALUES ($1, $2, $3, $4, $5, NULLIF($6, ''))`,
-      [
-        Number(input.lineId),
-        actor.email,
-        input.to,
-        stage,
-        input.to,
-        String(input?.note ?? '').trim(),
-      ],
+      [Number(input.lineId), actor.email, input.to, stage, input.to, note],
     );
 
     return { success: true };
   } catch (err) {
     log.error('moveRrsmLine.failed', err, { lineId: input?.lineId });
     return { success: false, error: (err as Error).message };
+  }
+}
+
+/**
+ * Tell the person a returned line now waits on. Returned by Ops: the country's buyers. Returned
+ * by a buyer: the line's validator. The sender is copied. A failed mail is logged, not fatal:
+ * the line has moved and says why on screen either way.
+ */
+async function mailReturn(
+  lineId: number,
+  country: string,
+  to: 'buyer' | 'ops',
+  reason: string,
+  actor: RrsmActor,
+): Promise<void> {
+  try {
+    const { rows } = await rrsmPool.query<QueryResultRow>(
+      `SELECT s.description, COALESCE(s.asset_ref, '') AS asset_ref, sup.name AS supplier_name,
+              cy.period, co.name AS country_name, l.ops_validator_email
+         FROM rrsm_cycle_lines l
+         JOIN rrsm_service_lines s ON s.id = l.service_line_id
+         JOIN rrsm_suppliers sup   ON sup.code = s.supplier_code
+         JOIN rrsm_cycles cy       ON cy.id = l.cycle_id
+         JOIN rrsm_countries co    ON co.code = cy.country_code
+        WHERE l.id = $1`,
+      [lineId],
+    );
+    const r = rows[0];
+    if (!r) return;
+    let recipients: string[] = [];
+    if (to === 'buyer') {
+      const { rows: buyers } = await rrsmPool.query<QueryResultRow>(
+        `SELECT DISTINCT lower(email) AS email FROM rrsm_users
+          WHERE active AND country_code = $1 AND role = 'buyer'`,
+        [country],
+      );
+      recipients = buyers.map((b) => String(b.email));
+    } else if (r.ops_validator_email) {
+      recipients = [String(r.ops_validator_email)];
+    }
+    recipients = recipients.filter((e) => e !== actor.email);
+    if (!recipients.length) return;
+    const result = await sendRrsmMail(
+      lineReturnedMail({
+        to: recipients,
+        cc: [actor.email],
+        toWhom: to,
+        returnedBy: actor.email,
+        reason,
+        supplier: String(r.supplier_name),
+        description: String(r.description),
+        assetRef: String(r.asset_ref ?? ''),
+        countryName: String(r.country_name),
+        period: dateOnly(r.period),
+        url: boardUrl(country, to === 'buyer' ? 'buyer' : 'ops'),
+      }),
+    );
+    if (!result.ok) log.warn('mailReturn.notSent', { lineId, error: result.error });
+  } catch (err) {
+    log.error('mailReturn.failed', err, { lineId });
   }
 }
 
@@ -1144,7 +1228,10 @@ export async function sendLinesToOps(input: {
     const { rows: sent } = input?.usual
       ? await rrsmPool.query<QueryResultRow>(
           `UPDATE rrsm_cycle_lines
-              SET ops_sent_at = NOW(), ops_sent_by = $2, updated_at = NOW()
+              SET ops_sent_at = NOW(), ops_sent_by = $2, updated_at = NOW(),
+                  stage = CASE WHEN stage = 'returned' THEN 'submitted' ELSE stage END,
+                  returned_to = NULL, return_reason = NULL, returned_by = NULL,
+                  returned_at = NULL
             WHERE cycle_id = $1 AND ops_sent_at IS NULL
               AND COALESCE(ops_validator_email, '') <> ''
               AND stage NOT IN ('validated', 'closed')
@@ -1154,7 +1241,11 @@ export async function sendLinesToOps(input: {
       : await rrsmPool.query<QueryResultRow>(
           `UPDATE rrsm_cycle_lines
               SET ops_validator_email = $3, ops_validator_name = NULLIF($4, ''),
-                  ops_sent_at = NOW(), ops_sent_by = $2, updated_at = NOW()
+                  ops_sent_at = NOW(), ops_sent_by = $2, updated_at = NOW(),
+                  /* Sending a returned line again is the buyer's "look again": back to Ops. */
+                  stage = CASE WHEN stage = 'returned' THEN 'submitted' ELSE stage END,
+                  returned_to = NULL, return_reason = NULL, returned_by = NULL,
+                  returned_at = NULL
             WHERE cycle_id = $1 AND id = ANY($5::int[])
               AND stage NOT IN ('validated', 'closed')
             RETURNING id, service_line_id, ops_validator_email, ops_validator_name`,

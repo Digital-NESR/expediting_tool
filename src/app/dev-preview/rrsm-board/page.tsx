@@ -44,6 +44,9 @@ function line(partial: Partial<BoardLine> & Pick<BoardLine, 'id' | 'description'
     prAuto: null,
     opsValidator: null,
     opsSentAt: null,
+    returnedTo: null,
+    returnReason: '',
+    returnedBy: '',
     ...partial,
   } as BoardLine;
 }
@@ -168,7 +171,9 @@ const BOARD: RrsmBoard = {
           previous: { qty: 1, rate: 200 },
           opsNote: 'Off hire 12 Nov, awaiting buyer confirmation',
           opsValidator: OMAR,
-          opsSentAt: '2026-11-23T08:00:00Z',
+          returnedTo: 'buyer',
+          returnReason: 'Went back to the depot on 12 Nov. Supplier still charges the full month.',
+          returnedBy: OMAR.email,
         }),
       ],
     },
