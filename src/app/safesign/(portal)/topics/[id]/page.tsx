@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Download } from 'lucide-react';
-import { currentSafeSignActor, shellUser } from '@/lib/safesign/access';
+import { currentSafeSignActor } from '@/lib/safesign/access';
 import { topicMatrix } from '@/lib/safesign/read';
 import { formatDay, formatStamp } from '@/lib/safesign/model';
 import SafeSignShell, { BANNER_BUTTON_GHOST, CARD, Empty } from '../../../components/SafeSignShell';
@@ -20,7 +20,7 @@ export default async function TopicPage({ params }: { params: Promise<{ id: stri
 
   return (
     <SafeSignShell
-      user={shellUser(actor)}
+      user={{ name: actor.name, email: actor.email, role: actor.role }}
       title={matrix.topic.name}
       subtitle={
         total

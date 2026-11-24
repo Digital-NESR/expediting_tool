@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Download, Plus } from 'lucide-react';
-import { canManage, currentSafeSignActor, shellUser } from '@/lib/safesign/access';
+import { canManage, currentSafeSignActor } from '@/lib/safesign/access';
 import { listCommunications, topicCards } from '@/lib/safesign/read';
 import { formatDay, RESPONSE_TYPE_LABEL } from '@/lib/safesign/model';
 import SafeSignShell, { BANNER_BUTTON, BANNER_BUTTON_GHOST, CARD, Empty } from '../components/SafeSignShell';
@@ -18,7 +18,7 @@ export default async function SafeSignDashboard() {
 
   return (
     <SafeSignShell
-      user={shellUser(actor)}
+      user={{ name: actor.name, email: actor.email, role: actor.role }}
       title="Dashboard"
       subtitle="QHSE communications sent to suppliers, and who has acknowledged, signed or responded."
       actions={

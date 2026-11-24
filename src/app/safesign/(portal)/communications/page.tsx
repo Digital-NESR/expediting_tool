@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Plus } from 'lucide-react';
-import { canManage, currentSafeSignActor, shellUser } from '@/lib/safesign/access';
+import { canManage, currentSafeSignActor } from '@/lib/safesign/access';
 import { listCommunications } from '@/lib/safesign/read';
 import { formatDay, RESPONSE_TYPE_LABEL } from '@/lib/safesign/model';
 import SafeSignShell, { BANNER_BUTTON, CARD, Empty } from '../../components/SafeSignShell';
@@ -19,7 +19,7 @@ export default async function CommunicationsPage() {
 
   return (
     <SafeSignShell
-      user={shellUser(actor)}
+      user={{ name: actor.name, email: actor.email, role: actor.role }}
       title="Communications"
       subtitle="Every letter, policy and request sent to suppliers."
       actions={
