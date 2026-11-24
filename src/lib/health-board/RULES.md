@@ -25,6 +25,15 @@ replaces. Change a rule here and in `definitions.ts` / `calc.ts` together; the t
 - Category is stored per row and shown per KPI × year. It changed between years (P&L M&S moved
   from Sourcing & Supplier Management to Materials Management in 2026; T&M and T&E to Logistics).
 
+- Owner's rulings on the data, 24 Nov 2026 (`reports/health-board/data-issues-for-owners.md`):
+  - Inventory Reconciliation Aging 2026 baselines had been copied from the Accuracy KPI (99.x).
+    Replaced with each country's 2025 YTD (load 4, old values in `kpi_value_history`).
+  - POs Past Due % and POs Past Due % > 30 Days are discontinued from 2026
+    (`discontinuedFrom` in definitions.ts): no 2026 menu entry, Read Me entry or upload; 2025 stays.
+  - The other flagged values (targets above baseline, DSOH targets for Chad / HQ Dubai, June
+    supplier count, missing P&L YTDs) were confirmed correct as they are.
+- The Power BI report was retired the same day; `/supply-chain-analytics/power-bi` redirects here.
+
 ## Countries
 
 One country at a time; default **Global**. Countries are the Power BI "Country Order" list, in its

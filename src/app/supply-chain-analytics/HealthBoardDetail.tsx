@@ -11,7 +11,7 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import type { KpiDetail, Status } from '@/lib/health-board/calc';
-import type { Country } from '@/lib/health-board/definitions';
+import { activeIn, type Country } from '@/lib/health-board/definitions';
 import { formatKpiValue } from '@/lib/health-board/format';
 import type { KpiPage } from '@/lib/health-board/pages';
 import { scaleFor, ticksFor } from '@/lib/health-board/scale';
@@ -202,6 +202,11 @@ export default function HealthBoardDetail({
             Health Board overview
           </Link>
           <h1 className="text-lg font-semibold tracking-tight">{page.title}</h1>
+          {!activeIn(kpi, year) && (
+            <p className="mt-1 inline-block rounded bg-white/15 px-2 py-0.5 text-[12px] font-medium">
+              Discontinued from {kpi.discontinuedFrom}: no longer reported. Earlier years remain.
+            </p>
+          )}
           <p className="text-sm text-white/85">{page.description}</p>
           {page.note && <p className="text-[13px] text-white/70">{page.note}</p>}
         </div>

@@ -5,7 +5,7 @@
 
 import Link from 'next/link';
 import { ArrowDown, ArrowLeft, ArrowUp, Triangle } from 'lucide-react';
-import { KPIS, type KpiDefinition } from '@/lib/health-board/definitions';
+import { KPIS, activeIn, type KpiDefinition } from '@/lib/health-board/definitions';
 import { README, YTD_EXPLAINED } from '@/lib/health-board/readme';
 
 const byNameDescending = (a: string, b: string) =>
@@ -59,14 +59,14 @@ export default function HealthBoardReadMe({
   const groups = new Map<string, KpiDefinition[]>();
   for (const k of KPIS) {
     const cat = categories.get(k.code);
-    if (!cat || !README[k.code]) continue;
+    if (!cat || !README[k.code] || !activeIn(k, year)) continue;
     groups.set(cat, [...(groups.get(cat) ?? []), k]);
   }
   const areas = [...groups.entries()]
     .sort((a, b) => byNameDescending(a[0], b[0]))
     .map(([cat, ks]) => [cat, ks.sort((a, b) => byNameDescending(a.name, b.name))] as const);
   const byYtd = (m: KpiDefinition['ytd']) =>
-    KPIS.filter((k) => k.ytd === m && README[k.code]).map((k) => k.name);
+    KPIS.filter((k) => k.ytd === m && README[k.code] && activeIn(k, year)).map((k) => k.name);
 
   return (
     <div className="flex flex-col gap-4">

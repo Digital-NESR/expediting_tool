@@ -32,6 +32,13 @@ export interface KpiDefinition {
   frequency: 'monthly' | 'quarterly';
   /** On the overview table. The four left off are the ones Power BI's report filter hid. */
   overview: boolean;
+  /** The first year the KPI is no longer reported (owner's ruling). Earlier years stay viewable. */
+  discontinuedFrom?: number;
+}
+
+/** Whether a KPI is still reported in a year. */
+export function activeIn(kpi: KpiDefinition, year: number): boolean {
+  return kpi.discontinuedFrom === undefined || year < kpi.discontinuedFrom;
 }
 
 export const KPIS: readonly KpiDefinition[] = [
@@ -214,6 +221,7 @@ export const KPIS: readonly KpiDefinition[] = [
     ytd: 'average',
     frequency: 'monthly',
     overview: false,
+    discontinuedFrom: 2026,
   },
   {
     code: 'KPI - Past Due > 30 Days',
@@ -223,6 +231,7 @@ export const KPIS: readonly KpiDefinition[] = [
     ytd: 'average',
     frequency: 'monthly',
     overview: false,
+    discontinuedFrom: 2026,
   },
   {
     code: 'KPI - Post Fact',

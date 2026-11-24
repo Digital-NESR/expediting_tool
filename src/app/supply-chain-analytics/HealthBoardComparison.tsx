@@ -13,7 +13,7 @@
 import Link from 'next/link';
 import { ArrowLeft, ChevronDown } from 'lucide-react';
 import type { Comparison } from '@/lib/health-board/calc';
-import { KPIS, type Country } from '@/lib/health-board/definitions';
+import { KPIS, activeIn, type Country } from '@/lib/health-board/definitions';
 import { formatKpiValue } from '@/lib/health-board/format';
 import { KPI_PAGES } from '@/lib/health-board/pages';
 import { StatusDot, TrendIcon, YearNav } from './HealthBoardOverview';
@@ -45,7 +45,7 @@ export default function HealthBoardComparison({
   /* The menu: KPIs with a page, grouped by this year's category, sorted Z→A like the overview. */
   const groups = new Map<string, typeof KPIS>();
   for (const k of KPIS) {
-    if (!KPI_PAGES[k.code]) continue;
+    if (!KPI_PAGES[k.code] || !activeIn(k, year)) continue;
     const cat = categories.get(k.code);
     if (!cat) continue;
     groups.set(cat, [...(groups.get(cat) ?? []), k]);

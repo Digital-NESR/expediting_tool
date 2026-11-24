@@ -145,6 +145,10 @@ export function parseKpiGrid(
       reject(`Year "${yearText}" is not a year.`);
       continue;
     }
+    if (kpi.discontinuedFrom !== undefined && year >= kpi.discontinuedFrom) {
+      reject(`${kpi.name} was discontinued from ${kpi.discontinuedFrom}.`);
+      continue;
+    }
     const value = parseNumber(get('Value'));
     if (value === 'invalid') {
       reject(`Value "${get('Value')}" is not a number.`);

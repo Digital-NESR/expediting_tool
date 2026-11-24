@@ -132,3 +132,15 @@ describe('parsing an upload', () => {
     expect(r.problems[0].severity).toBe('warn');
   });
 });
+
+describe('discontinued KPIs', () => {
+  it('rejects a Past Due value from 2026 on, and still takes 2025', () => {
+    const r = parseKpiGrid([
+      HEADER,
+      row({ KPI: 'KPI - Past Due', Year: '2026' }),
+      row({ KPI: 'KPI - Past Due', Year: '2025' }),
+    ]);
+    expect(r.rows.map((x) => x.year)).toEqual([2025]);
+    expect(r.problems[0].message).toMatch(/discontinued from 2026/);
+  });
+});
