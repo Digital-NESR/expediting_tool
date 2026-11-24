@@ -28,3 +28,8 @@ export function compareHref(kpiCode: string, year: number, base = HEALTH_BOARD):
   const slug = KPI_PAGES[kpiCode]?.slug ?? 'pl-pc-pr';
   return `${base}/compare?${new URLSearchParams({ kpi: slug, year: String(year) }).toString()}`;
 }
+
+/** The Read Me (and KPI index). */
+export function readMeHref(base = HEALTH_BOARD): string {
+  return `${base}/read-me`;
+}

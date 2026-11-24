@@ -135,3 +135,17 @@ describe('country comparison', () => {
     expect(cmp.rows[0].ytd).toBe(-150);
   });
 });
+
+describe('read me', () => {
+  it('covers exactly the KPIs that have a page, and agrees with each KPI on its frequency', async () => {
+    const { README } = await import('@/lib/health-board/readme');
+    expect(Object.keys(README).sort()).toEqual(Object.keys(KPI_PAGES).sort());
+    for (const k of KPIS) {
+      const r = README[k.code];
+      if (!r) continue;
+      expect(r.cadence, k.code).toBe(
+        k.frequency === 'quarterly' ? 'Quarter on Quarter' : 'Month on Month',
+      );
+    }
+  });
+});

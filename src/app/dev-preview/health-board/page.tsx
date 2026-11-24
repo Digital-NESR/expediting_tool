@@ -14,6 +14,7 @@ import {
   compareHref,
   detailHref,
   overviewHref,
+  readMeHref,
 } from '@/app/supply-chain-analytics/health-board/links';
 import { buildOverview } from '@/lib/health-board/calc';
 import { COUNTRIES, type Country } from '@/lib/health-board/definitions';
@@ -49,6 +50,7 @@ export default async function HealthBoardPreviewPage({
         hrefFor={hrefFor}
         detailHref={kpiHref}
         compareHref={compareHref('KPI - P&L (PC/PR)', year, BASE)}
+        readMeHref={readMeHref(BASE)}
       />
     </main>
   );

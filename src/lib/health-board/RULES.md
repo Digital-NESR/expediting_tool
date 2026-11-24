@@ -108,6 +108,23 @@ Against the numeric Target for that KPI, year and country:
 - Months: January to the latest month with data, as on the overview. Power BI's table stopped at
   May and was never extended.
 
+## Read Me
+
+- `/supply-chain-analytics/health-board/read-me`, from the overview's "Read Me" button. Power BI's
+  Read Me and Deep Dive pages merged into one (owner's decision): each KPI's definition, grouped by
+  the latest year's areas, links to its page.
+- Text in `readme.ts`: Power BI's Read Me with its copy errors fixed (the FieldSync block was
+  headed "Materials Management"). Where it disagreed with the KPI's page and the data, it now
+  agrees with them: Slow Moving is monthly from NESR Inventory Trends 2.0 (the Read Me said
+  quarterly from Quality Governor); InvRecon Aging is days from count completed to adjustment in
+  SAP (the Read Me said days to approve the reconciliation). PIR, SourceGuide, PO < 250 $ and
+  T&E, which it never covered, use their page descriptions.
+- Intercompany Transfer Out: Power BI's page says "Higher is better" while values are stored as
+  negative $ and the target is ≤ -4,000,000. The Read Me says it plainly: more transfer out is
+  better, which is a lower number.
+- "How the board calculates" is generated from `definitions.ts` (YTD method per KPI) and states
+  the arrow and colour rules above, so it cannot drift from the calculation.
+
 ## Fixes against Power BI (the native numbers differ from Power BI here, on purpose)
 
 1. **Duplicate rows were added together.** Power BI SUMs every row, so two rows for one cell

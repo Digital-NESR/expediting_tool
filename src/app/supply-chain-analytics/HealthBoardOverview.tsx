@@ -166,6 +166,7 @@ export default function HealthBoardOverview({
   hrefFor,
   detailHref,
   compareHref,
+  readMeHref,
 }: {
   overview: Overview;
   years: number[];
@@ -175,6 +176,8 @@ export default function HealthBoardOverview({
   detailHref: (kpiCode: string, year: number, country: Country) => string | null;
   /** The country comparison page for this year. */
   compareHref: string;
+  /** The Read Me / KPI index. */
+  readMeHref: string;
 }) {
   const { year, country, months, groups } = overview;
   const columns = 5 + months.length;
@@ -188,6 +191,12 @@ export default function HealthBoardOverview({
           {year}
         </h1>
         <div className="flex items-center gap-3">
+          <Link
+            href={readMeHref}
+            className="rounded-lg bg-white/10 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/20"
+          >
+            Read Me
+          </Link>
           <Link
             href={compareHref}
             className="rounded-lg bg-white/10 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/20"
