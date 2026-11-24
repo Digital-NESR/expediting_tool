@@ -3,6 +3,7 @@
 import { signIn } from 'next-auth/react';
 import Image from 'next/image';
 import { siteConfig } from '@/config/site';
+import SafeSignDemoLogin from './SafeSignDemoLogin';
 
 const { colors, images, text } = siteConfig;
 const login = text.login;
@@ -64,6 +65,9 @@ export default function LoginClient() {
             </svg>
             {login.ssoButton}
           </button>
+
+          {/* Local development only: NODE_ENV is inlined at build, so production never ships it. */}
+          {process.env.NODE_ENV !== 'production' && <SafeSignDemoLogin />}
 
           {/* Footer */}
           <p className="text-slate-500 text-xs text-center">{login.footer}</p>

@@ -80,6 +80,13 @@ export const DATABASES = [
     envStyle: 'sourceguide',
   },
   {
+    /* SafeSign. Provisioned for the tool on the same server as ICSA_portal, so the same env
+       style. */
+    key: 'safesign',
+    database: () => process.env.SAFESIGN_DB_NAME || 'SafeSign',
+    envStyle: 'sns',
+  },
+  {
     key: 'sns',
     database: () => process.env.SNS_REGISTRY_DB_NAME ?? process.env.SnS_DB ?? 'sns_registry_db',
     envStyle: 'sns',

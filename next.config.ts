@@ -34,6 +34,11 @@ const nextConfig: NextConfig = {
         source: '/soa-upload/:path*',
         headers: [{ key: 'Referrer-Policy', value: 'no-referrer' }],
       },
+      {
+        // The SafeSign supplier link carries its token in the path, for the same reason.
+        source: '/safesign/respond/:path*',
+        headers: [{ key: 'Referrer-Policy', value: 'no-referrer' }],
+      },
     ];
   },
 };

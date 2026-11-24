@@ -33,6 +33,10 @@ const PUBLIC_PATHS = [
      live for a route this gate waves through -- and which re-checks every line id against the
      link rather than trusting one from a browser. */
   '/rrsm/submit',
+  /* The SafeSign supplier response page, public and gated the same way as /rrsm/submit: a
+     per-request token in the path, plus a one-time code sent to an address the request went to.
+     Both are checked inside src/app/actions/safesign/supplier.ts. */
+  '/safesign/respond',
   '/help',
   /* The chain view's dev preview. Outside production only, and the page itself calls
      notFound() in a production build, so this cannot open a hole in a deployed app --
@@ -48,6 +52,7 @@ const PUBLIC_PATHS = [
 const MACHINE_PATHS = [
   /^\/api\/procure-guard\/reminders\/?$/,
   /^\/api\/rrsm\/reminders\/?$/,
+  /^\/api\/safesign\/reminders\/?$/,
   /^\/api\/laptop-procurement\/requests\/[^/]+\/status\/?$/,
   /^\/api\/catalog-manager\/revalidate\/?$/,
 ];

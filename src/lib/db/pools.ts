@@ -21,6 +21,7 @@ export { default as icsaPool } from '../db-icsa';
 export { default as laptopProcurementPool } from '../db-laptop';
 export { default as learningHubPool } from '../db-learning-hub';
 export { default as procureGuardPool } from '../db-procureguard';
+export { default as safesignPool } from '../db-safesign';
 export { default as snsPool } from '../db-sns';
 export { default as soaPool } from '../db-soa';
 export { default as sourceGuidePool } from '../db-sourceguide';

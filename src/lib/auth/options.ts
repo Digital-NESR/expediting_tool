@@ -15,6 +15,7 @@
 import type { NextAuthOptions } from 'next-auth';
 import AzureADProvider from 'next-auth/providers/azure-ad';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import { DEMO_PERSONAS } from '@/lib/safesign/demo';
 import pool from '@/lib/db';
 import titePool from '@/lib/db-tite';
 import sourceGuidePool from '@/lib/db-sourceguide';
@@ -92,6 +93,19 @@ export const authOptions: NextAuthOptions = {
               return null;
             },
           }),
+          /* SafeSign demo people, local development only for the same reason as the provider
+             above: registered only when NODE_ENV is not production, which every Vercel build is,
+             so no deployment can have it and no variable can turn it on. Signs in as one of the
+             fixed `.invalid` addresses in src/lib/safesign/demo.ts and nothing else. */
+          CredentialsProvider({
+            id: 'safesign-demo',
+            name: 'SafeSign demo (local dev only)',
+            credentials: { persona: { label: 'Persona', type: 'text' } },
+            async authorize(credentials) {
+              const persona = DEMO_PERSONAS.find((p) => p.id === credentials?.persona);
+              return persona ? { id: `safesign-demo-${persona.id}`, name: persona.name, email: persona.email } : null;
+            },
+          }),
         ]
       : []),
   ],
@@ -149,7 +163,7 @@ export const authOptions: NextAuthOptions = {
         delete token.picture;
       }
 
-      if (account?.provider === 'credentials') {
+      if (account?.provider === 'credentials' || account?.provider === 'safesign-demo') {
         token.jobTitle = 'Developer';
         token.department = undefined;
         token.country = undefined;

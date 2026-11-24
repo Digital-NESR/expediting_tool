@@ -30,6 +30,7 @@ import {
   ShieldCheck,
   BarChart3,
   ListChecks,
+  FileSignature,
 } from 'lucide-react';
 
 export type ToolStatus = 'new' | 'pending' | 'approved' | 'denied' | 'revoked' | 'rejected';
@@ -571,6 +572,29 @@ export const TOOLS: ToolDef[] = [
     access: { kind: 'adminPreview' },
     badge: { kind: 'preview' },
     openLabel: 'Open preview →',
+  },
+
+  {
+    id: 'safesign',
+    group: 'development',
+    keywords:
+      'safesign safe sign qhse hse acknowledgment acknowledgement policy letter signature e-sign supplier compliance reminder audit',
+    name: 'SafeSign',
+    subtitle: 'Supplier QHSE acknowledgments',
+    description:
+      'Send QHSE letters and policies to suppliers in bulk, collect acknowledgments, signatures and action plans, chase with automatic reminders, and report compliance per supplier.',
+    icon: <FileSignature className="h-6 w-6 text-gray-400" />,
+    logoClass: 'bg-gray-100',
+    hoverClass: HOVER_GREEN,
+    accent: PREVIEW_GREY,
+    tone: 'preview',
+    route: '/safesign',
+    /* Pilot: greyed for everybody, clickable for administrators, like the Self-Assessment card.
+       The real gate is src/app/safesign/(portal)/layout.tsx. */
+    access: { kind: 'adminPreview' },
+    badge: { kind: 'preview' },
+    openLabel: 'Open preview →',
+    helpHref: '/help/safesign',
   },
 
   {

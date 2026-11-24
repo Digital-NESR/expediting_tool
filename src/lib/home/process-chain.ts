@@ -931,6 +931,7 @@ export const ACROSS_THE_CHAIN: { label: string; toolId: string }[] = [
   { label: 'Ask the assistant', toolId: 'scai' },
   { label: 'Travel', toolId: 'travel-portal' },
   { label: 'Internal controls', toolId: 'icsa' },
+  { label: 'Supplier QHSE compliance', toolId: 'safesign' },
 ];
 
 /* ─── Derived ────────────────────────────────────────────────────────────────────────────────
