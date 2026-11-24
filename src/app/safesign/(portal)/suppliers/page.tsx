@@ -1,35 +1,31 @@
 import { safesignPage } from '@/lib/safesign/page';
-import { supplierCategories, searchSuppliers } from '@/lib/safesign/suppliers';
+import { librarySuppliers, searchSuppliers } from '@/lib/safesign/suppliers';
 import SafeSignShell from '../../components/SafeSignShell';
 import SuppliersClient from './SuppliersClient';
 
 /**
- * The supplier library for the country being worked on. Suppliers come from the SAP vendor
- * master; the page opens on this country's library, or on suppliers bought from in this country
- * when the library is still empty.
+ * The supplier library for the country being worked on: active suppliers from the SAP vendor
+ * master on one side, this country's library on the other. A supplier is dragged into the library
+ * before its TO and CC can be edited.
  */
 export default async function SuppliersPage() {
   const { actor, country, shell } = await safesignPage();
-  const [categories, library] = await Promise.all([
-    supplierCategories(country.id),
-    searchSuppliers({ countryId: country.id, scope: 'library' }),
+  const [initial, library] = await Promise.all([
+    searchSuppliers({ countryId: country.id }),
+    librarySuppliers(country.id),
   ]);
-  const scope = library.total ? 'library' : 'bought';
-  const first = scope === 'library' ? library : await searchSuppliers({ countryId: country.id, scope });
 
   return (
     <SafeSignShell
       user={shell}
       title="Supplier library"
-      subtitle={`Suppliers from the SAP vendor master. Pick one to see and adjust who receives communications in ${country.name}.`}
+      subtitle={`Drag active SAP suppliers into the ${country.name} library, then set who receives communications.`}
     >
       <SuppliersClient
         key={country.id}
         countryName={country.name}
-        categories={categories}
-        initialScope={scope}
-        initial={first}
-        librarySize={library.total}
+        initial={initial}
+        initialLibrary={library}
         me={{ name: actor.name, email: actor.email }}
       />
     </SafeSignShell>

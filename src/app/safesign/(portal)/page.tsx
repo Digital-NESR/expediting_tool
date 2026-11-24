@@ -1,13 +1,25 @@
 import Link from 'next/link';
-import { Download, Plus } from 'lucide-react';
+import {
+  AlarmClock,
+  ClipboardCheck,
+  Download,
+  Plus,
+  Send,
+  ShieldCheck,
+  type LucideIcon,
+} from 'lucide-react';
 import { safesignPage } from '@/lib/safesign/page';
 import { listCommunications, topicCards } from '@/lib/safesign/read';
 import { formatDay, RESPONSE_TYPE_LABEL } from '@/lib/safesign/model';
-import SafeSignShell, { BANNER_BUTTON, BANNER_BUTTON_GHOST, CARD, Empty } from '../components/SafeSignShell';
+import SafeSignShell from '../components/SafeSignShell';
+import { BANNER_BUTTON, BANNER_BUTTON_GHOST, CARD, Empty } from '../components/ui';
 
 export default async function SafeSignDashboard() {
   const { country, shell } = await safesignPage();
-  const [cards, comms] = await Promise.all([topicCards(country.id), listCommunications(country.id)]);
+  const [cards, comms] = await Promise.all([
+    topicCards(country.id),
+    listCommunications(country.id),
+  ]);
   const recent = comms.slice(0, 8);
   const sentRequests = cards.reduce((s, c) => s + c.total, 0);
   const done = cards.reduce((s, c) => s + c.done, 0);
@@ -31,10 +43,34 @@ export default async function SafeSignDashboard() {
       }
     >
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi label="Compliance" value={sentRequests ? `${Math.round((done / sentRequests) * 100)}%` : '—'} hint={`${done} of ${sentRequests} responses complete`} />
-        <Kpi label="Communications sent" value={String(comms.filter((c) => c.status !== 'draft').length)} hint={`${comms.filter((c) => c.status === 'draft').length} draft`} />
-        <Kpi label="Overdue" value={String(overdue)} hint="past the deadline, no response" tone={overdue ? 'bad' : undefined} />
-        <Kpi label="To review" value={String(toReview)} hint="action plans waiting for you" tone={toReview ? 'warn' : undefined} />
+        <Kpi
+          icon={ShieldCheck}
+          label="Compliance"
+          value={sentRequests ? `${Math.round((done / sentRequests) * 100)}%` : '—'}
+          hint={`${done} of ${sentRequests} responses complete`}
+          pct={sentRequests ? Math.round((done / sentRequests) * 100) : 0}
+        />
+        <Kpi
+          icon={Send}
+          label="Communications sent"
+          value={String(comms.filter((c) => c.status !== 'draft').length)}
+          hint={`${comms.filter((c) => c.status === 'draft').length} draft`}
+          tone="info"
+        />
+        <Kpi
+          icon={AlarmClock}
+          label="Overdue"
+          value={String(overdue)}
+          hint="past the deadline, no response"
+          tone={overdue ? 'bad' : 'muted'}
+        />
+        <Kpi
+          icon={ClipboardCheck}
+          label="To review"
+          value={String(toReview)}
+          hint="action plans waiting for you"
+          tone={toReview ? 'warn' : 'muted'}
+        />
       </div>
 
       <section>
@@ -51,17 +87,24 @@ export default async function SafeSignDashboard() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-900 group-hover:text-[#1d4f31]">{t.name}</p>
+                    <p className="truncate text-sm font-semibold text-slate-900 group-hover:text-[#1d4f31]">
+                      {t.name}
+                    </p>
                     <p className="truncate text-xs text-slate-500">{t.description || ' '}</p>
                   </div>
                   <span className="shrink-0 text-xs text-slate-400">{t.communications} sent</span>
                 </div>
                 <p className="mt-3 text-2xl font-bold text-slate-800">
                   {t.total ? `${t.done} / ${t.total}` : '—'}
-                  <span className="ml-1.5 text-xs font-medium text-slate-500">{t.total ? 'complete' : 'nothing sent yet'}</span>
+                  <span className="ml-1.5 text-xs font-medium text-slate-500">
+                    {t.total ? 'complete' : 'nothing sent yet'}
+                  </span>
                 </p>
                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                  <div className="h-full rounded-full bg-[#307c4c]" style={{ width: `${t.pct}%` }} />
+                  <div
+                    className="h-full rounded-full bg-[#307c4c]"
+                    style={{ width: `${t.pct}%` }}
+                  />
                 </div>
                 <div className="mt-2 flex gap-3 text-[11px] font-medium">
                   {t.overdue > 0 && <span className="text-rose-600">{t.overdue} overdue</span>}
@@ -76,7 +119,10 @@ export default async function SafeSignDashboard() {
       <section className={CARD}>
         <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
           <h2 className="text-sm font-semibold text-slate-700">Latest communications</h2>
-          <Link href="/safesign/communications" className="text-xs font-semibold text-[#307c4c] hover:underline">
+          <Link
+            href="/safesign/communications"
+            className="text-xs font-semibold text-[#307c4c] hover:underline"
+          >
             See all
           </Link>
         </div>
@@ -86,10 +132,17 @@ export default async function SafeSignDashboard() {
           <ul className="divide-y divide-slate-100">
             {recent.map((c) => (
               <li key={c.id}>
-                <Link href={`/safesign/communications/${c.id}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 hover:bg-slate-50">
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800">{c.title}</span>
+                <Link
+                  href={`/safesign/communications/${c.id}`}
+                  className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 hover:bg-slate-50"
+                >
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800">
+                    {c.title}
+                  </span>
                   <span className="text-xs text-slate-500">{c.topicName}</span>
-                  <span className="text-xs text-slate-500">{RESPONSE_TYPE_LABEL[c.responseType]}</span>
+                  <span className="text-xs text-slate-500">
+                    {RESPONSE_TYPE_LABEL[c.responseType]}
+                  </span>
                   <span className="text-xs text-slate-500">Due {formatDay(c.deadline)}</span>
                   <span className="w-24 text-right text-xs font-semibold text-slate-700">
                     {c.status === 'draft' ? 'Draft' : `${c.done} / ${c.total}`}
@@ -104,13 +157,51 @@ export default async function SafeSignDashboard() {
   );
 }
 
-function Kpi({ label, value, hint, tone }: { label: string; value: string; hint: string; tone?: 'bad' | 'warn' }) {
-  const color = tone === 'bad' ? 'text-rose-600' : tone === 'warn' ? 'text-sky-700' : 'text-slate-800';
+const TONE = {
+  good: {
+    bar: 'border-t-[#307c4c]',
+    text: 'text-[#1d4f31]',
+    icon: 'bg-[#307c4c]/10 text-[#307c4c]',
+  },
+  info: { bar: 'border-t-sky-500', text: 'text-slate-800', icon: 'bg-sky-50 text-sky-600' },
+  bad: { bar: 'border-t-rose-500', text: 'text-rose-600', icon: 'bg-rose-50 text-rose-600' },
+  warn: { bar: 'border-t-amber-500', text: 'text-amber-700', icon: 'bg-amber-50 text-amber-600' },
+  muted: { bar: 'border-t-slate-300', text: 'text-slate-800', icon: 'bg-slate-100 text-slate-500' },
+} as const;
+
+function Kpi({
+  icon: Icon,
+  label,
+  value,
+  hint,
+  tone = 'good',
+  pct,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  hint: string;
+  tone?: keyof typeof TONE;
+  pct?: number;
+}) {
+  const t = TONE[tone];
   return (
-    <div className={`${CARD} p-4`}>
-      <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</p>
-      <p className={`mt-1 text-2xl font-bold ${color}`}>{value}</p>
-      <p className="text-xs text-slate-500">{hint}</p>
+    <div
+      className={`rounded-2xl border border-t-4 border-slate-200 bg-white p-4 shadow-sm ${t.bar}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</p>
+        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${t.icon}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+      </div>
+      <p className={`mt-1 text-3xl font-bold leading-none ${t.text}`}>{value}</p>
+      <p className="mt-1.5 text-xs text-slate-500">{hint}</p>
+      {pct !== undefined && (
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+          <div className="h-full rounded-full bg-[#307c4c]" style={{ width: `${pct}%` }} />
+        </div>
+      )}
     </div>
   );
 }

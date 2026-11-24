@@ -1,9 +1,14 @@
 'use client';
 
 /*
- * Supplier library. Suppliers are searched in the SAP vendor master (SourceGuide supplier_avl) by
- * name or code, with filters; picking one opens a card laid out like PO Expediting's queue: the
- * supplier across the top, the email recipients down the side.
+ * Supplier library, in two boxes side by side:
+ *
+ *   SAP suppliers        active suppliers from the vendor master (SourceGuide supplier_avl),
+ *                        searched by name or code. Drag one across (or press +) to add it.
+ *   <Country> library    the suppliers this country sends to. Pick one to edit its recipients.
+ *
+ * Recipients are edited only for library suppliers, in a card laid out like PO Expediting's
+ * queue, below the two boxes:
  *
  *   TO, dark green      supplier_avl.email, the vendor master's addresses
  *   TO, outlined green  added by the team here, remembered for this supplier in this country
@@ -12,11 +17,12 @@
  */
 
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { Building2, Check, Loader2, Mail, Plus, Search, Trash2 } from 'lucide-react';
+import { Building2, Check, GripVertical, Loader2, Mail, Plus, Search, X } from 'lucide-react';
 import EmployeeSearchInput, { type Employee } from '@/components/EmployeeSearchInput';
 import {
   addRecipient,
   addToLibrary,
+  getLibrary,
   hideMasterEmail,
   loadSupplier,
   removeFromLibrary,
@@ -25,41 +31,36 @@ import {
   searchLibrary,
   type CardResult,
 } from '@/app/actions/safesign/library';
-import type {
-  EmailFilter,
-  LibraryScope,
-  StatusFilter,
-  SupplierCard,
-  SupplierRow,
-} from '@/lib/safesign/suppliers';
-import { BUTTON, BUTTON_SECONDARY, CARD, INPUT } from '../../components/SafeSignShell';
+import type { SupplierCard, SupplierRow } from '@/lib/safesign/suppliers';
+import { BUTTON_SECONDARY, CARD, INPUT } from '../../components/SafeSignShell';
 
 const PAGE = 25;
-const SELECT = `${INPUT} py-1.5 text-xs`;
+const DRAG_TYPE = 'application/x-safesign-supplier';
 
 interface Props {
   countryName: string;
-  categories: string[];
-  initialScope: LibraryScope;
   initial: { rows: SupplierRow[]; total: number };
-  librarySize: number;
+  initialLibrary: SupplierRow[];
   me: { name: string; email: string };
 }
 
-export default function SuppliersClient({ countryName, categories, initialScope, initial, librarySize, me }: Props) {
+export default function SuppliersClient({ countryName, initial, initialLibrary, me }: Props) {
   const [q, setQ] = useState('');
-  const [scope, setScope] = useState<LibraryScope>(initialScope);
-  const [category, setCategory] = useState('');
-  const [status, setStatus] = useState<StatusFilter>('');
-  const [email, setEmail] = useState<EmailFilter>('');
   const [rows, setRows] = useState<SupplierRow[]>(initial.rows);
   const [total, setTotal] = useState(initial.total);
   const [loading, setLoading] = useState(false);
-  const [selected, setSelected] = useState<string | null>(initial.rows[0]?.code ?? null);
+  const [library, setLibrary] = useState<SupplierRow[]>(initialLibrary);
+  const [libraryFilter, setLibraryFilter] = useState('');
+  const [selected, setSelected] = useState<string | null>(initialLibrary[0]?.code ?? null);
+  const [over, setOver] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const first = useRef(true);
   const seq = useRef(0);
 
-  /* Search again whenever the text or a filter changes; the text is debounced. */
+  const inLibrary = new Set(library.map((l) => l.code));
+
+  /* Search again when the text changes, debounced. */
   useEffect(() => {
     if (first.current) {
       first.current = false;
@@ -68,112 +69,133 @@ export default function SuppliersClient({ countryName, categories, initialScope,
     const mine = ++seq.current;
     const t = setTimeout(async () => {
       setLoading(true);
-      const r = await searchLibrary({ q, scope, category, status, email, offset: 0 });
+      const r = await searchLibrary({ q, offset: 0 });
       if (mine !== seq.current) return;
       setRows(r.rows);
       setTotal(r.total);
       setLoading(false);
     }, 250);
     return () => clearTimeout(t);
-  }, [q, scope, category, status, email]);
+  }, [q]);
 
   async function more() {
     setLoading(true);
-    const r = await searchLibrary({ q, scope, category, status, email, offset: rows.length });
+    const r = await searchLibrary({ q, offset: rows.length });
     setRows((prev) => [...prev, ...r.rows]);
     setTotal(r.total);
     setLoading(false);
   }
 
-  function onLibraryChange(code: string, inLibrary: boolean) {
-    setRows((prev) => prev.map((r) => (r.code === code ? { ...r, inLibrary } : r)));
+  async function add(code: string) {
+    if (inLibrary.has(code)) {
+      setSelected(code);
+      return;
+    }
+    setError(null);
+    setBusy(code);
+    const r = await addToLibrary(code);
+    if (r.success) {
+      setLibrary(await getLibrary());
+      setSelected(code);
+    } else {
+      setError(r.error ?? 'Could not add the supplier.');
+    }
+    setBusy(null);
   }
+
+  async function remove(row: SupplierRow) {
+    if (!confirm(`Remove ${row.name} from the ${countryName} library? Its added recipients are kept if you add it back.`)) return;
+    setError(null);
+    setBusy(row.code);
+    const r = await removeFromLibrary(row.code);
+    if (r.success) {
+      setLibrary((prev) => prev.filter((l) => l.code !== row.code));
+      if (selected === row.code) setSelected(null);
+    } else {
+      setError(r.error ?? 'Could not remove the supplier.');
+    }
+    setBusy(null);
+  }
+
+  const shownLibrary = library.filter(
+    (l) =>
+      !libraryFilter ||
+      l.name.toLowerCase().includes(libraryFilter.toLowerCase()) ||
+      l.code.includes(libraryFilter),
+  );
 
   return (
     <div className="space-y-4">
-      {/* ── Search and filters ── */}
-      <section className={`${CARD} p-4`}>
-        <div className="grid gap-3 md:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]">
-          <label className="relative block">
-            <span className="sr-only">Search suppliers</span>
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Supplier name or SAP code"
-              className={`${INPUT} pl-9`}
-            />
-          </label>
-          <Filter label="Show" value={scope} onChange={(v) => setScope(v as LibraryScope)}>
-            <option value="library">In {countryName} library ({librarySize})</option>
-            <option value="bought">Bought from in {countryName}</option>
-            <option value="all">All suppliers</option>
-          </Filter>
-          <Filter label="Category" value={category} onChange={setCategory}>
-            <option value="">Any category</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </Filter>
-          <Filter label="SAP status" value={status} onChange={(v) => setStatus(v as StatusFilter)}>
-            <option value="">Any status</option>
-            <option value="active">Active</option>
-            <option value="blocked">Centrally blocked</option>
-          </Filter>
-          <Filter label="Email" value={email} onChange={(v) => setEmail(v as EmailFilter)}>
-            <option value="">With or without email</option>
-            <option value="with">Has an email</option>
-            <option value="without">No email in SAP</option>
-          </Filter>
-        </div>
-      </section>
-
-      <div className="grid gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
-        {/* ── Results ── */}
-        <section className={`${CARD} flex max-h-[720px] flex-col overflow-hidden`}>
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5 text-xs text-slate-500">
-            <span>
-              {total.toLocaleString()} supplier{total === 1 ? '' : 's'}
-            </span>
-            {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* ── SAP suppliers ── */}
+        <section className={`${CARD} flex h-[460px] flex-col overflow-hidden`}>
+          <div className="border-b border-slate-100 p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-800">SAP suppliers</h2>
+              <span className="flex items-center gap-1.5 text-xs text-slate-500">
+                {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {total.toLocaleString()} active
+              </span>
+            </div>
+            <label className="relative block">
+              <span className="sr-only">Search suppliers</span>
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Supplier name or SAP code"
+                className={`${INPUT} pl-9`}
+              />
+            </label>
           </div>
           {rows.length === 0 ? (
-            <p className="px-4 py-10 text-center text-sm text-slate-500">
-              {scope === 'library'
-                ? `Nothing in the ${countryName} library matches. Switch Show to "Bought from" or "All suppliers" to add some.`
-                : 'No supplier matches.'}
-            </p>
+            <p className="px-4 py-10 text-center text-sm text-slate-500">No active supplier matches.</p>
           ) : (
             <ul className="flex-1 divide-y divide-slate-100 overflow-y-auto">
-              {rows.map((r) => (
-                <li key={r.code}>
-                  <button
-                    type="button"
-                    onClick={() => setSelected(r.code)}
-                    className={`flex w-full items-start gap-3 px-4 py-2.5 text-left transition-colors ${
-                      selected === r.code ? 'bg-[#307c4c]/10' : 'hover:bg-slate-50'
+              {rows.map((r) => {
+                const added = inLibrary.has(r.code);
+                return (
+                  <li
+                    key={r.code}
+                    draggable={!added}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData(DRAG_TYPE, r.code);
+                      e.dataTransfer.setData('text/plain', r.code);
+                      e.dataTransfer.effectAllowed = 'copy';
+                    }}
+                    className={`group flex items-center gap-2 px-3 py-2.5 ${
+                      added ? 'bg-slate-50/70' : 'cursor-grab hover:bg-[#307c4c]/5 active:cursor-grabbing'
                     }`}
                   >
+                    <GripVertical className={`h-4 w-4 shrink-0 ${added ? 'text-slate-200' : 'text-slate-300 group-hover:text-[#307c4c]'}`} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-slate-800">{r.name}</span>
-                      <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500">
+                      <span className={`block truncate text-sm font-medium ${added ? 'text-slate-400' : 'text-slate-800'}`}>{r.name}</span>
+                      <span className="mt-0.5 flex gap-2 text-[11px] text-slate-500">
                         <span className="font-mono">{r.code}</span>
-                        <span>
-                          {r.emailCount} email{r.emailCount === 1 ? '' : 's'}
+                        <span className={r.emailCount ? '' : 'text-amber-600'}>
+                          {r.emailCount ? `${r.emailCount} email${r.emailCount === 1 ? '' : 's'}` : 'no email in SAP'}
                         </span>
-                        {r.blocked && <span className="font-semibold text-rose-600">Blocked</span>}
                       </span>
                     </span>
-                    {r.inLibrary && (
-                      <span className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-full bg-[#307c4c]/10 px-2 py-0.5 text-[10px] font-semibold text-[#1d4f31]">
-                        <Check className="h-3 w-3" /> Library
+                    {added ? (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#307c4c]/10 px-2 py-0.5 text-[10px] font-semibold text-[#1d4f31]">
+                        <Check className="h-3 w-3" /> In library
                       </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => add(r.code)}
+                        disabled={busy === r.code}
+                        title={`Add to the ${countryName} library`}
+                        aria-label={`Add ${r.name} to the ${countryName} library`}
+                        className="shrink-0 rounded-md border border-slate-200 p-1 text-slate-400 transition-colors hover:border-[#307c4c] hover:text-[#307c4c] disabled:opacity-40"
+                      >
+                        {busy === r.code ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                      </button>
                     )}
-                  </button>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
               {rows.length < total && (
                 <li className="p-3 text-center">
                   <button type="button" onClick={more} disabled={loading} className={BUTTON_SECONDARY}>
@@ -185,37 +207,100 @@ export default function SuppliersClient({ countryName, categories, initialScope,
           )}
         </section>
 
-        {/* ── The supplier ── */}
-        {selected ? (
-          <SupplierPanel key={selected} code={selected} me={me} countryName={countryName} onLibraryChange={onLibraryChange} />
-        ) : (
-          <div className={`${CARD} flex items-center justify-center p-10 text-sm text-slate-500`}>
-            Pick a supplier to see who receives communications.
+        {/* ── The country library: the drop target ── */}
+        <section
+          onDragOver={(e) => {
+            if (!e.dataTransfer.types.includes(DRAG_TYPE)) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+            setOver(true);
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setOver(false);
+            const code = e.dataTransfer.getData(DRAG_TYPE);
+            if (code) void add(code);
+          }}
+          className={`flex h-[460px] flex-col overflow-hidden rounded-2xl border-2 shadow-sm transition-colors ${
+            over ? 'border-dashed border-[#307c4c] bg-[#307c4c]/5' : 'border-[#307c4c]/25 bg-white'
+          }`}
+        >
+          <div className="border-b border-[#307c4c]/15 bg-[#307c4c]/5 p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-[#1d4f31]">{countryName} library</h2>
+              <span className="text-xs text-slate-500">
+                {library.length} supplier{library.length === 1 ? '' : 's'}
+              </span>
+            </div>
+            <input
+              value={libraryFilter}
+              onChange={(e) => setLibraryFilter(e.target.value)}
+              placeholder="Find in the library"
+              className={INPUT}
+            />
           </div>
-        )}
+          {library.length === 0 ? (
+            <div className="m-4 flex flex-1 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 p-6 text-center">
+              <p className="text-sm font-semibold text-slate-600">Drag suppliers here</p>
+              <p className="mt-1 max-w-xs text-xs text-slate-500">
+                Only suppliers in the library can receive communications in {countryName}, and only they can have their
+                TO and CC edited.
+              </p>
+            </div>
+          ) : (
+            <ul className="flex-1 divide-y divide-slate-100 overflow-y-auto">
+              {shownLibrary.map((l) => (
+                <li key={l.code} className={`flex items-center gap-2 px-3 py-2.5 ${selected === l.code ? 'bg-[#307c4c]/10' : 'hover:bg-slate-50'}`}>
+                  <button type="button" onClick={() => setSelected(l.code)} className="min-w-0 flex-1 text-left">
+                    <span className="block truncate text-sm font-medium text-slate-800">{l.name}</span>
+                    <span className="mt-0.5 flex gap-2 text-[11px] text-slate-500">
+                      <span className="font-mono">{l.code}</span>
+                      <span className={l.emailCount ? '' : 'font-semibold text-rose-600'}>
+                        {l.emailCount ? `${l.emailCount} TO` : 'no TO email yet'}
+                      </span>
+                      {l.blocked && <span className="font-semibold text-rose-600">Blocked in SAP</span>}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => remove(l)}
+                    disabled={busy === l.code}
+                    aria-label={`Remove ${l.name} from the library`}
+                    title="Remove from the library"
+                    className="shrink-0 rounded-md p-1 text-slate-300 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </li>
+              ))}
+              {over && <li className="px-3 py-3 text-center text-xs font-semibold text-[#307c4c]">Drop to add</li>}
+            </ul>
+          )}
+        </section>
       </div>
-    </div>
-  );
-}
 
-function Filter({
-  label,
-  value,
-  onChange,
-  children,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <span className="sr-only">{label}</span>
-      <select aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} className={SELECT}>
-        {children}
-      </select>
-    </label>
+      {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+
+      {/* ── Recipients of the picked library supplier ── */}
+      {selected && inLibrary.has(selected) ? (
+        <SupplierPanel
+          key={selected}
+          code={selected}
+          me={me}
+          countryName={countryName}
+          onChange={async () => setLibrary(await getLibrary())}
+        />
+      ) : (
+        <div className={`${CARD} p-8 text-center text-sm text-slate-500`}>
+          {library.length
+            ? 'Pick a supplier in the library to edit who receives communications.'
+            : 'Once a supplier is in the library, its TO and CC recipients appear here.'}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -223,12 +308,12 @@ function SupplierPanel({
   code,
   me,
   countryName,
-  onLibraryChange,
+  onChange,
 }: {
   code: string;
   me: { name: string; email: string };
   countryName: string;
-  onLibraryChange: (code: string, inLibrary: boolean) => void;
+  onChange: () => void;
 }) {
   const [card, setCard] = useState<SupplierCard | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -256,10 +341,8 @@ function SupplierPanel({
         setError(r.error ?? 'Something went wrong.');
         return;
       }
-      if (r.card !== undefined) {
-        setCard(r.card);
-        if (r.card) onLibraryChange(code, Boolean(r.card.vendorId && r.card.active));
-      }
+      if (r.card !== undefined) setCard(r.card);
+      onChange();
       after?.();
     });
   }
@@ -275,14 +358,12 @@ function SupplierPanel({
     return <div className={`${CARD} p-10 text-center text-sm text-slate-500`}>That supplier is no longer in the SAP vendor master.</div>;
   }
 
-  const inLibrary = Boolean(card.vendorId && card.active);
   const addedTo = card.added.filter((c) => c.kind === 'to');
   const addedCc = card.added.filter((c) => c.kind === 'cc');
   const toCount = card.masterTo.length + addedTo.length;
 
   return (
     <section className={`${CARD} overflow-hidden`}>
-      {/* Header: the supplier */}
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
         <div className="flex min-w-0 items-start gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-500">
@@ -307,54 +388,36 @@ function SupplierPanel({
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          {inLibrary ? (
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => run(() => removeFromLibrary(code))}
-              className={`${BUTTON_SECONDARY} text-xs`}
-            >
-              <Trash2 className="h-3.5 w-3.5" /> Remove from library
-            </button>
-          ) : (
-            <button type="button" disabled={pending || toCount === 0} onClick={() => run(() => addToLibrary(code))} className={`${BUTTON} text-xs`}>
-              <Plus className="h-3.5 w-3.5" /> Add to {countryName} library
-            </button>
-          )}
-          <span className="text-[11px] text-slate-400">
-            {inLibrary ? `In the ${countryName} library` : toCount === 0 ? 'Add a TO email first' : 'Not in the library yet'}
-          </span>
-        </div>
+        <span className="inline-flex items-center gap-1 rounded-full bg-[#307c4c]/10 px-2.5 py-1 text-[11px] font-semibold text-[#1d4f31]">
+          <Check className="h-3 w-3" /> In the {countryName} library
+        </span>
       </div>
 
-      <div className="grid md:grid-cols-[minmax(0,1fr)_320px]">
-        {/* Left: what this means */}
+      <div className="grid md:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-4 px-5 py-4 text-sm text-slate-600">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-3 gap-3">
             <Stat label="TO recipients" value={String(toCount)} />
             <Stat label="CC recipients" value={String(addedCc.length + 1)} />
             <Stat label="Communications" value={String(card.communications)} hint={countryName} />
           </div>
+          {toCount === 0 && (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              SAP has no email for this supplier. Add a TO address so it can receive communications.
+            </p>
+          )}
           <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3 text-xs leading-relaxed text-slate-500">
             <p className="mb-2 font-semibold text-slate-600">How recipients work</p>
             <p className="flex items-center gap-2">
-              <span className="inline-block h-3 w-6 rounded bg-[#307c4c]" /> From the SAP vendor master. Removing one stops it for {countryName} only; SAP is not changed.
+              <span className="inline-block h-3 w-6 shrink-0 rounded bg-[#307c4c]" /> From the SAP vendor master. Removing one stops it for {countryName} only; SAP is not changed.
             </p>
             <p className="mt-1.5 flex items-center gap-2">
-              <span className="inline-block h-3 w-6 rounded border border-[#307c4c] bg-white" /> Added by your team. Remembered for the next communication to this supplier.
+              <span className="inline-block h-3 w-6 shrink-0 rounded border border-[#307c4c] bg-white" /> Added by your team. Remembered for the next communication to this supplier.
             </p>
             <p className="mt-1.5">You are always copied on what you send. Everyone in TO can respond for the supplier.</p>
           </div>
-          {!inLibrary && toCount > 0 && (
-            <p className="text-xs text-slate-500">
-              Add the supplier to the library to include it in new communications. Adding a recipient adds it too.
-            </p>
-          )}
           {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p>}
         </div>
 
-        {/* Right: recipients */}
         <aside className="border-t border-slate-100 bg-slate-50/40 md:border-l md:border-t-0">
           <div className="border-b border-slate-100 bg-white px-4 py-3">
             <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -366,7 +429,7 @@ function SupplierPanel({
               <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">To</p>
               <p className="mb-2 text-[11px] text-slate-400">Add or remove supplier emails</p>
               <div className="mb-2 flex min-h-[24px] flex-wrap gap-1.5">
-                {toCount === 0 && <p className="text-xs italic text-slate-400">No email in SAP. Add one below.</p>}
+                {toCount === 0 && <p className="text-xs italic text-slate-400">No recipients yet.</p>}
                 {card.masterTo.map((e) => (
                   <Pill key={e} solid label={e} disabled={pending} onRemove={() => run(() => hideMasterEmail(code, e))} />
                 ))}

@@ -5,14 +5,15 @@ import { AccessError, normalizeEmail } from '@/lib/require-access';
 import { logger } from '@/lib/logger';
 import { requireSafeSignCountry } from '@/lib/safesign/access';
 import { safesignPool, ensureSafeSignSchema } from '@/lib/safesign/db';
+import { isCentrallyBlocked } from '@/lib/sourceguide/blocked';
 import {
   getSupplierCard,
+  librarySuppliers,
   masterSuppliers,
   searchSuppliers,
   supplierCategoriesFor,
   type SupplierCard,
   type SupplierRow,
-  type SupplierSearch,
 } from '@/lib/safesign/suppliers';
 
 /**
@@ -36,19 +37,20 @@ function fail(err: unknown, event: string): CardResult {
   return { success: false, error: 'Something went wrong. Try again.' };
 }
 
-export async function searchLibrary(
-  input: Omit<SupplierSearch, 'countryId'>,
-): Promise<{ rows: SupplierRow[]; total: number }> {
+/** Active suppliers in the SAP vendor master, by name or code. */
+export async function searchLibrary(input: { q?: string; offset?: number }): Promise<{ rows: SupplierRow[]; total: number }> {
   const { country } = await requireSafeSignCountry();
   return searchSuppliers({
     countryId: country.id,
     q: String(input?.q ?? '').slice(0, 100),
-    scope: input?.scope === 'library' || input?.scope === 'bought' ? input.scope : 'all',
-    category: String(input?.category ?? '').slice(0, 100),
-    status: input?.status === 'active' || input?.status === 'blocked' ? input.status : '',
-    email: input?.email === 'with' || input?.email === 'without' ? input.email : '',
     offset: Number(input?.offset) || 0,
   });
+}
+
+/** The country's library, for the drop box. */
+export async function getLibrary(): Promise<SupplierRow[]> {
+  const { country } = await requireSafeSignCountry();
+  return librarySuppliers(country.id);
 }
 
 export async function loadSupplier(code: string): Promise<CardResult> {
@@ -64,6 +66,9 @@ export async function loadSupplier(code: string): Promise<CardResult> {
 async function ensureVendor(countryId: string, code: string, actorEmail: string): Promise<number> {
   const master = (await masterSuppliers([code])).get(code);
   if (!master) throw new AccessError('That supplier is not in the SAP vendor master.', 404);
+  if (isCentrallyBlocked(master.blockStatus)) {
+    throw new AccessError('That supplier is centrally blocked in SAP and cannot be added.');
+  }
   const categories = await supplierCategoriesFor(countryId, code);
   const { rows } = await safesignPool.query(
     `INSERT INTO ss_vendors (name, category, vendor_code, country_id, created_by)
@@ -82,6 +87,16 @@ async function vendorIdFor(countryId: string, code: string): Promise<number | nu
     [countryId, code],
   );
   return rows[0] ? Number(rows[0].id) : null;
+}
+
+/** Recipients can only be changed once the supplier is in the library. */
+async function libraryVendorId(countryId: string, code: string): Promise<number> {
+  const { rows } = await safesignPool.query(
+    `SELECT id FROM ss_vendors WHERE country_id = $1 AND vendor_code = $2 AND active`,
+    [countryId, code],
+  );
+  if (!rows[0]) throw new AccessError('Add the supplier to the library first.');
+  return Number(rows[0].id);
 }
 
 function done(countryId: string, code: string): Promise<CardResult> {
@@ -122,8 +137,8 @@ export async function removeFromLibrary(code: string): Promise<CardResult> {
 }
 
 /**
- * Add a recipient. Remembered for this supplier in this country, so the next communication to
- * them includes it. Adding a master email that was removed brings it back instead.
+ * Add a recipient to a library supplier. Remembered for this supplier in this country, so the
+ * next communication to them includes it. Adding a master email that was removed brings it back.
  */
 export async function addRecipient(input: { code: string; email: string; name?: string; kind: 'to' | 'cc' }): Promise<CardResult> {
   try {
@@ -137,7 +152,7 @@ export async function addRecipient(input: { code: string; email: string; name?: 
       return { success: false, error: 'You are always copied already.' };
     }
 
-    const vendorId = await ensureVendor(country.id, code, actor.email);
+    const vendorId = await libraryVendorId(country.id, code);
     const restored = await safesignPool.query(
       `DELETE FROM ss_vendor_contacts WHERE vendor_id = $1 AND kind = 'hidden' AND LOWER(email) = $2`,
       [vendorId, email],
@@ -182,7 +197,7 @@ export async function hideMasterEmail(code: string, email: string): Promise<Card
     const { actor, country } = await requireSafeSignCountry();
     await ensureSafeSignSchema();
     const e = normalizeEmail(email);
-    const vendorId = await ensureVendor(country.id, code, actor.email);
+    const vendorId = await libraryVendorId(country.id, code);
     await safesignPool.query(
       `INSERT INTO ss_vendor_contacts (vendor_id, email, kind, added_by)
        VALUES ($1, $2, 'hidden', $3) ON CONFLICT DO NOTHING`,

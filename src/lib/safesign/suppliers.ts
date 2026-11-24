@@ -20,17 +20,9 @@ const log = logger('safesign-suppliers');
 
 export const PAGE_SIZE = 25;
 
-export type LibraryScope = 'library' | 'bought' | 'all';
-export type StatusFilter = '' | 'active' | 'blocked';
-export type EmailFilter = '' | 'with' | 'without';
-
 export interface SupplierSearch {
   countryId: string;
   q?: string;
-  scope?: LibraryScope;
-  category?: string;
-  status?: StatusFilter;
-  email?: EmailFilter;
   offset?: number;
 }
 
@@ -76,14 +68,6 @@ export function splitEmails(raw: unknown): string[] {
   return out;
 }
 
-async function spendCountry(countryId: string): Promise<string | null> {
-  const { rows } = await safesignPool.query<QueryResultRow>(
-    `SELECT spend_country FROM ss_countries WHERE id = $1`,
-    [countryId],
-  );
-  return rows[0]?.spend_country ? String(rows[0].spend_country) : null;
-}
-
 async function libraryCodes(countryId: string): Promise<Set<string>> {
   const { rows } = await safesignPool.query<QueryResultRow>(
     `SELECT vendor_code FROM ss_vendors WHERE country_id = $1 AND active AND vendor_code IS NOT NULL`,
@@ -92,25 +76,9 @@ async function libraryCodes(countryId: string): Promise<Set<string>> {
   return new Set(rows.map((r) => String(r.vendor_code)));
 }
 
-/** Categories of work SourceGuide maps suppliers to in this country, for the filter. */
-export async function supplierCategories(countryId: string): Promise<string[]> {
-  try {
-    const { rows } = await sourceGuidePool.query<QueryResultRow>(
-      `SELECT DISTINCT category FROM sg_supplier_matrix
-        WHERE country_code = $1 AND category IS NOT NULL AND category <> '' ORDER BY category`,
-      [countryId],
-    );
-    return rows.map((r) => String(r.category));
-  } catch (err) {
-    log.error('supplierCategories.failed', err, { countryId });
-    return [];
-  }
-}
-
 /**
- * One page of suppliers matching the search and filters, by name or SAP code.
- * `scope`: 'library' (this country's library), 'bought' (bought from in this country, from
- * purchase history), 'all' (the whole vendor master).
+ * One page of ACTIVE suppliers (not centrally blocked in SAP) matching the search, by name or
+ * SAP code, each marked with whether it is already in this country's library.
  */
 export async function searchSuppliers(s: SupplierSearch): Promise<{ rows: SupplierRow[]; total: number }> {
   await ensureSafeSignSchema();
@@ -118,56 +86,20 @@ export async function searchSuppliers(s: SupplierSearch): Promise<{ rows: Suppli
   const offset = Math.max(0, Number(s.offset) || 0);
   const library = await libraryCodes(s.countryId);
 
-  const where: string[] = [];
-  const params: unknown[] = [];
-  const p = (v: unknown) => {
-    params.push(v);
-    return `$${params.length}`;
-  };
-
-  if (q) {
-    const exact = p(q);
-    const like = p(`%${q}%`);
-    where.push(`(a.supplier_code = ${exact} OR a.supplier_code ILIKE ${like} OR a.name ILIKE ${like})`);
-  }
-  if (s.scope === 'library') {
-    if (!library.size) return { rows: [], total: 0 };
-    where.push(`a.supplier_code = ANY(${p([...library])}::text[])`);
-  } else if (s.scope === 'bought') {
-    const spend = await spendCountry(s.countryId);
-    if (!spend) return { rows: [], total: 0 };
-    where.push(
-      `EXISTS (SELECT 1 FROM historic_spend h WHERE h.supplier = a.supplier_code AND h.country = ${p(spend)})`,
-    );
-  }
-  if (s.category) {
-    where.push(
-      `EXISTS (SELECT 1 FROM sg_supplier_matrix m WHERE m.supplier_code = a.supplier_code
-                 AND m.country_code = ${p(s.countryId)} AND m.category = ${p(s.category)})`,
-    );
-  }
-  if (s.status === 'active') where.push(`COALESCE(a.central_block_status, '') IN ('', 'Active')`);
-  if (s.status === 'blocked') where.push(`COALESCE(a.central_block_status, '') NOT IN ('', 'Active')`);
-  if (s.email === 'with') where.push(`COALESCE(a.email, '') LIKE '%@%'`);
-  if (s.email === 'without') where.push(`COALESCE(a.email, '') NOT LIKE '%@%'`);
-
-  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  const orderParam = p(q);
-  const limit = p(PAGE_SIZE);
-  const off = p(offset);
-
   try {
     const { rows } = await sourceGuidePool.query<QueryResultRow>(
       `SELECT a.supplier_code, a.name, COALESCE(a.email, '') AS email,
               COALESCE(a.central_block_status, '') AS central_block_status,
               COUNT(*) OVER () AS total
          FROM supplier_avl a
-         ${whereSql}
-        ORDER BY CASE WHEN a.supplier_code = ${orderParam} THEN 0
-                      WHEN ${orderParam} <> '' AND a.name ILIKE ${orderParam} || '%' THEN 1 ELSE 2 END,
+        WHERE COALESCE(a.central_block_status, '') IN ('', 'Active')
+          AND ($1 = '' OR a.supplier_code = $1 OR a.supplier_code ILIKE '%' || $1 || '%'
+               OR a.name ILIKE '%' || $1 || '%')
+        ORDER BY CASE WHEN a.supplier_code = $1 THEN 0
+                      WHEN $1 <> '' AND a.name ILIKE $1 || '%' THEN 1 ELSE 2 END,
                  a.name
-        LIMIT ${limit} OFFSET ${off}`,
-      params,
+        LIMIT $2 OFFSET $3`,
+      [q, PAGE_SIZE, offset],
     );
     return {
       total: rows.length ? Number(rows[0].total) : 0,
@@ -180,9 +112,33 @@ export async function searchSuppliers(s: SupplierSearch): Promise<{ rows: Suppli
       })),
     };
   } catch (err) {
-    log.error('searchSuppliers.failed', err, { countryId: s.countryId, scope: s.scope });
+    log.error('searchSuppliers.failed', err, { countryId: s.countryId });
     return { rows: [], total: 0 };
   }
+}
+
+/** This country's library, for the drop box: every active library supplier with its TO count. */
+export async function librarySuppliers(countryId: string): Promise<SupplierRow[]> {
+  await ensureSafeSignSchema();
+  const { rows } = await safesignPool.query<QueryResultRow>(
+    `SELECT id, vendor_code, name FROM ss_vendors
+      WHERE country_id = $1 AND active AND vendor_code IS NOT NULL ORDER BY name`,
+    [countryId],
+  );
+  const [master, recipients] = await Promise.all([
+    masterSuppliers(rows.map((r) => String(r.vendor_code))),
+    recipientsFor(rows.map((r) => Number(r.id))),
+  ]);
+  return rows.map((r) => {
+    const m = master.get(String(r.vendor_code));
+    return {
+      code: String(r.vendor_code),
+      name: m?.name || String(r.name),
+      blocked: isCentrallyBlocked(m?.blockStatus),
+      emailCount: recipients.get(Number(r.id))?.to.length ?? 0,
+      inLibrary: true,
+    };
+  });
 }
 
 export interface MasterSupplier {

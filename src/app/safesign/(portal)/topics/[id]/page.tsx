@@ -4,7 +4,8 @@ import { Download } from 'lucide-react';
 import { safesignPage } from '@/lib/safesign/page';
 import { topicMatrix } from '@/lib/safesign/read';
 import { formatDay, formatStamp } from '@/lib/safesign/model';
-import SafeSignShell, { BANNER_BUTTON_GHOST, CARD, Empty } from '../../../components/SafeSignShell';
+import SafeSignShell from '../../../components/SafeSignShell';
+import { BANNER_BUTTON_GHOST, CARD, Empty } from '../../../components/ui';
 import StatusPill from '../../../components/StatusPill';
 
 /** One topic: suppliers down the side, the topic's communications across the top. */
