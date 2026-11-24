@@ -34,10 +34,13 @@ export interface KpiDefinition {
   overview: boolean;
   /** The first year the KPI is no longer reported (owner's ruling). Earlier years stay viewable. */
   discontinuedFrom?: number;
+  /** Years the KPI is hidden for now but not discontinued (owner's ruling); other years are unaffected. */
+  pausedIn?: readonly number[];
 }
 
-/** Whether a KPI is still reported in a year. */
+/** Whether a KPI is reported in a year: not discontinued by then, and not paused that year. */
 export function activeIn(kpi: KpiDefinition, year: number): boolean {
+  if (kpi.pausedIn?.includes(year)) return false;
   return kpi.discontinuedFrom === undefined || year < kpi.discontinuedFrom;
 }
 
@@ -250,6 +253,8 @@ export const KPIS: readonly KpiDefinition[] = [
     ytd: 'none',
     frequency: 'monthly',
     overview: false,
+    /* Not tracked in 2026; the owner expects to start it next year (ruling of 24 Nov 2026). */
+    pausedIn: [2026],
   },
   {
     code: 'KPI - SOA Consolidation',

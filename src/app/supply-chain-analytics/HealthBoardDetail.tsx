@@ -240,7 +240,9 @@ export default function HealthBoardDetail({
           <h1 className="text-lg font-semibold tracking-tight">{page.title}</h1>
           {!activeIn(kpi, year) && (
             <p className="mt-1 inline-block rounded bg-white/15 px-2 py-0.5 text-[12px] font-medium">
-              Discontinued from {kpi.discontinuedFrom}: no longer reported. Earlier years remain.
+              {kpi.pausedIn?.includes(year)
+                ? `Not reported in ${year}.`
+                : `Discontinued from ${kpi.discontinuedFrom}: no longer reported. Earlier years remain.`}
             </p>
           )}
           <p className="text-sm text-white/85">{page.description}</p>

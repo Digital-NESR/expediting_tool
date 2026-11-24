@@ -55,6 +55,15 @@ describe('what is expected for a period', () => {
       false,
     );
   });
+
+  it('does not expect a KPI paused for the year, but does in other years', () => {
+    const qbr = [
+      v('KPI - QBR', 2025, 'March', 'Global', 4),
+      v('KPI - QBR', 2026, 'March', 'Global', 4),
+    ];
+    expect(expectedCells(qbr, 2026, 'March').some((c) => c.kpi.code === 'KPI - QBR')).toBe(false);
+    expect(expectedCells(qbr, 2025, 'March').some((c) => c.kpi.code === 'KPI - QBR')).toBe(true);
+  });
 });
 
 describe('the prefilled template', () => {

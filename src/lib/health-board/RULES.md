@@ -63,7 +63,7 @@ rejected, not guessed.
 | Entered (the `YTD` row; never calculated) | the six P&L KPIs: M&S, O&C, O&R, PC/PR, T&E, T&M                                                           |
 | Average of the quarters entered           | Inventory Reconciliation Accuracy, Inventory Reconciliation Aging, SOA Consolidation, SourceGuide Coverage |
 | Average of the months entered             | everything else on the board                                                                               |
-| None                                      | Supplier QBR                                                                                               |
+| None                                      | Supplier QBR (hidden in 2026: `pausedIn`, owner ruling of 24 Nov 2026)                                     |
 
 Blank values are skipped (as Power BI's AVERAGE skipped them). A quarterly KPI only takes values
 in March, June, September and December; an upload of one in another month is rejected.
@@ -180,6 +180,9 @@ written down per KPI in `procedures/` beside this file, so the next month is don
 - `procedures/supplier-count.md`: Supplier Count from the live "Active Suppliers by Purchase
   Organization" export (the same snapshot in missed months; Global given by the owner), via
   `scripts/health-board-suppliers-from-snapshot.mjs`.
+
+- `procedures/pir-coverage.md`: PIR Coverage, with countries from the "…By Country" export and Global
+  from the "…By Release Timeline" export, via `scripts/health-board-pir-from-export.mjs`.
 
 The Power BI "Export data" files (OTD, lead times, Slow Moving) are read by `scripts/lib/minimal-xlsx.mjs`.
 
