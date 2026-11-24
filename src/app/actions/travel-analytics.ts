@@ -230,7 +230,7 @@ export async function addTravelGrant(input: AddTravelGrantInput): Promise<Travel
 
     await addGrant({ email, role: input.role, country, createdBy: actor.email });
     revalidatePath('/admin/supply-chain-analytics');
-    revalidatePath('/supply-chain-analytics');
+    revalidatePath('/supply-chain-analytics', 'layout');
     return { success: true };
   } catch (err) {
     if (err instanceof AccessError) return forbidden(err.message);
@@ -246,7 +246,7 @@ export async function removeTravelGrant(id: number): Promise<TravelActionResult>
     const removed = await removeGrant(Number(id));
     if (!removed) return { success: false, error: 'That grant had already been removed.' };
     revalidatePath('/admin/supply-chain-analytics');
-    revalidatePath('/supply-chain-analytics');
+    revalidatePath('/supply-chain-analytics', 'layout');
     return { success: true };
   } catch (err) {
     if (err instanceof AccessError) return forbidden(err.message);

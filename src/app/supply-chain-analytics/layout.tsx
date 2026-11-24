@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
    employee could open it, and the fix was the same ADMIN_EMAILS rule as /admin.
    TWO DOORS NOW, because the page carries two boards with different audiences. A platform
    admin gets in as before, for the Power BI report. Anyone holding a Travel Portal grant also
-   gets in, for the travel board only — the page itself decides which tabs they see. Keeping
+   gets in, for the travel board only — each board decides who may open it (see sections.tsx). Keeping
    the old rule alone would have made the approved access model unreachable: a country finance
    reader would have been granted travel analytics and then refused at the door. */
 export default async function SupplyChainAnalyticsLayout({

@@ -73,24 +73,21 @@ export default function PurchaseOrderAnalyticsClient({
    * past-due board is behind a switch, so it is fetched the first time that switch is used and
    * refreshed thereafter only while it is the visible view.
    */
-  const apply = useCallback(
-    (next: PoFilters, opts?: { withPastDue?: boolean }) => {
-      setFilters(next);
-      startTransition(async () => {
-        const wantPast = opts?.withPastDue ?? false;
-        const [o, p] = await Promise.all([
-          fetchPurchaseOrderAnalytics(next),
-          wantPast ? fetchPastDueAnalysis(next) : Promise.resolve(undefined),
-        ]);
-        setOverview(o);
-        if (wantPast) {
-          setPast(p ?? null);
-          setPastLoaded(true);
-        }
-      });
-    },
-    [],
-  );
+  const apply = useCallback((next: PoFilters, opts?: { withPastDue?: boolean }) => {
+    setFilters(next);
+    startTransition(async () => {
+      const wantPast = opts?.withPastDue ?? false;
+      const [o, p] = await Promise.all([
+        fetchPurchaseOrderAnalytics(next),
+        wantPast ? fetchPastDueAnalysis(next) : Promise.resolve(undefined),
+      ]);
+      setOverview(o);
+      if (wantPast) {
+        setPast(p ?? null);
+        setPastLoaded(true);
+      }
+    });
+  }, []);
 
   const onFilterChange = useCallback(
     (next: PoFilters) => apply(next, { withPastDue: view === 'past-due' || pastLoaded }),
@@ -155,7 +152,11 @@ export default function PurchaseOrderAnalyticsClient({
       {/* Dimmed rather than replaced while refetching: the previous numbers stay readable and
           the layout does not jump, which matters when a reader is adjusting one filter at a
           time and comparing. */}
-      <div className={busy ? 'pointer-events-none opacity-50 transition-opacity' : 'transition-opacity'}>
+      <div
+        className={
+          busy ? 'pointer-events-none opacity-50 transition-opacity' : 'transition-opacity'
+        }
+      >
         {view === 'overview' ? (
           <OverviewBoard data={overview} />
         ) : !pastLoaded ? (
@@ -231,7 +232,8 @@ function Card({
    own value. Bars are scaled to the largest value in THIS list — each list is its own question
    ("which country is biggest") and nothing is compared across two of them. */
 function BarList({ rows, emptyNote }: { rows: DimensionSlice[]; emptyNote: string }) {
-  if (!rows.length) return <p className="py-8 text-center text-[13px] text-slate-400">{emptyNote}</p>;
+  if (!rows.length)
+    return <p className="py-8 text-center text-[13px] text-slate-400">{emptyNote}</p>;
   const ceiling = Math.max(1, ...rows.map((r) => r.valueUsd));
 
   return (
@@ -251,7 +253,10 @@ function BarList({ rows, emptyNote }: { rows: DimensionSlice[]; emptyNote: strin
             <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
               <div
                 className="h-full rounded-full"
-                style={{ width: `${Math.max(1, (r.valueUsd / ceiling) * 100)}%`, background: GREEN }}
+                style={{
+                  width: `${Math.max(1, (r.valueUsd / ceiling) * 100)}%`,
+                  background: GREEN,
+                }}
               />
             </div>
             <span className="w-20 shrink-0 text-right text-[11px] tabular-nums text-slate-400">
@@ -280,7 +285,10 @@ function OverviewBoard({ data }: { data: PurchaseOrderAnalytics | null }) {
   }
 
   const { totals, trend, delivery, adherence } = data;
-  const deliveryTotal = Math.max(1, delivery.reduce((s, d) => s + d.lines, 0));
+  const deliveryTotal = Math.max(
+    1,
+    delivery.reduce((s, d) => s + d.lines, 0),
+  );
   const topSupplierShare = data.bySupplier.length
     ? (data.bySupplier[0].valueUsd / Math.max(1, totals.valueUsd)) * 100
     : 0;
@@ -310,7 +318,11 @@ function OverviewBoard({ data }: { data: PurchaseOrderAnalytics | null }) {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
         <Stat label="PO value" value={usdCompact(totals.valueUsd)} note="Net order value, USD" />
         <Stat label="PO lines" value={int(totals.lines)} note={`${int(totals.orders)} orders`} />
-        <Stat label="Suppliers" value={int(totals.suppliers)} note={`${totals.countries} countries`} />
+        <Stat
+          label="Suppliers"
+          value={int(totals.suppliers)}
+          note={`${totals.countries} countries`}
+        />
         <Stat
           label="Open value"
           value={usdCompact(totals.openValueUsd)}
@@ -323,7 +335,9 @@ function OverviewBoard({ data }: { data: PurchaseOrderAnalytics | null }) {
         />
         <Stat
           label="Median lead time"
-          value={adherence.medianLeadDays === null ? '—' : `${Math.round(adherence.medianLeadDays)} d`}
+          value={
+            adherence.medianLeadDays === null ? '—' : `${Math.round(adherence.medianLeadDays)} d`
+          }
           note="PO release → delivery"
         />
       </div>
@@ -338,10 +352,7 @@ function OverviewBoard({ data }: { data: PurchaseOrderAnalytics | null }) {
 
       {/* ── Delivery state + schedule adherence ── */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card
-          title="Delivery status"
-          sub="Every PO line by how much of it has been received."
-        >
+        <Card title="Delivery status" sub="Every PO line by how much of it has been received.">
           <div className="space-y-3">
             {/* Stacked share bar. 2px surface gaps between segments so adjacent fills never
                 touch, and each segment is labelled — the amber does not clear 3:1 against the
@@ -361,7 +372,10 @@ function OverviewBoard({ data }: { data: PurchaseOrderAnalytics | null }) {
             </div>
             <ul className="space-y-2">
               {delivery.map((d) => (
-                <li key={d.status} className="flex items-center justify-between gap-3 text-[12.5px]">
+                <li
+                  key={d.status}
+                  className="flex items-center justify-between gap-3 text-[12.5px]"
+                >
                   <span className="flex min-w-0 items-center gap-2">
                     <span
                       className="h-2.5 w-2.5 shrink-0 rounded-sm"
@@ -390,7 +404,9 @@ function OverviewBoard({ data }: { data: PurchaseOrderAnalytics | null }) {
             <span className="text-3xl font-bold tabular-nums tracking-tight text-slate-900">
               {adherence.pctOnTime.toFixed(1)}%
             </span>
-            <span className="text-[12.5px] text-slate-400">delivered on or before the date asked for</span>
+            <span className="text-[12.5px] text-slate-400">
+              delivered on or before the date asked for
+            </span>
           </div>
           <div className="mt-4 flex gap-0.5 overflow-hidden rounded-lg">
             <div
@@ -410,21 +426,25 @@ function OverviewBoard({ data }: { data: PurchaseOrderAnalytics | null }) {
                 <span className="h-2.5 w-2.5 rounded-sm" style={{ background: GREEN }} />
                 On or before
               </span>
-              <span className="tabular-nums font-semibold text-slate-900">{int(adherence.onTime)}</span>
+              <span className="tabular-nums font-semibold text-slate-900">
+                {int(adherence.onTime)}
+              </span>
             </li>
             <li className="flex items-center justify-between">
               <span className="flex items-center gap-2 text-slate-700">
                 <span className="h-2.5 w-2.5 rounded-sm" style={{ background: '#B34141' }} />
                 Late
               </span>
-              <span className="tabular-nums font-semibold text-slate-900">{int(adherence.late)}</span>
+              <span className="tabular-nums font-semibold text-slate-900">
+                {int(adherence.late)}
+              </span>
             </li>
           </ul>
           {/* The reader will ask why this is not measured against the supplier's promise. */}
           <p className="mt-3 border-t border-slate-100 pt-3 text-[11.5px] leading-relaxed text-slate-400">
             Measured against the requested delivery date, not the supplier promise date — in this
-            extract the promise date is a copy of the actual delivery date on every row, so it
-            would report 100% on time.
+            extract the promise date is a copy of the actual delivery date on every row, so it would
+            report 100% on time.
           </p>
         </Card>
       </div>
@@ -455,7 +475,10 @@ function OverviewBoard({ data }: { data: PurchaseOrderAnalytics | null }) {
         </Card>
       </div>
 
-      <Card title="Spend by material type" sub="How the book splits between services, products and spares.">
+      <Card
+        title="Spend by material type"
+        sub="How the book splits between services, products and spares."
+      >
         <BarList rows={data.byMaterialType} emptyNote="No material type data." />
       </Card>
     </div>

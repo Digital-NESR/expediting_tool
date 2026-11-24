@@ -138,7 +138,9 @@ export function PastDueDonut({ dueIn, pastDue }: { dueIn: number; pastDue: numbe
   const total = dueIn + pastDue;
   if (!total) {
     return (
-      <p className="py-20 text-center text-[13px] text-slate-400">No open PO lines in this selection.</p>
+      <p className="py-20 text-center text-[13px] text-slate-400">
+        No open PO lines in this selection.
+      </p>
     );
   }
   const data = [
@@ -190,8 +192,8 @@ export function PastDueDonut({ dueIn, pastDue }: { dueIn: number; pastDue: numbe
               {d.name}
             </span>
             <span className="text-[12.5px] tabular-nums text-slate-400">
-              <span className="font-semibold text-slate-900">{d.value.toLocaleString()}</span>{' '}
-              ({pct(d.value)})
+              <span className="font-semibold text-slate-900">{d.value.toLocaleString()}</span> (
+              {pct(d.value)})
             </span>
           </li>
         ))}
@@ -221,7 +223,12 @@ export function PastDueByCountry({ rows }: { rows: CountrySplit[] }) {
 
   return (
     <ResponsiveContainer width="100%" height={Math.max(280, data.length * 34)}>
-      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 4 }} barCategoryGap="22%">
+      <BarChart
+        data={data}
+        layout="vertical"
+        margin={{ top: 4, right: 16, bottom: 4, left: 4 }}
+        barCategoryGap="22%"
+      >
         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
         <XAxis
           type="number"
@@ -250,7 +257,10 @@ export function PastDueByCountry({ rows }: { rows: CountrySplit[] }) {
           formatter={(value: unknown, name: unknown, item: unknown) => {
             const row = (item as { payload?: (typeof data)[number] })?.payload;
             const lines = name === 'Past Due' ? row?.pastDue : row?.dueIn;
-            return [`${Number(value).toFixed(1)}% · ${(lines ?? 0).toLocaleString()} lines`, String(name)];
+            return [
+              `${Number(value).toFixed(1)}% · ${(lines ?? 0).toLocaleString()} lines`,
+              String(name),
+            ];
           }}
           labelFormatter={(label: unknown, items: readonly unknown[]) => {
             const row = (items?.[0] as { payload?: (typeof data)[number] })?.payload;
@@ -266,7 +276,14 @@ export function PastDueByCountry({ rows }: { rows: CountrySplit[] }) {
           wrapperStyle={{ fontSize: 12, color: '#475569' }}
         />
         {/* 2px surface gap between the two segments of each bar. */}
-        <Bar dataKey="dueInPct" stackId="s" name="Due In" fill={DUE_IN} stroke="#ffffff" strokeWidth={2} />
+        <Bar
+          dataKey="dueInPct"
+          stackId="s"
+          name="Due In"
+          fill={DUE_IN}
+          stroke="#ffffff"
+          strokeWidth={2}
+        />
         <Bar
           dataKey="pastDuePct"
           stackId="s"

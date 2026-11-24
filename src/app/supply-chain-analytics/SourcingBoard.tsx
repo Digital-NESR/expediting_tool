@@ -55,11 +55,26 @@ type SortKey = 'rank' | 'spend' | 'savings' | 'orders' | 'suppliers' | 'country'
 
 /* ─── Small shared pieces ─────────────────────────────────────────────────── */
 
-function Stat({ label, value, note, tone }: { label: string; value: string; note?: string; tone?: string }) {
+function Stat({
+  label,
+  value,
+  note,
+  tone,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+  tone?: string;
+}) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</div>
-      <div className="mt-1.5 text-2xl font-bold tabular-nums tracking-tight" style={{ color: tone ?? '#0f172a' }}>
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        {label}
+      </div>
+      <div
+        className="mt-1.5 text-2xl font-bold tabular-nums tracking-tight"
+        style={{ color: tone ?? '#0f172a' }}
+      >
         {value}
       </div>
       {note && <div className="mt-0.5 text-[11.5px] text-slate-400">{note}</div>}
@@ -84,7 +99,10 @@ function TypeBadge({ type }: { type: ProjectType }) {
 function Savings({ p }: { p: SourcingProject }) {
   if (p.savingsUsd === null) {
     return (
-      <span className="text-[12.5px] text-slate-400" title="No second supplier to benchmark against">
+      <span
+        className="text-[12.5px] text-slate-400"
+        title="No second supplier to benchmark against"
+      >
         — no benchmark
       </span>
     );
@@ -92,7 +110,9 @@ function Savings({ p }: { p: SourcingProject }) {
   return (
     <span className="tabular-nums">
       <span className="font-semibold text-slate-900">{usdCompact(p.savingsUsd)}</span>
-      {p.savingsPct !== null && <span className="ml-1 text-[11.5px] text-slate-400">{p.savingsPct.toFixed(0)}%</span>}
+      {p.savingsPct !== null && (
+        <span className="ml-1 text-[11.5px] text-slate-400">{p.savingsPct.toFixed(0)}%</span>
+      )}
       {p.savingsConfidence === 'indicative' && (
         <span
           className="ml-1.5 text-[10.5px] text-amber-600"
@@ -194,20 +214,48 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
 
   const exportCsv = useCallback(() => {
     const head = [
-      'Type', 'Country', 'Item', 'Material', 'Material group', 'Owner',
-      'Orders', 'Lines', 'Suppliers', 'Spend USD', 'Min unit USD', 'Max unit USD',
-      'Price CV', 'Savings USD', 'Savings %', 'Confidence', 'Info record',
-      'First purchase', 'Last purchase', 'Suppliers (name:avg USD)', 'Rationale',
+      'Type',
+      'Country',
+      'Item',
+      'Material',
+      'Material group',
+      'Owner',
+      'Orders',
+      'Lines',
+      'Suppliers',
+      'Spend USD',
+      'Min unit USD',
+      'Max unit USD',
+      'Price CV',
+      'Savings USD',
+      'Savings %',
+      'Confidence',
+      'Info record',
+      'First purchase',
+      'Last purchase',
+      'Suppliers (name:avg USD)',
+      'Rationale',
     ];
     const rows = projects.map((p) => [
-      PROJECT_TYPE_LABEL[p.type], p.country, p.title, p.material ?? '', p.materialGroup ?? '', p.owner ?? '',
-      p.purchaseOrders, p.lines, p.supplierCount, Math.round(p.spendUsd),
-      p.minUnitPriceUsd ?? '', p.maxUnitPriceUsd ?? '',
+      PROJECT_TYPE_LABEL[p.type],
+      p.country,
+      p.title,
+      p.material ?? '',
+      p.materialGroup ?? '',
+      p.owner ?? '',
+      p.purchaseOrders,
+      p.lines,
+      p.supplierCount,
+      Math.round(p.spendUsd),
+      p.minUnitPriceUsd ?? '',
+      p.maxUnitPriceUsd ?? '',
       p.priceCv === null ? '' : p.priceCv.toFixed(3),
       p.savingsUsd === null ? '' : Math.round(p.savingsUsd),
       p.savingsPct === null ? '' : p.savingsPct.toFixed(1),
-      p.savingsConfidence, p.infoRecord ?? '',
-      p.firstPurchase ?? '', p.lastPurchase ?? '',
+      p.savingsConfidence,
+      p.infoRecord ?? '',
+      p.firstPurchase ?? '',
+      p.lastPurchase ?? '',
       p.suppliers.map((s) => `${s.name}:${s.avgUnitPriceUsd.toFixed(2)}`).join('; '),
       p.rationale,
     ]);
@@ -243,7 +291,8 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
       <div className="rounded-2xl border border-slate-200 bg-white py-20 text-center">
         <p className="text-[15px] font-semibold text-slate-900">Sourcing analysis unavailable</p>
         <p className="mx-auto mt-1 max-w-md text-[13px] leading-relaxed text-slate-500">
-          The SAP extract warehouse could not be reached. The other boards on this page are unaffected.
+          The SAP extract warehouse could not be reached. The other boards on this page are
+          unaffected.
         </p>
       </div>
     );
@@ -266,8 +315,14 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
         onReset={() => apply({ ...req, filters: DEFAULT_REQUEST.filters })}
         busy={busy}
         activeCount={
-          [req.filters.accountClassification, req.filters.segment, req.filters.country,
-           req.filters.purchasingOrg, req.filters.supplier, req.filters.buyer].filter((l) => l.length).length
+          [
+            req.filters.accountClassification,
+            req.filters.segment,
+            req.filters.country,
+            req.filters.purchasingOrg,
+            req.filters.supplier,
+            req.filters.buyer,
+          ].filter((l) => l.length).length
         }
       />
 
@@ -275,7 +330,9 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-slate-500">Qualification</label>
+            <label className="mb-1 block text-[11px] font-medium text-slate-500">
+              Qualification
+            </label>
             <div className="flex flex-wrap gap-1">
               {(Object.keys(PRESET_LABEL) as Preset[]).map((p) => (
                 <button
@@ -332,7 +389,9 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
           </div>
 
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-slate-500">Project type</label>
+            <label className="mb-1 block text-[11px] font-medium text-slate-500">
+              Project type
+            </label>
             <div className="flex flex-wrap gap-1">
               {(Object.keys(PROJECT_TYPE_LABEL) as ProjectType[]).map((t) => {
                 const on = req.types.includes(t);
@@ -341,10 +400,15 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
                     key={t}
                     type="button"
                     onClick={() =>
-                      apply({ ...req, types: on ? req.types.filter((x) => x !== t) : req.types.concat([t]) })
+                      apply({
+                        ...req,
+                        types: on ? req.types.filter((x) => x !== t) : req.types.concat([t]),
+                      })
                     }
                     className={`rounded-lg border px-2.5 py-1.5 text-[12px] font-semibold transition-colors ${
-                      on ? 'border-[#307c4c] bg-[#307c4c] text-white' : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                      on
+                        ? 'border-[#307c4c] bg-[#307c4c] text-white'
+                        : 'border-slate-200 text-slate-600 hover:border-slate-300'
                     }`}
                   >
                     {PROJECT_TYPE_LABEL[t]}
@@ -376,18 +440,28 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
 
         {servicesBlocked && (
           <p className="mt-3 border-t border-slate-100 pt-3 text-[11.5px] leading-relaxed text-amber-700">
-            Service clusters are grouped by description, which collapses supplier, buyer, purchasing org and
-            account classification. With one of those filters active they cannot be narrowed honestly, so they
-            are left out rather than shown contradicting your selection.
+            Service clusters are grouped by description, which collapses supplier, buyer, purchasing
+            org and account classification. With one of those filters active they cannot be narrowed
+            honestly, so they are left out rather than shown contradicting your selection.
           </p>
         )}
       </div>
 
-      <div className={busy ? 'pointer-events-none space-y-4 opacity-50 transition-opacity' : 'space-y-4 transition-opacity'}>
+      <div
+        className={
+          busy
+            ? 'pointer-events-none space-y-4 opacity-50 transition-opacity'
+            : 'space-y-4 transition-opacity'
+        }
+      >
         {/* ── Headline ── */}
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
           <Stat label="Projects" value={int(s.projects)} note={`${s.byCountry.length} countries`} />
-          <Stat label="Addressable spend" value={usdCompact(s.addressableSpendUsd)} note="Covered by these projects" />
+          <Stat
+            label="Addressable spend"
+            value={usdCompact(s.addressableSpendUsd)}
+            note="Covered by these projects"
+          />
           <Stat
             label="Identified savings"
             value={usdCompact(s.identifiedSavingsUsd)}
@@ -398,7 +472,11 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
             }
             tone="#307c4c"
           />
-          <Stat label="Spend examined" value={usdCompact(s.examinedSpendUsd)} note="Before thresholds" />
+          <Stat
+            label="Spend examined"
+            value={usdCompact(s.examinedSpendUsd)}
+            note="Before thresholds"
+          />
           <Stat
             label="Contract coverage"
             value={s.pirCoveragePct === null ? '—' : `${s.pirCoveragePct.toFixed(0)}%`}
@@ -408,9 +486,12 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
 
         <div className="grid gap-4 lg:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 lg:col-span-2">
-            <h3 className="text-sm font-bold tracking-tight text-slate-900">Where the opportunity sits</h3>
+            <h3 className="text-sm font-bold tracking-tight text-slate-900">
+              Where the opportunity sits
+            </h3>
             <p className="mt-0.5 text-[12px] text-slate-400">
-              Identified savings by country. Countries with no benchmarkable project are absent, not zero.
+              Identified savings by country. Countries with no benchmarkable project are absent, not
+              zero.
             </p>
             <div className="mt-4">
               <SavingsByCountry rows={s.byCountry} />
@@ -429,7 +510,9 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
                       <span className="font-semibold text-slate-900">{s.byType[t].projects}</span> ·{' '}
                       {usdCompact(s.byType[t].spendUsd)}
                       {s.byType[t].savingsUsd > 0 && (
-                        <span className="ml-1 text-[#307c4c]">→ {usdCompact(s.byType[t].savingsUsd)}</span>
+                        <span className="ml-1 text-[#307c4c]">
+                          → {usdCompact(s.byType[t].savingsUsd)}
+                        </span>
                       )}
                     </span>
                   </li>
@@ -443,7 +526,10 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
                 </h4>
                 <ul className="mt-2 space-y-1.5">
                   {s.excluded.map((e) => (
-                    <li key={e.reason} className="flex items-start justify-between gap-2 text-[11.5px]">
+                    <li
+                      key={e.reason}
+                      className="flex items-start justify-between gap-2 text-[11.5px]"
+                    >
                       <span className="text-slate-500">{e.reason}</span>
                       <span className="shrink-0 tabular-nums text-slate-400">
                         {e.groups} · {usdCompact(e.spendUsd)}
@@ -460,7 +546,9 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
             <div>
-              <h3 className="text-sm font-bold tracking-tight text-slate-900">Candidate projects</h3>
+              <h3 className="text-sm font-bold tracking-tight text-slate-900">
+                Candidate projects
+              </h3>
               <p className="mt-0.5 text-[12px] text-slate-400">
                 {int(projects.length)} shown · click a row for the evidence
               </p>
@@ -507,7 +595,10 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
                           <TypeBadge type={p.type} />
-                          <span className="truncate text-[13px] font-semibold text-slate-900" title={p.title}>
+                          <span
+                            className="truncate text-[13px] font-semibold text-slate-900"
+                            title={p.title}
+                          >
                             {p.title}
                           </span>
                           {p.infoRecord && (
@@ -522,7 +613,9 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
                         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11.5px] text-slate-400">
                           <span className="font-medium text-slate-500">{p.country}</span>
                           <span>{p.purchaseOrders} orders</span>
-                          <span>{p.supplierCount} supplier{p.supplierCount === 1 ? '' : 's'}</span>
+                          <span>
+                            {p.supplierCount} supplier{p.supplierCount === 1 ? '' : 's'}
+                          </span>
                           {p.materialGroup && <span className="truncate">{p.materialGroup}</span>}
                           {p.owner && <span className="truncate">· {p.owner}</span>}
                         </div>
@@ -531,7 +624,9 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
                         <div className="text-[13px] font-semibold tabular-nums text-slate-900">
                           {usdCompact(p.spendUsd)}
                         </div>
-                        <div className="mt-0.5"><Savings p={p} /></div>
+                        <div className="mt-0.5">
+                          <Savings p={p} />
+                        </div>
                       </div>
                     </button>
 
@@ -545,8 +640,18 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
                         title="Excel workbook: the analysis, the supplier spread, the price history and every PO line behind it"
                         className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1 text-[11.5px] font-semibold text-slate-600 transition-colors hover:border-[#307c4c] hover:text-[#307c4c] disabled:opacity-50"
                       >
-                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" />
+                        <svg
+                          className="h-3.5 w-3.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"
+                          />
                         </svg>
                         {downloading === p.id ? 'Building…' : 'Evidence pack'}
                       </button>
@@ -554,7 +659,9 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
 
                     {open && (
                       <div className="border-t border-slate-100 bg-slate-50 px-5 py-4">
-                        <p className="text-[12.5px] leading-relaxed text-slate-700">{p.rationale}</p>
+                        <p className="text-[12.5px] leading-relaxed text-slate-700">
+                          {p.rationale}
+                        </p>
 
                         <div className="mt-4 grid gap-4 md:grid-cols-2">
                           <div>
@@ -563,9 +670,14 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
                             </h4>
                             <ul className="mt-2 space-y-1.5">
                               {p.suppliers.map((sup) => (
-                                <li key={sup.supplierNum} className="flex items-center justify-between gap-3 text-[12px]">
+                                <li
+                                  key={sup.supplierNum}
+                                  className="flex items-center justify-between gap-3 text-[12px]"
+                                >
                                   <span className="flex min-w-0 items-center gap-1.5">
-                                    <span className="truncate text-slate-700" title={sup.name}>{sup.name}</span>
+                                    <span className="truncate text-slate-700" title={sup.name}>
+                                      {sup.name}
+                                    </span>
                                     {sup.isCheapest && (
                                       <span className="shrink-0 rounded bg-[#307c4c]/10 px-1.5 py-0.5 text-[10px] font-semibold text-[#307c4c]">
                                         benchmark
@@ -573,7 +685,9 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
                                     )}
                                   </span>
                                   <span className="shrink-0 tabular-nums text-slate-400">
-                                    {sup.avgUnitPriceUsd > 0 && <>${sup.avgUnitPriceUsd.toFixed(2)} · </>}
+                                    {sup.avgUnitPriceUsd > 0 && (
+                                      <>${sup.avgUnitPriceUsd.toFixed(2)} · </>
+                                    )}
                                     {usdCompact(sup.spendUsd)}
                                   </span>
                                 </li>
@@ -587,34 +701,57 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
                             </h4>
                             <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
                               {p.material && (
-                                <><dt className="text-slate-400">Material</dt>
-                                  <dd className="font-mono text-[11px] text-slate-700">{p.material}</dd></>
+                                <>
+                                  <dt className="text-slate-400">Material</dt>
+                                  <dd className="font-mono text-[11px] text-slate-700">
+                                    {p.material}
+                                  </dd>
+                                </>
                               )}
                               <dt className="text-slate-400">Period</dt>
-                              <dd className="text-slate-700">{p.firstPurchase ?? '—'} → {p.lastPurchase ?? '—'}</dd>
+                              <dd className="text-slate-700">
+                                {p.firstPurchase ?? '—'} → {p.lastPurchase ?? '—'}
+                              </dd>
                               <dt className="text-slate-400">Lines</dt>
                               <dd className="tabular-nums text-slate-700">{int(p.lines)}</dd>
                               {p.minUnitPriceUsd !== null && (
-                                <><dt className="text-slate-400">Unit price</dt>
+                                <>
+                                  <dt className="text-slate-400">Unit price</dt>
                                   <dd className="tabular-nums text-slate-700">
-                                    ${p.minUnitPriceUsd.toFixed(2)} – ${(p.maxUnitPriceUsd ?? 0).toFixed(2)}
-                                    {p.orderUnit && <span className="text-slate-400"> / {p.orderUnit}</span>}
-                                  </dd></>
+                                    ${p.minUnitPriceUsd.toFixed(2)} – $
+                                    {(p.maxUnitPriceUsd ?? 0).toFixed(2)}
+                                    {p.orderUnit && (
+                                      <span className="text-slate-400"> / {p.orderUnit}</span>
+                                    )}
+                                  </dd>
+                                </>
                               )}
                               {p.priceCv !== null && (
-                                <><dt className="text-slate-400">Variation</dt>
-                                  <dd className="tabular-nums text-slate-700">{(p.priceCv * 100).toFixed(0)}%</dd></>
+                                <>
+                                  <dt className="text-slate-400">Variation</dt>
+                                  <dd className="tabular-nums text-slate-700">
+                                    {(p.priceCv * 100).toFixed(0)}%
+                                  </dd>
+                                </>
                               )}
                               {p.contractPriceUsd !== null && (
-                                <><dt className="text-slate-400">Contract price</dt>
+                                <>
+                                  <dt className="text-slate-400">Contract price</dt>
                                   <dd className="tabular-nums text-slate-700">
                                     ${p.contractPriceUsd.toFixed(2)}
-                                    {p.contractExpired && <span className="ml-1 text-amber-600">expired</span>}
-                                  </dd></>
+                                    {p.contractExpired && (
+                                      <span className="ml-1 text-amber-600">expired</span>
+                                    )}
+                                  </dd>
+                                </>
                               )}
                               {p.categorySupplierCount !== null && (
-                                <><dt className="text-slate-400">Category suppliers</dt>
-                                  <dd className="tabular-nums text-slate-700">{p.categorySupplierCount}</dd></>
+                                <>
+                                  <dt className="text-slate-400">Category suppliers</dt>
+                                  <dd className="tabular-nums text-slate-700">
+                                    {p.categorySupplierCount}
+                                  </dd>
+                                </>
                               )}
                             </dl>
                           </div>
@@ -630,15 +767,28 @@ export default function SourcingBoard({ options }: { options: PoFilterOptions })
 
         {/* ── Provenance and the standing caveats ── */}
         <p className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[11.5px] leading-relaxed text-slate-500">
-          Savings compare what was paid against the <span className="font-semibold text-slate-600">cheapest
-          supplier&rsquo;s spend-weighted average</span> for the same item in the same country — not against the
-          lowest single price, which is usually one lucky order. Projects with a single supplier carry no
-          benchmark and show a dash rather than zero. Contract comparison reaches only the share of material
-          spend shown above, so leakage figures are a floor, not a total. Service clusters are grouped by
+          Savings compare what was paid against the{' '}
+          <span className="font-semibold text-slate-600">
+            cheapest supplier&rsquo;s spend-weighted average
+          </span>{' '}
+          for the same item in the same country — not against the lowest single price, which is
+          usually one lucky order. Projects with a single supplier carry no benchmark and show a
+          dash rather than zero. Contract comparison reaches only the share of material spend shown
+          above, so leakage figures are a floor, not a total. Service clusters are grouped by
           description and carry no comparable unit price; treat their scope as indicative.
           {analysis.loadedAt && (
-            <> Warehouse refreshed {new Date(analysis.loadedAt).toLocaleString('en-GB', {
-              day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })}.</>
+            <>
+              {' '}
+              Warehouse refreshed{' '}
+              {new Date(analysis.loadedAt).toLocaleString('en-GB', {
+                day: '2-digit',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+              })}
+              .
+            </>
           )}
         </p>
       </div>

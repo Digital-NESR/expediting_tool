@@ -42,7 +42,7 @@ export default async function TravellerPage({
     <div className="min-h-screen bg-gray-50 font-sans text-slate-900">
       <header className="flex h-14 shrink-0 items-center gap-4 border-b border-gray-200 bg-white px-6">
         <Link
-          href="/supply-chain-analytics"
+          href="/supply-chain-analytics/travel"
           className="flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800"
         >
           <ArrowLeft className="h-4 w-4" />

@@ -5,15 +5,7 @@
    demand, and one place where the palette is decided. Everything that reads better as a
    labelled row is plain Tailwind in SourcingBoard.tsx instead. ─── */
 
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { ProjectType, SourcingSummary } from '@/lib/sourcing/types';
 
 export const GREEN = '#307c4c';
@@ -64,7 +56,12 @@ export function SavingsByCountry({ rows }: { rows: SourcingSummary['byCountry'] 
 
   return (
     <ResponsiveContainer width="100%" height={Math.max(220, data.length * 32)}>
-      <BarChart data={data} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 4 }} barCategoryGap="24%">
+      <BarChart
+        data={data}
+        layout="vertical"
+        margin={{ top: 4, right: 16, bottom: 4, left: 4 }}
+        barCategoryGap="24%"
+      >
         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
         <XAxis
           type="number"

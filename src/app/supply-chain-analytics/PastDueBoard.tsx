@@ -10,14 +10,32 @@
  */
 
 import type { PastDueAnalysis } from '@/lib/purchase-orders/past-due';
-import { DUE_IN, PAST_DUE, PastDueByCountry, PastDueDonut, usdCompact } from './PurchaseOrderCharts';
+import {
+  DUE_IN,
+  PAST_DUE,
+  PastDueByCountry,
+  PastDueDonut,
+  usdCompact,
+} from './PurchaseOrderCharts';
 
 const int = (n: number) => n.toLocaleString();
 
-function Stat({ label, value, note, tone }: { label: string; value: string; note?: string; tone?: string }) {
+function Stat({
+  label,
+  value,
+  note,
+  tone,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+  tone?: string;
+}) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</div>
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+        {label}
+      </div>
       <div
         className="mt-1.5 text-2xl font-bold tabular-nums tracking-tight"
         style={{ color: tone ?? '#0f172a' }}
@@ -29,7 +47,15 @@ function Stat({ label, value, note, tone }: { label: string; value: string; note
   );
 }
 
-function Card({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
+function Card({
+  title,
+  sub,
+  children,
+}: {
+  title: string;
+  sub?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5">
       <h3 className="text-sm font-bold tracking-tight text-slate-900">{title}</h3>
@@ -56,7 +82,9 @@ export default function PastDueBoard({ data }: { data: PastDueAnalysis | null })
   if (!totals.lines) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white py-20 text-center">
-        <p className="text-[15px] font-semibold text-slate-900">No open PO lines match these filters</p>
+        <p className="text-[15px] font-semibold text-slate-900">
+          No open PO lines match these filters
+        </p>
         <p className="mx-auto mt-1 max-w-md text-[13px] leading-relaxed text-slate-500">
           Widen the selection above to see past-due analysis.
         </p>
@@ -69,14 +97,28 @@ export default function PastDueBoard({ data }: { data: PastDueAnalysis | null })
   /* Countries worst-first: the chart is read for where the problem is, not for volume. A
      country with a handful of lines is noise, so the long tail keeps its order but the ones
      being judged have enough lines to mean something. */
-  const countryRows = [...byCountry].sort((a, b) => b.pastDuePct - a.pastDuePct || b.total - a.total);
+  const countryRows = [...byCountry].sort(
+    (a, b) => b.pastDuePct - a.pastDuePct || b.total - a.total,
+  );
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
-        <Stat label="Net PO released value" value={usdCompact(totals.netValueUsd)} note="Open lines, USD" />
-        <Stat label="Net PO line count" value={int(totals.lines)} note={`${int(totals.orders)} orders`} />
-        <Stat label="Still to receive" value={usdCompact(totals.openValueUsd)} note="Undelivered portion" />
+        <Stat
+          label="Net PO released value"
+          value={usdCompact(totals.netValueUsd)}
+          note="Open lines, USD"
+        />
+        <Stat
+          label="Net PO line count"
+          value={int(totals.lines)}
+          note={`${int(totals.orders)} orders`}
+        />
+        <Stat
+          label="Still to receive"
+          value={usdCompact(totals.openValueUsd)}
+          note="Undelivered portion"
+        />
         <Stat
           label="Past due lines"
           value={int(totals.pastDueLines)}
@@ -94,7 +136,10 @@ export default function PastDueBoard({ data }: { data: PastDueAnalysis | null })
 
       <div className="grid gap-4 lg:grid-cols-5">
         <div className="lg:col-span-2">
-          <Card title="% PO lines by delivery due group" sub="Every open PO line, split by whether its delivery date has passed.">
+          <Card
+            title="% PO lines by delivery due group"
+            sub="Every open PO line, split by whether its delivery date has passed."
+          >
             <PastDueDonut dueIn={totals.dueInLines} pastDue={totals.pastDueLines} />
           </Card>
         </div>
@@ -133,14 +178,22 @@ export default function PastDueBoard({ data }: { data: PastDueAnalysis | null })
             ))}
           </ol>
           <p className="mt-3 border-t border-slate-100 pt-3 text-[11.5px] text-slate-400">
-            <span className="inline-block h-2 w-2 rounded-sm align-middle" style={{ background: DUE_IN }} />{' '}
+            <span
+              className="inline-block h-2 w-2 rounded-sm align-middle"
+              style={{ background: DUE_IN }}
+            />{' '}
             {int(totals.dueInLines)} lines are still within their delivery date.
           </p>
         </Card>
 
-        <Card title="Suppliers with the most value past due" sub="Top 10 by past-due net order value.">
+        <Card
+          title="Suppliers with the most value past due"
+          sub="Top 10 by past-due net order value."
+        >
           {worstSuppliers.length === 0 ? (
-            <p className="py-8 text-center text-[13px] text-slate-400">Nothing past due in this selection.</p>
+            <p className="py-8 text-center text-[13px] text-slate-400">
+              Nothing past due in this selection.
+            </p>
           ) : (
             <ol className="space-y-2.5">
               {worstSuppliers.map((s) => (
