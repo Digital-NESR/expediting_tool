@@ -78,6 +78,22 @@ Against the numeric Target for that KPI, year and country:
 - red: misses it by more;
 - none: no target, no YTD, or no direction.
 
+## Detail pages
+
+- One page per KPI with data: Power BI's 25 KPI pages plus P&L (T&E), PO Value < 250 $ and
+  SourceGuide Coverage (28; Supplier QBR has no data). Wording is in `pages.ts`. Reached by
+  clicking a KPI name on the overview; the year and country carry over.
+- Not built: Supplier Contracts Coverage and $ Cost Savings & Avoidance, which read a 2024 Excel
+  table that is not in `all_kpis` (owner's decision, 24 Nov 2026).
+- Same layout as Power BI: title, description and data source; one country at a time; Baseline,
+  Target and YTD cards and a gauge; an area chart of Baseline then each month with a value.
+- Baseline, Target, YTD and the status colour are the overview's own numbers for that KPI,
+  country and year (`buildDetail` shares `summarise` with `buildOverview`).
+- Chart and gauge scales start at zero and fit the data, rounded to 1, 2, 2.5 or 5 × 10^n.
+- Text: Power BI's wording with its copy errors fixed (O&C header said "TM / TR"; the PIR chart was
+  titled "No. of Active Vendors by Month"; "comparted"; cards said "Baseline 2024" / "YTD 2025"
+  in every year). OTD's "YE = Average of Q4 Months" is left off: it contradicts the YTD rule above.
+
 ## Fixes against Power BI (the native numbers differ from Power BI here, on purpose)
 
 1. **Duplicate rows were added together.** Power BI SUMs every row, so two rows for one cell
@@ -99,3 +115,9 @@ Against the numeric Target for that KPI, year and country:
    arrows treated a blank previous month as zero. Native gives every KPI its direction and draws
    no arrow without two values.
 8. **EOS DMCC and EOS JAFZA were added together** as "EOS". Native shows them separately.
+9. **The five P&L detail pages showed nothing in 2026.** They filtered on names like
+   "4. Profit & Loss (MS)" that are no longer in the data. Native shows them.
+10. **A detail page showed two different YTDs.** The YTD card was a plain average of every month
+    row, the gauge the overview's YTD, and on the P&L, SOA and InvRecon pages the gauge showed a
+    "difference from target or baseline" figure instead. Native shows the overview's YTD in both.
+11. **Fixed chart and gauge ranges cut values off** (e.g. PR to PO days 0–15). Native scales to fit.

@@ -5,15 +5,14 @@ import { logger } from '@/lib/logger';
 import { analyticsAccess } from '../access';
 import BoardShell from '../BoardShell';
 import HealthBoardOverview from '../HealthBoardOverview';
+import { detailHref, overviewHref } from './links';
 
 const log = logger('supply-chain-analytics');
 
 export const metadata = { title: 'NESR | Supply Chain Health Board' };
 
-function hrefFor(year: number, country: Country): string {
-  const q = new URLSearchParams({ year: String(year), country });
-  return `/supply-chain-analytics/health-board?${q.toString()}`;
-}
+const hrefFor = (year: number, country: Country) => overviewHref(year, country);
+const kpiHref = (code: string, year: number, country: Country) => detailHref(code, year, country);
 
 /**
  * The Supply Chain Health Board, built natively from `all_kpis` (src/lib/health-board/RULES.md).
@@ -41,7 +40,12 @@ export default async function HealthBoardPage({
       ) : data === 'empty' ? (
         <Unavailable message="No KPI values have been loaded yet." />
       ) : (
-        <HealthBoardOverview overview={data.overview} years={data.years} hrefFor={hrefFor} />
+        <HealthBoardOverview
+          overview={data.overview}
+          years={data.years}
+          hrefFor={hrefFor}
+          detailHref={kpiHref}
+        />
       )}
     </BoardShell>
   );

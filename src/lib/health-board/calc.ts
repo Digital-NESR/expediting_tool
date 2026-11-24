@@ -148,6 +148,82 @@ export function status(
   return value <= target + band ? 'amber' : 'red';
 }
 
+/** One country's cells for a year, by KPI and period. */
+function cellsFor(
+  values: readonly KpiValue[],
+  year: number,
+  country: Country,
+): Map<string, Map<Period, KpiValue>> {
+  const out = new Map<string, Map<Period, KpiValue>>();
+  for (const v of values) {
+    if (v.year !== year || v.country !== country) continue;
+    const cells = out.get(v.kpi) ?? new Map<Period, KpiValue>();
+    cells.set(v.period, v);
+    out.set(v.kpi, cells);
+  }
+  return out;
+}
+
+/** The numbers one KPI shows for one country and year. The overview and the detail page both
+ *  come from here, so they cannot disagree. */
+function summarise(kpi: KpiDefinition, cells: Map<Period, KpiValue>) {
+  const val = (p: Period) => cells.get(p)?.value ?? null;
+  const monthly: Partial<Record<Month, number | null>> = {};
+  for (const m of MONTHS) monthly[m] = val(m);
+  const target = val('Target');
+  const y = ytd(kpi, monthly, val('YTD'));
+  return {
+    val,
+    monthly,
+    baseline: val('Baseline'),
+    target,
+    targetWords: cells.get('Target')?.targetWords ?? null,
+    ytd: y,
+    status: status(kpi.direction, y, target),
+  };
+}
+
+export interface KpiDetail {
+  kpi: KpiDefinition;
+  year: number;
+  country: Country;
+  baseline: number | null;
+  target: number | null;
+  targetWords: string | null;
+  ytd: number | null;
+  status: Status | null;
+  /** The chart: Baseline, then each month with a value, as Power BI's area chart drew it. */
+  points: { label: 'Baseline' | Month; value: number }[];
+}
+
+/** One KPI's detail page for one year and one country (RULES.md, "Detail pages"). */
+export function buildDetail(
+  values: readonly KpiValue[],
+  year: number,
+  country: Country,
+  kpi: KpiDefinition,
+): KpiDetail {
+  const cells = cellsFor(values, year, country).get(kpi.code) ?? new Map<Period, KpiValue>();
+  const s = summarise(kpi, cells);
+  const points: KpiDetail['points'] = [];
+  if (s.baseline !== null) points.push({ label: 'Baseline', value: s.baseline });
+  for (const m of MONTHS) {
+    const v = s.monthly[m];
+    if (v != null) points.push({ label: m, value: v });
+  }
+  return {
+    kpi,
+    year,
+    country,
+    baseline: s.baseline,
+    target: s.target,
+    targetWords: s.targetWords,
+    ytd: s.ytd,
+    status: s.status,
+    points,
+  };
+}
+
 /** The overview table for one year and one country. */
 export function buildOverview(
   values: readonly KpiValue[],
@@ -171,13 +247,7 @@ export function buildOverview(
     return [...votes.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
   };
 
-  const mine = new Map<string, Map<Period, KpiValue>>();
-  for (const v of inYear) {
-    if (v.country !== country) continue;
-    const cells = mine.get(v.kpi) ?? new Map<Period, KpiValue>();
-    cells.set(v.period, v);
-    mine.set(v.kpi, cells);
-  }
+  const mine = cellsFor(values, year, country);
 
   const rows: OverviewRow[] = [];
   for (const kpi of KPIS) {
@@ -188,30 +258,25 @@ export function buildOverview(
     const category = categoryOf(kpi.code);
     if (!category) continue;
 
-    const val = (p: Period) => cells.get(p)?.value ?? null;
-    const monthly: Partial<Record<Month, number | null>> = {};
-    for (const m of MONTHS) monthly[m] = val(m);
-
+    const s = summarise(kpi, cells);
     const rowMonths: OverviewRow['months'] = {};
     for (const m of months) {
       const prev = previousPeriod(kpi, m);
       rowMonths[m] = {
-        value: monthly[m] ?? null,
-        trend: prev ? trend(kpi.direction, monthly[m] ?? null, val(prev)) : null,
+        value: s.monthly[m] ?? null,
+        trend: prev ? trend(kpi.direction, s.monthly[m] ?? null, s.val(prev)) : null,
       };
     }
 
-    const target = val('Target');
-    const y = ytd(kpi, monthly, val('YTD'));
     rows.push({
       kpi,
       category,
-      baseline: val('Baseline'),
-      target,
-      targetWords: cells.get('Target')?.targetWords ?? null,
+      baseline: s.baseline,
+      target: s.target,
+      targetWords: s.targetWords,
       months: rowMonths,
-      ytd: y,
-      status: status(kpi.direction, y, target),
+      ytd: s.ytd,
+      status: s.status,
     });
   }
 

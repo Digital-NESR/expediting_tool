@@ -48,12 +48,26 @@ function StatusDot({ status }: { status: Status | null }) {
   );
 }
 
-function Row({ row, months }: { row: OverviewRow; months: Overview['months'] }) {
+function Row({
+  row,
+  months,
+  href,
+}: {
+  row: OverviewRow;
+  months: Overview['months'];
+  href: string | null;
+}) {
   const unit = row.kpi.unit;
   return (
     <tr className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70">
       <td className="sticky left-0 z-10 min-w-[240px] bg-white py-2 pl-8 pr-4 text-left text-[13px] text-slate-800">
-        {row.kpi.name}
+        {href ? (
+          <Link href={href} className="hover:text-[#307c4c] hover:underline">
+            {row.kpi.name}
+          </Link>
+        ) : (
+          row.kpi.name
+        )}
       </td>
       <td className="px-3 py-2 text-center tabular-nums text-slate-700">
         {row.baseline === null ? '-' : formatKpiValue(unit, row.baseline)}
@@ -90,15 +104,74 @@ function Row({ row, months }: { row: OverviewRow; months: Overview['months'] }) 
   );
 }
 
+/** Power BI's year filter, as links. */
+export function YearNav({
+  years,
+  year,
+  href,
+}: {
+  years: number[];
+  year: number;
+  href: (y: number) => string;
+}) {
+  return (
+    <nav aria-label="Year" className="flex gap-1 rounded-lg bg-white/10 p-1">
+      {years.map((y) => (
+        <Link
+          key={y}
+          href={href(y)}
+          aria-current={y === year ? 'page' : undefined}
+          className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+            y === year ? 'bg-white text-[#1d4f31]' : 'text-white/80 hover:bg-white/15'
+          }`}
+        >
+          {y}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+/** Power BI's country slicer: one country at a time, as links. */
+export function CountryNav({ country, href }: { country: Country; href: (c: Country) => string }) {
+  return (
+    <nav
+      aria-label="Country"
+      className="flex shrink-0 gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-2 lg:w-48 lg:flex-col lg:overflow-visible"
+    >
+      <p className="hidden px-2 pb-1 pt-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 lg:block">
+        Country
+      </p>
+      {COUNTRIES.map((c) => (
+        <Link
+          key={c}
+          href={href(c)}
+          aria-current={c === country ? 'page' : undefined}
+          className={`whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm transition-colors ${
+            c === country
+              ? 'bg-[#eaf4ef] font-semibold text-[#1d4f31]'
+              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+          }`}
+        >
+          {c}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
 export default function HealthBoardOverview({
   overview,
   years,
   hrefFor,
+  detailHref,
 }: {
   overview: Overview;
   years: number[];
   /** Where a country or year link goes, so the dev preview can link to itself. */
   hrefFor: (year: number, country: Country) => string;
+  /** Where a KPI's name links to: its detail page for the same year and country. */
+  detailHref: (kpiCode: string, year: number, country: Country) => string | null;
 }) {
   const { year, country, months, groups } = overview;
   const columns = 5 + months.length;
@@ -111,46 +184,11 @@ export default function HealthBoardOverview({
           Supply Chain <span className="font-normal text-white/70">|</span> Health Board (KPIs) -{' '}
           {year}
         </h1>
-        <nav aria-label="Year" className="flex gap-1 rounded-lg bg-white/10 p-1">
-          {years.map((y) => (
-            <Link
-              key={y}
-              href={hrefFor(y, country)}
-              aria-current={y === year ? 'page' : undefined}
-              className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
-                y === year ? 'bg-white text-[#1d4f31]' : 'text-white/80 hover:bg-white/15'
-              }`}
-            >
-              {y}
-            </Link>
-          ))}
-        </nav>
+        <YearNav years={years} year={year} href={(y) => hrefFor(y, country)} />
       </div>
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        {/* Country list — Power BI's slicer, one country at a time */}
-        <nav
-          aria-label="Country"
-          className="flex shrink-0 gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-2 lg:w-48 lg:flex-col lg:overflow-visible"
-        >
-          <p className="hidden px-2 pb-1 pt-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 lg:block">
-            Country
-          </p>
-          {COUNTRIES.map((c) => (
-            <Link
-              key={c}
-              href={hrefFor(year, c)}
-              aria-current={c === country ? 'page' : undefined}
-              className={`whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm transition-colors ${
-                c === country
-                  ? 'bg-[#eaf4ef] font-semibold text-[#1d4f31]'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-            >
-              {c}
-            </Link>
-          ))}
-        </nav>
+        <CountryNav country={country} href={(c) => hrefFor(year, c)} />
 
         {/* The KPI table */}
         <div className="min-w-0 flex-1 overflow-x-auto rounded-xl border border-slate-200 bg-white">
@@ -190,7 +228,12 @@ export default function HealthBoardOverview({
                     </th>
                   </tr>
                   {g.rows.map((r) => (
-                    <Row key={r.kpi.code} row={r} months={months} />
+                    <Row
+                      key={r.kpi.code}
+                      row={r}
+                      months={months}
+                      href={detailHref(r.kpi.code, year, country)}
+                    />
                   ))}
                 </tbody>
               ))

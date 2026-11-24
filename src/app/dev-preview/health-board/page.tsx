@@ -3,20 +3,22 @@
  *
  * /supply-chain-analytics/health-board is behind SSO and platform-admin access, so this renders
  * the same component from the same all_kpis data, so the table can be checked against the Power
- * BI report on a developer machine.
+ * BI report on a developer machine. KPI names link to /dev-preview/health-board/<kpi>.
  *
  * Dev-only twice over: `notFound()` removes it from a production build, and the `/dev-preview`
  * entry in src/proxy.ts is only added outside production.
  */
 import { notFound } from 'next/navigation';
 import HealthBoardOverview from '@/app/supply-chain-analytics/HealthBoardOverview';
+import { detailHref, overviewHref } from '@/app/supply-chain-analytics/health-board/links';
 import { buildOverview } from '@/lib/health-board/calc';
 import { COUNTRIES, type Country } from '@/lib/health-board/definitions';
 import { loadYearValues, loadYears } from '@/lib/health-board/queries';
 
-function hrefFor(year: number, country: Country): string {
-  return `/dev-preview/health-board?${new URLSearchParams({ year: String(year), country }).toString()}`;
-}
+const BASE = '/dev-preview/health-board';
+const hrefFor = (year: number, country: Country) => overviewHref(year, country, BASE);
+const kpiHref = (code: string, year: number, country: Country) =>
+  detailHref(code, year, country, BASE);
 
 export default async function HealthBoardPreviewPage({
   searchParams,
@@ -41,6 +43,7 @@ export default async function HealthBoardPreviewPage({
         overview={buildOverview(values, year, country)}
         years={years}
         hrefFor={hrefFor}
+        detailHref={kpiHref}
       />
     </main>
   );
