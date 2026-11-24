@@ -13,6 +13,7 @@ import {
 import { buildComparison, categoriesFor } from '@/lib/health-board/calc';
 import { kpiByCode } from '@/lib/health-board/definitions';
 import { kpiCodeForSlug } from '@/lib/health-board/pages';
+import { parseSort } from '@/lib/health-board/compare';
 import { loadYearValues, loadYears } from '@/lib/health-board/queries';
 
 const BASE = '/dev-preview/health-board';
@@ -20,7 +21,7 @@ const BASE = '/dev-preview/health-board';
 export default async function HealthBoardComparePreviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ kpi?: string; year?: string }>;
+  searchParams: Promise<{ kpi?: string; year?: string; sort?: string }>;
 }) {
   if (process.env.NODE_ENV === 'production') notFound();
   const sp = await searchParams;
@@ -38,7 +39,8 @@ export default async function HealthBoardComparePreviewPage({
         comparison={buildComparison(values, year, kpi)}
         years={years}
         categories={categoriesFor(values, year)}
-        hrefFor={(code, y) => compareHref(code, y, BASE)}
+        sort={parseSort(sp.sort)}
+        hrefFor={(code, y, s) => compareHref(code, y, BASE, s)}
         overviewHref={overviewHref(year, 'Global', BASE)}
         detailHref={(code, y, c) => detailHref(code, y, c, BASE)}
       />

@@ -24,9 +24,16 @@ export function detailHref(
 }
 
 /** The country comparison for one KPI and year. */
-export function compareHref(kpiCode: string, year: number, base = HEALTH_BOARD): string {
+export function compareHref(
+  kpiCode: string,
+  year: number,
+  base = HEALTH_BOARD,
+  sort: string = 'country',
+): string {
   const slug = KPI_PAGES[kpiCode]?.slug ?? 'pl-pc-pr';
-  return `${base}/compare?${new URLSearchParams({ kpi: slug, year: String(year) }).toString()}`;
+  const q = new URLSearchParams({ kpi: slug, year: String(year) });
+  if (sort !== 'country') q.set('sort', sort);
+  return `${base}/compare?${q.toString()}`;
 }
 
 /** The Read Me (and KPI index). */

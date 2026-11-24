@@ -1,6 +1,7 @@
 import { buildComparison, categoriesFor } from '@/lib/health-board/calc';
 import { kpiByCode } from '@/lib/health-board/definitions';
 import { kpiCodeForSlug } from '@/lib/health-board/pages';
+import { parseSort } from '@/lib/health-board/compare';
 import { loadYearValues, loadYears } from '@/lib/health-board/queries';
 import { logger } from '@/lib/logger';
 import { analyticsAccess } from '../../access';
@@ -23,7 +24,7 @@ const DEFAULT_KPI = 'KPI - P&L (PC/PR)';
 export default async function HealthBoardComparePage({
   searchParams,
 }: {
-  searchParams: Promise<{ kpi?: string; year?: string }>;
+  searchParams: Promise<{ kpi?: string; year?: string; sort?: string }>;
 }) {
   const access = await analyticsAccess('health-board');
   if (!access) return null;
@@ -50,7 +51,8 @@ export default async function HealthBoardComparePage({
           comparison={data.comparison}
           years={data.years}
           categories={data.categories}
-          hrefFor={(code, y) => compareHref(code, y)}
+          sort={parseSort(sp.sort)}
+          hrefFor={(code, y, s) => compareHref(code, y, undefined, s)}
           overviewHref={overviewHref(data.comparison.year, 'Global')}
           detailHref={(code, y, c) => detailHref(code, y, c)}
         />
