@@ -37,6 +37,7 @@ import {
 } from '@/lib/health-board/format';
 import BoardActions from './BoardActions';
 import CountryPicker from './CountryPicker';
+import RowHighlight from './RowHighlight';
 
 const STATUS_STYLE: Record<Status, { dot: string; label: string }> = {
   green: { dot: 'bg-[#2e9e5b]', label: 'Meets target' },
@@ -170,8 +171,13 @@ function Row({
   const ytdSource = row.kpi.ytd === 'entered' ? src('YTD') : undefined;
   const ytdTitle = join(exactTitle(unit, row.ytd), explainYtd(row.kpi, monthly), ytdSource);
   return (
-    <tr className="group relative border-b border-slate-100 last:border-0 hover:bg-[#307c4c]/5">
-      <td className="sticky left-0 z-10 w-[190px] min-w-[170px] max-w-[200px] bg-white py-2 pl-4 pr-2 text-left text-[13px] font-medium leading-snug text-slate-800 group-hover:bg-[#f3f8f5]">
+    /* Click a row to keep it highlighted (RowHighlight sets data-selected); the KPI name opens
+       its page. Pinned cells need an opaque colour of their own for each state. */
+    <tr
+      data-row
+      className="group cursor-pointer border-b border-slate-100 last:border-0 hover:bg-[#307c4c]/5 data-[selected]:bg-[#307c4c]/[0.14]"
+    >
+      <td className="sticky left-0 z-10 w-[190px] min-w-[170px] max-w-[200px] bg-white py-2 pl-4 pr-2 text-left text-[13px] font-medium leading-snug text-slate-800 group-hover:bg-[#f3f8f5] group-data-[selected]:bg-[#dbeae0] group-data-[selected]:shadow-[inset_4px_0_0_#307c4c]">
         {href ? (
           <Link href={href} className="hover:text-[#307c4c] hover:underline">
             {row.kpi.name}
@@ -183,12 +189,6 @@ function Row({
         <KpiMeta kpi={row.kpi} />
       </td>
       <td className="whitespace-nowrap px-2 py-2 text-right text-[12.5px] tabular-nums text-slate-600">
-        {/* The whole row opens the KPI's page. This copy of the link is for the mouse only: the
-            KPI name above is the one keyboard and screen-reader users reach. Numbers sit above
-            it so their source shows on hover. */}
-        {href && (
-          <Link href={href} tabIndex={-1} aria-hidden="true" className="absolute inset-0 z-0" />
-        )}
         <Sourced
           title={
             row.baseline === null
@@ -232,9 +232,7 @@ function Row({
           </td>
         );
       })}
-      <td className="sticky right-0 z-10 whitespace-nowrap border-l border-slate-100 bg-white px-2.5 py-2 text-right text-[13px] font-semibold tabular-nums text-slate-900 group-hover:bg-[#f3f8f5]">
-        {/* Pinned cells are positioned, so they sit above the row's link; this one carries its own. */}
-        {href && <Link href={href} tabIndex={-1} aria-hidden="true" className="absolute inset-0" />}
+      <td className="sticky right-0 z-10 whitespace-nowrap border-l border-slate-100 bg-white px-2.5 py-2 text-right text-[13px] font-semibold tabular-nums text-slate-900 group-hover:bg-[#f3f8f5] group-data-[selected]:bg-[#dbeae0]">
         {row.ytd !== null ? (
           <Sourced title={ytdTitle}>
             <span className="inline-flex items-center justify-end gap-1.5">
@@ -505,7 +503,7 @@ export default function HealthBoardOverview({
       ) : (
         <>
           {/* The KPI table, md and up */}
-          <div className="hb-print-unclip hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm md:block">
+          <RowHighlight className="hb-print-unclip hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm md:block">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-[12px] font-semibold text-slate-600">
@@ -555,7 +553,7 @@ export default function HealthBoardOverview({
                 </tbody>
               ))}
             </table>
-          </div>
+          </RowHighlight>
 
           {/* Phones: one card per KPI */}
           <div className="flex flex-col gap-5 md:hidden">
@@ -603,7 +601,10 @@ export default function HealthBoardOverview({
           </span>
         ))}
         <span className="text-slate-300">|</span>
-        <span>Click a KPI for its page; hover a number for where it came from.</span>
+        <span>
+          Click a row to highlight it (Esc clears); click a KPI&apos;s name for its page; hover a
+          number for where it came from.
+        </span>
         <span className="inline-flex items-center gap-1">
           <span className="text-slate-300">—</span> not uploaded for this country (others have it)
         </span>
