@@ -17,9 +17,9 @@ Owner rulings of 24 Nov 2026. Do it the same way every month.
 - Whole days, as on the board. `KSA` → Saudi Arabia, `Jordon` → Jordan. A country with no value
   (Syria on 24 Nov 2026) is skipped.
 - Never load the current, unfinished month.
-- Stored months are not changed. On 24 Nov 2026 the Global export matched the board for January to
-  March, June and July 2026, but not for April (export 139.5, board 145) or May (132.4 against 144).
-  Those two were left as they are.
+- On 24 Nov 2026 the Global export matched the board for January to March, June and July 2026,
+  but not for April (export 139.5, board 145) or May (132.4 against 144). The owner had both set to
+  the export (140 and 132, load 15). The Global export is the reference for Global.
 
 ## Steps
 
