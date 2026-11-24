@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { QueryResultRow } from 'pg';
 import rrsmPool from '@/lib/db-rrsm';
-import { canAccessCountry, currentRrsmActor } from '@/lib/rrsm/access';
+import { canAccessCountry, currentRrsmActor, rolesIn } from '@/lib/rrsm/access';
 import { attachmentContentDisposition } from '@/lib/contentDisposition';
 import { DOC_LABEL, type DocKind } from '@/lib/rrsm/submission';
 import { StoredZip, safeZipName } from '@/lib/zip-store';
@@ -16,9 +16,9 @@ export const dynamic = 'force-dynamic';
  * ("Automak Automotive Co. KSC (1101066)"), holding what that supplier uploaded
  * ("Delivery Note - DN-Nov.pdf", "Invoice - INV 4471.pdf").
  *
- * Access is the same as opening each file on its own (see ../../../documents/[id]): an RRSM grant
- * in the cycle's country, read from the row and never from the URL. Anyone who could click every
- * file one by one may have them in one go.
+ * BUYERS ONLY (and admins), by decision on 24 Nov 2026: a buyer or admin grant in the cycle's
+ * country, read from the row and never from the URL. Ops can still open each file on its own
+ * (../../../documents/[id]); the one-click dump is the buyer's.
  *
  * STREAMED, one document at a time: each file is read from the database, written to the response
  * and dropped before the next is read. Holding a month's uploads in memory at once (up to 4 MB
@@ -44,7 +44,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
         [cycleId],
       )
     ).rows[0];
-    if (!cycle || !canAccessCountry(actor, String(cycle.country_code), 'buyer')) {
+    const code = String(cycle?.country_code ?? '');
+    if (!cycle || !canAccessCountry(actor, code, 'buyer') || !rolesIn(actor, code).canBuy) {
       return new NextResponse('Not found', { status: 404 });
     }
     /* The list only: names and ids. The bytes are read one file at a time while streaming. */

@@ -18,7 +18,7 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Check, FileText, Loader2, Undo2 } from 'lucide-react';
+import { AlertTriangle, Check, Download, FileText, Loader2, Undo2 } from 'lucide-react';
 import {
   closeValidatedLines,
   confirmLinePr,
@@ -323,7 +323,33 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
     'No cycle is open for this country yet.'
   );
 
-  const actions =
+  /* Every supplier document on this cycle as one ZIP, a folder per supplier (same download as on
+     Supplier validation). Buyers only. */
+  const docCount = board.suppliers.reduce((n, s) => n + s.documents.length, 0);
+  const downloadAll =
+    view === 'buyer' && board.cycle ? (
+      docCount > 0 ? (
+        <a
+          href={`/api/rrsm/cycles/${board.cycle.id}/documents`}
+          download
+          title="Every document suppliers uploaded this cycle, a folder per supplier"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-white/40 px-3.5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-white/10"
+        >
+          <Download className="h-4 w-4" />
+          Download all documents ({docCount})
+        </a>
+      ) : (
+        <span
+          title="No supplier has uploaded a document on this cycle yet."
+          className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-lg border border-white/25 px-3.5 py-2 text-[13px] font-semibold text-white/50"
+        >
+          <Download className="h-4 w-4" />
+          Download all documents
+        </span>
+      )
+    ) : null;
+
+  const closeAll =
     view === 'buyer' && board.cycle ? (
       <button
         onClick={() => void run('close', () => closeValidatedLines(board.cycle!.id))}
@@ -340,6 +366,14 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
         )}
         Close all ready · {readyToClose}
       </button>
+    ) : null;
+
+  const actions =
+    downloadAll || closeAll ? (
+      <div className="flex flex-wrap items-center gap-2">
+        {downloadAll}
+        {closeAll}
+      </div>
     ) : undefined;
 
   return (

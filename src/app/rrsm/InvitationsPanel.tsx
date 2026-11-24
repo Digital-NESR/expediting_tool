@@ -272,8 +272,8 @@ export default function InvitationsPanel({
             Select everyone not responded
           </button>
         )}
-        {/* Every uploaded document on this cycle as one ZIP, a folder per supplier. */}
-        {docCount > 0 ? (
+        {/* Every uploaded document on this cycle as one ZIP, a folder per supplier. Buyers only. */}
+        {!board.canSend ? null : docCount > 0 ? (
           <a
             href={`/api/rrsm/cycles/${board.cycleId}/documents`}
             download
