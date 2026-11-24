@@ -233,34 +233,6 @@ export function YearNav({
   );
 }
 
-/** Power BI's country slicer: one country at a time, as links. Used by the KPI pages. */
-export function CountryNav({ country, href }: { country: Country; href: (c: Country) => string }) {
-  return (
-    <nav
-      aria-label="Country"
-      className="flex shrink-0 gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-2 lg:w-48 lg:flex-col lg:overflow-visible"
-    >
-      <p className="hidden px-2 pb-1 pt-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 lg:block">
-        Country
-      </p>
-      {COUNTRIES.map((c) => (
-        <Link
-          key={c}
-          href={href(c)}
-          aria-current={c === country ? 'page' : undefined}
-          className={`whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm transition-colors ${
-            c === country
-              ? 'bg-[#eaf4ef] font-semibold text-[#1d4f31]'
-              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-          }`}
-        >
-          {c}
-        </Link>
-      ))}
-    </nav>
-  );
-}
-
 export interface Freshness {
   /** The newest load or upload into all_kpis. */
   lastLoad: { at: string; by: string } | null;

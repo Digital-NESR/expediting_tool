@@ -35,13 +35,20 @@ export default async function HealthBoardKpiPreviewPage({
     ? (sp.country as Country)
     : 'Global';
 
+  const [values, prior] = await Promise.all([
+    loadYearValues(year),
+    years.includes(year - 1) ? loadYearValues(year - 1) : Promise.resolve(null),
+  ]);
+
   return (
     <main className="min-h-screen bg-gray-50 p-6">
       <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-amber-600">
         Development preview
       </p>
       <HealthBoardDetail
-        detail={buildDetail(await loadYearValues(year), year, country, kpi)}
+        detail={buildDetail(values, year, country, kpi)}
+        previous={prior ? buildDetail(prior, year - 1, country, kpi) : null}
+        countries={COUNTRIES.map((c) => buildDetail(values, year, c, kpi))}
         page={KPI_PAGES[code]}
         years={years}
         hrefFor={(y, c) => detailHref(code, y, c, BASE)!}

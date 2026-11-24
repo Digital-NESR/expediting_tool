@@ -52,6 +52,8 @@ export default async function HealthBoardKpiPage({
       ) : (
         <HealthBoardDetail
           detail={data.detail}
+          previous={data.previous}
+          countries={data.countries}
           page={KPI_PAGES[code]}
           years={data.years}
           hrefFor={(y, c) => detailHref(code, y, c)!}
@@ -71,5 +73,14 @@ async function load(sp: { year?: string; country?: string }, code: string) {
     ? (sp.country as Country)
     : 'Global';
   const kpi = kpiByCode(code)!;
-  return { years, detail: buildDetail(await loadYearValues(year), year, country, kpi) };
+  const [values, prior] = await Promise.all([
+    loadYearValues(year),
+    years.includes(year - 1) ? loadYearValues(year - 1) : Promise.resolve(null),
+  ]);
+  return {
+    years,
+    detail: buildDetail(values, year, country, kpi),
+    previous: prior ? buildDetail(prior, year - 1, country, kpi) : null,
+    countries: COUNTRIES.map((c) => buildDetail(values, year, c, kpi)),
+  };
 }

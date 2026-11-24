@@ -1,179 +1,176 @@
-/* One KPI's detail page: the Power BI KPI pages, drawn natively.
+/* One KPI's page (UX phase 2).
 
-   Same arrangement as the report: the title with its description and data source, the country
-   list down the left, the Baseline / Target / YTD cards and the gauge, and the area chart by
-   month. Numbers come from buildDetail(), which shares its arithmetic with the overview, so a
-   KPI cannot show one YTD here and another there (RULES.md, "Detail pages").
+   Top to bottom: the KPI's title, description and source; the country picker; Baseline, Target
+   and YTD with the status in words; a bar placing YTD against target and baseline; the monthly
+   chart with last year behind this year and the target and baseline as reference lines; then a
+   small chart for every country, each linking to that country's page.
 
-   Server-rendered SVG, no chart library and no client JavaScript. Scales start at zero and fit
-   the data (the owner's choice over Power BI's fixed per-page ranges, which cut values off). */
+   Every number comes from buildDetail(), which shares its arithmetic with the overview (RULES.md),
+   so a KPI cannot show one YTD here and another there. */
 
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import type { KpiDetail, Status } from '@/lib/health-board/calc';
-import { activeIn, type Country } from '@/lib/health-board/definitions';
-import { formatKpiValue } from '@/lib/health-board/format';
+import {
+  COUNTRIES,
+  activeIn,
+  type Country,
+  type KpiDefinition,
+} from '@/lib/health-board/definitions';
+import { formatKpiValue, formatWithUnit } from '@/lib/health-board/format';
 import type { KpiPage } from '@/lib/health-board/pages';
-import { scaleFor, ticksFor } from '@/lib/health-board/scale';
-import { CountryNav, YearNav } from './HealthBoardOverview';
+import { scaleFor } from '@/lib/health-board/scale';
+import CountryPicker from './CountryPicker';
+import KpiChart, { type Series } from './KpiChart';
+import { StatusDot, YearNav } from './HealthBoardOverview';
 
-const GREEN = '#307c4c';
-const STATUS_FILL: Record<Status, string> = { green: '#2e9e5b', amber: '#e3a008', red: '#d64545' };
-const STATUS_LABEL: Record<Status, string> = {
-  green: 'Meets target',
-  amber: 'Within 10% of target',
-  red: 'Misses target by more than 10%',
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+const STATUS: Record<Status, { fill: string; label: string }> = {
+  green: { fill: '#2e9e5b', label: 'Meets target' },
+  amber: { fill: '#e3a008', label: 'Within 10% of target' },
+  red: { fill: '#d64545', label: 'Misses target by more than 10%' },
 };
 
-const COMPACT = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 });
+/** The detail's months as twelve values, January to December. */
+function seriesOf(d: KpiDetail): Series {
+  const values: (number | null)[] = Array(12).fill(null);
+  for (const p of d.points) {
+    const i = MONTHS.indexOf(p.label);
+    if (i >= 0) values[i] = p.value;
+  }
+  return { year: d.year, values };
+}
 
-function Card({ label, children }: { label: string; children: React.ReactNode }) {
+/** "2.99 pts" for percentages, otherwise the value with its unit. */
+function gap(unit: KpiDefinition['unit'], v: number): string {
+  return unit === '%' ? `${formatKpiValue('%', v)} pts` : formatWithUnit(unit, v);
+}
+
+function Stat({
+  label,
+  children,
+  note,
+}: {
+  label: string;
+  children: React.ReactNode;
+  note?: React.ReactNode;
+}) {
   return (
-    <div className="flex flex-col justify-center rounded-xl border border-slate-200 bg-white px-5 py-4">
-      <p className="text-[12px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-      <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-900">{children}</div>
+    <div className="rounded-xl border border-slate-200 bg-white px-5 py-4">
+      <p className="text-[12px] font-medium text-slate-500">{label}</p>
+      <div className="mt-1 text-2xl font-semibold text-slate-900">{children}</div>
+      {note && <div className="mt-0.5 text-[12px] text-slate-500">{note}</div>}
     </div>
   );
 }
 
-function Gauge({ detail }: { detail: KpiDetail }) {
-  const { ytd, target, kpi, status } = detail;
+/** YTD as a bar from zero, with the target and the baseline as ticks on the same scale. */
+function AgainstTarget({ detail }: { detail: KpiDetail }) {
+  const { ytd, target, baseline, kpi, status } = detail;
   if (ytd === null) {
     return (
-      <div className="flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-400">
-        No YTD
+      <div className="flex items-center rounded-xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-400">
+        No YTD to compare with the target.
       </div>
     );
   }
-  const { lo, hi } = scaleFor([ytd, ...(target === null ? [] : [target])]);
-  const W = 220;
-  const cx = W / 2;
-  const cy = 100;
-  const r = 80;
-  const at = (v: number) => {
-    const t = Math.PI * (1 - (Math.min(Math.max(v, lo), hi) - lo) / (hi - lo));
-    return { x: cx + r * Math.cos(t), y: cy - r * Math.sin(t) };
-  };
-  const arc = (from: number, to: number) => {
-    const a = at(Math.min(from, to));
-    const b = at(Math.max(from, to));
-    return `M ${a.x} ${a.y} A ${r} ${r} 0 0 1 ${b.x} ${b.y}`;
-  };
-  const fill = status ? STATUS_FILL[status] : GREEN;
-  const zero = Math.min(Math.max(0, lo), hi);
-  const t = target === null ? null : at(target);
-  const tInner =
-    target === null ? null : { x: cx + (t!.x - cx) * 0.78, y: cy + (t!.y - cy) * 0.78 };
-  const tOuter =
-    target === null ? null : { x: cx + (t!.x - cx) * 1.16, y: cy + (t!.y - cy) * 1.16 };
+  const { lo, hi } = scaleFor([
+    ytd,
+    ...(target === null ? [] : [target]),
+    ...(baseline === null ? [] : [baseline]),
+  ]);
+  const pos = (v: number) => ((v - lo) / (hi - lo)) * 100;
+  const zero = pos(0);
+  const fill = status ? STATUS[status].fill : '#307c4c';
+  const diff = target === null ? null : ytd - target;
+  const better =
+    diff === null || diff === 0 ? null : kpi.direction === 'higher' ? diff > 0 : diff < 0;
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-      <svg
-        viewBox={`0 0 ${W} 130`}
-        className="h-auto w-full"
-        role="img"
-        aria-label={`YTD ${formatKpiValue(kpi.unit, ytd)} against target ${target === null ? 'none' : formatKpiValue(kpi.unit, target)}${status ? `: ${STATUS_LABEL[status].toLowerCase()}` : ''}`}
-      >
-        <path d={arc(lo, hi)} fill="none" stroke="#e5e7eb" strokeWidth={18} />
-        <path d={arc(zero, ytd)} fill="none" stroke={fill} strokeWidth={18} />
-        {tInner && tOuter && (
-          <line
-            x1={tInner.x}
-            y1={tInner.y}
-            x2={tOuter.x}
-            y2={tOuter.y}
-            stroke="#0f172a"
-            strokeWidth={3}
+    <div className="rounded-xl border border-slate-200 bg-white px-5 py-4">
+      <p className="text-[12px] font-medium text-slate-500">YTD against target</p>
+      <div className="relative mt-4 h-3 rounded-full bg-slate-100" aria-hidden="true">
+        <div
+          className="absolute top-0 h-3 rounded-full"
+          style={{
+            left: `${Math.min(zero, pos(ytd))}%`,
+            width: `${Math.abs(pos(ytd) - zero)}%`,
+            background: fill,
+          }}
+        />
+        {baseline !== null && (
+          <div
+            className="absolute -top-1 h-5 w-0.5 bg-slate-400"
+            style={{ left: `${pos(baseline)}%` }}
           />
         )}
-        <text
-          x={cx}
-          y={cy - 8}
-          textAnchor="middle"
-          className="fill-slate-900 text-[20px] font-semibold"
-        >
-          {formatKpiValue(kpi.unit, ytd)}
-        </text>
-        <text x={cx - r} y={cy + 20} textAnchor="middle" className="fill-slate-400 text-[10px]">
-          {COMPACT.format(lo)}
-        </text>
-        <text x={cx + r} y={cy + 20} textAnchor="middle" className="fill-slate-400 text-[10px]">
-          {COMPACT.format(hi)}
-        </text>
         {target !== null && (
-          <text x={cx} y={cy + 20} textAnchor="middle" className="fill-slate-500 text-[10px]">
-            Target {formatKpiValue(kpi.unit, target)}
-          </text>
+          <div
+            className="absolute -top-1.5 h-6 w-1 rounded bg-slate-900"
+            style={{ left: `calc(${pos(target)}% - 2px)` }}
+          />
         )}
-      </svg>
+      </div>
+      <p className="mt-3 text-[12.5px] text-slate-600">
+        {diff === null
+          ? 'No target set.'
+          : diff === 0
+            ? 'Exactly on target.'
+            : `${gap(kpi.unit, Math.abs(diff))} ${diff > 0 ? 'above' : 'below'} target — ${better ? 'better' : 'worse'} than target.`}
+      </p>
+      <p className="text-[11px] text-slate-400">
+        Bar: YTD · black tick: target{baseline !== null ? ' · grey tick: baseline' : ''}
+      </p>
     </div>
   );
 }
 
-function AreaChart({ detail, title }: { detail: KpiDetail; title: string }) {
-  const { points, kpi, country, year } = detail;
-  if (!points.length) {
-    return (
-      <div className="flex h-72 items-center justify-center text-sm text-slate-500">
-        No values for {country} in {year}.
-      </div>
-    );
-  }
-  const W = 1000;
-  const H = 340;
-  const pad = { l: 64, r: 24, t: 28, b: 40 };
-  const { lo, hi } = scaleFor(points.map((p) => p.value));
-  /* Points sit in from the axis so the first value label does not sit on the tick labels. */
-  const inset = 36;
-  const x = (i: number) =>
-    points.length === 1
-      ? (pad.l + W - pad.r) / 2
-      : pad.l + inset + (i * (W - pad.l - pad.r - 2 * inset)) / (points.length - 1);
-  const y = (v: number) => pad.t + ((hi - v) * (H - pad.t - pad.b)) / (hi - lo);
-  const ticks = ticksFor(lo, hi);
-  const line = points.map((p, i) => `${i ? 'L' : 'M'} ${x(i)} ${y(p.value)}`).join(' ');
-  const area = `${line} L ${x(points.length - 1)} ${y(0)} L ${x(0)} ${y(0)} Z`;
-
+/** A country's year in one small line, its own scale. */
+function Spark({ values }: { values: (number | null)[] }) {
+  const pts = values
+    .map((v, i) => ({ v, i }))
+    .filter((p): p is { v: number; i: number } => p.v !== null);
+  if (pts.length === 0) return <div className="h-10" />;
+  const last = pts[pts.length - 1].i;
+  const min = Math.min(...pts.map((p) => p.v));
+  const max = Math.max(...pts.map((p) => p.v));
+  const W = 160;
+  const H = 40;
+  const x = (i: number) => (last === 0 ? W / 2 : 4 + (i * (W - 8)) / Math.max(last, 1));
+  const y = (v: number) => (max === min ? H / 2 : 4 + ((max - v) * (H - 8)) / (max - min));
+  const d = pts.map((p, k) => `${k ? 'L' : 'M'} ${x(p.i)} ${y(p.v)}`).join(' ');
+  const end = pts[pts.length - 1];
   return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      className="h-auto w-full"
-      role="img"
-      aria-label={`${title}: ${points.map((p) => `${p.label} ${formatKpiValue(kpi.unit, p.value)}`).join(', ')}`}
-    >
-      {ticks.map((t) => (
-        <g key={t}>
-          <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="#eef2f7" />
-          <text x={pad.l - 8} y={y(t) + 4} textAnchor="end" className="fill-slate-400 text-[12px]">
-            {COMPACT.format(t)}
-          </text>
-        </g>
-      ))}
-      <line x1={pad.l} x2={W - pad.r} y1={y(0)} y2={y(0)} stroke="#cbd5e1" />
-      <path d={area} fill={GREEN} fillOpacity={0.15} />
-      <path d={line} fill="none" stroke={GREEN} strokeWidth={2.5} />
-      {points.map((p, i) => (
-        <g key={p.label}>
-          <circle cx={x(i)} cy={y(p.value)} r={4} fill="#fff" stroke={GREEN} strokeWidth={2} />
-          <text
-            x={x(i)}
-            y={y(p.value) - 10}
-            textAnchor="middle"
-            className="fill-slate-700 text-[12px] font-medium"
-          >
-            {formatKpiValue(kpi.unit, p.value)}
-          </text>
-          <text x={x(i)} y={H - 14} textAnchor="middle" className="fill-slate-500 text-[12px]">
-            {p.label === 'Baseline' ? 'Baseline' : p.label.slice(0, 3)}
-          </text>
-        </g>
-      ))}
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-10 w-full" aria-hidden="true">
+      <path
+        d={d}
+        fill="none"
+        stroke="#307c4c"
+        strokeWidth={2}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      <circle cx={x(end.i)} cy={y(end.v)} r={3.5} fill="#307c4c" stroke="#fff" strokeWidth={2} />
     </svg>
   );
 }
 
 export default function HealthBoardDetail({
   detail,
+  previous,
+  countries,
   page,
   years,
   hrefFor,
@@ -181,6 +178,10 @@ export default function HealthBoardDetail({
   compareHref,
 }: {
   detail: KpiDetail;
+  /** The same KPI and country the year before, for the chart; null when there is no such year. */
+  previous: KpiDetail | null;
+  /** This KPI for every country this year, for the small multiples. */
+  countries: KpiDetail[];
   page: KpiPage;
   years: number[];
   /** This KPI's page for another year or country. */
@@ -190,6 +191,8 @@ export default function HealthBoardDetail({
   compareHref: string;
 }) {
   const { year, country, kpi } = detail;
+  const others = countries.filter((d) => d.points.length > 0 || d.ytd !== null);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl bg-[#307c4c] px-5 py-3 text-white">
@@ -211,7 +214,7 @@ export default function HealthBoardDetail({
           {page.note && <p className="text-[13px] text-white/70">{page.note}</p>}
         </div>
         <div className="flex flex-col items-end gap-2">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <Link
               href={compareHref}
               className="rounded-lg bg-white/10 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/20"
@@ -227,44 +230,86 @@ export default function HealthBoardDetail({
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        <CountryNav country={country} href={(c) => hrefFor(year, c)} />
+      <CountryPicker
+        current={country}
+        links={COUNTRIES.map((c) => ({ country: c, href: hrefFor(year, c) }))}
+      />
 
-        <div className="flex min-w-0 flex-1 flex-col gap-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <Card label={`Baseline ${year - 1}`}>
-              {detail.baseline === null ? '-' : formatKpiValue(kpi.unit, detail.baseline)}
-            </Card>
-            <Card label="Target">{detail.targetWords ?? '-'}</Card>
-            <Card label={`YTD ${year}`}>
-              {detail.ytd === null ? (
-                '-'
-              ) : (
-                <span className="inline-flex items-center gap-2">
-                  {detail.status && (
-                    <span
-                      className="inline-block h-3 w-3 rounded-full"
-                      style={{ background: STATUS_FILL[detail.status] }}
-                      title={STATUS_LABEL[detail.status]}
-                      aria-label={STATUS_LABEL[detail.status]}
-                    />
-                  )}
-                  {formatKpiValue(kpi.unit, detail.ytd)}
-                </span>
-              )}
-            </Card>
-            <Gauge detail={detail} />
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <h2 className="mb-2 text-sm font-semibold text-slate-800">
-              {page.chartTitle} · {country}
-              <span className="ml-2 font-normal text-slate-400">({kpi.unit})</span>
-            </h2>
-            <AreaChart detail={detail} title={page.chartTitle} />
-          </div>
-        </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat label={`Baseline ${year - 1}`}>
+          {detail.baseline === null ? '–' : formatWithUnit(kpi.unit, detail.baseline)}
+        </Stat>
+        <Stat
+          label="Target"
+          note={kpi.direction === 'higher' ? 'Higher is better' : 'Lower is better'}
+        >
+          {detail.targetWords ?? '–'}
+        </Stat>
+        <Stat
+          label={`YTD ${year}`}
+          note={
+            detail.status ? (
+              <span className="inline-flex items-center gap-1.5">
+                <StatusDot status={detail.status} />
+                {STATUS[detail.status].label}
+              </span>
+            ) : detail.ytd !== null ? (
+              'No target to compare with'
+            ) : undefined
+          }
+        >
+          {detail.ytd === null ? '–' : formatWithUnit(kpi.unit, detail.ytd)}
+        </Stat>
+        <AgainstTarget detail={detail} />
       </div>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <h2 className="mb-3 text-sm font-semibold text-slate-800">
+          {page.chartTitle} · {country}
+        </h2>
+        <KpiChart
+          unit={kpi.unit}
+          title={`${page.chartTitle}, ${country}`}
+          quarterly={kpi.frequency === 'quarterly'}
+          thisYear={seriesOf(detail)}
+          lastYear={previous ? seriesOf(previous) : null}
+          target={detail.target}
+          targetWords={detail.targetWords}
+          baseline={detail.baseline}
+        />
+      </section>
+
+      {others.length > 0 && (
+        <section>
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2 px-1">
+            <h2 className="text-sm font-semibold text-slate-800">Every country · {year}</h2>
+            <p className="text-[12px] text-slate-400">
+              Each small chart has its own scale. Click one to open it.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
+            {others.map((d) => (
+              <Link
+                key={d.country}
+                href={hrefFor(year, d.country)}
+                aria-current={d.country === country ? 'page' : undefined}
+                className={`rounded-xl border bg-white p-3 transition-colors hover:border-[#307c4c]/50 ${
+                  d.country === country
+                    ? 'border-[#307c4c] ring-2 ring-[#307c4c]/15'
+                    : 'border-slate-200'
+                }`}
+              >
+                <p className="truncate text-[12.5px] font-semibold text-slate-800">{d.country}</p>
+                <p className="mt-0.5 inline-flex items-center gap-1.5 text-[13px] text-slate-700">
+                  <StatusDot status={d.status} />
+                  <span>YTD {d.ytd === null ? '–' : formatWithUnit(kpi.unit, d.ytd)}</span>
+                </p>
+                <Spark values={seriesOf(d).values} />
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
