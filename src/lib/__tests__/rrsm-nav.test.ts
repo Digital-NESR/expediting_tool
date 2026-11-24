@@ -12,11 +12,8 @@ const ids = (roles: { canBuy: boolean; canValidate: boolean }) =>
   visibleNav(roles).map((i) => i.id);
 
 describe('visibleNav', () => {
-  it('shows an Ops validator the chase and validation, not PR & PO', () => {
-    const seen = ids({ canBuy: false, canValidate: true });
-    expect(seen).toContain('suppliers');
-    expect(seen).toContain('validation');
-    expect(seen).not.toContain('purchasing');
+  it('shows an Ops validator only Ops validation and Help (they see just the lines sent to them)', () => {
+    expect(ids({ canBuy: false, canValidate: true })).toEqual(['validation', 'help']);
   });
 
   it('shows a buyer PR & PO and the invitations they send, not Ops validation', () => {
@@ -55,10 +52,10 @@ describe('visibleNav', () => {
     ).toEqual(['recurrent', 'help']);
   });
 
-  it('keeps renewals, the register, history and help open to either role', () => {
+  it('keeps renewals, the register, history and help open to buyers, with or without Ops', () => {
     for (const roles of [
       { canBuy: true, canValidate: false },
-      { canBuy: false, canValidate: true },
+      { canBuy: true, canValidate: true },
     ]) {
       const seen = ids(roles);
       for (const id of ['dashboard', 'renewals', 'register', 'history', 'help'] as const) {

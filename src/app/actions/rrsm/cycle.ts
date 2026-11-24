@@ -8,6 +8,7 @@ import {
   currentRrsmActor,
   resolveRrsmCountry,
   rolesIn,
+  validatesLine,
   type RrsmActor,
   type RrsmCountryOption,
 } from '@/lib/rrsm/access';
@@ -26,6 +27,9 @@ import { readPrCandidates, readSapStatus } from '@/lib/rrsm/sap-status';
 import { pushRateToRegistry, syncRatesFromRegistry } from '@/lib/rrsm/registry-sync';
 import { NO_DOCS, type DocKind, type DocRequirements } from '@/lib/rrsm/submission';
 import { openingStage, stageAfterBuyerDecision, type CycleSteps } from '@/lib/rrsm/steps';
+import { opsValidationMail, sendRrsmMail } from '@/lib/rrsm/notify';
+import { boardUrl } from '@/lib/rrsm/supplier-access';
+import { normalizeEmail } from '@/lib/require-access';
 
 /**
  * The monthly cycle, for the Ops and Buyer screens.
@@ -66,6 +70,9 @@ export interface BoardLine {
   changeStatus: 'pending' | 'accepted' | 'rejected' | null;
   /** Set when RRSM linked the PR on its own from SAP (see autoPrFor); null when a buyer did. */
   prAuto: PrAutoReason | null;
+  /** Who validates this line as Ops (picked by the buyer), and when it was sent to them. */
+  opsValidator: { email: string; name: string } | null;
+  opsSentAt: string | null;
 }
 
 export interface BoardSupplier {
@@ -86,6 +93,8 @@ export interface RrsmBoard {
   canBuy: boolean;
   canValidate: boolean;
   isAdmin: boolean;
+  /** The signed-in user, so a row can tell whether it was sent to them. */
+  viewerEmail: string;
   cycle: { id: number; period: string; opensOn: string; closesOn: string; status: string } | null;
   /** The period a cycle would be opened for, when there is none. */
   suggestedPeriod: string;
@@ -138,15 +147,25 @@ async function countryOfCycle(cycleId: number): Promise<string> {
 }
 
 /** The country a line belongs to, likewise. A line id from a URL proves nothing. */
-async function countryOfLine(lineId: number): Promise<{ country: string; stage: CycleStage }> {
+async function countryOfLine(lineId: number): Promise<{
+  country: string;
+  stage: CycleStage;
+  opsValidatorEmail: string | null;
+  opsSentAt: unknown;
+}> {
   const { rows } = await rrsmPool.query<QueryResultRow>(
-    `SELECT c.country_code, l.stage
+    `SELECT c.country_code, l.stage, l.ops_validator_email, l.ops_sent_at
        FROM rrsm_cycle_lines l JOIN rrsm_cycles c ON c.id = l.cycle_id
       WHERE l.id = $1`,
     [lineId],
   );
   if (!rows[0]) throw new Error('No such line.');
-  return { country: String(rows[0].country_code), stage: String(rows[0].stage) as CycleStage };
+  return {
+    country: String(rows[0].country_code),
+    stage: String(rows[0].stage) as CycleStage,
+    opsValidatorEmail: rows[0].ops_validator_email ? String(rows[0].ops_validator_email) : null,
+    opsSentAt: rows[0].ops_sent_at,
+  };
 }
 
 /* ─── read ───────────────────────────────────────────────────────────────────────────────── */
@@ -169,7 +188,13 @@ function suggestPeriod(): string {
  */
 export async function getRrsmBoard(requestedCountry?: string | null): Promise<RrsmBoard> {
   const actor = await actorOrThrow();
-  const { countryCode, available } = await resolveRrsmCountry(actor, requestedCountry);
+  /* 'validator': somebody who only validates lines sent to them still gets the board, filtered
+     to those lines below. */
+  const { countryCode, available } = await resolveRrsmCountry(
+    actor,
+    requestedCountry,
+    'validator',
+  );
 
   const empty: RrsmBoard = {
     country: null,
@@ -177,6 +202,7 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
     canBuy: false,
     canValidate: false,
     isAdmin: actor.isAdmin,
+    viewerEmail: actor.email,
     cycle: null,
     suggestedPeriod: suggestPeriod(),
     suppliers: [],
@@ -186,6 +212,9 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
 
   const country = available.find((c) => c.code === countryCode) ?? null;
   const { canBuy, canValidate } = rolesIn(actor, countryCode);
+  /* A validator who is not a buyer sees only the lines sent to them, and so only those
+     suppliers and their documents (user decision, 24 Nov 2026). */
+  const onlyMine = !actor.isAdmin && !canBuy ? actor.email : null;
 
   try {
     const cycleRows = await rrsmPool.query<QueryResultRow>(
@@ -212,7 +241,8 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
               l.supplier_rate, l.supplier_uom, l.change_status, l.pr_link_source,
               s.supplier_code, sup.name AS supplier_name,
               COALESCE(s.payment_terms, '') AS payment_terms,
-              prev.qty AS prev_qty, prev.rate AS prev_rate
+              prev.qty AS prev_qty, prev.rate AS prev_rate,
+              l.ops_validator_email, l.ops_validator_name, l.ops_sent_at
          FROM rrsm_cycle_lines l
          JOIN rrsm_service_lines s ON s.id = l.service_line_id
          JOIN rrsm_suppliers sup   ON sup.code = s.supplier_code
@@ -227,8 +257,10 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
                LIMIT 1
          ) prev ON TRUE
         WHERE l.cycle_id = $1
+          AND ($4::text IS NULL
+               OR (lower(l.ops_validator_email) = $4 AND l.ops_sent_at IS NOT NULL))
         ORDER BY sup.name, s.segment, s.description`,
-      [Number(c.id), countryCode, c.period],
+      [Number(c.id), countryCode, c.period, onlyMine],
     );
 
     const suppliers = new Map<string, BoardSupplier>();
@@ -277,7 +309,9 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
        PRs carry no vendor, so the PO is the first place a PR meets its supplier). Only when the
        PR is clear-cut; see autoPrFor. Written with `pr_number IS NULL` in the WHERE, so a
        buyer linking at the same moment wins. */
-    await autoLinkPrs(Number(c.id), dateOnly(c.opens_on), dateOnly(c.closes_on), suppliers);
+    if (!onlyMine) {
+      await autoLinkPrs(Number(c.id), dateOnly(c.opens_on), dateOnly(c.closes_on), suppliers);
+    }
 
     const sap = await readSapStatus(
       [...suppliers.values()].flatMap((g) => g.lines.map((l) => l.poNumber)),
@@ -288,7 +322,7 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
        SAP has exactly one. Recorded rather than only shown so "Close all ready" and the cycle
        history see it too. `po_number IS NULL` in the WHERE makes a second page load, or a buyer
        typing a PO at the same moment, a no-op rather than an overwrite. */
-    if (sap.ok) {
+    if (sap.ok && !onlyMine) {
       for (const group of suppliers.values()) {
         for (const line of group.lines) {
           const auto = lineSap(line, sap).autoPo;
@@ -321,6 +355,7 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
       canBuy,
       canValidate,
       isAdmin: actor.isAdmin,
+      viewerEmail: actor.email,
       cycle: {
         id: Number(c.id),
         period: dateOnly(c.period),
@@ -419,6 +454,13 @@ function toBoardLine(r: QueryResultRow): BoardLine {
     supplierUom: r.supplier_uom ? String(r.supplier_uom) : null,
     changeStatus: r.change_status ? (String(r.change_status) as BoardLine['changeStatus']) : null,
     prAuto: r.pr_link_source ? (String(r.pr_link_source) as PrAutoReason) : null,
+    opsValidator: r.ops_validator_email
+      ? {
+          email: String(r.ops_validator_email),
+          name: String(r.ops_validator_name ?? '') || String(r.ops_validator_email),
+        }
+      : null,
+    opsSentAt: r.ops_sent_at ? new Date(r.ops_sent_at as string).toISOString() : null,
   };
 }
 
@@ -446,11 +488,9 @@ export async function openRrsmCycle(countryCode: string, period: string): Promis
   let client: PoolClient | null = null;
   try {
     const actor = await requireCountry(countryCode);
-    /* Ops open the month; a buyer may too, because a country that does not run Ops validation
-       has no Ops to do it. */
-    const { canValidate, canBuy } = rolesIn(actor, countryCode);
-    if (!canValidate && !canBuy) {
-      return { success: false, error: 'Only Ops, a buyer or an admin opens a cycle.' };
+    /* Buyers open the month. Ops validators are picked per line now and hold no country. */
+    if (!rolesIn(actor, countryCode).canBuy) {
+      return { success: false, error: 'Only a buyer or an admin opens a cycle.' };
     }
 
     const first = `${String(period ?? '').slice(0, 7)}-01`;
@@ -482,10 +522,13 @@ export async function openRrsmCycle(countryCode: string, period: string): Promis
     await syncRatesFromRegistry(client, countryCode, actor.email);
 
     /* The rate comes from the register (today's agreed rate) and the quantity from last month's
-       confirmed figure, defaulting to 1 where there is no history. */
+       confirmed figure, defaulting to 1 where there is no history. The line's usual Ops
+       validator comes along too, assigned but NOT sent: the buyer sends it when it is ready. */
     await client.query(
-      `INSERT INTO rrsm_cycle_lines (cycle_id, service_line_id, qty, rate, on_hire, stage)
-       SELECT $1, s.id, COALESCE(prev.qty, 1), s.rate, TRUE, $4
+      `INSERT INTO rrsm_cycle_lines (cycle_id, service_line_id, qty, rate, on_hire, stage,
+                                     ops_validator_email, ops_validator_name)
+       SELECT $1, s.id, COALESCE(prev.qty, 1), s.rate, TRUE, $4,
+              s.ops_validator_email, s.ops_validator_name
          FROM rrsm_service_lines s
          LEFT JOIN LATERAL (
               SELECT p.qty FROM rrsm_cycle_lines p
@@ -533,10 +576,14 @@ export async function saveOpsLine(input: {
   opsNote?: string;
 }): Promise<RrsmResult> {
   try {
-    const { country, stage } = await countryOfLine(Number(input?.lineId));
-    const actor = await requireCountry(country);
-    if (!rolesIn(actor, country).canValidate) {
-      return { success: false, error: 'Only Ops or an admin confirms utilisation.' };
+    const line = await countryOfLine(Number(input?.lineId));
+    const { stage } = line;
+    const actor = await actorOrThrow();
+    if (!validatesLine(actor, line)) {
+      return {
+        success: false,
+        error: 'Only the Ops validator this line was sent to, or an admin, confirms it.',
+      };
     }
     if (stage === 'closed') return { success: false, error: 'That line is closed.' };
     if (stage === 'validated') {
@@ -578,9 +625,12 @@ export async function moveRrsmLine(input: {
   note?: string;
 }): Promise<RrsmResult> {
   try {
-    const { country, stage } = await countryOfLine(Number(input?.lineId));
-    const actor = await requireCountry(country);
-    const { canBuy, canValidate } = rolesIn(actor, country);
+    const line = await countryOfLine(Number(input?.lineId));
+    const { country, stage } = line;
+    const actor = await actorOrThrow();
+    const canBuy = rolesIn(actor, country).canBuy;
+    /* As Ops only on a line sent to this person (or as an admin). */
+    const canValidate = validatesLine(actor, line);
 
     const as =
       canValidate && canMove(stage, input.to, 'ops')
@@ -1042,6 +1092,156 @@ export async function closeValidatedLines(
     return { success: true, moved: rows.length };
   } catch (err) {
     log.error('closeValidatedLines.failed', err, { cycleId });
+    return { success: false, error: (err as Error).message };
+  }
+}
+
+/* ─── Buyer: send lines to an Ops validator ──────────────────────────────────────────────── */
+
+/**
+ * Send lines to the person who will validate them as Ops (user decision, 24 Nov 2026).
+ *
+ * The buyer ticks lines and picks somebody from the directory, or (`usual`) sends every unsent
+ * line that already has a validator to that person. Sending:
+ *   - sets the validator on this month's line and remembers them on the register line, so next
+ *     month opens with the same person filled in;
+ *   - is what gives the validator access: those lines and their suppliers' documents, nothing else;
+ *   - mails each validator once, listing their lines.
+ * Re-sending a line to somebody else moves it to them. Validated and closed lines are left alone.
+ */
+export async function sendLinesToOps(input: {
+  cycleId: number;
+  lineIds?: number[];
+  validator?: { email: string; name: string } | null;
+  /** Send every unsent open line to the validator already on it. */
+  usual?: boolean;
+}): Promise<RrsmResult & { sent?: number; mailed?: number; mailError?: string }> {
+  const cycleId = Number(input?.cycleId);
+  try {
+    const country = await countryOfCycle(cycleId);
+    const actor = await requireCountry(country);
+    if (!rolesIn(actor, country).canBuy) {
+      return { success: false, error: 'Only a buyer or an admin sends lines to Ops.' };
+    }
+    if (!(await stepsOf(country)).ops) {
+      return { success: false, error: 'This country does not run Ops validation.' };
+    }
+
+    const picked = input?.validator
+      ? {
+          email: normalizeEmail(String(input.validator.email ?? '')),
+          name: String(input.validator.name ?? '').trim(),
+        }
+      : null;
+    const ids = (input?.lineIds ?? []).map(Number).filter(Number.isInteger);
+    if (!input?.usual) {
+      if (!picked || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(picked.email)) {
+        return { success: false, error: 'Pick the Ops validator from the directory.' };
+      }
+      if (!ids.length) return { success: false, error: 'Tick the lines to send.' };
+    }
+
+    const { rows: sent } = input?.usual
+      ? await rrsmPool.query<QueryResultRow>(
+          `UPDATE rrsm_cycle_lines
+              SET ops_sent_at = NOW(), ops_sent_by = $2, updated_at = NOW()
+            WHERE cycle_id = $1 AND ops_sent_at IS NULL
+              AND COALESCE(ops_validator_email, '') <> ''
+              AND stage NOT IN ('validated', 'closed')
+            RETURNING id, service_line_id, ops_validator_email, ops_validator_name`,
+          [cycleId, actor.email],
+        )
+      : await rrsmPool.query<QueryResultRow>(
+          `UPDATE rrsm_cycle_lines
+              SET ops_validator_email = $3, ops_validator_name = NULLIF($4, ''),
+                  ops_sent_at = NOW(), ops_sent_by = $2, updated_at = NOW()
+            WHERE cycle_id = $1 AND id = ANY($5::int[])
+              AND stage NOT IN ('validated', 'closed')
+            RETURNING id, service_line_id, ops_validator_email, ops_validator_name`,
+          [cycleId, actor.email, picked!.email, picked!.name, ids],
+        );
+    if (!sent.length) {
+      return {
+        success: false,
+        error: input?.usual
+          ? 'No unsent line has a usual validator.'
+          : 'None of those lines can be sent: validated and closed lines stay where they are.',
+      };
+    }
+
+    /* Remember each validator on the register line, and say who sent what in the line's log. */
+    for (const r of sent) {
+      await rrsmPool.query(
+        `UPDATE rrsm_service_lines SET ops_validator_email = $2, ops_validator_name = $3
+          WHERE id = $1`,
+        [Number(r.service_line_id), String(r.ops_validator_email), r.ops_validator_name ?? null],
+      );
+      await rrsmPool.query(
+        `INSERT INTO rrsm_activity_log (cycle_line_id, cycle_id, actor, action, note)
+         VALUES ($1, $2, $3, 'sent_to_ops', $4)`,
+        [
+          Number(r.id),
+          cycleId,
+          actor.email,
+          `Sent to ${r.ops_validator_name || r.ops_validator_email} for Ops validation`,
+        ],
+      );
+    }
+
+    /* One mail per validator, listing their lines. */
+    const { rows: detail } = await rrsmPool.query<QueryResultRow>(
+      `SELECT l.id, lower(l.ops_validator_email) AS email, l.ops_validator_name AS name,
+              s.description, COALESCE(s.asset_ref, '') AS asset_ref, s.segment, s.cost_center,
+              sup.name AS supplier_name, cy.period, co.name AS country_name
+         FROM rrsm_cycle_lines l
+         JOIN rrsm_service_lines s ON s.id = l.service_line_id
+         JOIN rrsm_suppliers sup   ON sup.code = s.supplier_code
+         JOIN rrsm_cycles cy       ON cy.id = l.cycle_id
+         JOIN rrsm_countries co    ON co.code = cy.country_code
+        WHERE l.id = ANY($1::int[])
+        ORDER BY sup.name, s.description`,
+      [sent.map((r) => Number(r.id))],
+    );
+    const byPerson = new Map<string, QueryResultRow[]>();
+    for (const d of detail) {
+      const list = byPerson.get(String(d.email)) ?? [];
+      list.push(d);
+      byPerson.set(String(d.email), list);
+    }
+    let mailed = 0;
+    let mailError = '';
+    for (const [email, rows] of byPerson) {
+      const result = await sendRrsmMail(
+        opsValidationMail({
+          to: [email],
+          cc: [actor.email],
+          validatorName: String(rows[0].name ?? ''),
+          countryName: String(rows[0].country_name),
+          period: dateOnly(rows[0].period),
+          sentBy: actor.email,
+          url: boardUrl(country, 'ops'),
+          lines: rows.map((r) => ({
+            supplier: String(r.supplier_name),
+            description: String(r.description),
+            assetRef: String(r.asset_ref ?? ''),
+            segment: String(r.segment ?? ''),
+            costCenter: String(r.cost_center ?? ''),
+          })),
+        }),
+      );
+      if (result.ok) mailed++;
+      else mailError = result.error ?? 'The email could not be sent.';
+    }
+
+    log.info('lines.sentToOps', {
+      cycleId,
+      lines: sent.length,
+      people: byPerson.size,
+      by: actor.email,
+    });
+    return { success: true, sent: sent.length, mailed, mailError: mailError || undefined };
+  } catch (err) {
+    log.error('sendLinesToOps.failed', err, { cycleId });
     return { success: false, error: (err as Error).message };
   }
 }

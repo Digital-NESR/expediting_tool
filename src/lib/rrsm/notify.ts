@@ -25,7 +25,8 @@ export type RrsmMailKind =
   | 'renewal.reminder'
   | 'recurrent.reminder'
   | 'recurrent.decision'
-  | 'line.returned';
+  | 'line.returned'
+  | 'ops.validation';
 
 export interface RrsmMail {
   kind: RrsmMailKind;
@@ -275,9 +276,69 @@ export function supplierSubmittedMail(input: {
         `for ${esc(input.countryName)}.</p>` +
         `<p>${input.lines} line${input.lines === 1 ? '' : 's'}, ${esc(money)} ${esc(input.currency)} ` +
         `at the rates on the register. Submitted by ${esc(input.submittedBy)}.</p>` +
-        `<p>It is waiting on Ops to confirm what was actually used.</p>`,
+        `<p>Next: on PR &amp; PO, send its lines to the Ops validator who confirms what was used.</p>`,
     ),
     meta: { supplier: input.supplierName, period: input.period, lines: input.lines },
+  };
+}
+
+/**
+ * To an Ops validator, when a buyer sends them lines (user decision, 24 Nov 2026). One mail per
+ * send, listing every line, because the validator's access is exactly these lines and they
+ * should be able to see from the mail alone what they are being asked to confirm.
+ */
+export function opsValidationMail(input: {
+  to: string[];
+  cc: string[];
+  validatorName: string;
+  countryName: string;
+  period: string;
+  sentBy: string;
+  url: string;
+  lines: {
+    supplier: string;
+    description: string;
+    assetRef: string;
+    segment: string;
+    costCenter: string;
+  }[];
+}): RrsmMail {
+  const n = input.lines.length;
+  const cell = 'padding:6px 8px;border-bottom:1px solid #e6ebe8;vertical-align:top';
+  const rows = input.lines
+    .map(
+      (l) =>
+        `<tr><td style="${cell}">${esc(l.supplier)}</td>` +
+        `<td style="${cell}">${esc(l.description)}` +
+        (l.assetRef ? `<br><span style="color:#74837c;font-size:12px">${esc(l.assetRef)}</span>` : '') +
+        `</td><td style="${cell};white-space:nowrap">${esc(l.segment)}</td>` +
+        `<td style="${cell};white-space:nowrap">${esc(l.costCenter)}</td></tr>`,
+    )
+    .join('');
+  const first = input.validatorName.trim().split(/\s+/)[0] ?? '';
+  return {
+    kind: 'ops.validation',
+    to: input.to,
+    cc: input.cc,
+    subject: `Ops validation: ${n} line${n === 1 ? '' : 's'} for ${periodLabel(input.period)} (${input.countryName})`,
+    bodyHtml: SHELL(
+      `<p>${first ? `Hi ${esc(first)},` : 'Hello,'}</p>` +
+        `<p><b>${esc(input.sentBy)}</b> has sent you ${n} rental line${n === 1 ? '' : 's'} in ` +
+        `${esc(input.countryName)} to validate for ${esc(periodLabel(input.period))}. Please confirm ` +
+        `what was actually used (on hire, days and quantity), then Validate each line or Return it ` +
+        `with a note.</p>` +
+        `<table style="border-collapse:collapse;font-size:13px;width:100%;margin:14px 0">` +
+        `<tr style="text-align:left;color:#74837c;font-size:11px;text-transform:uppercase">` +
+        `<th style="${cell}">Supplier</th><th style="${cell}">Service</th>` +
+        `<th style="${cell}">Segment</th><th style="${cell}">Cost center</th></tr>` +
+        rows +
+        `</table>` +
+        `<p style="margin:24px 0"><a href="${esc(input.url)}" ` +
+        `style="background:#307c4c;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:600;display:inline-block">` +
+        `Open Ops validation</a></p>` +
+        `<p style="color:#4a5852">The supplier's delivery note, timesheet and invoice are on the same page.</p>`,
+    ),
+    meta: { period: input.period, lines: n, country: input.countryName },
   };
 }
 

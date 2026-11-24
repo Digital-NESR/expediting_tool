@@ -45,7 +45,7 @@ const ROLE_LABEL: Record<Role, string> = {
 
 const ROLE_HELP: Record<Role, string> = {
   buyer: 'Converts validated lines into a PO and records the ERP number.',
-  ops: 'Confirms what was actually used — headcount, units, days. Never value.',
+  ops: 'Not appointed here: a buyer picks the Ops validator for each line and sends it to them.',
   admin: 'Runs the register and the cycle for the country.',
   requester:
     'Not appointed here: anybody a buyer names as requester-validator on a recurrent service gets access to their own services automatically.',
@@ -242,10 +242,11 @@ export default function RrsmAdminClient({ preview }: { preview?: RrsmAdminPrevie
               onChange={(e) => setRole(e.target.value as Role)}
               className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13.5px] outline-none"
             >
-              {/* Service requesters are not appointed: being named on a recurrent service by a
-                  buyer is what gives them access. The label stays for any grant made earlier. */}
+              {/* Service requesters and Ops validators are not appointed: a buyer naming them on
+                  a recurrent service, or sending them lines to validate, is what gives them
+                  access (24 Nov 2026). The labels stay for any grant made earlier. */}
               {(Object.keys(ROLE_LABEL) as Role[])
-                .filter((r) => r !== 'requester')
+                .filter((r) => r !== 'requester' && r !== 'ops')
                 .map((r) => (
                   <option key={r} value={r}>
                     {ROLE_LABEL[r]}

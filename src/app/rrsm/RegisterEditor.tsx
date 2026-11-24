@@ -28,7 +28,6 @@ import {
 import type { RegisterRow } from '@/app/actions/rrsm/overview';
 import {
   EMPTY_LINE_DRAFT,
-  OPERATING_MODEL_LABEL,
   checkOffHireDate,
   checkServiceLine,
   checkSupplier,
@@ -525,20 +524,9 @@ export function LineDrawer({
             className={`${INPUT} font-mono`}
           />
         </Field>
-        <Field label="Operating model" required error={errors.operatingModel}>
-          <select
-            value={draft.operatingModel}
-            disabled={ro}
-            onChange={(e) => set('operatingModel', e.target.value)}
-            className={INPUT}
-          >
-            {Object.entries(OPERATING_MODEL_LABEL).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v}
-              </option>
-            ))}
-          </select>
-        </Field>
+        {/* No operating model to pick (user decision, 24 Nov 2026): who validates a line is
+            chosen per line when the buyer sends it to Ops. A new line keeps the default and an
+            existing one keeps what it had; neither is shown. */}
       </Section>
 
       <Section

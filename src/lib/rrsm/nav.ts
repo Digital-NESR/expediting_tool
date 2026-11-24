@@ -125,7 +125,11 @@ export function visibleNav(
   /* Somebody who is neither buyer, validator nor admin here is a requester (or a bare viewer):
      the rentals pages have nothing for them to do. */
   const onlyRequester = !roles.canBuy && !roles.canValidate && !roles.isAdmin;
+  /* An Ops validator holds no country: a buyer sent them some lines, and those lines (on Ops
+     validation) are all they see (user decision, 24 Nov 2026). */
+  const onlyValidator = roles.canValidate && !roles.canBuy && !roles.isAdmin;
   return RRSM_NAV.filter((item) => {
+    if (onlyValidator && item.id !== 'validation' && item.id !== 'help') return false;
     if (!meetsNeed(item.needs, roles)) return false;
     if (item.id === 'suppliers' && !steps.supplier) return false;
     if (item.id === 'validation' && !steps.ops) return false;

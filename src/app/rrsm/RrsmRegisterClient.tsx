@@ -23,7 +23,6 @@ import { Check, ChevronDown, ChevronRight, Loader2, Pencil, Plus, Search } from 
 import type { RegisterRow, RrsmScope } from '@/app/actions/rrsm/overview';
 import type { RegisterEditorData, RegisterSupplier } from '@/app/actions/rrsm/register';
 import { daysUntil } from '@/lib/rrsm/renewals';
-import { OPERATING_MODEL_LABEL, type OperatingModel } from '@/lib/rrsm/register';
 import RrsmShell, { RrsmEmpty, RrsmNoCountry } from './components/RrsmShell';
 import { LineDrawer, SupplierDrawer, type UnitRegistryItem } from './RegisterEditor';
 import RegistryItemDrawer from './RegistryItemDrawer';
@@ -490,10 +489,6 @@ export default function RrsmRegisterClient({
                           <div className="mt-0.5 flex flex-wrap gap-x-2 font-mono text-[10.5px] text-slate-400">
                             {r.assetRef && <span>{r.assetRef}</span>}
                             {r.serviceNumber && <span>SN {r.serviceNumber}</span>}
-                            <span>
-                              {OPERATING_MODEL_LABEL[r.operatingModel as OperatingModel] ??
-                                r.operatingModel}
-                            </span>
                           </div>
                         </td>
                         <td className="px-2 py-2.5">

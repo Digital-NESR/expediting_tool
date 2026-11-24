@@ -42,9 +42,14 @@ function line(partial: Partial<BoardLine> & Pick<BoardLine, 'id' | 'description'
     supplierUom: null,
     changeStatus: null,
     prAuto: null,
+    opsValidator: null,
+    opsSentAt: null,
     ...partial,
   } as BoardLine;
 }
+
+const SARA = { email: 'sara.ops@example.invalid', name: 'Sara Ops' };
+const OMAR = { email: 'omar.field@example.invalid', name: 'Omar Field' };
 
 const BOARD: RrsmBoard = {
   country: {
@@ -89,6 +94,7 @@ const BOARD: RrsmBoard = {
   canBuy: true,
   canValidate: true,
   isAdmin: true,
+  viewerEmail: SARA.email,
   cycle: {
     id: 1,
     period: '2026-11-01',
@@ -111,6 +117,8 @@ const BOARD: RrsmBoard = {
           assetRef: '22X51902',
           prNumber: '1037006100',
           prAuto: 'only',
+          opsValidator: SARA,
+          opsSentAt: '2026-11-24T08:00:00Z',
         }),
         line({
           id: 2,
@@ -124,6 +132,7 @@ const BOARD: RrsmBoard = {
           supplierRate: 290,
           supplierUom: 'day',
           changeStatus: 'pending',
+          opsValidator: SARA,
         }),
         line({
           id: 3,
@@ -158,6 +167,8 @@ const BOARD: RrsmBoard = {
           stage: 'returned',
           previous: { qty: 1, rate: 200 },
           opsNote: 'Off hire 12 Nov, awaiting buyer confirmation',
+          opsValidator: OMAR,
+          opsSentAt: '2026-11-23T08:00:00Z',
         }),
       ],
     },
@@ -272,11 +283,28 @@ const BOARD: RrsmBoard = {
 export default async function RrsmBoardPreviewPage({
   searchParams,
 }: {
-  /* `?view=buyer` renders /rrsm/purchasing; anything else renders /rrsm/validation. */
-  searchParams?: Promise<{ view?: string }>;
+  /* `?view=buyer` renders /rrsm/purchasing; anything else renders /rrsm/validation.
+     `?as=validator` shows Ops validation as Sara sees it: only the lines sent to her. */
+  searchParams?: Promise<{ view?: string; as?: string }>;
 }) {
   if (process.env.NODE_ENV === 'production') notFound();
   const sp = searchParams ? await searchParams : {};
+
+  if (sp.as === 'validator') {
+    const mine: RrsmBoard = {
+      ...BOARD,
+      available: [BOARD.available[0]],
+      canBuy: false,
+      isAdmin: false,
+      suppliers: BOARD.suppliers
+        .map((s) => ({
+          ...s,
+          lines: s.lines.filter((l) => l.opsSentAt && l.opsValidator?.email === SARA.email),
+        }))
+        .filter((s) => s.lines.length),
+    };
+    return <RrsmBoardClient board={mine} view="ops" />;
+  }
 
   /* No banner above the board: the shell's sticky header and pinned sidebar are what is being
      checked, and a strip above them would offset both. The fixture data says what this is. */

@@ -19,7 +19,13 @@ import { currentActor, isToolAdminEmail, normalizeEmail } from '@/lib/require-ac
  * `requester` is a recurrent service's requester-validator: they decide whether their own services
  * are renewed, and see nothing else (user decision, 23 Nov 2026).
  */
-export type RrsmRole = 'buyer' | 'ops' | 'admin' | 'requester';
+/**
+ * `validator` is never stored: it is derived from the cycle lines a buyer has SENT to somebody
+ * for Ops validation (user decision, 24 Nov 2026), and opens only those lines and their
+ * suppliers' documents. `ops` is the old per-country appointment; nobody holds it any more and it
+ * is no longer offered in Admin, but a row left in rrsm_users is treated exactly like `validator`.
+ */
+export type RrsmRole = 'buyer' | 'ops' | 'validator' | 'admin' | 'requester';
 
 /**
  * Ranked so a caller can ask for "ops or better" without enumerating.
@@ -28,7 +34,16 @@ export type RrsmRole = 'buyer' | 'ops' | 'admin' | 'requester';
  * neither contains the other. Ranking them equal is what stops "ops or better" quietly admitting
  * every buyer, which is the mistake the SOA module records making with its old `manager` rung.
  */
-const RANK: Record<RrsmRole, number> = { buyer: 0, ops: 0, requester: 0, admin: 1 };
+/* `validator` and `ops` rank below everybody, so a gate asking for 'buyer' (the register, the
+   supplier pages, the dashboard...) never admits a validator. Only the Ops validation page and
+   its actions ask for 'validator', and they then check each line is one sent to this person. */
+const RANK: Record<RrsmRole, number> = {
+  validator: -1,
+  ops: -1,
+  buyer: 0,
+  requester: 0,
+  admin: 1,
+};
 
 export interface RrsmGrant {
   role: RrsmRole;
@@ -91,9 +106,26 @@ export function rolesIn(
   const here = actor.grants.filter((g) => g.countryCode === code);
   return {
     canBuy: here.some((g) => g.role === 'buyer' || g.role === 'admin'),
-    canValidate: here.some((g) => g.role === 'ops' || g.role === 'admin'),
+    /* Only ever the lines sent to them: callers check the line (see validatesLine). */
+    canValidate: here.some((g) => g.role === 'ops' || g.role === 'validator' || g.role === 'admin'),
     isRequester: here.some((g) => g.role === 'requester'),
   };
+}
+
+/**
+ * True when this actor may confirm or move this line as Ops: an admin, or the person the buyer
+ * sent it to. Nobody else, buyers included: a buyer who should also validate sends it to
+ * themselves, so who validated stays answerable.
+ */
+export function validatesLine(
+  actor: RrsmActor,
+  line: { opsValidatorEmail: string | null; opsSentAt: unknown },
+): boolean {
+  if (actor.isAdmin) return true;
+  return (
+    Boolean(line.opsSentAt) &&
+    normalizeEmail(String(line.opsValidatorEmail ?? '')) === actor.email
+  );
 }
 
 /**
@@ -144,6 +176,26 @@ export const currentRrsmActor = cache(async (): Promise<RrsmActor | null> => {
     /* Before the recurrent tables exist (a fresh database mid-migration) nobody is named yet. */
   }
 
+  /* Ops validators likewise: a buyer sending a line to somebody is what gives them access, to
+     that line only. Lines of closed months do not count, so access ends with the month. */
+  try {
+    const { rows: sent } = await rrsmPool.query<QueryResultRow>(
+      `SELECT DISTINCT c.country_code
+         FROM rrsm_cycle_lines l JOIN rrsm_cycles c ON c.id = l.cycle_id
+        WHERE lower(l.ops_validator_email) = $1 AND l.ops_sent_at IS NOT NULL
+          AND c.status <> 'closed'`,
+      [email],
+    );
+    for (const r of sent) {
+      const countryCode = String(r.country_code);
+      if (!grants.some((g) => g.role === 'validator' && g.countryCode === countryCode)) {
+        grants.push({ role: 'validator', countryCode });
+      }
+    }
+  } catch {
+    /* Before migration 019 nobody has been sent anything. */
+  }
+
   return { email, isAdmin, grants };
 });
 
@@ -165,8 +217,10 @@ export const currentRrsmActor = cache(async (): Promise<RrsmActor | null> => {
 export async function resolveRrsmCountry(
   actor: RrsmActor,
   requested?: string | null,
+  /** 'validator' also admits countries where somebody only validates lines sent to them. */
+  role: 'buyer' | 'validator' = 'buyer',
 ): Promise<{ countryCode: string | null; available: RrsmCountryOption[] }> {
-  const scope = countriesFor(actor, 'buyer');
+  const scope = countriesFor(actor, role);
   if (scope !== 'all' && !scope.length) return { countryCode: null, available: [] };
 
   const { rows } = await rrsmPool.query<QueryResultRow>(

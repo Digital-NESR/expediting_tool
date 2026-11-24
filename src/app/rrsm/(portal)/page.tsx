@@ -31,7 +31,11 @@ export default async function RrsmPage({
   const legacy = legacyViewPath(sp.view);
   if (legacy) redirect(rrsmHref(legacy, sp.country));
 
-  const scope = await getRrsmScope(sp.country ?? null);
+  const scope = await getRrsmScope(sp.country ?? null, 'validator');
+  /* Somebody who only validates lines a buyer sent them has one page: those lines. */
+  if (scope.country && scope.canValidate && !scope.canBuy && !scope.isAdmin) {
+    redirect(rrsmHref('/rrsm/validation', scope.country.code));
+  }
   const requesterOnly = !scope.canBuy && !scope.canValidate && !scope.isAdmin;
   if (scope.country?.recurrentEnabled && requesterOnly) {
     redirect(rrsmHref('/rrsm/recurrent', scope.country.code));

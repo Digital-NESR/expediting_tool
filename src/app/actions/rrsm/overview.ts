@@ -45,9 +45,13 @@ async function actorOrThrow(): Promise<RrsmActor> {
   return actor;
 }
 
-export async function getRrsmScope(requestedCountry?: string | null): Promise<RrsmScope> {
+export async function getRrsmScope(
+  requestedCountry?: string | null,
+  /** 'validator' also finds the countries where somebody only validates lines sent to them. */
+  role: 'buyer' | 'validator' = 'buyer',
+): Promise<RrsmScope> {
   const actor = await actorOrThrow();
-  const { countryCode, available } = await resolveRrsmCountry(actor, requestedCountry);
+  const { countryCode, available } = await resolveRrsmCountry(actor, requestedCountry, role);
   const country = available.find((c) => c.code === countryCode) ?? null;
   const roles = country
     ? rolesIn(actor, country.code)

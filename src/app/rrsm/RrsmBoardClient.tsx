@@ -18,7 +18,17 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Check, Download, FileText, Loader2, Undo2 } from 'lucide-react';
+import {
+  AlertTriangle,
+  Check,
+  Download,
+  FileText,
+  Loader2,
+  Send,
+  Undo2,
+  UserRound,
+} from 'lucide-react';
+import { PickerPortal, usePickerAnchor } from '@/app/admin/_components/EmployeePicker';
 import {
   closeValidatedLines,
   confirmLinePr,
@@ -26,6 +36,7 @@ import {
   openRrsmCycle,
   saveBuyerRefs,
   saveOpsLine,
+  sendLinesToOps,
   decideSupplierChange,
   type BoardLine,
   type RrsmBoard,
@@ -209,6 +220,9 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [sapFilter, setSapFilter] = useState<SapFilter>('all');
+  const [notice, setNotice] = useState('');
+  /* Lines the buyer has ticked to send to an Ops validator. */
+  const [ticked, setTicked] = useState<Set<number>>(new Set());
 
   const money = useMemo(
     () =>
@@ -266,6 +280,31 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
     startTransition(() => router.refresh());
   }
 
+  /* Sending to Ops is the buyer's, on PR & PO, in a country that runs the Ops step. */
+  const sendsToOps = view === 'buyer' && board.canBuy && Boolean(board.country?.opsValidation);
+
+  async function sendToOps(input: {
+    lineIds?: number[];
+    validator?: { email: string; name: string };
+    usual?: boolean;
+  }) {
+    if (!board.cycle) return;
+    setBusy('send-ops');
+    setError('');
+    setNotice('');
+    const r = await sendLinesToOps({ cycleId: board.cycle.id, ...input });
+    if (!r.success) setError(r.error ?? 'That did not work.');
+    else {
+      setTicked(new Set());
+      setNotice(
+        `Sent ${r.sent} line${r.sent === 1 ? '' : 's'} to Ops.` +
+          (r.mailError ? ` The email did not go out: ${r.mailError}` : ''),
+      );
+      refresh();
+    }
+    setBusy(null);
+  }
+
   async function run(key: string, fn: () => Promise<{ success: boolean; error?: string }>) {
     setBusy(key);
     setError('');
@@ -308,8 +347,8 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
     );
   }
 
-  /* Who opens the month: Ops, or the buyer in a country with no Ops step. */
-  const canOpen = view === 'ops' || !board.country.opsValidation;
+  /* Buyers open the month; Ops validators are picked per line and only see what is sent. */
+  const canOpen = board.canBuy;
 
   const subtitle = board.cycle ? (
     <>
@@ -385,6 +424,13 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
         </div>
       )}
 
+      {notice && (
+        <div className="flex items-start gap-2 rounded-lg border border-[#cfe3d6] bg-[#f1f8f4] px-3.5 py-2.5 text-[13px] text-[#1d4f31]">
+          <Check className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{notice}</span>
+        </div>
+      )}
+
       {/* ── no cycle yet ────────────────────────────────────── */}
       {!board.cycle ? (
         <Empty
@@ -392,7 +438,7 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
           body={
             canOpen
               ? 'Opening a cycle copies every asset still on hire from last month, with today’s rates and the quantity confirmed last time.'
-              : 'Ops open the cycle. There is nothing to put on a PO until they have.'
+              : 'A buyer opens the cycle. Lines appear here once a buyer sends them to you.'
           }
           action={
             canOpen ? (
@@ -412,6 +458,25 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
         />
       ) : (
         <>
+          {sendsToOps && lines.length > 0 && (
+            <OpsSendPanel
+              lines={lines}
+              ticked={ticked}
+              busy={busy === 'send-ops'}
+              onTickAll={(ids) => setTicked(new Set(ids))}
+              onClear={() => setTicked(new Set())}
+              onSend={(validator) => void sendToOps({ lineIds: [...ticked], validator })}
+              onSendUsual={() => void sendToOps({ usual: true })}
+            />
+          )}
+
+          {view === 'ops' && !board.isAdmin && lines.length > 0 && (
+            <p className="text-[12.5px] text-slate-500">
+              These are the lines a buyer sent you. Confirm what was used, then Validate each one
+              or Return it with a note. Supplier documents are beside each supplier&apos;s name.
+            </p>
+          )}
+
           {/* ── this month's PR matching: what RRSM linked, what to check, what it could not ── */}
           {view === 'buyer' && lines.length > 0 && board.sap.ok && (
             <PrReview
@@ -510,6 +575,7 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
                   <table className="w-full min-w-[56rem] text-[13px]">
                     <thead>
                       <tr className="text-[10.5px] uppercase tracking-wider text-slate-400">
+                        {sendsToOps && <th className="w-8 py-2 pl-4" aria-label="Send to Ops" />}
                         <th className="px-4 py-2 text-left font-semibold">Asset / service</th>
                         {view === 'ops' ? (
                           <>
@@ -545,7 +611,30 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
                           /* Each page offers only its own side's edits and moves. Somebody who
                              holds both roles switches page to do the other half, which keeps
                              "who changed this" answerable from the page they were on. */
-                          canValidate={view === 'ops' && board.canValidate}
+                          /* As Ops, only a line sent to this person (an admin, any line). */
+                          canValidate={
+                            view === 'ops' &&
+                            (board.isAdmin ||
+                              (Boolean(l.opsSentAt) &&
+                                l.opsValidator?.email.toLowerCase() === board.viewerEmail))
+                          }
+                          tick={
+                            sendsToOps && sendable(l)
+                              ? {
+                                  on: ticked.has(l.id),
+                                  toggle: () =>
+                                    setTicked((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(l.id)) next.delete(l.id);
+                                      else next.add(l.id);
+                                      return next;
+                                    }),
+                                }
+                              : sendsToOps
+                                ? 'none'
+                                : null
+                          }
+                          showOps={Boolean(board.country!.opsValidation)}
                           canBuy={view === 'buyer' && board.canBuy}
                           busy={busy}
                           onRun={run}
@@ -599,6 +688,8 @@ function Row({
   sap,
   siblings,
   supplierName,
+  tick,
+  showOps,
 }: {
   line: BoardLine;
   view: View;
@@ -612,6 +703,10 @@ function Row({
   /** This supplier's other open lines with no PR, which a PR link can be applied to as well. */
   siblings: number[];
   supplierName: string;
+  /** The send-to-Ops tick box: a box, an empty cell ('none'), or no column at all (null). */
+  tick: { on: boolean; toggle: () => void } | 'none' | null;
+  /** The country runs Ops validation, so say who validates the line. */
+  showOps: boolean;
 }) {
   const [linking, setLinking] = useState(false);
   const ls: LineSap = lineSap(line, sap);
@@ -652,6 +747,19 @@ function Row({
 
   return (
     <tr className="border-t border-slate-100 align-middle">
+      {tick !== null && (
+        <td className="py-2.5 pl-4">
+          {tick !== 'none' && (
+            <input
+              type="checkbox"
+              checked={tick.on}
+              onChange={tick.toggle}
+              className="h-4 w-4 accent-[#307c4c]"
+              aria-label={`Send ${line.description} to Ops`}
+            />
+          )}
+        </td>
+      )}
       <td className="px-4 py-2.5">
         <div className="flex items-start gap-2">
           {!line.onHire && (
@@ -667,6 +775,7 @@ function Row({
               <span>{line.costCenter}</span>
               {line.serviceNumber && <span>SN {line.serviceNumber}</span>}
             </div>
+            {showOps && <OpsValidatorTag line={line} />}
             <SupplierChange
               line={line}
               money={money}
@@ -1218,5 +1327,161 @@ function Delta({
         </span>
       )}
     </span>
+  );
+}
+
+/* ─── Ops validator, per line ────────────────────────────────────────────────────────────── */
+
+/** A line a buyer may (re)send to Ops: anything not yet validated or closed. */
+function sendable(l: BoardLine): boolean {
+  return l.stage !== 'validated' && l.stage !== 'closed';
+}
+
+/** Who validates this line as Ops, and whether it has gone to them yet. */
+function OpsValidatorTag({ line }: { line: BoardLine }) {
+  const v = line.opsValidator;
+  if (!v) {
+    return <div className="mt-1 text-[11px] text-slate-400">No Ops validator yet</div>;
+  }
+  return (
+    <div
+      className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-500"
+      title={v.email}
+    >
+      <UserRound className="h-3 w-3" />
+      Ops: <span className="font-medium text-slate-700">{v.name}</span>
+      {line.opsSentAt ? (
+        <span className="text-[#1d4f31]">· sent {line.opsSentAt.slice(0, 10)}</span>
+      ) : (
+        <span className="text-amber-700">· not sent yet</span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The buyer's send-to-Ops bar: how many lines have gone, how many are waiting, one click to send
+ * the waiting ones to their usual validators, and the ticked lines to a person from the directory.
+ */
+function OpsSendPanel({
+  lines,
+  ticked,
+  busy,
+  onTickAll,
+  onClear,
+  onSend,
+  onSendUsual,
+}: {
+  lines: BoardLine[];
+  ticked: Set<number>;
+  busy: boolean;
+  onTickAll: (ids: number[]) => void;
+  onClear: () => void;
+  onSend: (validator: { email: string; name: string }) => void;
+  onSendUsual: () => void;
+}) {
+  const { btnRef, open: pickerOpen, pos, toggle, close } = usePickerAnchor();
+  const open = lines.filter(sendable);
+  const sent = open.filter((l) => l.opsSentAt).length;
+  const waiting = open.filter((l) => !l.opsSentAt);
+  const usual = waiting.filter((l) => l.opsValidator).length;
+  const nobody = waiting.length - usual;
+
+  /* When every ticked line already has the same usual validator, offer them first. */
+  const tickedLines = lines.filter((l) => ticked.has(l.id));
+  const same = tickedLines.length
+    ? tickedLines.every((l) => l.opsValidator?.email === tickedLines[0].opsValidator?.email)
+    : false;
+  const suggested = same ? tickedLines[0].opsValidator : null;
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-[13.5px] font-semibold text-slate-800">Ops validation</h2>
+        <span className="text-[12px] text-slate-500">
+          {sent} sent · {waiting.length} not sent
+          {nobody > 0 ? ` (${nobody} with no validator)` : ''}
+        </span>
+      </div>
+      <p className="mt-0.5 text-[11.5px] text-slate-500">
+        Tick lines and pick who validates them. They get an email, and see only those lines and the
+        supplier&apos;s documents. Each line remembers its validator for next month.
+      </p>
+
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+        {usual > 0 && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onSendUsual}
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-semibold text-white disabled:opacity-50"
+            style={{ background: BRAND }}
+          >
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            Send {usual} to their usual validator{usual === 1 ? '' : 's'}
+          </button>
+        )}
+        {waiting.length > 0 && (
+          <button
+            type="button"
+            onClick={() => onTickAll(waiting.map((l) => l.id))}
+            className="rounded-lg border border-slate-200 px-3 py-1.5 text-[12.5px] font-medium text-slate-600 hover:bg-slate-50"
+          >
+            Tick all not sent ({waiting.length})
+          </button>
+        )}
+      </div>
+
+      {ticked.size > 0 && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-2 rounded-lg border border-[#cfe3d6] bg-[#f1f8f4] px-3 py-2">
+          <span className="text-[12.5px] font-semibold text-[#1d4f31]">
+            {ticked.size} line{ticked.size === 1 ? '' : 's'} ticked
+          </span>
+          {suggested && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onSend(suggested)}
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-semibold text-white disabled:opacity-50"
+              style={{ background: BRAND }}
+            >
+              <Send className="h-3.5 w-3.5" /> Send to {suggested.name}
+            </button>
+          )}
+          <button
+            ref={btnRef}
+            type="button"
+            disabled={busy}
+            onClick={toggle}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12.5px] font-semibold disabled:opacity-50 ${
+              suggested
+                ? 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                : 'text-white'
+            }`}
+            style={suggested ? undefined : { background: BRAND }}
+          >
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserRound className="h-3.5 w-3.5" />}
+            {suggested ? 'Someone else…' : 'Pick validator and send…'}
+          </button>
+          <button
+            type="button"
+            onClick={onClear}
+            className="text-[12px] font-medium text-slate-500 hover:underline"
+          >
+            Clear
+          </button>
+          <PickerPortal
+            open={pickerOpen}
+            pos={pos}
+            placeholder="Search the directory for the validator…"
+            onPick={(emp) => {
+              close();
+              onSend({ email: emp.email, name: emp.name });
+            }}
+            onClose={close}
+          />
+        </div>
+      )}
+    </section>
   );
 }

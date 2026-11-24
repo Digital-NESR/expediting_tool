@@ -269,8 +269,14 @@ export async function setRrsmUser(input: {
 
     if (!email || !email.includes('@'))
       return { success: false, error: 'A valid email is needed.' };
-    if (!['buyer', 'ops', 'admin', 'requester'].includes(role))
-      return { success: false, error: 'Unknown role.' };
+    if (!['buyer', 'admin'].includes(role))
+      return {
+        success: false,
+        error:
+          role === 'ops' || role === 'requester'
+            ? 'Not appointed here: a buyer picks them on the line or the service.'
+            : 'Unknown role.',
+      };
     if (!country) return { success: false, error: 'Pick a country.' };
 
     const { rowCount } = await rrsmPool.query(

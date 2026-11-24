@@ -13,8 +13,8 @@ export const dynamic = 'force-dynamic';
  *
  * A route handler rather than a server action because it returns bytes with their own content
  * type and disposition. Access follows the cycle: anyone holding an RRSM grant in the country the
- * document's cycle belongs to may open it, the same people who see the supplier's lines. The
- * country is read from the rows, never from the URL.
+ * document's cycle belongs to may open it, and so may an Ops validator who was sent one of that
+ * supplier's lines in that cycle. The country is read from the rows, never from the URL.
  *
  * Always served as an attachment, never inline: the file came from outside NESR, and opening an
  * uploaded file inside the app's own origin is how a crafted file gets to run script.
@@ -29,16 +29,23 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   try {
     const { rows } = await rrsmPool.query(
-      `SELECT d.file_name, d.content_type, d.content, cy.country_code
+      `SELECT d.file_name, d.content_type, d.content, cy.country_code,
+              /* An Ops validator may open the documents of a supplier whose line in this cycle
+                 was sent to them, and no others (user decision, 24 Nov 2026). */
+              EXISTS (SELECT 1 FROM rrsm_cycle_lines cl
+                        JOIN rrsm_service_lines s ON s.id = cl.service_line_id
+                       WHERE cl.cycle_id = l.cycle_id AND s.supplier_code = l.supplier_code
+                         AND cl.ops_sent_at IS NOT NULL
+                         AND lower(cl.ops_validator_email) = $2) AS sent_to_me
          FROM rrsm_submission_documents d
          JOIN rrsm_supplier_links l ON l.id = d.link_id
          JOIN rrsm_cycles cy        ON cy.id = l.cycle_id
         WHERE d.id = $1`,
-      [documentId],
+      [documentId, actor.email],
     );
     const row = rows[0];
     if (!row) return new NextResponse('Not found', { status: 404 });
-    if (!canAccessCountry(actor, String(row.country_code), 'buyer')) {
+    if (!canAccessCountry(actor, String(row.country_code), 'buyer') && !row.sent_to_me) {
       return new NextResponse('Not found', { status: 404 });
     }
 
