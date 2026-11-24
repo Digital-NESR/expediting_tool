@@ -19,11 +19,23 @@ import allKpisPool from '@/lib/db-all-kpis';
 import { requireSchema } from '@/lib/db/schema-version';
 import { AccessError, forbidden, requireAdmin } from '@/lib/require-access';
 import { logger } from '@/lib/logger';
-import { kpiByCode } from '@/lib/health-board/definitions';
+import { kpiByCode, normalisePeriod } from '@/lib/health-board/definitions';
+import {
+  checklist,
+  expectedCells,
+  templateCsv,
+  type ChecklistRow,
+} from '@/lib/health-board/template';
 import { parseKpiGrid, type ParsedRow, type Problem } from '@/lib/health-board/parse';
 import { diffUpload, type StoredCell } from '@/lib/health-board/diff';
-import { applyUpload, fingerprintOf, storedFor, yearsOf } from '@/lib/health-board/apply';
-import { loadHistory, type LoadSummary } from '@/lib/health-board/queries';
+import {
+  applyUpload,
+  fingerprintOf,
+  storedFor,
+  undoUpload,
+  yearsOf,
+} from '@/lib/health-board/apply';
+import { loadHistory, loadYearValues, type LoadSummary } from '@/lib/health-board/queries';
 
 const log = logger('health-board');
 
@@ -49,6 +61,8 @@ export interface UploadPreview {
   changed: number;
   unchanged: number;
   rejected: Problem[];
+  /** Lines left blank in the file: ignored, nothing stored or cleared. */
+  blank: number;
   warnings: Problem[];
   categoryNotes: string[];
   /** Every cell that would change. */
@@ -98,7 +112,9 @@ export async function previewHealthBoardUpload(
       success: true,
       data: {
         fileName,
-        rowsInFile: parsed.rows.length + new Set(rejected.map((p) => p.line)).size,
+        rowsInFile:
+          parsed.rows.length + new Set(rejected.map((p) => p.line)).size + parsed.blank.length,
+        blank: parsed.blank.length,
         added: diff.added.length,
         changed: diff.changed.length,
         unchanged: diff.unchanged.length,
@@ -194,5 +210,103 @@ export async function getHealthBoardLoads(): Promise<Result<LoadSummary[]>> {
     if (err instanceof AccessError) return forbidden(err.message);
     log.error('loads.failed', err);
     return { success: false, error: 'Could not read the upload history.' };
+  }
+}
+
+/* ═══ Phase 5: preparing a month, checking it, undoing a mistake ═══ */
+
+async function expectedFor(year: number, periodRaw: string) {
+  const period = normalisePeriod(periodRaw);
+  if (!period || !Number.isInteger(year) || year < 2000 || year > 2100) {
+    throw new Error('Choose a year and a month, Baseline, Target or YTD.');
+  }
+  const [thisYear, lastYear] = await Promise.all([loadYearValues(year), loadYearValues(year - 1)]);
+  return { period, cells: expectedCells([...thisYear, ...lastYear], year, period) };
+}
+
+/** The prefilled upload file for a year and period: every expected line, stored values filled in. */
+export async function getHealthBoardTemplate(
+  year: number,
+  period: string,
+): Promise<Result<{ fileName: string; csv: string; lines: number }>> {
+  try {
+    await requireAdmin();
+    const { period: p, cells } = await expectedFor(Number(year), String(period));
+    return {
+      success: true,
+      data: {
+        fileName: `health-board-${year}-${p.toLowerCase()}.csv`,
+        csv: templateCsv(cells, Number(year), p),
+        lines: cells.length,
+      },
+    };
+  } catch (err) {
+    if (err instanceof AccessError) return forbidden(err.message);
+    log.error('template.failed', err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Could not build the template.',
+    };
+  }
+}
+
+/** Per country: how much of a period has arrived. */
+export async function getHealthBoardChecklist(
+  year: number,
+  period: string,
+): Promise<Result<ChecklistRow[]>> {
+  try {
+    await requireAdmin();
+    const { cells } = await expectedFor(Number(year), String(period));
+    return { success: true, data: checklist(cells) };
+  } catch (err) {
+    if (err instanceof AccessError) return forbidden(err.message);
+    log.error('checklist.failed', err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Could not build the checklist.',
+    };
+  }
+}
+
+const UNDO_REFUSED: Record<string, string> = {
+  'not-latest': 'Only the most recent upload can be undone.',
+  'not-an-upload': 'The initial load cannot be undone.',
+  'is-an-undo': 'This is already an undo; upload the file again instead.',
+  'already-undone': 'This upload has already been undone.',
+  'not-found': 'That upload no longer exists.',
+};
+
+/** Reverse the most recent upload. Everything it changed or added is put back, and logged. */
+export async function undoHealthBoardUpload(
+  loadId: number,
+): Promise<Result<{ restored: number; removed: number }>> {
+  let actorEmail = '';
+  try {
+    const actor = await requireAdmin();
+    actorEmail = actor.email;
+    await requireSchema(allKpisPool, 'all-kpis', '001_baseline');
+    const client = await allKpisPool.connect();
+    try {
+      await client.query('BEGIN');
+      const r = await undoUpload(client, Number(loadId), actor.email);
+      if (!r.ok) {
+        await client.query('ROLLBACK');
+        return { success: false, error: UNDO_REFUSED[r.reason] };
+      }
+      await client.query('COMMIT');
+      log.info('upload.undone', { loadId, undoLoadId: r.undoLoadId, by: actor.email });
+      revalidatePath('/supply-chain-analytics/health-board', 'layout');
+      return { success: true, data: { restored: r.restored, removed: r.removed } };
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    if (err instanceof AccessError) return forbidden(err.message);
+    log.error('undo.failed', err, { by: actorEmail, loadId });
+    return { success: false, error: 'The undo could not be completed. Nothing was changed.' };
   }
 }

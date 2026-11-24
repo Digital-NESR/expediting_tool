@@ -15,7 +15,7 @@ import { credentials } from '../database/migrations/databases.mjs';
 const jiti = createJiti(import.meta.url);
 const { parseKpiGrid } = await jiti.import('../src/lib/health-board/parse.ts');
 const { diffUpload } = await jiti.import('../src/lib/health-board/diff.ts');
-const { applyUpload, fingerprintOf, storedFor, yearsOf } = await jiti.import(
+const { applyUpload, fingerprintOf, storedFor, undoUpload, yearsOf } = await jiti.import(
   '../src/lib/health-board/apply.ts',
 );
 
@@ -121,6 +121,35 @@ try {
     fingerprint: fingerprintOf(diff),
   });
   expect(!again.ok && again.reason === 'stale', 'the same preview cannot be committed twice');
+
+  /* Undo (UX phase 5): only the latest load, and it puts everything back. */
+  const older = await undoUpload(client, 1, 'upload-check');
+  expect(!older.ok && older.reason === 'not-latest', 'an older load cannot be undone');
+  const u = await undoUpload(client, r.loadId, 'upload-check');
+  expect(u.ok && u.restored === 1 && u.removed === 1, 'undo: 1 value restored, 1 removed');
+  expect(
+    (await cell('KPI - DSOH', 'July', 'Global', 2026)) === dsohJuly,
+    'undo: the changed cell has its old value back',
+  );
+  expect(
+    (await cell('KPI - OTD', 'September', 'Global', 2026)) === null,
+    'undo: the added cell is gone',
+  );
+  expect(
+    (await count('kpi_values')) === before.values,
+    'undo: same number of values as before the upload',
+  );
+  const trail = (
+    await client.query(
+      "SELECT count(*)::int AS n FROM kpi_value_history WHERE changed_by='upload-check'",
+    )
+  ).rows[0].n;
+  expect(trail === 3, 'undo: the upload and both reversals are in the history');
+  const note = (await client.query('SELECT note FROM kpi_loads WHERE id = $1', [r.loadId])).rows[0]
+    .note;
+  expect(/Undone by load/.test(note), 'undo: the original load is marked as undone');
+  const twice = await undoUpload(client, u.undoLoadId, 'upload-check');
+  expect(!twice.ok && twice.reason === 'is-an-undo', 'an undo cannot itself be undone');
 } finally {
   await client.query('ROLLBACK');
 }

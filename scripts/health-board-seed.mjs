@@ -52,7 +52,11 @@ const say = (s = '') => {
 /* ── 1. The SharePoint export ── */
 const csvText = readFileSync(CSV, 'utf8');
 const grid = parseCsv(csvText);
-const parsed = parseKpiGrid(grid, { duplicates: 'keep-all' });
+const parsed = parseKpiGrid(grid, {
+  duplicates: 'keep-all',
+  blanks: 'keep',
+  allowDiscontinued: true,
+});
 const rejects = parsed.problems.filter((p) => p.severity === 'reject');
 const warns = parsed.problems.filter((p) => p.severity === 'warn');
 

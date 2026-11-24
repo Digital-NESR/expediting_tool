@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseKpiGrid, parseNumber } from '@/lib/health-board/parse';
-import { normaliseCountry, normalisePeriod } from '@/lib/health-board/definitions';
+import { COUNTRIES, normaliseCountry, normalisePeriod } from '@/lib/health-board/definitions';
 
 const HEADER = [
   'Country',
@@ -54,6 +54,10 @@ describe('countries and periods', () => {
   it('keeps EOS DMCC and EOS JAFZA as their own entities', () => {
     expect(normaliseCountry('EOS DMCC')).toBe('EOS DMCC');
     expect(normaliseCountry('EOS JAFZA')).toBe('EOS JAFZA');
+  });
+
+  it('accepts every board country by its own name (the template writes these)', () => {
+    for (const c of COUNTRIES) expect(normaliseCountry(c)).toBe(c);
   });
 
   it('does not guess an unknown country', () => {

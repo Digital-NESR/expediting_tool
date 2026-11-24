@@ -219,3 +219,121 @@ export async function applyUpload(
     unchanged: diff.unchanged.length,
   };
 }
+
+export const UNDO_PREFIX = 'Undo of load ';
+
+export type UndoResult =
+  | { ok: true; undoLoadId: number; restored: number; removed: number }
+  | {
+      ok: false;
+      reason: 'not-latest' | 'not-an-upload' | 'is-an-undo' | 'already-undone' | 'not-found';
+    };
+
+/**
+ * Reverse an upload (UX phase 5). Must run inside a transaction. Only the most recent load can be
+ * undone, so no later upload can have built on it; an undo is itself never undone (upload again
+ * instead). Changed cells get their previous value, target text and category back from
+ * kpi_value_history; cells the upload added are removed. Every reversal is written to the history
+ * under a new load, and the original load is marked as undone, so nothing disappears from the
+ * record.
+ */
+export async function undoUpload(db: Queryable, loadId: number, by: string): Promise<UndoResult> {
+  await db.query('SELECT pg_advisory_xact_lock($1)', [UPLOAD_LOCK]);
+  const { rows: loads } = await db.query(
+    'SELECT id, kind, file_name, note, (SELECT max(id) FROM kpi_loads) AS latest FROM kpi_loads WHERE id = $1',
+    [loadId],
+  );
+  const load = loads[0];
+  if (!load) return { ok: false, reason: 'not-found' };
+  if (Number(load.latest) !== loadId) return { ok: false, reason: 'not-latest' };
+  if (load.kind !== 'upload') return { ok: false, reason: 'not-an-upload' };
+  if (String(load.file_name).startsWith(UNDO_PREFIX)) return { ok: false, reason: 'is-an-undo' };
+  if (String(load.note ?? '').includes('Undone by load'))
+    return { ok: false, reason: 'already-undone' };
+
+  const { rows: changed } = await db.query(
+    `SELECT kpi, year, period, country, old_value::text AS old_value, new_value::text AS new_value,
+            old_target_words, new_target_words, old_category, new_category
+       FROM kpi_value_history WHERE load_id = $1`,
+    [loadId],
+  );
+  const { rows: written } = await db.query(
+    `SELECT kpi, year, period, country, value::text AS value, target_words, category
+       FROM kpi_values WHERE load_id = $1`,
+    [loadId],
+  );
+  const changedKeys = new Set(changed.map((c) => `${c.kpi}|${c.year}|${c.period}|${c.country}`));
+  const added = written.filter(
+    (w) => !changedKeys.has(`${w.kpi}|${w.year}|${w.period}|${w.country}`),
+  );
+
+  const { rows: undo } = await db.query(
+    `INSERT INTO kpi_loads (kind, file_name, loaded_by, rows_in_file, rows_added, rows_changed, rows_unchanged, rows_rejected, note)
+     VALUES ('upload', $1, $2, $3, 0, $3, 0, 0, $4) RETURNING id`,
+    [
+      `${UNDO_PREFIX}${loadId}: ${load.file_name}`.slice(0, 255),
+      by,
+      changed.length + added.length,
+      `Reverses load ${loadId}: ${changed.length} value(s) restored, ${added.length} removed.`,
+    ],
+  );
+  const undoId = Number(undo[0].id);
+
+  for (const c of changed) {
+    await db.query(
+      `INSERT INTO kpi_value_history (kpi, year, period, country, old_value, new_value, old_target_words, new_target_words, old_category, new_category, load_id, changed_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [
+        c.kpi,
+        c.year,
+        c.period,
+        c.country,
+        c.new_value,
+        c.old_value,
+        c.new_target_words,
+        c.old_target_words,
+        c.new_category,
+        c.old_category,
+        undoId,
+        by,
+      ],
+    );
+    const { rowCount } = await db.query(
+      `UPDATE kpi_values
+          SET value = $5, target_words = $6, category = $7, load_id = $8, updated_at = now(), updated_by = $9
+        WHERE kpi = $1 AND year = $2 AND period = $3 AND country = $4 AND load_id = $10`,
+      [
+        c.kpi,
+        c.year,
+        c.period,
+        c.country,
+        c.old_value,
+        c.old_target_words,
+        c.old_category,
+        undoId,
+        by,
+        loadId,
+      ],
+    );
+    if (rowCount !== 1)
+      throw new Error(`Could not restore ${c.kpi} ${c.country} ${c.period} ${c.year}`);
+  }
+  for (const a of added) {
+    await db.query(
+      `INSERT INTO kpi_value_history (kpi, year, period, country, old_value, new_value, old_target_words, new_target_words, old_category, new_category, load_id, changed_by)
+       VALUES ($1,$2,$3,$4,$5,NULL,$6,NULL,$7,NULL,$8,$9)`,
+      [a.kpi, a.year, a.period, a.country, a.value, a.target_words, a.category, undoId, by],
+    );
+    const { rowCount } = await db.query(
+      'DELETE FROM kpi_values WHERE kpi = $1 AND year = $2 AND period = $3 AND country = $4 AND load_id = $5',
+      [a.kpi, a.year, a.period, a.country, loadId],
+    );
+    if (rowCount !== 1)
+      throw new Error(`Could not remove ${a.kpi} ${a.country} ${a.period} ${a.year}`);
+  }
+  await db.query(`UPDATE kpi_loads SET note = concat_ws(' ', note, $2::text) WHERE id = $1`, [
+    loadId,
+    `Undone by load ${undoId}.`,
+  ]);
+  return { ok: true, undoLoadId: undoId, restored: changed.length, removed: added.length };
+}

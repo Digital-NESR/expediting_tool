@@ -418,7 +418,9 @@ function aliasKey(s: string): string {
 
 const COUNTRY_BY_ALIAS = new Map<string, Country>();
 for (const [country, aliases] of Object.entries(ALIASES) as [Country, string[]][]) {
-  for (const a of aliases) COUNTRY_BY_ALIAS.set(aliasKey(a), country);
+  /* The board's own name is always accepted, so a file the board wrote (the prefilled template)
+     always reads back: Power BI only knew Syria as "Syria LOCL". */
+  for (const a of [country, ...aliases]) COUNTRY_BY_ALIAS.set(aliasKey(a), country);
 }
 
 /** A country name as entered → the board's country, or null when it is not a known spelling. */

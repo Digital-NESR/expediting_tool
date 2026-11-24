@@ -54,6 +54,8 @@ export interface Problem {
 export interface ParseResult {
   rows: ParsedRow[];
   problems: Problem[];
+  /** Lines whose Value was left blank and so were ignored (uploads only; see `blanks`). */
+  blank: number[];
 }
 
 export function rowKey(r: { kpi: string; year: number; period: string; country: string }): string {
@@ -84,15 +86,27 @@ function headerIndex(grid: string[][]): number {
  */
 export function parseKpiGrid(
   grid: string[][],
-  options: { duplicates: 'reject' | 'keep-all' } = { duplicates: 'reject' },
+  options: {
+    duplicates: 'reject' | 'keep-all';
+    /**
+     * 'skip' (uploads): a row with no Value is ignored, so a prefilled template can go back with
+     * only the cells somebody filled in, and a blank never wipes a stored number. 'keep' (the
+     * initial load): a blank in the source list is stored as a blank.
+     */
+    blanks?: 'skip' | 'keep';
+    /** The initial load reproduces history as it was, including KPIs discontinued since. */
+    allowDiscontinued?: boolean;
+  } = { duplicates: 'reject' },
 ): ParseResult {
   const problems: Problem[] = [];
+  const blank: number[] = [];
   const rows: ParsedRow[] = [];
 
   const h = headerIndex(grid);
   if (h < 0) {
     return {
       rows,
+      blank,
       problems: [
         {
           line: 0,
@@ -108,6 +122,7 @@ export function parseKpiGrid(
   if (missing.length) {
     return {
       rows,
+      blank,
       problems: [
         { line: h + 1, severity: 'reject', message: `Missing column(s): ${missing.join(', ')}.` },
       ],
@@ -145,13 +160,21 @@ export function parseKpiGrid(
       reject(`Year "${yearText}" is not a year.`);
       continue;
     }
-    if (kpi.discontinuedFrom !== undefined && year >= kpi.discontinuedFrom) {
+    if (
+      !options.allowDiscontinued &&
+      kpi.discontinuedFrom !== undefined &&
+      year >= kpi.discontinuedFrom
+    ) {
       reject(`${kpi.name} was discontinued from ${kpi.discontinuedFrom}.`);
       continue;
     }
     const value = parseNumber(get('Value'));
     if (value === 'invalid') {
       reject(`Value "${get('Value')}" is not a number.`);
+      continue;
+    }
+    if (value === null && (options.blanks ?? 'skip') === 'skip') {
+      blank.push(line);
       continue;
     }
     const category = normaliseCategory(get('Category'));
@@ -210,7 +233,7 @@ export function parseKpiGrid(
         });
       }
     }
-    return { rows: rows.filter((r) => !dupes.has(r.line)), problems };
+    return { rows: rows.filter((r) => !dupes.has(r.line)), problems, blank };
   }
-  return { rows, problems };
+  return { rows, problems, blank };
 }

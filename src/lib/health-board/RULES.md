@@ -146,6 +146,23 @@ Against the numeric Target for that KPI, year and country:
   in that month or later the same year; otherwise it has simply not been reached and stays empty.
   Quarterly KPIs are only missing in quarter-end months.
 
+## Uploading (UX phase 5)
+
+- **Blank values are ignored on upload**: a line with no Value changes nothing and clears nothing.
+  (The initial load kept the source list's blanks; `blanks: 'keep'` in the seed script.) There is
+  no way to blank a stored value by upload.
+- **Prefilled template** for a year and period (`template.ts`): one line for every KPI still
+  reported that year (quarterly KPIs only in quarter-end months, YTD only for P&L) × every
+  country that has ever reported it with a value, the stored value filled in. Uploading a
+  template untouched changes nothing (checked for all 30 periods of 2025–2026).
+- **Checklist**: per country, how many expected values have arrived for the period, and which
+  are missing. "Expected" is the same as the template.
+- **Undo**: only the most recent upload, never the initial load, never an undo. Changed values
+  get their previous value, target text and category back; added values are removed. The undo is
+  its own load and every reversal is in `kpi_value_history`; the original load is marked
+  "Undone by load N".
+- Every board country name is accepted as itself (Power BI only knew Syria as "Syria LOCL").
+
 ## Fixes against Power BI (the native numbers differ from Power BI here, on purpose)
 
 1. **Duplicate rows were added together.** Power BI SUMs every row, so two rows for one cell
