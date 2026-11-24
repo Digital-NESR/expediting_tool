@@ -180,7 +180,6 @@ export default function HealthBoardComparison({
 }) {
   const { year, kpi, months } = comparison;
   const rows = sortRows(comparison.rows, kpi, sort);
-  const columns = 5 + months.length;
 
   /* The menu: KPIs with a page, grouped by this year's category, sorted Z→A like the overview. */
   const groups = new Map<string, typeof KPIS>();
