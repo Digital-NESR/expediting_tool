@@ -160,6 +160,10 @@ written down per KPI in `procedures/` beside this file, so the next month is don
 - `procedures/pr-to-po.md`: PR to PO Creation Days and PO Approval Days from the "AVG PO Creation Cycle Time [Days]"
   and "AVG PO Approval cycle" exports (new months only, since past months recalculate live; Global = mean of the countries;
   negatives loaded as they are), via `scripts/health-board-pr-to-po-from-export.mjs`.
+- `procedures/icpo-transfer-out.md`: FMT - ICPO Transfer Out from the "Transfer Out MoM by
+  Country" export (Global = sum), via `scripts/health-board-icpo-from-export.mjs`.
+- `procedures/dsoh.md`: DSOH, with countries from the live table (the same reading in missed
+  months) and Global from the month-on-month export, via `scripts/health-board-dsoh.mjs`.
 
 ## Uploading (UX phase 5)
 
