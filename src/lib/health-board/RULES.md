@@ -53,6 +53,11 @@ rejected, not guessed.
 - Target column shows the target text as entered (e.g. `<= 5`). Colours use the numeric Target.
 - Numbers are formatted by unit, the same in every column: % and Days 2 decimals; $ whole
   dollars with thousands separators; Suppliers whole numbers.
+- **Overview only** (owner, 24 Nov 2026: every month must fit on screen at a glance): dollar
+  amounts in the Baseline, month, YTD and Target columns are shortened to two decimals of a
+  thousand or million (135.01M, 497.85K), and each one shows the exact amount on hover. Detail
+  pages, the comparison and the Excel export keep whole dollars. The table is sized so January–
+  December fit on a 1366px-wide screen without scrolling sideways.
 
 ## YTD (per KPI)
 

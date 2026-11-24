@@ -27,7 +27,14 @@ import {
 } from '@/lib/health-board/explain';
 import { KPI_PAGES } from '@/lib/health-board/pages';
 import { README } from '@/lib/health-board/readme';
-import { formatKpiValue, formatWithUnit } from '@/lib/health-board/format';
+import {
+  compactTargetWords,
+  exactTitle,
+  formatCompact,
+  formatCompactWithUnit,
+  formatKpiValue,
+  formatWithUnit,
+} from '@/lib/health-board/format';
 import BoardActions from './BoardActions';
 import CountryPicker from './CountryPicker';
 
@@ -72,11 +79,16 @@ export function StatusDot({ status }: { status: Status | null }) {
   );
 }
 
-function TargetChip({ words }: { words: string | null }) {
+/** The target as written; with `unit`, a dollar amount is shortened (the full words on hover). */
+function TargetChip({ words, unit }: { words: string | null; unit?: KpiDefinition['unit'] }) {
   if (!words) return <span className="text-slate-300">–</span>;
+  const shown = unit ? compactTargetWords(unit, words) : words;
   return (
-    <span className="inline-block whitespace-nowrap rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[12px] font-medium text-slate-600">
-      {words}
+    <span
+      title={shown === words ? undefined : words}
+      className="inline-block whitespace-nowrap rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[11px] font-medium text-slate-600"
+    >
+      {shown}
     </span>
   );
 }
@@ -132,6 +144,9 @@ export function KpiInfo({ kpi, readMeHref }: { kpi: KpiDefinition; readMeHref: s
   );
 }
 
+/** Hover text from several parts, skipping the empty ones. */
+const join = (...parts: (string | undefined)[]) => parts.filter(Boolean).join(' ') || undefined;
+
 function Row({
   row,
   months,
@@ -153,10 +168,10 @@ function Row({
   const monthly: Partial<Record<Month, number | null>> = {};
   for (const m of months) monthly[m] = row.months[m]?.value ?? null;
   const ytdSource = row.kpi.ytd === 'entered' ? src('YTD') : undefined;
-  const ytdTitle = explainYtd(row.kpi, monthly) + (ytdSource ? ` ${ytdSource}` : '');
+  const ytdTitle = join(exactTitle(unit, row.ytd), explainYtd(row.kpi, monthly), ytdSource);
   return (
     <tr className="group relative border-b border-slate-100 last:border-0 hover:bg-[#307c4c]/5">
-      <td className="sticky left-0 z-10 min-w-[250px] bg-white py-2.5 pl-6 pr-4 text-left text-[13px] font-medium text-slate-800 group-hover:bg-[#f3f8f5]">
+      <td className="sticky left-0 z-10 w-[190px] min-w-[170px] max-w-[200px] bg-white py-2 pl-4 pr-2 text-left text-[13px] font-medium leading-snug text-slate-800 group-hover:bg-[#f3f8f5]">
         {href ? (
           <Link href={href} className="hover:text-[#307c4c] hover:underline">
             {row.kpi.name}
@@ -167,20 +182,26 @@ function Row({
         <KpiInfo kpi={row.kpi} readMeHref={ctx.readMeHref} />
         <KpiMeta kpi={row.kpi} />
       </td>
-      <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-slate-600">
+      <td className="whitespace-nowrap px-2 py-2 text-right text-[12.5px] tabular-nums text-slate-600">
         {/* The whole row opens the KPI's page. This copy of the link is for the mouse only: the
             KPI name above is the one keyboard and screen-reader users reach. Numbers sit above
             it so their source shows on hover. */}
         {href && (
           <Link href={href} tabIndex={-1} aria-hidden="true" className="absolute inset-0 z-0" />
         )}
-        <Sourced title={row.baseline === null ? undefined : src('Baseline')}>
-          {row.baseline === null ? '–' : formatWithUnit(unit, row.baseline)}
+        <Sourced
+          title={
+            row.baseline === null
+              ? undefined
+              : join(exactTitle(unit, row.baseline), src('Baseline'))
+          }
+        >
+          {row.baseline === null ? '–' : formatCompact(unit, row.baseline)}
         </Sourced>
       </td>
-      <td className="px-3 py-2.5 text-center">
+      <td className="px-1.5 py-2 text-center">
         <Sourced title={row.targetWords ? src('Target') : undefined}>
-          <TargetChip words={row.targetWords} />
+          <TargetChip words={row.targetWords} unit={unit} />
         </Sourced>
       </td>
       {months.map((m) => {
@@ -190,15 +211,15 @@ function Row({
         return (
           <td
             key={m}
-            className={`whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-slate-800 ${
+            className={`whitespace-nowrap px-1 py-2 text-right text-[12px] tabular-nums text-slate-800 ${
               m === latest ? 'bg-[#307c4c]/[0.05] font-semibold' : ''
             }`}
           >
             {cell && cell.value !== null ? (
-              <Sourced title={src(m)}>
-                <span className="inline-flex items-center justify-end gap-1.5">
+              <Sourced title={join(exactTitle(unit, cell.value), src(m))}>
+                <span className="inline-flex items-center justify-end gap-0.5">
                   <TrendIcon trend={cell.trend} />
-                  {formatKpiValue(unit, cell.value)}
+                  {formatCompact(unit, cell.value)}
                 </span>
               </Sourced>
             ) : gap ? (
@@ -211,14 +232,14 @@ function Row({
           </td>
         );
       })}
-      <td className="sticky right-0 z-10 whitespace-nowrap border-l border-slate-100 bg-white px-4 py-2.5 text-right font-semibold tabular-nums text-slate-900 group-hover:bg-[#f3f8f5]">
+      <td className="sticky right-0 z-10 whitespace-nowrap border-l border-slate-100 bg-white px-2.5 py-2 text-right text-[13px] font-semibold tabular-nums text-slate-900 group-hover:bg-[#f3f8f5]">
         {/* Pinned cells are positioned, so they sit above the row's link; this one carries its own. */}
         {href && <Link href={href} tabIndex={-1} aria-hidden="true" className="absolute inset-0" />}
         {row.ytd !== null ? (
           <Sourced title={ytdTitle}>
             <span className="inline-flex items-center justify-end gap-1.5">
               <StatusDot status={row.status} />
-              {formatWithUnit(unit, row.ytd)}
+              {formatCompactWithUnit(unit, row.ytd)}
             </span>
           </Sourced>
         ) : (
@@ -488,20 +509,24 @@ export default function HealthBoardOverview({
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-[12px] font-semibold text-slate-600">
-                  <th className="sticky left-0 z-20 bg-slate-50 py-2.5 pl-6 pr-4 text-left">KPI</th>
-                  <th className="whitespace-nowrap px-3 py-2.5 text-right">Baseline {year - 1}</th>
-                  <th className="px-3 py-2.5 text-center">Target</th>
+                  <th className="sticky left-0 z-20 bg-slate-50 py-2 pl-4 pr-3 text-left">KPI</th>
+                  <th className="px-2 py-2 text-right leading-tight">
+                    Baseline
+                    <br />
+                    {year - 1}
+                  </th>
+                  <th className="px-1.5 py-2 text-center">Target</th>
                   {months.map((m) => (
                     <th
                       key={m}
-                      className={`px-3 py-2.5 text-right ${
+                      className={`px-1 py-2 text-right ${
                         m === latest ? 'bg-[#307c4c]/[0.08] text-[#1d4f31]' : ''
                       }`}
                     >
                       {m.slice(0, 3)}
                     </th>
                   ))}
-                  <th className="sticky right-0 z-20 border-l border-slate-200 bg-slate-50 px-4 py-2.5 text-right">
+                  <th className="sticky right-0 z-20 border-l border-slate-200 bg-slate-50 px-2.5 py-2 text-right">
                     YTD
                   </th>
                 </tr>
@@ -512,7 +537,7 @@ export default function HealthBoardOverview({
                     <th
                       colSpan={columns}
                       scope="rowgroup"
-                      className="sticky left-0 px-6 py-2 text-left text-[12px] font-semibold uppercase tracking-wide text-[#1d4f31]"
+                      className="sticky left-0 px-4 py-1.5 text-left text-[12px] font-semibold uppercase tracking-wide text-[#1d4f31]"
                     >
                       {g.category}
                     </th>
