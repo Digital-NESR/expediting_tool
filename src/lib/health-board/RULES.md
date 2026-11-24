@@ -146,6 +146,15 @@ Against the numeric Target for that KPI, year and country:
   in that month or later the same year; otherwise it has simply not been reached and stays empty.
   Quarterly KPIs are only missing in quarter-end months.
 
+## Per-KPI data procedures
+
+How a KPI's monthly values are produced from their source, where the owner has set rules, is
+written down per KPI in `procedures/` beside this file, so the next month is done the same way:
+
+- `procedures/inventory-reduction.md`: Inventory Reduction from the two "Inventory$ MoM by
+  Country" exports (EOS DMCC/JAFZA excluded, KSA Hydraulic Fracturing subtracted, Global = sum),
+  via `scripts/health-board-inventory-from-export.mjs`.
+
 ## Uploading (UX phase 5)
 
 - **Blank values are ignored on upload**: a line with no Value changes nothing and clears nothing.
