@@ -29,7 +29,8 @@ export const README: Record<string, ReadMeEntry> = {
     text: ['Number of suppliers registered in the LOCL Purchasing Org, by country.'],
     cadence: 'Month on Month',
     source: 'Supplier Management | AVL dashboard',
-    global: 'The total of all countries is the Global number of suppliers.',
+    global:
+      'Global counts each supplier once, even when it is registered in several countries, so it is a little below the sum of the countries.',
   },
   'KPI - P&L (PC/PR)': {
     text: ['PC/PR – Product Cost / Product Revenue, in percentage.'],
