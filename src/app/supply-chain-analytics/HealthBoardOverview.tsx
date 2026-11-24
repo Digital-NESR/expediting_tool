@@ -10,9 +10,23 @@
    - Phones: one card per KPI instead of a 14-column table. */
 
 import Link from 'next/link';
-import { ArrowDown, ArrowUp, Triangle } from 'lucide-react';
+import { ArrowDown, ArrowUp, Info, Triangle } from 'lucide-react';
 import type { Overview, OverviewRow, Status, Trend } from '@/lib/health-board/calc';
-import { COUNTRIES, type Country, type KpiDefinition } from '@/lib/health-board/definitions';
+import {
+  COUNTRIES,
+  type Country,
+  type KpiDefinition,
+  type Month,
+} from '@/lib/health-board/definitions';
+import {
+  describeProvenance,
+  explainYtd,
+  isGap,
+  provenanceKey,
+  type ProvenanceInfo,
+} from '@/lib/health-board/explain';
+import { KPI_PAGES } from '@/lib/health-board/pages';
+import { README } from '@/lib/health-board/readme';
 import { formatKpiValue, formatWithUnit } from '@/lib/health-board/format';
 import CountryPicker from './CountryPicker';
 
@@ -74,18 +88,71 @@ function KpiMeta({ kpi }: { kpi: KpiDefinition }) {
   );
 }
 
+/** What a row needs to explain its numbers on hover (UX phase 4). */
+export interface ExplainContext {
+  year: number;
+  country: Country;
+  provenance: Record<string, ProvenanceInfo>;
+  /** Per KPI, the last month any country has a value in (index 0–11). */
+  frontiers: Record<string, number>;
+  readMeHref: string;
+}
+
+/** A value with its source on hover. Sits above the row's link, so hovering it shows the source. */
+export function Sourced({
+  title,
+  children,
+}: {
+  title: string | undefined;
+  children: React.ReactNode;
+}) {
+  if (!title) return <>{children}</>;
+  return (
+    <span title={title} className="relative z-[1] cursor-help">
+      {children}
+    </span>
+  );
+}
+
+/** The (i) beside a KPI name: its Read Me definition on hover, the Read Me entry on click. */
+export function KpiInfo({ kpi, readMeHref }: { kpi: KpiDefinition; readMeHref: string }) {
+  const entry = README[kpi.code];
+  const page = KPI_PAGES[kpi.code];
+  if (!entry || !page) return null;
+  return (
+    <Link
+      href={`${readMeHref}#${page.slug}`}
+      title={`${entry.text.join(' ')} Taken ${entry.cadence} from ${entry.source}.`}
+      aria-label={`What ${kpi.name} measures`}
+      className="relative z-[1] ml-1 inline-flex align-middle text-slate-300 hover:text-[#307c4c]"
+    >
+      <Info className="h-3.5 w-3.5" />
+    </Link>
+  );
+}
+
 function Row({
   row,
   months,
   latest,
   href,
+  ctx,
 }: {
   row: OverviewRow;
   months: Overview['months'];
   latest: string | undefined;
   href: string | null;
+  ctx: ExplainContext;
 }) {
   const unit = row.kpi.unit;
+  const src = (period: string) => {
+    const p = ctx.provenance[provenanceKey(row.kpi.code, period, ctx.country)];
+    return p ? describeProvenance(p, unit) : undefined;
+  };
+  const monthly: Partial<Record<Month, number | null>> = {};
+  for (const m of months) monthly[m] = row.months[m]?.value ?? null;
+  const ytdSource = row.kpi.ytd === 'entered' ? src('YTD') : undefined;
+  const ytdTitle = explainYtd(row.kpi, monthly) + (ytdSource ? ` ${ytdSource}` : '');
   return (
     <tr className="group relative border-b border-slate-100 last:border-0 hover:bg-[#307c4c]/5">
       <td className="sticky left-0 z-10 min-w-[250px] bg-white py-2.5 pl-6 pr-4 text-left text-[13px] font-medium text-slate-800 group-hover:bg-[#f3f8f5]">
@@ -96,21 +163,29 @@ function Row({
         ) : (
           row.kpi.name
         )}
+        <KpiInfo kpi={row.kpi} readMeHref={ctx.readMeHref} />
         <KpiMeta kpi={row.kpi} />
       </td>
       <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums text-slate-600">
         {/* The whole row opens the KPI's page. This copy of the link is for the mouse only: the
-            KPI name above is the one keyboard and screen-reader users reach. */}
+            KPI name above is the one keyboard and screen-reader users reach. Numbers sit above
+            it so their source shows on hover. */}
         {href && (
           <Link href={href} tabIndex={-1} aria-hidden="true" className="absolute inset-0 z-0" />
         )}
-        <span>{row.baseline === null ? '–' : formatWithUnit(unit, row.baseline)}</span>
+        <Sourced title={row.baseline === null ? undefined : src('Baseline')}>
+          {row.baseline === null ? '–' : formatWithUnit(unit, row.baseline)}
+        </Sourced>
       </td>
       <td className="px-3 py-2.5 text-center">
-        <TargetChip words={row.targetWords} />
+        <Sourced title={row.targetWords ? src('Target') : undefined}>
+          <TargetChip words={row.targetWords} />
+        </Sourced>
       </td>
       {months.map((m) => {
         const cell = row.months[m];
+        const gap =
+          (!cell || cell.value === null) && isGap(row.kpi, m, ctx.frontiers[row.kpi.code]);
         return (
           <td
             key={m}
@@ -119,10 +194,18 @@ function Row({
             }`}
           >
             {cell && cell.value !== null ? (
-              <span className="inline-flex items-center justify-end gap-1.5">
-                <TrendIcon trend={cell.trend} />
-                {formatKpiValue(unit, cell.value)}
-              </span>
+              <Sourced title={src(m)}>
+                <span className="inline-flex items-center justify-end gap-1.5">
+                  <TrendIcon trend={cell.trend} />
+                  {formatKpiValue(unit, cell.value)}
+                </span>
+              </Sourced>
+            ) : gap ? (
+              <Sourced
+                title={`No value uploaded for ${ctx.country}, ${m} ${ctx.year}; other countries have one.`}
+              >
+                <span className="font-normal text-slate-300">—</span>
+              </Sourced>
             ) : null}
           </td>
         );
@@ -131,10 +214,12 @@ function Row({
         {/* Pinned cells are positioned, so they sit above the row's link; this one carries its own. */}
         {href && <Link href={href} tabIndex={-1} aria-hidden="true" className="absolute inset-0" />}
         {row.ytd !== null ? (
-          <span className="inline-flex items-center justify-end gap-1.5">
-            <StatusDot status={row.status} />
-            {formatWithUnit(unit, row.ytd)}
-          </span>
+          <Sourced title={ytdTitle}>
+            <span className="inline-flex items-center justify-end gap-1.5">
+              <StatusDot status={row.status} />
+              {formatWithUnit(unit, row.ytd)}
+            </span>
+          </Sourced>
         ) : (
           <span className="font-normal text-slate-300">–</span>
         )}
@@ -266,6 +351,8 @@ export default function HealthBoardOverview({
   overview,
   years,
   freshness,
+  provenance,
+  frontiers,
   hrefFor,
   detailHref,
   compareHref,
@@ -274,6 +361,9 @@ export default function HealthBoardOverview({
   overview: Overview;
   years: number[];
   freshness: Freshness;
+  /** Sources and per-KPI reach, for the hovers. */
+  provenance: Record<string, ProvenanceInfo>;
+  frontiers: Record<string, number>;
   /** Where a country or year link goes, so the dev preview can link to itself. */
   hrefFor: (year: number, country: Country) => string;
   /** Where a KPI's name links to: its detail page for the same year and country. */
@@ -297,6 +387,7 @@ export default function HealthBoardOverview({
     { label: 'No target or YTD', n: count(null), dot: null },
   ];
   const columns = 4 + months.length;
+  const ctx: ExplainContext = { year, country, provenance, frontiers, readMeHref };
 
   return (
     <div className="flex flex-col gap-4">
@@ -423,6 +514,7 @@ export default function HealthBoardOverview({
                       months={months}
                       latest={latest}
                       href={detailHref(r.kpi.code, year, country)}
+                      ctx={ctx}
                     />
                   ))}
                 </tbody>
@@ -476,7 +568,10 @@ export default function HealthBoardOverview({
           </span>
         ))}
         <span className="text-slate-300">|</span>
-        <span>Click a KPI for its page.</span>
+        <span>Click a KPI for its page; hover a number for where it came from.</span>
+        <span className="inline-flex items-center gap-1">
+          <span className="text-slate-300">—</span> not uploaded for this country (others have it)
+        </span>
       </div>
     </div>
   );

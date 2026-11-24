@@ -9,12 +9,14 @@ import {
   compareHref,
   detailHref,
   overviewHref,
+  readMeHref,
 } from '@/app/supply-chain-analytics/health-board/links';
 import { buildComparison, categoriesFor } from '@/lib/health-board/calc';
 import { kpiByCode } from '@/lib/health-board/definitions';
 import { kpiCodeForSlug } from '@/lib/health-board/pages';
 import { parseSort } from '@/lib/health-board/compare';
-import { loadYearValues, loadYears } from '@/lib/health-board/queries';
+import { kpiFrontiers } from '@/lib/health-board/explain';
+import { loadProvenance, loadYearValues, loadYears } from '@/lib/health-board/queries';
 
 const BASE = '/dev-preview/health-board';
 
@@ -28,7 +30,7 @@ export default async function HealthBoardComparePreviewPage({
   const years = await loadYears();
   const year = years.includes(Number(sp.year)) ? Number(sp.year) : years[0];
   const kpi = kpiByCode(kpiCodeForSlug(sp.kpi ?? '') ?? 'KPI - P&L (PC/PR)')!;
-  const values = await loadYearValues(year);
+  const [values, provenance] = await Promise.all([loadYearValues(year), loadProvenance(year)]);
 
   return (
     <main className="min-h-screen bg-gray-50 p-6">
@@ -40,6 +42,9 @@ export default async function HealthBoardComparePreviewPage({
         years={years}
         categories={categoriesFor(values, year)}
         sort={parseSort(sp.sort)}
+        provenance={provenance}
+        frontiers={kpiFrontiers(values, year)}
+        readMeHref={readMeHref(BASE)}
         hrefFor={(code, y, s) => compareHref(code, y, BASE, s)}
         overviewHref={overviewHref(year, 'Global', BASE)}
         detailHref={(code, y, c) => detailHref(code, y, c, BASE)}

@@ -23,6 +23,13 @@ import { scaleFor } from '@/lib/health-board/scale';
 import CountryPicker from './CountryPicker';
 import KpiChart, { type Series } from './KpiChart';
 import { StatusDot, YearNav } from './HealthBoardOverview';
+import {
+  describeProvenance,
+  explainYtd,
+  provenanceKey,
+  type ProvenanceInfo,
+} from '@/lib/health-board/explain';
+import type { Month } from '@/lib/health-board/definitions';
 
 const MONTHS = [
   'January',
@@ -54,6 +61,13 @@ function seriesOf(d: KpiDetail): Series {
   return { year: d.year, values };
 }
 
+/** The detail's months as the calc's month record, for explaining the YTD. */
+function seriesMonths(d: KpiDetail): Partial<Record<Month, number | null>> {
+  const out: Partial<Record<Month, number | null>> = {};
+  for (const p of d.points) if (p.label !== 'Baseline') out[p.label] = p.value;
+  return out;
+}
+
 /** "2.99 pts" for percentages, otherwise the value with its unit. */
 function gap(unit: KpiDefinition['unit'], v: number): string {
   return unit === '%' ? `${formatKpiValue('%', v)} pts` : formatWithUnit(unit, v);
@@ -63,15 +77,23 @@ function Stat({
   label,
   children,
   note,
+  source,
 }: {
   label: string;
   children: React.ReactNode;
   note?: React.ReactNode;
+  /** Where the value came from, shown on hover (UX phase 4). */
+  source?: string;
 }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-5 py-4">
       <p className="text-[12px] font-medium text-slate-500">{label}</p>
-      <div className="mt-1 text-2xl font-semibold text-slate-900">{children}</div>
+      <div
+        title={source}
+        className={`mt-1 text-2xl font-semibold text-slate-900 ${source ? 'cursor-help' : ''}`}
+      >
+        {children}
+      </div>
       {note && <div className="mt-0.5 text-[12px] text-slate-500">{note}</div>}
     </div>
   );
@@ -176,7 +198,10 @@ export default function HealthBoardDetail({
   hrefFor,
   overviewHref,
   compareHref,
+  provenance,
 }: {
+  /** Where this country's values came from, for the hovers (UX phase 4). */
+  provenance: Record<string, ProvenanceInfo>;
   detail: KpiDetail;
   /** The same KPI and country the year before, for the chart; null when there is no such year. */
   previous: KpiDetail | null;
@@ -192,6 +217,10 @@ export default function HealthBoardDetail({
 }) {
   const { year, country, kpi } = detail;
   const others = countries.filter((d) => d.points.length > 0 || d.ytd !== null);
+  const src = (period: string) => {
+    const p = provenance[provenanceKey(kpi.code, period, country)];
+    return p ? describeProvenance(p, kpi.unit) : undefined;
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -236,26 +265,36 @@ export default function HealthBoardDetail({
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label={`Baseline ${year - 1}`}>
+        <Stat
+          label={`Baseline ${year - 1}`}
+          source={detail.baseline === null ? undefined : src('Baseline')}
+        >
           {detail.baseline === null ? '–' : formatWithUnit(kpi.unit, detail.baseline)}
         </Stat>
         <Stat
           label="Target"
           note={kpi.direction === 'higher' ? 'Higher is better' : 'Lower is better'}
+          source={detail.targetWords ? src('Target') : undefined}
         >
           {detail.targetWords ?? '–'}
         </Stat>
         <Stat
           label={`YTD ${year}`}
+          source={kpi.ytd === 'entered' ? src('YTD') : undefined}
           note={
-            detail.status ? (
-              <span className="inline-flex items-center gap-1.5">
-                <StatusDot status={detail.status} />
-                {STATUS[detail.status].label}
+            <>
+              {detail.status ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <StatusDot status={detail.status} />
+                  {STATUS[detail.status].label}
+                </span>
+              ) : detail.ytd !== null ? (
+                'No target to compare with'
+              ) : null}
+              <span className="mt-1 block text-[11.5px] leading-snug text-slate-400">
+                {explainYtd(kpi, seriesMonths(detail))}
               </span>
-            ) : detail.ytd !== null ? (
-              'No target to compare with'
-            ) : undefined
+            </>
           }
         >
           {detail.ytd === null ? '–' : formatWithUnit(kpi.unit, detail.ytd)}

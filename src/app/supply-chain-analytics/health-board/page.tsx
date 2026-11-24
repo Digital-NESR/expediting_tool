@@ -1,6 +1,7 @@
 import { buildOverview } from '@/lib/health-board/calc';
 import { COUNTRIES, type Country } from '@/lib/health-board/definitions';
-import { loadHistory, loadYearValues, loadYears } from '@/lib/health-board/queries';
+import { kpiFrontiers } from '@/lib/health-board/explain';
+import { loadHistory, loadProvenance, loadYearValues, loadYears } from '@/lib/health-board/queries';
 import { logger } from '@/lib/logger';
 import { analyticsAccess } from '../access';
 import BoardShell from '../BoardShell';
@@ -44,6 +45,8 @@ export default async function HealthBoardPage({
           overview={data.overview}
           years={data.years}
           freshness={data.freshness}
+          provenance={data.provenance}
+          frontiers={data.frontiers}
           hrefFor={hrefFor}
           detailHref={kpiHref}
           compareHref={compareHref('KPI - P&L (PC/PR)', data.overview.year)}
@@ -61,11 +64,17 @@ async function load(sp: { year?: string; country?: string }) {
   const country = (COUNTRIES as readonly string[]).includes(sp.country ?? '')
     ? (sp.country as Country)
     : 'Global';
-  const [values, [last]] = await Promise.all([loadYearValues(year), loadHistory(1)]);
+  const [values, [last], provenance] = await Promise.all([
+    loadYearValues(year),
+    loadHistory(1),
+    loadProvenance(year, country),
+  ]);
   const overview = buildOverview(values, year, country);
   return {
     years,
     overview,
+    provenance,
+    frontiers: kpiFrontiers(values, year),
     freshness: {
       lastLoad: last ? { at: last.loadedAt, by: last.loadedBy } : null,
     },

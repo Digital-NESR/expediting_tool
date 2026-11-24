@@ -2,12 +2,13 @@ import { buildComparison, categoriesFor } from '@/lib/health-board/calc';
 import { kpiByCode } from '@/lib/health-board/definitions';
 import { kpiCodeForSlug } from '@/lib/health-board/pages';
 import { parseSort } from '@/lib/health-board/compare';
-import { loadYearValues, loadYears } from '@/lib/health-board/queries';
+import { kpiFrontiers } from '@/lib/health-board/explain';
+import { loadProvenance, loadYearValues, loadYears } from '@/lib/health-board/queries';
 import { logger } from '@/lib/logger';
 import { analyticsAccess } from '../../access';
 import BoardShell from '../../BoardShell';
 import HealthBoardComparison from '../../HealthBoardComparison';
-import { compareHref, detailHref, overviewHref } from '../links';
+import { compareHref, detailHref, overviewHref, readMeHref } from '../links';
 
 const log = logger('supply-chain-analytics');
 
@@ -52,6 +53,9 @@ export default async function HealthBoardComparePage({
           years={data.years}
           categories={data.categories}
           sort={parseSort(sp.sort)}
+          provenance={data.provenance}
+          frontiers={data.frontiers}
+          readMeHref={readMeHref()}
           hrefFor={(code, y, s) => compareHref(code, y, undefined, s)}
           overviewHref={overviewHref(data.comparison.year, 'Global')}
           detailHref={(code, y, c) => detailHref(code, y, c)}
@@ -66,9 +70,11 @@ async function load(sp: { kpi?: string; year?: string }) {
   if (!years.length) return 'empty' as const;
   const year = years.includes(Number(sp.year)) ? Number(sp.year) : years[0];
   const kpi = kpiByCode(kpiCodeForSlug(sp.kpi ?? '') ?? DEFAULT_KPI)!;
-  const values = await loadYearValues(year);
+  const [values, provenance] = await Promise.all([loadYearValues(year), loadProvenance(year)]);
   return {
     years,
+    provenance,
+    frontiers: kpiFrontiers(values, year),
     categories: categoriesFor(values, year),
     comparison: buildComparison(values, year, kpi),
   };

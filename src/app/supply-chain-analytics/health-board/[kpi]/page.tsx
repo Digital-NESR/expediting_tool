@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { buildDetail } from '@/lib/health-board/calc';
 import { COUNTRIES, kpiByCode, type Country } from '@/lib/health-board/definitions';
 import { KPI_PAGES, kpiCodeForSlug } from '@/lib/health-board/pages';
-import { loadYearValues, loadYears } from '@/lib/health-board/queries';
+import { loadProvenance, loadYearValues, loadYears } from '@/lib/health-board/queries';
 import { logger } from '@/lib/logger';
 import { analyticsAccess } from '../../access';
 import BoardShell from '../../BoardShell';
@@ -53,6 +53,7 @@ export default async function HealthBoardKpiPage({
         <HealthBoardDetail
           detail={data.detail}
           previous={data.previous}
+          provenance={data.provenance}
           countries={data.countries}
           page={KPI_PAGES[code]}
           years={data.years}
@@ -73,12 +74,14 @@ async function load(sp: { year?: string; country?: string }, code: string) {
     ? (sp.country as Country)
     : 'Global';
   const kpi = kpiByCode(code)!;
-  const [values, prior] = await Promise.all([
+  const [values, prior, provenance] = await Promise.all([
     loadYearValues(year),
     years.includes(year - 1) ? loadYearValues(year - 1) : Promise.resolve(null),
+    loadProvenance(year, country),
   ]);
   return {
     years,
+    provenance,
     detail: buildDetail(values, year, country, kpi),
     previous: prior ? buildDetail(prior, year - 1, country, kpi) : null,
     countries: COUNTRIES.map((c) => buildDetail(values, year, c, kpi)),

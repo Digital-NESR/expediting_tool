@@ -6,6 +6,7 @@ import allKpisPool from '@/lib/db-all-kpis';
 import { requireSchema } from '@/lib/db/schema-version';
 import type { KpiValue } from './calc';
 import type { Country, Period } from './definitions';
+import { provenanceKey, type ProvenanceInfo } from './explain';
 
 const SCHEMA = '001_baseline';
 
@@ -87,4 +88,42 @@ export async function loadHistory(limit = 50): Promise<LoadSummary[]> {
     rowsRejected: r.rows_rejected,
     note: r.note,
   }));
+}
+
+/** Where one stored value came from (UX phase 4: shown on hover). */
+export type Provenance = ProvenanceInfo;
+
+/** "KPI|period|country" → provenance, for one year (optionally one country). */
+export async function loadProvenance(
+  year: number,
+  country?: Country,
+): Promise<Record<string, Provenance>> {
+  await ready();
+  const { rows } = await allKpisPool.query(
+    `SELECT v.kpi, v.period, v.country, v.updated_at, v.updated_by, v.source_modified,
+            l.file_name, l.kind, h.old_value::text AS old_value, h.changed_at
+       FROM kpi_values v
+       JOIN kpi_loads l ON l.id = v.load_id
+       LEFT JOIN LATERAL (
+         SELECT old_value, changed_at FROM kpi_value_history x
+          WHERE x.kpi = v.kpi AND x.year = v.year AND x.period = v.period AND x.country = v.country
+          ORDER BY x.id DESC LIMIT 1
+       ) h ON true
+      WHERE v.year = $1 AND ($2::text IS NULL OR v.country = $2)`,
+    [year, country ?? null],
+  );
+  const out: Record<string, Provenance> = {};
+  for (const r of rows) {
+    out[provenanceKey(r.kpi, r.period, r.country)] = {
+      file: r.file_name,
+      kind: r.kind,
+      by: r.updated_by,
+      at: new Date(r.updated_at).toISOString(),
+      sharepointModified: r.source_modified ? new Date(r.source_modified).toISOString() : null,
+      previous: r.changed_at
+        ? { value: r.old_value, changedAt: new Date(r.changed_at).toISOString() }
+        : null,
+    };
+  }
+  return out;
 }

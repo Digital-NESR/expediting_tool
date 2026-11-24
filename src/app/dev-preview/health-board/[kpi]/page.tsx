@@ -13,7 +13,7 @@ import {
 import { buildDetail } from '@/lib/health-board/calc';
 import { COUNTRIES, kpiByCode, type Country } from '@/lib/health-board/definitions';
 import { KPI_PAGES, kpiCodeForSlug } from '@/lib/health-board/pages';
-import { loadYearValues, loadYears } from '@/lib/health-board/queries';
+import { loadProvenance, loadYearValues, loadYears } from '@/lib/health-board/queries';
 
 const BASE = '/dev-preview/health-board';
 
@@ -35,9 +35,10 @@ export default async function HealthBoardKpiPreviewPage({
     ? (sp.country as Country)
     : 'Global';
 
-  const [values, prior] = await Promise.all([
+  const [values, prior, provenance] = await Promise.all([
     loadYearValues(year),
     years.includes(year - 1) ? loadYearValues(year - 1) : Promise.resolve(null),
+    loadProvenance(year, country),
   ]);
 
   return (
@@ -48,6 +49,7 @@ export default async function HealthBoardKpiPreviewPage({
       <HealthBoardDetail
         detail={buildDetail(values, year, country, kpi)}
         previous={prior ? buildDetail(prior, year - 1, country, kpi) : null}
+        provenance={provenance}
         countries={COUNTRIES.map((c) => buildDetail(values, year, c, kpi))}
         page={KPI_PAGES[code]}
         years={years}

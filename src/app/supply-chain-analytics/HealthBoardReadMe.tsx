@@ -6,6 +6,7 @@
 import Link from 'next/link';
 import { ArrowDown, ArrowLeft, ArrowUp, Triangle } from 'lucide-react';
 import { KPIS, activeIn, type KpiDefinition } from '@/lib/health-board/definitions';
+import { KPI_PAGES } from '@/lib/health-board/pages';
 import { README, YTD_EXPLAINED } from '@/lib/health-board/readme';
 
 const byNameDescending = (a: string, b: string) =>
@@ -15,7 +16,10 @@ function Entry({ kpi, href }: { kpi: KpiDefinition; href: string | null }) {
   const r = README[kpi.code];
   if (!r) return null;
   return (
-    <div className="border-t border-slate-100 py-3 first:border-0 first:pt-0">
+    <div
+      id={KPI_PAGES[kpi.code]?.slug}
+      className="-mx-2 scroll-mt-6 rounded-lg border-t border-slate-100 px-2 py-3 first:border-0 first:pt-0 target:bg-[#307c4c]/[0.07] target:ring-1 target:ring-[#307c4c]/30"
+    >
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         {href ? (
           <Link href={href} className="text-[14px] font-semibold text-[#1d4f31] hover:underline">

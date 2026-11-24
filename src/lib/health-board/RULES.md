@@ -134,6 +134,18 @@ Against the numeric Target for that KPI, year and country:
 - "How the board calculates" is generated from `definitions.ts` (YTD method per KPI) and states
   the arrow and colour rules above, so it cannot drift from the calculation.
 
+## Where a number came from (UX phase 4)
+
+- Hovering a value shows its source (`explain.ts`, `loadProvenance`): the file or load it came
+  in, who and when, the SharePoint edit date for initial-load rows, and the value it replaced if
+  an upload changed it.
+- Hovering a YTD says how it was arrived at from the same months the calculation used
+  ("average of 7 months entered (Jan–Jul)", "latest month with a value: July"); the KPI page
+  shows that sentence under the YTD card.
+- A blank month is **missing** (a faint "—") when some other country has a value for that KPI
+  in that month or later the same year; otherwise it has simply not been reached and stays empty.
+  Quarterly KPIs are only missing in quarter-end months.
+
 ## Fixes against Power BI (the native numbers differ from Power BI here, on purpose)
 
 1. **Duplicate rows were added together.** Power BI SUMs every row, so two rows for one cell

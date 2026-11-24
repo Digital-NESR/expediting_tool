@@ -17,7 +17,15 @@ import { formatKpiValue, formatWithUnit } from '@/lib/health-board/format';
 import { KPI_PAGES } from '@/lib/health-board/pages';
 import { scaleFor } from '@/lib/health-board/scale';
 import { SORTS, betterBy, sortRows, type ComparisonSort } from '@/lib/health-board/compare';
-import { StatusDot, TrendIcon, YearNav } from './HealthBoardOverview';
+import { KpiInfo, StatusDot, TrendIcon, YearNav } from './HealthBoardOverview';
+import {
+  describeProvenance,
+  explainYtd,
+  isGap,
+  provenanceKey,
+  type ProvenanceInfo,
+} from '@/lib/health-board/explain';
+import type { Month } from '@/lib/health-board/definitions';
 
 const byNameDescending = (a: string, b: string) =>
   b.localeCompare(a, 'en', { sensitivity: 'base', numeric: true });
@@ -163,6 +171,9 @@ export default function HealthBoardComparison({
   years,
   categories,
   sort,
+  provenance,
+  frontiers,
+  readMeHref,
   hrefFor,
   overviewHref,
   detailHref,
@@ -172,6 +183,10 @@ export default function HealthBoardComparison({
   /** Each KPI's category for the year, for grouping the menu. */
   categories: Map<string, string>;
   sort: ComparisonSort;
+  /** Where each value came from, and how far each KPI reaches, for the hovers (phase 4). */
+  provenance: Record<string, ProvenanceInfo>;
+  frontiers: Record<string, number>;
+  readMeHref: string;
   /** The comparison for another KPI, year or order. */
   hrefFor: (kpiCode: string, year: number, sort: ComparisonSort) => string;
   overviewHref: string;
@@ -248,7 +263,10 @@ export default function HealthBoardComparison({
             </div>
           </details>
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">{kpi.name}</h2>
+            <h2 className="text-lg font-semibold text-slate-900">
+              {kpi.name}
+              <KpiInfo kpi={kpi} readMeHref={readMeHref} />
+            </h2>
             <p className="text-[12px] text-slate-500">
               {kpi.unit === '$'
                 ? 'US$'
@@ -309,6 +327,14 @@ export default function HealthBoardComparison({
                 {rows.map((r) => {
                   const href = detailHref(kpi.code, year, r.country);
                   const global = r.country === 'Global';
+                  const src = (period: string) => {
+                    const p = provenance[provenanceKey(kpi.code, period, r.country)];
+                    return p ? describeProvenance(p, kpi.unit) : undefined;
+                  };
+                  const monthly: Partial<Record<Month, number | null>> = {};
+                  for (const m of months) monthly[m] = r.months[m]?.value ?? null;
+                  const ytdSource = kpi.ytd === 'entered' ? src('YTD') : undefined;
+                  const ytdTitle = explainYtd(kpi, monthly) + (ytdSource ? ` ${ytdSource}` : '');
                   return (
                     <tr
                       key={r.country}
@@ -327,10 +353,16 @@ export default function HealthBoardComparison({
                           r.country
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-600">
+                      <td
+                        title={r.baseline === null ? undefined : src('Baseline')}
+                        className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-600"
+                      >
                         {r.baseline === null ? '–' : formatWithUnit(kpi.unit, r.baseline)}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-center text-slate-600">
+                      <td
+                        title={r.targetWords ? src('Target') : undefined}
+                        className="whitespace-nowrap px-3 py-2 text-center text-slate-600"
+                      >
                         {r.targetWords ?? <span className="text-slate-300">–</span>}
                       </td>
                       {months.map((m) => {
@@ -342,7 +374,15 @@ export default function HealthBoardComparison({
                         return (
                           <td
                             key={m}
-                            title={s ? `${m}: ${STATUS_LABEL[s]}` : undefined}
+                            title={
+                              cell && cell.value !== null
+                                ? [s ? `${m}: ${STATUS_LABEL[s]}.` : '', src(m) ?? '']
+                                    .filter(Boolean)
+                                    .join(' ')
+                                : isGap(kpi, m, frontiers[kpi.code])
+                                  ? `No value uploaded for ${r.country}, ${m} ${year}; other countries have one.`
+                                  : undefined
+                            }
                             className={`whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-800 ${s ? CELL_WASH[s] : ''}`}
                           >
                             {cell && cell.value !== null ? (
@@ -350,11 +390,16 @@ export default function HealthBoardComparison({
                                 <TrendIcon trend={cell.trend} />
                                 {formatKpiValue(kpi.unit, cell.value)}
                               </span>
+                            ) : isGap(kpi, m, frontiers[kpi.code]) ? (
+                              <span className="text-slate-300">—</span>
                             ) : null}
                           </td>
                         );
                       })}
-                      <td className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums text-slate-900">
+                      <td
+                        title={r.ytd !== null ? ytdTitle : undefined}
+                        className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums text-slate-900"
+                      >
                         {r.ytd !== null ? (
                           <span className="inline-flex items-center justify-end gap-1.5">
                             <StatusDot status={r.status} />
@@ -385,6 +430,8 @@ export default function HealthBoardComparison({
               </span>
             ))}
             <span>· unshaded: no target</span>
+            <span>· — not uploaded for that country</span>
+            <span>· hover a number for where it came from</span>
             <span>· click a country for its page</span>
           </p>
         </>

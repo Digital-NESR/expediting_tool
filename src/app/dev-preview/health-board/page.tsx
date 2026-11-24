@@ -18,7 +18,8 @@ import {
 } from '@/app/supply-chain-analytics/health-board/links';
 import { buildOverview } from '@/lib/health-board/calc';
 import { COUNTRIES, type Country } from '@/lib/health-board/definitions';
-import { loadHistory, loadYearValues, loadYears } from '@/lib/health-board/queries';
+import { kpiFrontiers } from '@/lib/health-board/explain';
+import { loadHistory, loadProvenance, loadYearValues, loadYears } from '@/lib/health-board/queries';
 
 const BASE = '/dev-preview/health-board';
 const hrefFor = (year: number, country: Country) => overviewHref(year, country, BASE);
@@ -37,7 +38,11 @@ export default async function HealthBoardPreviewPage({
   const country = (COUNTRIES as readonly string[]).includes(sp.country ?? '')
     ? (sp.country as Country)
     : 'Global';
-  const [values, [last]] = await Promise.all([loadYearValues(year), loadHistory(1)]);
+  const [values, [last], provenance] = await Promise.all([
+    loadYearValues(year),
+    loadHistory(1),
+    loadProvenance(year, country),
+  ]);
   const overview = buildOverview(values, year, country);
 
   return (
@@ -48,6 +53,8 @@ export default async function HealthBoardPreviewPage({
       <HealthBoardOverview
         overview={overview}
         years={years}
+        provenance={provenance}
+        frontiers={kpiFrontiers(values, year)}
         freshness={{
           lastLoad: last ? { at: last.loadedAt, by: last.loadedBy } : null,
         }}
