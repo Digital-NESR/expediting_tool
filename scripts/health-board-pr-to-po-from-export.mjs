@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 /**
- * PR to PO Creation Days (KPI - PR to PO creation) from the Power BI "AVG PO Creation Cycle Time
- * [Days]" export, as a Health Board upload file. The procedure, and why, is in
- * src/lib/health-board/procedures/pr-to-po.md.
+ * The two Purchasing Performance cycle-time KPIs from their Power BI exports, as a Health Board
+ * upload file. Both exports have the same shape and filters, so one script does both:
+ *   --kpi=pr-to-po     PR to PO Creation Days ("AVG PO Creation Cycle Time [Days]")
+ *   --kpi=po-approval  PO Approval Days ("AVG PO Approval cycle")
+ * The procedure, and why, is in src/lib/health-board/procedures/pr-to-po.md (both KPIs).
  *
- *   node scripts/health-board-pr-to-po-from-export.mjs \
+ *   node scripts/health-board-pr-to-po-from-export.mjs --kpi=pr-to-po \
  *     --file="<AVG PO Creation Cycle Time [Days].xlsx>" --year=2026 \
  *     --months=August,September,October  [--countries-only=March --only=Chad,India,Yemen] \
  *     --out=reports/health-board/pr-to-po-2026-aug-oct.csv
@@ -33,6 +35,11 @@ const list = (s) =>
     .split(',')
     .map((x) => x.trim())
     .filter(Boolean);
+const KPIS = {
+  'pr-to-po': { code: 'KPI - PR to PO creation', column: /AveragePO_Creation_Cycle_time/ },
+  'po-approval': { code: 'KPI - PO Approval', column: /AveragePO_Approval_Cycle_time/ },
+};
+const KPI = KPIS[arg('kpi') ?? ''];
 const FILE = arg('file');
 const YEAR = Number(arg('year'));
 const WITH_GLOBAL = list(arg('months'));
@@ -40,9 +47,9 @@ const COUNTRIES_ONLY = list(arg('countries-only'));
 const ONLY = list(arg('only'));
 const OUT = arg('out');
 const asked = [...WITH_GLOBAL, ...COUNTRIES_ONLY];
-if (!FILE || !YEAR || !OUT || !asked.length || asked.some((m) => !MONTHS.includes(m))) {
+if (!KPI || !FILE || !YEAR || !OUT || !asked.length || asked.some((m) => !MONTHS.includes(m))) {
   console.error(
-    'Usage: --file=export.xlsx --year=2026 --months=August,September [--countries-only=March --only=Chad] --out=upload.csv',
+    'Usage: --kpi=pr-to-po|po-approval --file=export.xlsx --year=2026 --months=August,September [--countries-only=March --only=Chad] --out=upload.csv',
   );
   process.exit(2);
 }
@@ -72,7 +79,7 @@ const [cy, cm, cc, cv] = [
   col(/\[Year\]$/),
   col(/\[Month\]$/),
   col(/Reporting Country - Finance/),
-  col(/AveragePO_Creation_Cycle_time/),
+  col(KPI.column),
 ];
 if ([cy, cm, cc, cv].some((c) => c <= 0))
   throw new Error(`${FILE}: unexpected columns ${head.join(', ')}`);
@@ -81,7 +88,11 @@ const round2 = (x) => Math.round(x * 100) / 100;
 const rows = [];
 ws.eachRow((r, i) => {
   if (i === 1) return;
-  const raw = String(r.getCell(cc).value);
+  const raw = String(r.getCell(cc).value ?? '').trim();
+  if (!raw) {
+    console.warn(`Skipped a row with no country: ${JSON.stringify(r.values.slice(1))}`);
+    return;
+  }
   const country = normaliseCountry(raw);
   if (!country) throw new Error(`Unknown country "${raw}" in ${FILE}`);
   rows.push({
@@ -98,7 +109,7 @@ const line = (country, value, month) => [
   value.toFixed(2),
   month,
   String(YEAR),
-  'KPI - PR to PO creation',
+  KPI.code,
   'Purchasing',
   'Days',
   '',

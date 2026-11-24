@@ -1,11 +1,15 @@
-# PR to PO Creation Days (`KPI - PR to PO creation`): monthly procedure
+# PR to PO Creation Days and PO Approval Days: monthly procedure
+
+Covers `KPI - PR to PO creation` and `KPI - PO Approval`. Their Power BI exports have the same
+shape and filters, so one script loads both: `--kpi=pr-to-po` or `--kpi=po-approval`.
 
 Owner rulings of 24 Nov 2026. Do it the same way every month.
 
 ## Export
 
-Power BI visual "AVG PO Creation Cycle Time [Days]": Year, Month, MonthNo, `Reporting Country -
-Finance`, and `AveragePO_Creation_Cycle_time`, which is `AVERAGE('SUPPLYCHAIN'[PO_Creation_Cycle_time])`.
+Power BI visuals "AVG PO Creation Cycle Time [Days]" (PR to PO, `AveragePO_Creation_Cycle_time`)
+and "AVG PO Approval cycle" (PO Approval, `AveragePO_Approval_Cycle_time`): Year, Month, MonthNo,
+`Reporting Country - Finance` and the average. A row with no country is skipped (one in June 2026).
 Its "Export Details" sheet must show:
 
 - `ActiveBuyerFlag is 1`
@@ -34,11 +38,13 @@ The script refuses a file without them.
 ## Steps
 
 ```
-node scripts/health-board-pr-to-po-from-export.mjs --file="<AVG PO Creation Cycle Time [Days].xlsx>" --year=2026 --months=November --out=reports/health-board/pr-to-po-2026-nov.csv
+node scripts/health-board-pr-to-po-from-export.mjs --kpi=pr-to-po --file="<AVG PO Creation Cycle Time [Days].xlsx>" --year=2026 --months=November --out=reports/health-board/pr-to-po-2026-nov.csv
 ```
 
 To fill countries missing from a month already on the board without touching the rest, add
 `--countries-only=<Month> --only=<Country,Country>`.
+
+For PO Approval use `--kpi=po-approval` with the "AVG PO Approval cycle" export.
 
 Upload the CSV on /admin → Supply Chain Analytics → Health Board Data. The preview should show
 additions only.
@@ -48,3 +54,9 @@ additions only.
 - **24 Nov 2026**: August, September and October 2026 added for 13 countries plus Global (mean),
   and the three countries missing from March 2026 (Chad, India, Yemen) added without changing March's
   Global, load 11, 45 values added. Bahrain, Indonesia and Congo are not in the export.
+- **24 Nov 2026**: PO Approval August, September and October 2026 added for 17 countries (EOS DMCC,
+  EOS JAFZA and HQ Dubai included, as in July) plus Global (mean), load 12, 54 values added. The
+  owner chose the mean knowing it moves PO Approval's Global up by about 3 days against the stored
+  method.
+- **Known issue, left as is by the owner**: PR to PO January–March 2026 hold PO Approval's numbers
+  (identical for every country, Global included; they match the PO Approval export, not PR to PO's).
