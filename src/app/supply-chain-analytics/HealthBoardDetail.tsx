@@ -87,11 +87,11 @@ function Stat({
   source?: string;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-5 py-4">
+    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
       <p className="text-[12px] font-medium text-slate-500">{label}</p>
       <div
         title={source}
-        className={`mt-1 text-2xl font-semibold text-slate-900 ${source ? 'cursor-help' : ''}`}
+        className={`mt-0.5 text-xl font-semibold text-slate-900 ${source ? 'cursor-help' : ''}`}
       >
         {children}
       </div>
@@ -105,7 +105,7 @@ function AgainstTarget({ detail }: { detail: KpiDetail }) {
   const { ytd, target, baseline, kpi, status } = detail;
   if (ytd === null) {
     return (
-      <div className="flex items-center rounded-xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-400">
+      <div className="flex items-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-400">
         No YTD to compare with the target.
       </div>
     );
@@ -122,9 +122,9 @@ function AgainstTarget({ detail }: { detail: KpiDetail }) {
   const better =
     diff === null || diff === 0 ? null : kpi.direction === 'higher' ? diff > 0 : diff < 0;
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-5 py-4">
+    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
       <p className="text-[12px] font-medium text-slate-500">YTD against target</p>
-      <div className="relative mt-4 h-3 rounded-full bg-slate-100" aria-hidden="true">
+      <div className="relative mt-3 h-3 rounded-full bg-slate-100" aria-hidden="true">
         <div
           className="absolute top-0 h-3 rounded-full"
           style={{
@@ -165,7 +165,7 @@ function Spark({ values }: { values: (number | null)[] }) {
   const pts = values
     .map((v, i) => ({ v, i }))
     .filter((p): p is { v: number; i: number } => p.v !== null);
-  if (pts.length === 0) return <div className="h-10" />;
+  if (pts.length === 0) return <div className="h-8" />;
   const last = pts[pts.length - 1].i;
   const min = Math.min(...pts.map((p) => p.v));
   const max = Math.max(...pts.map((p) => p.v));
@@ -176,7 +176,7 @@ function Spark({ values }: { values: (number | null)[] }) {
   const d = pts.map((p, k) => `${k ? 'L' : 'M'} ${x(p.i)} ${y(p.v)}`).join(' ');
   const end = pts[pts.length - 1];
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-10 w-full" aria-hidden="true">
+    <svg viewBox={`0 0 ${W} ${H}`} className="h-8 w-full" aria-hidden="true">
       <path
         d={d}
         fill="none"
@@ -227,7 +227,8 @@ export default function HealthBoardDetail({
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    /* The same side margins and width cap as the overview (owner, 24 Nov 2026). */
+    <div className="mx-auto flex w-full max-w-[1560px] flex-col gap-3 lg:px-4 xl:px-6">
       <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl bg-[#307c4c] px-5 py-3 text-white">
         <div className="min-w-0">
           <Link
@@ -271,7 +272,7 @@ export default function HealthBoardDetail({
         links={COUNTRIES.map((c) => ({ country: c, href: hrefFor(year, c) }))}
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
           label={`Baseline ${year - 1}`}
           source={detail.baseline === null ? undefined : src('Baseline')}
@@ -309,8 +310,8 @@ export default function HealthBoardDetail({
         <AgainstTarget detail={detail} />
       </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="mb-3 text-sm font-semibold text-slate-800">
+      <section className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+        <h2 className="mb-2 text-sm font-semibold text-slate-800">
           {page.chartTitle} · {country}
         </h2>
         <KpiChart
@@ -333,20 +334,20 @@ export default function HealthBoardDetail({
               Each small chart has its own scale. Click one to open it.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7">
             {others.map((d) => (
               <Link
                 key={d.country}
                 href={hrefFor(year, d.country)}
                 aria-current={d.country === country ? 'page' : undefined}
-                className={`rounded-xl border bg-white p-3 transition-colors hover:border-[#307c4c]/50 ${
+                className={`rounded-xl border bg-white px-3 py-2 transition-colors hover:border-[#307c4c]/50 ${
                   d.country === country
                     ? 'border-[#307c4c] ring-2 ring-[#307c4c]/15'
                     : 'border-slate-200'
                 }`}
               >
                 <p className="truncate text-[12.5px] font-semibold text-slate-800">{d.country}</p>
-                <p className="mt-0.5 inline-flex items-center gap-1.5 text-[13px] text-slate-700">
+                <p className="mt-0.5 inline-flex items-center gap-1.5 text-[12.5px] text-slate-700">
                   <StatusDot status={d.status} />
                   <span>YTD {d.ytd === null ? '–' : formatWithUnit(kpi.unit, d.ytd)}</span>
                 </p>

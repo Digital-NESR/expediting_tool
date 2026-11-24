@@ -64,6 +64,9 @@ rejected, not guessed.
 - The overview has side margins (owner, 24 Nov 2026): 48px a side on a laptop, and on wide screens
   the board stops at 1,560px and centres. January–December still fit at 1366px without scrolling
   sideways (checked with simulated November and December columns).
+- KPI detail pages use the same margins and width cap, with tighter tiles, a 280px chart (was 340)
+  and up to 6 country cards a row on a laptop (7 on wide screens), so the page needs about one
+  screen less scrolling. They keep whole dollars.
 
 ## YTD (per KPI)
 

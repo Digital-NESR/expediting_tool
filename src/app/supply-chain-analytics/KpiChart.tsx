@@ -98,7 +98,7 @@ export default function KpiChart({
 
   const W = width;
   const narrow = W < 560;
-  const H = narrow ? 260 : 340;
+  const H = narrow ? 240 : 280;
   const pad = { l: narrow ? 44 : 64, r: narrow ? 64 : 120, t: 20, b: 36 };
   const all = [
     ...thisYear.values.slice(0, count),
