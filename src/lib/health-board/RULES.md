@@ -170,6 +170,10 @@ written down per KPI in `procedures/` beside this file, so the next month is don
   of EXT_LTD" export (Global = mean of the countries, leaving out any country more than 10× the median
   of the others), via `scripts/health-board-tlt-from-export.mjs`.
 
+- `procedures/pl.md`: the six P&L ratios from Finance's "NIS-Country (Amount in USD)" workbook
+  (new months added, YTD replaced with Totals, "na" = no value, older months re-checked every
+  time), via `scripts/health-board-pl-from-export.mjs`.
+
 The Power BI "Export data" files (OTD, lead times, Slow Moving) are read by `scripts/lib/minimal-xlsx.mjs`.
 
 ## Uploading (UX phase 5)
