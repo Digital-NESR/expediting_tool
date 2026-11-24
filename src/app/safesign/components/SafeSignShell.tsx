@@ -5,9 +5,9 @@
  * The same layout as RRSM and ProcureGuard, so the tools feel like one platform.
  */
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   FileSignature,
   Home,
@@ -20,6 +20,7 @@ import {
   CircleQuestionMark,
 } from 'lucide-react';
 import AppSidebar from '@/components/AppSidebar';
+import { setSafeSignViewAs } from '@/app/actions/safesign/view-as';
 
 const PIN_KEY = 'safesign-sidebar-pinned';
 
@@ -29,7 +30,10 @@ const ASIDE_CLASS =
 export interface ShellUser {
   name: string;
   email: string;
+  /** The role in effect. */
   role: 'admin' | 'manager' | 'viewer';
+  /** The role really held; differs from `role` while an admin uses View as. */
+  realRole: 'admin' | 'manager' | 'viewer';
 }
 
 const NAV = [
@@ -39,6 +43,8 @@ const NAV = [
   { href: '/safesign/settings', label: 'Topics & users', icon: Settings },
   { href: '/help/safesign', label: 'Help', icon: CircleQuestionMark },
 ];
+
+const SHORT_LABEL: Record<ShellUser['role'], string> = { admin: 'Admin', manager: 'Manager', viewer: 'Viewer' };
 
 const ROLE_LABEL: Record<ShellUser['role'], string> = {
   admin: 'Administrator',
@@ -145,14 +151,51 @@ function SafeSignSidebar({ isOpen, onClose, user }: { isOpen: boolean; onClose: 
           </nav>
 
           <div className="shrink-0 border-t border-slate-100 px-4 py-3">
+            {user.realRole === 'admin' && <ViewAsSwitcher role={user.role} />}
             <p className="truncate text-sm font-semibold text-slate-800">{user.name}</p>
             <p className="truncate text-xs text-slate-500">
-              {ROLE_LABEL[user.role]} · {user.email}
+              {user.role !== user.realRole ? `${ROLE_LABEL[user.realRole]}, viewing as ${ROLE_LABEL[user.role]}` : ROLE_LABEL[user.role]} · {user.email}
             </p>
           </div>
         </>
       )}
     </AppSidebar>
+  );
+}
+
+/** "View as": an admin sees the tool with a manager's or a viewer's rights, and comes back. */
+function ViewAsSwitcher({ role }: { role: ShellUser['role'] }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  return (
+    <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+      <p className="mb-1.5 text-[0.6875rem] font-bold uppercase tracking-wide text-amber-800">View as</p>
+      <div className="grid grid-cols-3 gap-1">
+        {(['admin', 'manager', 'viewer'] as const).map((r) => (
+          <button
+            key={r}
+            type="button"
+            disabled={pending || r === role}
+            onClick={() =>
+              start(async () => {
+                await setSafeSignViewAs(r === 'admin' ? null : r);
+                router.refresh();
+              })
+            }
+            className={`rounded-md px-2 py-1.5 text-xs font-semibold transition-colors ${
+              r === role
+                ? 'bg-[#307c4c] text-white'
+                : 'border border-amber-300 bg-white text-slate-700 hover:text-[#307c4c]'
+            }`}
+          >
+            {SHORT_LABEL[r]}
+          </button>
+        ))}
+      </div>
+      <p className="mt-1.5 text-[0.6875rem] leading-snug text-amber-800/80">
+        You stay signed in as yourself; only your rights change.
+      </p>
+    </div>
   );
 }
 
@@ -196,6 +239,11 @@ export default function SafeSignShell({
         </Link>
         <SafeSignMark />
         <span className="truncate text-sm font-semibold text-slate-900">{title}</span>
+        {user.role !== user.realRole && (
+          <span className="ml-auto shrink-0 rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+            Viewing as {ROLE_LABEL[user.role]}
+          </span>
+        )}
       </header>
 
       <main className={`mx-auto space-y-4 px-4 py-4 sm:px-6 ${width === 'wide' ? 'max-w-[1400px]' : 'max-w-[900px]'}`}>

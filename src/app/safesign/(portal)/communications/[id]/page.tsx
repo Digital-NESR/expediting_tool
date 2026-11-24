@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
-import { canManage, currentSafeSignActor } from '@/lib/safesign/access';
+import { canManage, currentSafeSignActor, shellUser } from '@/lib/safesign/access';
 import { getCommunication } from '@/lib/safesign/read';
 import { RESPONSE_TYPE_LABEL, formatDay } from '@/lib/safesign/model';
 import SafeSignShell from '../../../components/SafeSignShell';
@@ -14,7 +14,7 @@ export default async function CommunicationPage({ params }: { params: Promise<{ 
 
   return (
     <SafeSignShell
-      user={{ name: actor.name, email: actor.email, role: actor.role }}
+      user={shellUser(actor)}
       title={comm.title}
       subtitle={`${comm.topicName} · ${RESPONSE_TYPE_LABEL[comm.responseType]} · due ${formatDay(comm.deadline)}`}
     >
