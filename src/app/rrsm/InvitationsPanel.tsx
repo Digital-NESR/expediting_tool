@@ -21,6 +21,7 @@ import {
   BellRing,
   Check,
   Copy,
+  Download,
   Loader2,
   Mail,
   MailCheck,
@@ -187,6 +188,8 @@ export default function InvitationsPanel({
   }
 
   const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
+  const docCount = rows.reduce((n, r) => n + r.documents.length, 0);
+  const docSuppliers = rows.filter((r) => r.documents.length > 0).length;
 
   async function copy(url: string, code: string) {
     try {
@@ -268,6 +271,26 @@ export default function InvitationsPanel({
           >
             Select everyone not responded
           </button>
+        )}
+        {/* Every uploaded document on this cycle as one ZIP, a folder per supplier. */}
+        {docCount > 0 ? (
+          <a
+            href={`/api/rrsm/cycles/${board.cycleId}/documents`}
+            download
+            title={`${plural(docCount, 'document')} from ${plural(docSuppliers, 'supplier')}, a folder per supplier`}
+            className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-slate-700 hover:border-[#307c4c] hover:text-[#1d4f31]"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Download all documents ({docCount})
+          </a>
+        ) : (
+          <span
+            title="No supplier has uploaded a document on this cycle yet."
+            className="inline-flex cursor-not-allowed items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-slate-400"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Download all documents
+          </span>
         )}
         <div className="flex-1" />
         {board.canSend && (
