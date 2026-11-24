@@ -17,3 +17,22 @@ export function formatKpiValue(unit: KpiDefinition['unit'], value: number | null
   /* -0 after rounding (e.g. -0.002) reads as a negative number that is not there. */
   return v === '-0' || v === '-0.00' ? v.slice(1) : v;
 }
+
+/**
+ * The same number with its unit, for places without a Units column:
+ * 57.01%, 5.67 days, $24,891,160, 2,357 (suppliers). Negative dollars read -$4,000,000.
+ */
+export function formatWithUnit(unit: KpiDefinition['unit'], value: number | null): string {
+  if (value === null) return '';
+  const n = formatKpiValue(unit, value);
+  switch (unit) {
+    case '%':
+      return `${n}%`;
+    case 'Days':
+      return `${n} days`;
+    case '$':
+      return n.startsWith('-') ? `-$${n.slice(1)}` : `$${n}`;
+    case 'Suppliers':
+      return n;
+  }
+}

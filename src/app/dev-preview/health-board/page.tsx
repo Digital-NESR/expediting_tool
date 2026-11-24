@@ -18,7 +18,7 @@ import {
 } from '@/app/supply-chain-analytics/health-board/links';
 import { buildOverview } from '@/lib/health-board/calc';
 import { COUNTRIES, type Country } from '@/lib/health-board/definitions';
-import { loadYearValues, loadYears } from '@/lib/health-board/queries';
+import { loadHistory, loadYearValues, loadYears } from '@/lib/health-board/queries';
 
 const BASE = '/dev-preview/health-board';
 const hrefFor = (year: number, country: Country) => overviewHref(year, country, BASE);
@@ -37,7 +37,8 @@ export default async function HealthBoardPreviewPage({
   const country = (COUNTRIES as readonly string[]).includes(sp.country ?? '')
     ? (sp.country as Country)
     : 'Global';
-  const values = await loadYearValues(year);
+  const [values, [last]] = await Promise.all([loadYearValues(year), loadHistory(1)]);
+  const overview = buildOverview(values, year, country);
 
   return (
     <main className="min-h-screen bg-gray-50 p-6">
@@ -45,8 +46,11 @@ export default async function HealthBoardPreviewPage({
         Development preview
       </p>
       <HealthBoardOverview
-        overview={buildOverview(values, year, country)}
+        overview={overview}
         years={years}
+        freshness={{
+          lastLoad: last ? { at: last.loadedAt, by: last.loadedBy } : null,
+        }}
         hrefFor={hrefFor}
         detailHref={kpiHref}
         compareHref={compareHref('KPI - P&L (PC/PR)', year, BASE)}
