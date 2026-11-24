@@ -601,11 +601,11 @@ export const TOOLS: ToolDef[] = [
     id: 'supply-chain-analytics',
     group: 'development',
     keywords:
-      'supply chain analytics power bi dashboards sourcing procurement logistics inventory materials management',
+      'supply chain analytics health board kpi kpis targets dashboards sourcing procurement purchase orders logistics inventory materials management travel',
     name: 'Supply Chain Analytics',
-    subtitle: 'Power BI Dashboards',
+    subtitle: 'Health Board & analytics',
     description:
-      'Repository of all Supply Chain Power BI dashboards covering sourcing, procurement, logistics, inventory, and materials management.',
+      'The Supply Chain Health Board (every KPI by country against target), plus the Purchase Orders, Sourcing Opportunities and Travel boards.',
     icon: <BarChart3 className="w-6 h-6 text-gray-400" />,
     logoClass: 'bg-gray-100',
     hoverClass: HOVER_GREEN,

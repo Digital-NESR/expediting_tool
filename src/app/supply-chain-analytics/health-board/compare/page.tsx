@@ -8,7 +8,7 @@ import { logger } from '@/lib/logger';
 import { analyticsAccess } from '../../access';
 import BoardShell from '../../BoardShell';
 import HealthBoardComparison from '../../HealthBoardComparison';
-import { compareHref, detailHref, overviewHref, readMeHref } from '../links';
+import { compareHref, detailHref, exportHref, overviewHref, readMeHref } from '../links';
 
 const log = logger('supply-chain-analytics');
 
@@ -56,6 +56,10 @@ export default async function HealthBoardComparePage({
           provenance={data.provenance}
           frontiers={data.frontiers}
           readMeHref={readMeHref()}
+          exportHref={exportHref('compare', {
+            year: data.comparison.year,
+            kpiCode: data.comparison.kpi.code,
+          })}
           hrefFor={(code, y, s) => compareHref(code, y, undefined, s)}
           overviewHref={overviewHref(data.comparison.year, 'Global')}
           detailHref={(code, y, c) => detailHref(code, y, c)}

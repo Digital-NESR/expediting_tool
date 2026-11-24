@@ -17,6 +17,7 @@ import { formatKpiValue, formatWithUnit } from '@/lib/health-board/format';
 import { KPI_PAGES } from '@/lib/health-board/pages';
 import { scaleFor } from '@/lib/health-board/scale';
 import { SORTS, betterBy, sortRows, type ComparisonSort } from '@/lib/health-board/compare';
+import BoardActions from './BoardActions';
 import { KpiInfo, StatusDot, TrendIcon, YearNav } from './HealthBoardOverview';
 import {
   describeProvenance,
@@ -174,6 +175,7 @@ export default function HealthBoardComparison({
   provenance,
   frontiers,
   readMeHref,
+  exportHref,
   hrefFor,
   overviewHref,
   detailHref,
@@ -187,6 +189,8 @@ export default function HealthBoardComparison({
   provenance: Record<string, ProvenanceInfo>;
   frontiers: Record<string, number>;
   readMeHref: string;
+  /** This view as an Excel file. */
+  exportHref: string;
   /** The comparison for another KPI, year or order. */
   hrefFor: (kpiCode: string, year: number, sort: ComparisonSort) => string;
   overviewHref: string;
@@ -224,7 +228,10 @@ export default function HealthBoardComparison({
             {year} <span className="font-normal text-white/70">·</span> Country comparison
           </h1>
         </div>
-        <YearNav years={years} year={year} href={(y) => hrefFor(kpi.code, y, sort)} />
+        <div className="flex flex-wrap items-center gap-2">
+          <BoardActions exportHref={exportHref} />
+          <YearNav years={years} year={year} href={(y) => hrefFor(kpi.code, y, sort)} />
+        </div>
       </div>
 
       {/* KPI and order */}
@@ -281,7 +288,7 @@ export default function HealthBoardComparison({
         </div>
         <nav
           aria-label="Order"
-          className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1 text-[13px]"
+          className="hb-print-hide flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1 text-[13px]"
         >
           <span className="px-2 py-1 text-slate-400">Order</span>
           {SORTS.map((s) => (
@@ -307,7 +314,7 @@ export default function HealthBoardComparison({
         <>
           <YtdBars kpi={kpi} rows={rows} href={(c) => detailHref(kpi.code, year, c)} />
 
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="hb-print-unclip overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-[12px] font-semibold text-slate-600">

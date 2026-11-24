@@ -28,6 +28,7 @@ import {
 import { KPI_PAGES } from '@/lib/health-board/pages';
 import { README } from '@/lib/health-board/readme';
 import { formatKpiValue, formatWithUnit } from '@/lib/health-board/format';
+import BoardActions from './BoardActions';
 import CountryPicker from './CountryPicker';
 
 const STATUS_STYLE: Record<Status, { dot: string; label: string }> = {
@@ -357,6 +358,7 @@ export default function HealthBoardOverview({
   detailHref,
   compareHref,
   readMeHref,
+  exportHref,
 }: {
   overview: Overview;
   years: number[];
@@ -372,6 +374,8 @@ export default function HealthBoardOverview({
   compareHref: string;
   /** The Read Me / KPI index. */
   readMeHref: string;
+  /** This view as an Excel file. */
+  exportHref: string;
 }) {
   const { year, country, months, groups } = overview;
   const rows = groups.flatMap((g) => g.rows);
@@ -410,6 +414,7 @@ export default function HealthBoardOverview({
           >
             Country comparison
           </Link>
+          <BoardActions exportHref={exportHref} />
           <YearNav years={years} year={year} href={(y) => hrefFor(y, country)} />
         </div>
       </div>
@@ -474,7 +479,7 @@ export default function HealthBoardOverview({
       ) : (
         <>
           {/* The KPI table, md and up */}
-          <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm md:block">
+          <div className="hb-print-unclip hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm md:block">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-[12px] font-semibold text-slate-600">

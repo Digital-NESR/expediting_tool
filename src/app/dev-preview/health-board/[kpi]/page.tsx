@@ -8,6 +8,7 @@ import HealthBoardDetail from '@/app/supply-chain-analytics/HealthBoardDetail';
 import {
   compareHref,
   detailHref,
+  exportHref,
   overviewHref,
 } from '@/app/supply-chain-analytics/health-board/links';
 import { buildDetail } from '@/lib/health-board/calc';
@@ -56,6 +57,7 @@ export default async function HealthBoardKpiPreviewPage({
         hrefFor={(y, c) => detailHref(code, y, c, BASE)!}
         overviewHref={overviewHref(year, country, BASE)}
         compareHref={compareHref(code, year, BASE)}
+        exportHref={exportHref('kpi', { year, country, kpiCode: code }, BASE)}
       />
     </main>
   );

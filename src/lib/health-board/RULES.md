@@ -163,6 +163,16 @@ Against the numeric Target for that KPI, year and country:
   "Undone by load N".
 - Every board country name is accepted as itself (Power BI only knew Syria as "Syria LOCL").
 
+## Export and print (UX phase 6)
+
+- "Excel" on the overview, the comparison and each KPI page downloads that view
+  (`/supply-chain-analytics/health-board/export?view=…`, `export.ts`). Cells hold the stored
+  values at full precision; the number format shows the board's decimals. A second sheet says
+  how the figures are worked out. Same access as the board.
+- "Print / PDF" opens the browser's print dialog (Save as PDF for a PDF): A4 landscape, buttons
+  and menus hidden, wide tables printed whole.
+- Access stays platform admins only (owner's decision, 24 Nov 2026).
+
 ## Fixes against Power BI (the native numbers differ from Power BI here, on purpose)
 
 1. **Duplicate rows were added together.** Power BI SUMs every row, so two rows for one cell

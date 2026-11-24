@@ -40,3 +40,15 @@ export function compareHref(
 export function readMeHref(base = HEALTH_BOARD): string {
   return `${base}/read-me`;
 }
+
+/** The Excel export of a view (UX phase 6). */
+export function exportHref(
+  view: 'overview' | 'compare' | 'kpi',
+  params: { year: number; country?: Country; kpiCode?: string },
+  base = HEALTH_BOARD,
+): string {
+  const q = new URLSearchParams({ view, year: String(params.year) });
+  if (params.country) q.set('country', params.country);
+  if (params.kpiCode && KPI_PAGES[params.kpiCode]) q.set('kpi', KPI_PAGES[params.kpiCode].slug);
+  return `${base}/export?${q.toString()}`;
+}

@@ -20,6 +20,7 @@ import {
 import { formatKpiValue, formatWithUnit } from '@/lib/health-board/format';
 import type { KpiPage } from '@/lib/health-board/pages';
 import { scaleFor } from '@/lib/health-board/scale';
+import BoardActions from './BoardActions';
 import CountryPicker from './CountryPicker';
 import KpiChart, { type Series } from './KpiChart';
 import { StatusDot, YearNav } from './HealthBoardOverview';
@@ -199,6 +200,7 @@ export default function HealthBoardDetail({
   overviewHref,
   compareHref,
   provenance,
+  exportHref,
 }: {
   /** Where this country's values came from, for the hovers (UX phase 4). */
   provenance: Record<string, ProvenanceInfo>;
@@ -214,6 +216,8 @@ export default function HealthBoardDetail({
   overviewHref: string;
   /** This KPI across every country. */
   compareHref: string;
+  /** This view as an Excel file. */
+  exportHref: string;
 }) {
   const { year, country, kpi } = detail;
   const others = countries.filter((d) => d.points.length > 0 || d.ytd !== null);
@@ -250,6 +254,7 @@ export default function HealthBoardDetail({
             >
               Compare countries
             </Link>
+            <BoardActions exportHref={exportHref} />
             <YearNav years={years} year={year} href={(y) => hrefFor(y, country)} />
           </div>
           <p className="text-right text-[12px] text-white/75">

@@ -14,7 +14,7 @@ export default function AnalyticsHeader({
   adminPreview: boolean;
 }) {
   return (
-    <header className="flex h-14 shrink-0 items-center gap-4 border-b border-gray-200 bg-white px-6">
+    <header className="hb-print-hide flex h-14 shrink-0 items-center gap-4 border-b border-gray-200 bg-white px-6">
       <Link
         href={section ? '/supply-chain-analytics' : '/home'}
         className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-slate-800"

@@ -8,6 +8,7 @@ import HealthBoardComparison from '@/app/supply-chain-analytics/HealthBoardCompa
 import {
   compareHref,
   detailHref,
+  exportHref,
   overviewHref,
   readMeHref,
 } from '@/app/supply-chain-analytics/health-board/links';
@@ -45,6 +46,7 @@ export default async function HealthBoardComparePreviewPage({
         provenance={provenance}
         frontiers={kpiFrontiers(values, year)}
         readMeHref={readMeHref(BASE)}
+        exportHref={exportHref('compare', { year, kpiCode: kpi.code }, BASE)}
         hrefFor={(code, y, s) => compareHref(code, y, BASE, s)}
         overviewHref={overviewHref(year, 'Global', BASE)}
         detailHref={(code, y, c) => detailHref(code, y, c, BASE)}

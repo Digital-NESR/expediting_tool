@@ -7,7 +7,7 @@ import { logger } from '@/lib/logger';
 import { analyticsAccess } from '../../access';
 import BoardShell from '../../BoardShell';
 import HealthBoardDetail from '../../HealthBoardDetail';
-import { compareHref, detailHref, overviewHref } from '../links';
+import { compareHref, detailHref, exportHref, overviewHref } from '../links';
 
 const log = logger('supply-chain-analytics');
 
@@ -60,6 +60,11 @@ export default async function HealthBoardKpiPage({
           hrefFor={(y, c) => detailHref(code, y, c)!}
           overviewHref={overviewHref(data.detail.year, data.detail.country)}
           compareHref={compareHref(code, data.detail.year)}
+          exportHref={exportHref('kpi', {
+            year: data.detail.year,
+            country: data.detail.country,
+            kpiCode: code,
+          })}
         />
       )}
     </BoardShell>
