@@ -87,7 +87,7 @@ function sheetToGrid(ws: ExcelJS.Worksheet): string[][] {
 }
 
 /** Minimal RFC 4180 CSV reader (quoted fields, doubled quotes, CRLF or LF). */
-function parseCsv(input: string): string[][] {
+export function parseCsv(input: string): string[][] {
   const text = input.charCodeAt(0) === 0xfeff ? input.slice(1) : input;
   const rows: string[][] = [];
   let row: string[] = [];

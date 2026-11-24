@@ -9,9 +9,9 @@
    render. */
 
 import type { ReactNode } from 'react';
-import { BarChart3, Plane, Receipt, Target } from 'lucide-react';
+import { Activity, BarChart3, Plane, Receipt, Target } from 'lucide-react';
 
-export type SectionId = 'power-bi' | 'travel' | 'purchase-orders' | 'sourcing';
+export type SectionId = 'health-board' | 'power-bi' | 'travel' | 'purchase-orders' | 'sourcing';
 
 export interface SectionDef {
   id: SectionId;
@@ -25,11 +25,20 @@ export interface SectionDef {
 
 export const SECTIONS: SectionDef[] = [
   {
-    id: 'power-bi',
+    id: 'health-board',
     name: 'Supply Chain Health Board',
+    subtitle: 'KPIs by country · 2025–2026',
+    description:
+      'Every Health Board KPI by country and month against baseline and target, with trend arrows and year-to-date status. Built natively from the all_kpis data.',
+    icon: <Activity className="h-6 w-6 text-[#307c4c]" />,
+    adminOnly: true,
+  },
+  {
+    id: 'power-bi',
+    name: 'Supply Chain Health Board (Power BI)',
     subtitle: 'Power BI · 2026',
     description:
-      'The Supply Chain Health Board Power BI report, embedded as published: sourcing, procurement, logistics and inventory KPIs.',
+      'The original Power BI report, embedded as published. Kept alongside the native board until the native numbers are signed off.',
     icon: <BarChart3 className="h-6 w-6 text-[#307c4c]" />,
     adminOnly: true,
   },

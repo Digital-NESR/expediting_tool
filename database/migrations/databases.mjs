@@ -27,6 +27,12 @@
 export const DATABASES = [
   { key: 'default', database: () => process.env.DB_NAME, envStyle: 'standard' },
   {
+    /* The Supply Chain Health Board's numbers. Same server and credentials as RRSM. */
+    key: 'all-kpis',
+    database: () => process.env.ALL_KPIS_DB_NAME || 'all_kpis',
+    envStyle: 'sourceguide',
+  },
+  {
     key: 'catalog-manager',
     database: () => process.env.CATALOG_MANAGER_DB_NAME || 'catalog_manager_db',
     envStyle: 'standard',

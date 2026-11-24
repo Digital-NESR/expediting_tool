@@ -163,7 +163,10 @@ export const ADMIN_APPS: AdminApp[] = [
     activeColor: '#1d4f31',
     /* No countKey: Travel Portal access is granted here directly rather than requested, so
        there is no queue of pending requests to badge. */
-    sections: [{ id: 'travel-access', label: 'Travel Access' }],
+    sections: [
+      { id: 'health-board-data', label: 'Health Board Data' },
+      { id: 'travel-access', label: 'Travel Access' },
+    ],
   },
   {
     id: 'self-assessment',

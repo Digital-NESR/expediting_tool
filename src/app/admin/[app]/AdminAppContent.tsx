@@ -181,6 +181,7 @@ const ServiceRegistryAdminClient = dynamic(() => import('../ServiceRegistryAdmin
 const TravelAnalyticsGrantsClient = dynamic(() => import('../TravelAnalyticsGrantsClient'), {
   loading,
 });
+const HealthBoardDataClient = dynamic(() => import('../HealthBoardDataClient'), { loading });
 
 export interface AdminAppContentProps {
   app: string;
@@ -327,6 +328,8 @@ export default function AdminAppContent(props: AdminAppContentProps) {
       return <ScsaExtensionsPanel requests={props.scsaExtensions ?? []} />;
 
     /* ── Supply Chain Analytics ── */
+    case 'supply-chain-analytics/health-board-data':
+      return <HealthBoardDataClient />;
     case 'supply-chain-analytics/travel-access':
       return <TravelAnalyticsGrantsClient />;
 
