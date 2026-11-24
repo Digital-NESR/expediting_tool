@@ -58,7 +58,8 @@ rejected, not guessed.
   thousand or million (135.01M, 497.85K), and each one shows the exact amount on hover. Detail
   pages, the comparison and the Excel export keep whole dollars. The table is sized so January–
   December fit on a 1366px-wide screen without scrolling sideways. Rows are one line high: the
-  unit and direction ("US$ · lower is better") show on hovering the KPI name, not under it, and
+  unit and direction ("↓ US$ · lower is better") show in a card beside the name the moment it is
+  hovered or tabbed to (owner: keep this information, just not as a second line), and
   the name column widens to fit names on one line when the months leave room.
 
 ## YTD (per KPI)

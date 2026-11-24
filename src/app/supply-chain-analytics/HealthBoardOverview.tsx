@@ -98,6 +98,19 @@ function TargetChip({ words, unit }: { words: string | null; unit?: KpiDefinitio
 const metaText = (kpi: KpiDefinition) =>
   `${UNIT_WORD[kpi.unit]} · ${kpi.direction === 'higher' ? 'higher' : 'lower'} is better`;
 
+/** An arrow pointing the better way, for the KPI name's hover card. */
+function DirectionIcon({ kpi }: { kpi: KpiDefinition }) {
+  if (kpi.direction === 'none') return null;
+  const Icon = kpi.direction === 'higher' ? ArrowUp : ArrowDown;
+  return (
+    <Icon
+      className="mr-1 inline h-3 w-3 align-[-2px] text-[#7fd1a0]"
+      strokeWidth={3}
+      aria-hidden="true"
+    />
+  );
+}
+
 function KpiMeta({ kpi }: { kpi: KpiDefinition }) {
   return <span className="block text-[11px] font-normal text-slate-400">{metaText(kpi)}</span>;
 }
@@ -177,19 +190,29 @@ function Row({
       data-row
       className="group cursor-pointer border-b border-slate-100 last:border-0 hover:bg-[#307c4c]/5 data-[selected]:bg-[#307c4c]/[0.14]"
     >
-      <td className="sticky left-0 z-10 min-w-[170px] bg-white py-1 pl-4 pr-2 text-left text-[12.5px] font-medium leading-tight text-slate-800 group-hover:bg-[#f3f8f5] group-data-[selected]:bg-[#dbeae0] group-data-[selected]:shadow-[inset_4px_0_0_#307c4c]">
+      <td className="group/kpi sticky left-0 z-10 min-w-[170px] bg-white py-1 pl-4 pr-2 text-left text-[12.5px] font-medium leading-tight text-slate-800 group-hover:bg-[#f3f8f5] group-data-[selected]:bg-[#dbeae0] group-data-[selected]:shadow-[inset_4px_0_0_#307c4c] hover:z-30">
         {href ? (
           <Link
             href={href}
-            title={metaText(row.kpi)}
+            aria-describedby={`meta-${row.kpi.code}`}
             className="hover:text-[#307c4c] hover:underline"
           >
             {row.kpi.name}
           </Link>
         ) : (
-          <span title={metaText(row.kpi)}>{row.kpi.name}</span>
+          row.kpi.name
         )}
         <KpiInfo kpi={row.kpi} readMeHref={ctx.readMeHref} />
+        {/* Unit and direction: shown at once on hovering (or tabbing to) the name, beside the
+            cell, so the row stays one line high (owner, 24 Nov 2026). */}
+        <span
+          id={`meta-${row.kpi.code}`}
+          role="tooltip"
+          className="pointer-events-none invisible absolute left-full top-1/2 z-30 ml-1 -translate-y-1/2 whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-[11.5px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-75 group-focus-within/kpi:visible group-focus-within/kpi:opacity-100 group-hover/kpi:visible group-hover/kpi:opacity-100"
+        >
+          <DirectionIcon kpi={row.kpi} />
+          {metaText(row.kpi)}
+        </span>
       </td>
       <td className="whitespace-nowrap px-2 py-1 text-right text-[12.5px] tabular-nums text-slate-600">
         <Sourced
