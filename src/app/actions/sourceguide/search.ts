@@ -16,7 +16,7 @@ import type {
   Tier,
 } from '@/types/sourceguide';
 import { canRead, readUser } from '@/lib/sourceguide/access';
-import { canManage } from '@/lib/sourceguide/can-manage';
+import { hasAccess } from '@/lib/sourceguide/can-manage';
 import { vendorCodeScore } from '@/lib/sourceguide/vendor-code';
 import { familySql, subCategorySql } from '@/lib/sourceguide/taxonomy-levels';
 import { commodityLabel, isCatchAllNode } from '@/lib/sourceguide/taxonomy-levels';
@@ -289,7 +289,7 @@ export async function searchSuppliers(query: string, limit = 6): Promise<SgSuppl
       .slice(0, limit)
       .map((x) => ({ code: x.s.code, name: x.s.name, countries: x.s.countries }));
 
-    if (mapped.length >= limit || !canManage(user)) return mapped;
+    if (mapped.length >= limit || !hasAccess(user)) return mapped;
 
     const known = new Set(suppliers.map((s) => s.code));
     const avl = await getAvlIndex();

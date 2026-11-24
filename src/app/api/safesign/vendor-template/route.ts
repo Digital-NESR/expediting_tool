@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import { attachmentContentDisposition } from '@/lib/contentDisposition';
-import { canManage, currentSafeSignActor } from '@/lib/safesign/access';
+import { hasAccess, currentSafeSignActor } from '@/lib/safesign/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
   const actor = await currentSafeSignActor();
   if (!actor) return new NextResponse('Unauthorized', { status: 401 });
-  if (!canManage(actor)) return new NextResponse('Not found', { status: 404 });
+  if (!hasAccess(actor)) return new NextResponse('Not found', { status: 404 });
 
   const wb = new ExcelJS.Workbook();
   wb.creator = 'SafeSign';

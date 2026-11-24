@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { QueryResultRow } from 'pg';
 import { fileDownloadResponse } from '@/lib/documents';
-import { canView, currentSafeSignActor } from '@/lib/safesign/access';
+import { hasAccess, currentSafeSignActor } from '@/lib/safesign/access';
 import { ensureSafeSignSchema, safesignPool } from '@/lib/safesign/db';
 
 /**
@@ -12,7 +12,7 @@ import { ensureSafeSignSchema, safesignPool } from '@/lib/safesign/db';
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ kind: string; id: string }> }) {
   const actor = await currentSafeSignActor();
   if (!actor) return new NextResponse('Unauthorized', { status: 401 });
-  if (!canView(actor)) return new NextResponse('Not found', { status: 404 });
+  if (!hasAccess(actor)) return new NextResponse('Not found', { status: 404 });
 
   const { kind, id } = await params;
   const fileId = Number(id);

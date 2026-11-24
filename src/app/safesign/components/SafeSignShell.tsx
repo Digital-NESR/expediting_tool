@@ -29,7 +29,7 @@ const ASIDE_CLASS =
 export interface ShellUser {
   name: string;
   email: string;
-  role: 'admin' | 'manager' | 'viewer';
+  role: 'admin' | 'sender';
 }
 
 const NAV = [
@@ -42,8 +42,7 @@ const NAV = [
 
 const ROLE_LABEL: Record<ShellUser['role'], string> = {
   admin: 'Administrator',
-  manager: 'Manager',
-  viewer: 'Viewer',
+  sender: 'Sender',
 };
 
 export function SafeSignMark({ size = 'sm' }: { size?: 'sm' | 'lg' }) {

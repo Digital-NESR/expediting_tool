@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { canManage, currentSafeSignActor } from '@/lib/safesign/access';
+import { currentSafeSignActor } from '@/lib/safesign/access';
 import { listVendors } from '@/lib/safesign/read';
 import SafeSignShell from '../../components/SafeSignShell';
 import VendorsClient from './VendorsClient';
@@ -14,7 +14,7 @@ export default async function VendorsPage() {
       title="Vendor library"
       subtitle="Suppliers grouped by category of work, with who receives each communication (TO) and who is copied (CC)."
     >
-      <VendorsClient vendors={vendors} canManage={canManage(actor)} />
+      <VendorsClient vendors={vendors} />
     </SafeSignShell>
   );
 }

@@ -43,7 +43,7 @@ export function parseRows(rows: string[][]): VendorInput[] {
 
 const blank = (): VendorInput => ({ name: '', category: '', vendorCode: '', contacts: [{ name: '', email: '', kind: 'to' }] });
 
-export default function VendorsClient({ vendors, canManage }: { vendors: Vendor[]; canManage: boolean }) {
+export default function VendorsClient({ vendors }: { vendors: Vendor[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [editing, setEditing] = useState<VendorInput | null>(null);
@@ -114,7 +114,7 @@ export default function VendorsClient({ vendors, canManage }: { vendors: Vendor[
         <label className="flex items-center gap-1.5 text-xs text-slate-600">
           <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} /> Show inactive
         </label>
-        {canManage && (
+        <>
           <div className="ml-auto flex gap-2">
             <button className={BUTTON_SECONDARY} onClick={() => setImporting(true)}>
               <Upload className="h-4 w-4" /> Upload from Excel
@@ -123,7 +123,7 @@ export default function VendorsClient({ vendors, canManage }: { vendors: Vendor[
               <Plus className="h-4 w-4" /> Add supplier
             </button>
           </div>
-        )}
+        </>
       </div>
 
       {notice && <p className={`rounded-lg px-3 py-2 text-sm ${notice.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'}`}>{notice.text}</p>}
@@ -290,7 +290,7 @@ export default function VendorsClient({ vendors, canManage }: { vendors: Vendor[
               <th className="px-3 py-3">Category</th>
               <th className="px-3 py-3">TO</th>
               <th className="px-3 py-3">CC</th>
-              {canManage && <th className="px-4 py-3" />}
+              <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -311,7 +311,7 @@ export default function VendorsClient({ vendors, canManage }: { vendors: Vendor[
                     <div key={c.email}>{c.name ? `${c.name} · ` : ''}{c.email}</div>
                   ))}
                 </td>
-                {canManage && (
+                <>
                   <td className="whitespace-nowrap px-4 py-3 text-right">
                     <button
                       aria-label={`Edit ${v.name}`}
@@ -337,7 +337,7 @@ export default function VendorsClient({ vendors, canManage }: { vendors: Vendor[
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </td>
-                )}
+                </>
               </tr>
             ))}
             {shown.length === 0 && (

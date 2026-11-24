@@ -12,7 +12,7 @@ import {
   ListTree,
 } from 'lucide-react';
 import { SG_BRAND } from './constants';
-import { canManage } from '@/lib/sourceguide/can-manage';
+import { hasAccess } from '@/lib/sourceguide/can-manage';
 import { useSourceGuideAccess } from './SourceGuideAccessContext';
 import AppSidebar, {
   PinIcon,
@@ -38,7 +38,7 @@ export default function SourceGuideSidebar({
   const pathname = usePathname();
   const { data: session } = useSession();
   const { isAdmin, viewOnly, approvedCountries } = useSourceGuideAccess();
-  const manage = canManage({ isAdmin, viewOnly, approvedCountries });
+  const manage = hasAccess({ isAdmin, viewOnly, approvedCountries });
 
   const rawName = session?.user?.name || 'Unknown User';
   const initials = sidebarInitials(rawName);

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import type { QueryResultRow } from 'pg';
 import { attachmentContentDisposition } from '@/lib/contentDisposition';
-import { canView, currentSafeSignActor } from '@/lib/safesign/access';
+import { hasAccess, currentSafeSignActor } from '@/lib/safesign/access';
 import { ensureSafeSignSchema, safesignPool } from '@/lib/safesign/db';
 import { todayRiyadh } from '@/lib/safesign/delivery';
 import {
@@ -26,7 +26,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   const actor = await currentSafeSignActor();
   if (!actor) return new NextResponse('Unauthorized', { status: 401 });
-  if (!canView(actor)) return new NextResponse('Not found', { status: 404 });
+  if (!hasAccess(actor)) return new NextResponse('Not found', { status: 404 });
   await ensureSafeSignSchema();
 
   const communication = Number(req.nextUrl.searchParams.get('communication')) || null;

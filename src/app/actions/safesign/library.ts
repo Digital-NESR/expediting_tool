@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { withTransaction } from '@/lib/db/tx';
 import { AccessError, normalizeEmail } from '@/lib/require-access';
 import { logger } from '@/lib/logger';
-import { requireSafeSignAdmin, requireSafeSignManager } from '@/lib/safesign/access';
+import { requireSafeSignAdmin, requireSafeSignUser } from '@/lib/safesign/access';
 import { safesignPool, ensureSafeSignSchema } from '@/lib/safesign/db';
 
 /**
@@ -52,7 +52,7 @@ function cleanContacts(contacts: VendorInput['contacts']): VendorInput['contacts
 
 export async function saveVendor(input: VendorInput): Promise<Result> {
   try {
-    const actor = await requireSafeSignManager();
+    const actor = await requireSafeSignUser();
     await ensureSafeSignSchema();
     const name = String(input?.name ?? '').trim();
     const category = String(input?.category ?? '').trim() || 'General';
@@ -102,7 +102,7 @@ export async function importVendors(
   rows: VendorInput[],
 ): Promise<Result & { added?: number; updated?: number; errors?: string[] }> {
   try {
-    await requireSafeSignManager();
+    await requireSafeSignUser();
     await ensureSafeSignSchema();
     const errors: string[] = [];
     let added = 0;
@@ -132,7 +132,7 @@ export async function importVendors(
 /** Deactivate rather than delete once a supplier has requests, so history stays intact. */
 export async function removeVendor(id: number): Promise<Result> {
   try {
-    await requireSafeSignManager();
+    await requireSafeSignUser();
     await ensureSafeSignSchema();
     const { rows } = await safesignPool.query(`SELECT 1 FROM ss_requests WHERE vendor_id = $1 LIMIT 1`, [id]);
     if (rows.length) {
@@ -149,7 +149,7 @@ export async function removeVendor(id: number): Promise<Result> {
 
 export async function saveTopic(input: { id?: number; name: string; description?: string }): Promise<Result> {
   try {
-    const actor = await requireSafeSignManager();
+    const actor = await requireSafeSignUser();
     await ensureSafeSignSchema();
     const name = String(input?.name ?? '').trim();
     if (!name) return { success: false, error: 'Enter a topic name.' };
@@ -175,7 +175,7 @@ export async function saveTopic(input: { id?: number; name: string; description?
 
 export async function setTopicArchived(id: number, archived: boolean): Promise<Result> {
   try {
-    await requireSafeSignManager();
+    await requireSafeSignUser();
     await ensureSafeSignSchema();
     await safesignPool.query(`UPDATE ss_topics SET archived = $2 WHERE id = $1`, [id, Boolean(archived)]);
     revalidatePath('/safesign', 'layout');
@@ -185,17 +185,17 @@ export async function setTopicArchived(id: number, archived: boolean): Promise<R
   }
 }
 
-export async function saveUser(input: { email: string; name?: string; role: 'manager' | 'viewer' }): Promise<Result> {
+/** Give someone sender access. Admins are set in the environment, not here. */
+export async function saveUser(input: { email: string; name?: string }): Promise<Result> {
   try {
     const actor = await requireSafeSignAdmin();
     await ensureSafeSignSchema();
     const email = normalizeEmail(input?.email);
     if (!EMAIL.test(email)) return { success: false, error: 'Enter a valid email address.' };
-    const role = input?.role === 'viewer' ? 'viewer' : 'manager';
     await safesignPool.query(
-      `INSERT INTO ss_users (email, name, role, created_by) VALUES ($1, NULLIF($2, ''), $3, $4)
-       ON CONFLICT (email) DO UPDATE SET role = EXCLUDED.role, name = COALESCE(EXCLUDED.name, ss_users.name)`,
-      [email, String(input?.name ?? '').trim(), role, actor.email],
+      `INSERT INTO ss_users (email, name, role, created_by) VALUES ($1, NULLIF($2, ''), 'sender', $3)
+       ON CONFLICT (email) DO UPDATE SET name = COALESCE(EXCLUDED.name, ss_users.name)`,
+      [email, String(input?.name ?? '').trim(), actor.email],
     );
     revalidatePath('/safesign/settings');
     return { success: true };

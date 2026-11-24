@@ -74,7 +74,7 @@ export default async function ExplorerPreviewPage({
       blocked: isCentrallyBlocked(r.central_block_status),
     })),
     countries: countries.rows,
-    canManage: true,
+    hasAccess: true,
   };
 
   const bytes = JSON.stringify(data).length;

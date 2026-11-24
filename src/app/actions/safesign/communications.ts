@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { withTransaction } from '@/lib/db/tx';
 import { AccessError } from '@/lib/require-access';
 import { logger } from '@/lib/logger';
-import { requireSafeSignManager } from '@/lib/safesign/access';
+import { requireSafeSignUser } from '@/lib/safesign/access';
 import { safesignPool, ensureSafeSignSchema } from '@/lib/safesign/db';
 import { remindRequests } from '@/lib/safesign/delivery';
 import {
@@ -25,7 +25,7 @@ import { dateOnly, respondUrl } from '@/lib/safesign/supplier-access';
 
 /**
  * Creating, sending and closing communications, reminding suppliers and reviewing plans.
- * Managers only; every export starts with requireSafeSignManager.
+ * Any SafeSign user; every export starts with requireSafeSignUser.
  */
 
 const log = logger('safesign-comms');
@@ -46,7 +46,7 @@ function fail(err: unknown, event: string): Result {
  */
 export async function createCommunication(form: FormData): Promise<Result> {
   try {
-    const actor = await requireSafeSignManager();
+    const actor = await requireSafeSignUser();
     await ensureSafeSignSchema();
 
     const title = String(form.get('title') ?? '').trim();
@@ -125,7 +125,7 @@ export async function createCommunication(form: FormData): Promise<Result> {
 
 export async function deleteDraft(id: number): Promise<Result> {
   try {
-    await requireSafeSignManager();
+    await requireSafeSignUser();
     await ensureSafeSignSchema();
     const { rowCount } = await safesignPool.query(
       `DELETE FROM ss_communications WHERE id = $1 AND status = 'draft'`,
@@ -145,7 +145,7 @@ export async function deleteDraft(id: number): Promise<Result> {
  */
 export async function sendCommunication(id: number): Promise<Result> {
   try {
-    const actor = await requireSafeSignManager();
+    const actor = await requireSafeSignUser();
     await ensureSafeSignSchema();
 
     const { rows: comms } = await safesignPool.query(
@@ -229,7 +229,7 @@ export async function sendCommunication(id: number): Promise<Result> {
 
 export async function remindSuppliers(communicationId: number, requestIds: number[]): Promise<Result> {
   try {
-    const actor = await requireSafeSignManager();
+    const actor = await requireSafeSignUser();
     await ensureSafeSignSchema();
     const r = await remindRequests(communicationId, requestIds, actor.email);
     revalidatePath(`/safesign/communications/${communicationId}`);
@@ -245,7 +245,7 @@ export async function remindSuppliers(communicationId: number, requestIds: numbe
 /** Stop accepting responses and stop reminders. Responses already in are kept. */
 export async function setCommunicationClosed(id: number, closed: boolean): Promise<Result> {
   try {
-    const actor = await requireSafeSignManager();
+    const actor = await requireSafeSignUser();
     await ensureSafeSignSchema();
     await safesignPool.query(
       closed
@@ -269,7 +269,7 @@ export async function setCommunicationClosed(id: number, closed: boolean): Promi
 /** Move the deadline, e.g. to give suppliers more time. */
 export async function changeDeadline(id: number, deadline: string): Promise<Result> {
   try {
-    const actor = await requireSafeSignManager();
+    const actor = await requireSafeSignUser();
     await ensureSafeSignSchema();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(deadline)) return { success: false, error: 'Choose a date.' };
     await safesignPool.query(`UPDATE ss_communications SET deadline = $2 WHERE id = $1`, [id, deadline]);
@@ -291,7 +291,7 @@ export async function reviewSubmission(
   comment: string,
 ): Promise<Result> {
   try {
-    const actor = await requireSafeSignManager();
+    const actor = await requireSafeSignUser();
     await ensureSafeSignSchema();
     const note = String(comment ?? '').trim();
     if (decision === 'changes' && !note) {

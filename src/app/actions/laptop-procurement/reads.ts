@@ -137,13 +137,13 @@ export async function getLaptopRequestDetail(id: number): Promise<LaptopRequestD
     // accounts for delegation. Every delegation grant already has canViewAll=true
     // (enforced in resolveLaptopDelegations), so only the actor's own identity ever
     // needs the "it's my own request" fallback.
-    const canView = laptopActingIdentities(actor).some((id) =>
+    const hasAccess = laptopActingIdentities(actor).some((id) =>
       id.permissions.canViewAll
         ? id.permissions.canViewEveryCountry ||
           anyMatrixCapabilityForCountry(id.matrixCapabilities, request.country)
         : id.email.toLowerCase() === request.requested_by_email?.toLowerCase(),
     );
-    if (!canView) return null;
+    if (!hasAccess) return null;
 
     const [activityRows, documentRows] = await Promise.all([
       sql<QueryResultRow[]>(

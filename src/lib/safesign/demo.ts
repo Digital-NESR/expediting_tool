@@ -11,7 +11,7 @@
  * with ADMIN_EMAILS.
  */
 
-export type DemoRole = 'admin' | 'manager' | 'viewer';
+export type DemoRole = 'admin' | 'sender';
 
 export interface DemoPersona {
   id: string;
@@ -27,21 +27,14 @@ export const DEMO_PERSONAS: DemoPersona[] = [
     name: 'Demo Admin',
     email: 'demo.admin@safesign.invalid',
     role: 'admin',
-    blurb: 'Everything, plus the user list',
+    blurb: 'Everything, plus who has access',
   },
   {
-    id: 'manager',
-    name: 'Demo Manager (Sourcing)',
-    email: 'demo.manager@safesign.invalid',
-    role: 'manager',
-    blurb: 'Vendors, sending, reminders, reviewing plans',
-  },
-  {
-    id: 'viewer',
-    name: 'Demo Viewer (QHSE)',
-    email: 'demo.viewer@safesign.invalid',
-    role: 'viewer',
-    blurb: 'Dashboards and exports only',
+    id: 'sender',
+    name: 'Demo Sender (Sourcing)',
+    email: 'demo.sender@safesign.invalid',
+    role: 'sender',
+    blurb: 'Vendors, sending, reminders, plans, reports',
   },
 ];
 

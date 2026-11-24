@@ -9,12 +9,10 @@ import { BUTTON, BUTTON_SECONDARY, CARD, INPUT } from '../../components/SafeSign
 export default function SettingsClient({
   topics,
   users,
-  canManage,
   isAdmin,
 }: {
   topics: Topic[];
   users: SafeSignUser[];
-  canManage: boolean;
   isAdmin: boolean;
 }) {
   const router = useRouter();
@@ -24,7 +22,6 @@ export default function SettingsClient({
   const [topicDesc, setTopicDesc] = useState('');
   const [editId, setEditId] = useState<number | null>(null);
   const [userEmail, setUserEmail] = useState('');
-  const [userRole, setUserRole] = useState<'manager' | 'viewer'>('manager');
 
   function run(fn: () => Promise<{ success: boolean; error?: string }>, ok: string, after?: () => void) {
     start(async () => {
@@ -54,7 +51,7 @@ export default function SettingsClient({
                 </p>
                 {t.description && <p className="text-xs text-slate-500">{t.description}</p>}
               </div>
-              {canManage && (
+              <>
                 <>
                   <button
                     className="text-xs font-semibold text-slate-500 hover:text-slate-800"
@@ -74,11 +71,11 @@ export default function SettingsClient({
                     {t.archived ? 'Restore' : 'Archive'}
                   </button>
                 </>
-              )}
+              </>
             </li>
           ))}
         </ul>
-        {canManage && (
+        <>
           <div className="flex flex-wrap gap-2 border-t border-slate-100 px-4 py-3">
             <input className={`${INPUT} sm:max-w-[200px]`} placeholder="Topic name" value={topicName} onChange={(e) => setTopicName(e.target.value)} />
             <input className={`${INPUT} flex-1`} placeholder="Description (optional)" value={topicDesc} onChange={(e) => setTopicDesc(e.target.value)} />
@@ -101,7 +98,7 @@ export default function SettingsClient({
               </button>
             )}
           </div>
-        )}
+        </>
       </section>
 
       {isAdmin && (
@@ -109,15 +106,14 @@ export default function SettingsClient({
           <div className="border-b border-slate-100 px-4 py-3">
             <h2 className="text-sm font-semibold text-slate-800">Users</h2>
             <p className="text-xs text-slate-500">
-              Managers keep the vendor library, send communications, remind suppliers and review plans. Viewers see the dashboards and exports.
-              Platform admins and SAFESIGN_ADMIN_EMAILS are administrators automatically.
+              People added here can do everything in SafeSign except manage this list: the vendor library, topics, sending, reminders, reviewing plans and reports.
+              Administrators are set up by the Digital team.
             </p>
           </div>
           <ul className="divide-y divide-slate-100">
             {users.map((u) => (
               <li key={u.email} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                 <span className="min-w-0 flex-1 truncate text-slate-800">{u.email}</span>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold capitalize text-slate-600">{u.role}</span>
                 <button
                   className="text-xs font-semibold text-slate-500 hover:text-rose-600"
                   disabled={pending}
@@ -133,14 +129,10 @@ export default function SettingsClient({
           </ul>
           <div className="flex flex-wrap gap-2 border-t border-slate-100 px-4 py-3">
             <input className={`${INPUT} flex-1`} placeholder="name@nesr.com" value={userEmail} onChange={(e) => setUserEmail(e.target.value)} />
-            <select className={`${INPUT} w-32`} value={userRole} onChange={(e) => setUserRole(e.target.value as 'manager' | 'viewer')} aria-label="Role">
-              <option value="manager">Manager</option>
-              <option value="viewer">Viewer</option>
-            </select>
             <button
               className={BUTTON}
               disabled={pending || !userEmail.trim()}
-              onClick={() => run(() => saveUser({ email: userEmail, role: userRole }), 'User saved.', () => setUserEmail(''))}
+              onClick={() => run(() => saveUser({ email: userEmail }), 'User saved.', () => setUserEmail(''))}
             >
               Add user
             </button>

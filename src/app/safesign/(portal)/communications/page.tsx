@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Plus } from 'lucide-react';
-import { canManage, currentSafeSignActor } from '@/lib/safesign/access';
+import { currentSafeSignActor } from '@/lib/safesign/access';
 import { listCommunications } from '@/lib/safesign/read';
 import { formatDay, RESPONSE_TYPE_LABEL } from '@/lib/safesign/model';
 import SafeSignShell, { BANNER_BUTTON, CARD, Empty } from '../../components/SafeSignShell';
@@ -23,11 +23,9 @@ export default async function CommunicationsPage() {
       title="Communications"
       subtitle="Every letter, policy and request sent to suppliers."
       actions={
-        canManage(actor) && (
-          <Link href="/safesign/communications/new" className={BANNER_BUTTON}>
-            <Plus className="h-4 w-4" /> New communication
-          </Link>
-        )
+        <Link href="/safesign/communications/new" className={BANNER_BUTTON}>
+          <Plus className="h-4 w-4" /> New communication
+        </Link>
       }
     >
       {comms.length === 0 ? (
@@ -35,11 +33,9 @@ export default async function CommunicationsPage() {
           title="No communications yet"
           body="Create one to send a document to a group of suppliers and track their responses."
           action={
-            canManage(actor) && (
-              <Link href="/safesign/communications/new" className="text-sm font-semibold text-[#307c4c] hover:underline">
-                New communication →
-              </Link>
-            )
+            <Link href="/safesign/communications/new" className="text-sm font-semibold text-[#307c4c] hover:underline">
+              New communication →
+            </Link>
           }
         />
       ) : (

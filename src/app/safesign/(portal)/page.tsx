@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Download, Plus } from 'lucide-react';
-import { canManage, currentSafeSignActor } from '@/lib/safesign/access';
+import { currentSafeSignActor } from '@/lib/safesign/access';
 import { listCommunications, topicCards } from '@/lib/safesign/read';
 import { formatDay, RESPONSE_TYPE_LABEL } from '@/lib/safesign/model';
 import SafeSignShell, { BANNER_BUTTON, BANNER_BUTTON_GHOST, CARD, Empty } from '../components/SafeSignShell';
@@ -26,11 +26,9 @@ export default async function SafeSignDashboard() {
           <a href="/api/safesign/export" className={BANNER_BUTTON_GHOST}>
             <Download className="h-4 w-4" /> Export to Excel
           </a>
-          {canManage(actor) && (
-            <Link href="/safesign/communications/new" className={BANNER_BUTTON}>
-              <Plus className="h-4 w-4" /> New communication
-            </Link>
-          )}
+          <Link href="/safesign/communications/new" className={BANNER_BUTTON}>
+            <Plus className="h-4 w-4" /> New communication
+          </Link>
         </>
       }
     >

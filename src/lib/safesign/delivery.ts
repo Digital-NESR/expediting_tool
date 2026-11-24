@@ -8,7 +8,7 @@ import { dateOnly, respondUrl } from './supplier-access';
 /**
  * Sending reminders, by hand and on the daily schedule.
  *
- * A plain module: the cron route and the manager's "Remind" button both call in here, and
+ * A plain module: the cron route and the sender's "Remind" button both call in here, and
  * neither should be a public endpoint of its own. Each reminder is recorded on the request and in
  * ss_events, so the schedule never mails the same supplier twice on one day and the page can
  * show the history.
@@ -96,7 +96,7 @@ async function remindOne(row: RemindRow, actor: string, today: string): Promise<
   return true;
 }
 
-/** The manager's button. Only requests still waiting on the supplier are reminded. */
+/** The sender's button. Only requests still waiting on the supplier are reminded. */
 export async function remindRequests(
   communicationId: number,
   requestIds: number[],

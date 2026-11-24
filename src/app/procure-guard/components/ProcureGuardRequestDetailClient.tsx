@@ -1569,7 +1569,7 @@ export default function ProcureGuardRequestDetailClient({
               requestType={requestType}
               requestId={request.id}
               viewers={request.requester_notification_emails ?? []}
-              canManage={ownsRequest || actor.permissions.accessView !== 'viewer'}
+              hasAccess={ownsRequest || actor.permissions.accessView !== 'viewer'}
             />
           </div>
 

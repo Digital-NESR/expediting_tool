@@ -51,7 +51,7 @@ const FILTERS: { id: 'all' | DisplayStatus; label: string }[] = [
   { id: 'completed', label: 'Completed' },
 ];
 
-export default function CommunicationClient({ comm, canManage }: { comm: CommunicationDetail; canManage: boolean }) {
+export default function CommunicationClient({ comm }: { comm: CommunicationDetail }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
@@ -137,7 +137,7 @@ export default function CommunicationClient({ comm, canManage }: { comm: Communi
           </div>
 
           <div className="mt-auto space-y-2 pt-4">
-            {canManage && comm.status === 'draft' && (
+            {comm.status === 'draft' && (
               <>
                 <button
                   className={`${BUTTON} w-full`}
@@ -164,12 +164,12 @@ export default function CommunicationClient({ comm, canManage }: { comm: Communi
                 </button>
               </>
             )}
-            {canManage && comm.status === 'sent' && comm.requests.some((r) => !r.sentAt) && (
+            {comm.status === 'sent' && comm.requests.some((r) => !r.sentAt) && (
               <button className={`${BUTTON} w-full`} disabled={pending} onClick={() => run(() => sendCommunication(comm.id))}>
                 <Send className="h-4 w-4" /> Retry unsent suppliers
               </button>
             )}
-            {canManage && comm.status !== 'draft' && (
+            {comm.status !== 'draft' && (
               <div className="flex min-w-0 flex-wrap gap-2">
                 <input type="date" className={`${INPUT} min-w-[140px] flex-1`} value={deadline} onChange={(e) => setDeadline(e.target.value)} aria-label="Deadline" />
                 <button
@@ -181,7 +181,7 @@ export default function CommunicationClient({ comm, canManage }: { comm: Communi
                 </button>
               </div>
             )}
-            {canManage && comm.status === 'sent' && (
+            {comm.status === 'sent' && (
               <button
                 className={`${BUTTON_SECONDARY} w-full`}
                 disabled={pending}
@@ -193,7 +193,7 @@ export default function CommunicationClient({ comm, canManage }: { comm: Communi
                 <Lock className="h-4 w-4" /> Close cycle
               </button>
             )}
-            {canManage && comm.status === 'closed' && (
+            {comm.status === 'closed' && (
               <button className={`${BUTTON_SECONDARY} w-full`} disabled={pending} onClick={() => run(() => setCommunicationClosed(comm.id, false))}>
                 <Unlock className="h-4 w-4" /> Reopen
               </button>
@@ -227,7 +227,7 @@ export default function CommunicationClient({ comm, canManage }: { comm: Communi
               </button>
             ))}
           </div>
-          {canManage && comm.status === 'sent' && (
+          {comm.status === 'sent' && (
             <div className="ml-auto flex items-center gap-2">
               <button
                 className="text-xs font-semibold text-[#307c4c] hover:underline"
@@ -250,7 +250,7 @@ export default function CommunicationClient({ comm, canManage }: { comm: Communi
           {rows.map((r) => (
             <li key={r.id} id={`request-${r.id}`}>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
-                {canManage && comm.status === 'sent' && (
+                {comm.status === 'sent' && (
                   <input
                     type="checkbox"
                     aria-label={`Select ${r.vendorName}`}
@@ -278,7 +278,7 @@ export default function CommunicationClient({ comm, canManage }: { comm: Communi
                 </span>
                 <StatusPill status={r.display} />
               </div>
-              {open === r.id && <RequestPanel r={r} canManage={canManage && comm.status !== 'draft'} pending={pending} run={run} />}
+              {open === r.id && <RequestPanel r={r} canAct={comm.status !== 'draft'} pending={pending} run={run} />}
             </li>
           ))}
           {rows.length === 0 && <li className="px-4 py-8 text-center text-sm text-slate-500">No suppliers with this status.</li>}
@@ -299,12 +299,13 @@ function Fact({ label, value }: { label: string; value: string }) {
 
 function RequestPanel({
   r,
-  canManage,
+  canAct,
   pending,
   run,
 }: {
   r: RequestDetail;
-  canManage: boolean;
+  /** False on a draft, where there is nothing to review yet. */
+  canAct: boolean;
   pending: boolean;
   run: (fn: () => Promise<{ success: boolean; error?: string; message?: string }>) => void;
 }) {
@@ -354,7 +355,7 @@ function RequestPanel({
             </ul>
           </div>
         ))}
-        {canManage && r.status === 'under_review' && (
+        {canAct && r.status === 'under_review' && (
           <div className="rounded-xl border border-sky-200 bg-white p-3">
             <p className="text-sm font-semibold text-slate-800">Review this action plan</p>
             <textarea

@@ -24,7 +24,7 @@ export default async function SafeSignLayout({ children }: { children: React.Rea
           <h1 className="text-[17px] font-semibold text-slate-900">SafeSign is not open to you yet</h1>
           <p className="mt-2 text-[13.5px] leading-relaxed text-slate-500">
             SafeSign is used by the teams that send QHSE communications to suppliers. Ask a SafeSign
-            administrator to add you as a manager or a viewer.
+            administrator to add you.
           </p>
           <Link
             href="/home"

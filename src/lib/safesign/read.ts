@@ -12,7 +12,7 @@ import { todayRiyadh } from './delivery';
 import { dateOnly } from './supplier-access';
 
 /**
- * Reads behind the staff pages. Callers check access first (requireSafeSignViewer); nothing here does,
+ * Reads behind the staff pages. Callers check access first (requireSafeSignUser); nothing here does,
  * which is why this is a plain module and not a `'use server'` file.
  */
 
@@ -42,7 +42,7 @@ export interface Vendor {
 export interface SafeSignUser {
   email: string;
   name: string;
-  role: 'manager' | 'viewer';
+  role: 'sender';
 }
 
 const iso = (v: unknown): string | null =>

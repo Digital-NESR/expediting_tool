@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { canManage, currentSafeSignActor } from '@/lib/safesign/access';
+import { currentSafeSignActor } from '@/lib/safesign/access';
 import { listTopics, listUsers } from '@/lib/safesign/read';
 import SafeSignShell from '../../components/SafeSignShell';
 import SettingsClient from './SettingsClient';
@@ -12,10 +12,10 @@ export default async function SettingsPage() {
     <SafeSignShell
       user={{ name: actor.name, email: actor.email, role: actor.role }}
       title="Topics & users"
-      subtitle="Topics group communications on the dashboard. Users decide who can send and who can only view."
+      subtitle="Topics group communications on the dashboard. Users are the people who can send communications."
       width="narrow"
     >
-      <SettingsClient topics={topics} users={users} canManage={canManage(actor)} isAdmin={actor.role === 'admin'} />
+      <SettingsClient topics={topics} users={users} isAdmin={actor.role === 'admin'} />
     </SafeSignShell>
   );
 }
