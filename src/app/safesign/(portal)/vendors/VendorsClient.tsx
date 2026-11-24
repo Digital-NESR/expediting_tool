@@ -2,7 +2,8 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { ClipboardPaste, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Download, FileSpreadsheet, Pencil, Plus, Trash2, Upload, X } from 'lucide-react';
+import { readSpreadsheet } from '@/lib/spreadsheet-import';
 import { importVendors, removeVendor, saveVendor, type VendorInput } from '@/app/actions/safesign/library';
 import type { Vendor } from '@/lib/safesign/read';
 import { BUTTON, BUTTON_SECONDARY, CARD, INPUT, LABEL } from '../../components/SafeSignShell';
@@ -10,23 +11,25 @@ import { BUTTON, BUTTON_SECONDARY, CARD, INPUT, LABEL } from '../../components/S
 const EMAIL_RE = /[^\s@,;<>()"']+@[^\s@,;<>()"']+\.[A-Za-z]{2,}/g;
 
 /**
- * Parse rows pasted from Excel: Supplier | Category | TO emails | CC emails.
- * Emails in a cell may be separated by commas, semicolons or spaces, and may have a name in
- * front of them ("Houssam Obeid hobeid@nui.sa"), which is kept as the contact name.
+ * Turn spreadsheet rows into suppliers: Supplier | Category | TO emails | CC emails (any further
+ * columns are CC too). Emails in a cell may be separated by commas, semicolons, spaces or line
+ * breaks, and may have a name in front of them ("Houssam Obeid hobeid@nui.sa"), which is kept as
+ * the contact name. A first row whose first cell says "Supplier" is treated as the header.
  */
-export function parsePasted(text: string): VendorInput[] {
+export function parseRows(rows: string[][]): VendorInput[] {
   const out: VendorInput[] = [];
-  for (const line of text.split(/\r?\n/)) {
-    if (!line.trim()) continue;
-    const cells = line.split('\t');
+  for (const raw of rows) {
+    const cells = raw.map((c) => String(c ?? ''));
     const name = (cells[0] ?? '').trim();
-    if (!name || /^supplier$/i.test(name)) continue;
-    const category = (cells[1] ?? '').includes('@') ? 'General' : (cells[1] ?? '').trim() || 'General';
-    const toCell = (cells[1] ?? '').includes('@') ? cells.slice(1, 2).join(' ') : cells[2] ?? '';
-    const ccCells = (cells[1] ?? '').includes('@') ? cells.slice(2) : cells.slice(3);
+    // The header row, and the template's grey example row if it was left in.
+    if (!name || /^supplier/i.test(name) || /^example supplier co$/i.test(name)) continue;
+    const categoryIsEmail = (cells[1] ?? '').includes('@');
+    const category = categoryIsEmail ? 'General' : (cells[1] ?? '').trim() || 'General';
+    const toCell = categoryIsEmail ? cells[1] ?? '' : cells[2] ?? '';
+    const ccCells = categoryIsEmail ? cells.slice(2) : cells.slice(3);
     const pick = (cell: string, kind: 'to' | 'cc') =>
       [...cell.matchAll(EMAIL_RE)].map((m) => {
-        const before = cell.slice(0, m.index).split(/[,;]/).pop()?.trim() ?? '';
+        const before = cell.slice(0, m.index).split(/[,;\n]/).pop()?.trim() ?? '';
         return { name: before.replace(/[.\s]+$/, ''), email: m[0], kind };
       });
     out.push({
@@ -44,8 +47,9 @@ export default function VendorsClient({ vendors, canManage }: { vendors: Vendor[
   const router = useRouter();
   const [pending, start] = useTransition();
   const [editing, setEditing] = useState<VendorInput | null>(null);
-  const [pasting, setPasting] = useState(false);
-  const [pasteText, setPasteText] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [parsed, setParsed] = useState<VendorInput[]>([]);
   const [filter, setFilter] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
@@ -57,7 +61,27 @@ export default function VendorsClient({ vendors, canManage }: { vendors: Vendor[
       (!filter ||
         [v.name, v.category, ...v.contacts.map((c) => c.email)].some((s) => s.toLowerCase().includes(filter.toLowerCase()))),
   );
-  const parsed = useMemo(() => (pasteText ? parsePasted(pasteText) : []), [pasteText]);
+
+  async function readFile(file: File | undefined) {
+    if (!file) return;
+    setNotice(null);
+    try {
+      const sheets = await readSpreadsheet(file);
+      const rows = parseRows(sheets[0]?.rows ?? []);
+      setFileName(file.name);
+      setParsed(rows);
+      if (!rows.length) setNotice({ ok: false, text: 'No suppliers found in the first sheet. Use the template columns.' });
+    } catch (err) {
+      setParsed([]);
+      setNotice({ ok: false, text: err instanceof Error ? err.message : 'Could not read that file.' });
+    }
+  }
+
+  function closeImport() {
+    setImporting(false);
+    setParsed([]);
+    setFileName(null);
+  }
 
   function save() {
     if (!editing) return;
@@ -78,10 +102,7 @@ export default function VendorsClient({ vendors, canManage }: { vendors: Vendor[
         ok: r.success,
         text: `${r.added ?? 0} added, ${r.updated ?? 0} updated.${r.errors?.length ? ' ' + r.errors.join(' ') : ''}${r.error ? ' ' + r.error : ''}`,
       });
-      if (r.success) {
-        setPasting(false);
-        setPasteText('');
-      }
+      if (r.success) closeImport();
       router.refresh();
     });
   }
@@ -95,8 +116,8 @@ export default function VendorsClient({ vendors, canManage }: { vendors: Vendor[
         </label>
         {canManage && (
           <div className="ml-auto flex gap-2">
-            <button className={BUTTON_SECONDARY} onClick={() => setPasting(true)}>
-              <ClipboardPaste className="h-4 w-4" /> Paste from Excel
+            <button className={BUTTON_SECONDARY} onClick={() => setImporting(true)}>
+              <Upload className="h-4 w-4" /> Upload from Excel
             </button>
             <button className={BUTTON} onClick={() => setEditing(blank())}>
               <Plus className="h-4 w-4" /> Add supplier
@@ -107,21 +128,39 @@ export default function VendorsClient({ vendors, canManage }: { vendors: Vendor[
 
       {notice && <p className={`rounded-lg px-3 py-2 text-sm ${notice.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'}`}>{notice.text}</p>}
 
-      {pasting && (
+      {importing && (
         <section className={`${CARD} space-y-3 p-5`}>
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-slate-800">Paste suppliers from Excel</h2>
+              <h2 className="text-sm font-semibold text-slate-800">Upload suppliers from Excel</h2>
               <p className="text-xs text-slate-500">
-                Copy rows with these columns: <b>Supplier</b> · <b>Category</b> · <b>TO emails</b> · <b>CC emails</b> (any further columns are CC too).
-                A supplier already in the library is updated, not duplicated.
+                Columns: <b>Supplier</b> · <b>Category of work</b> · <b>TO emails</b> · <b>CC emails</b>. Several emails in one cell can be
+                separated by commas or semicolons, with an optional name in front. A supplier already in the library is updated, not
+                duplicated.
               </p>
             </div>
-            <button aria-label="Close" onClick={() => setPasting(false)} className="rounded p-1 text-slate-400 hover:bg-slate-100">
+            <button aria-label="Close" onClick={closeImport} className="rounded p-1 text-slate-400 hover:bg-slate-100">
               <X className="h-4 w-4" />
             </button>
           </div>
-          <textarea className={`${INPUT} min-h-[140px] font-mono text-xs`} value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder={'NESMA\tLogistics\thobeid@nui.sa\tronulfoa@nui.sa; jihadk@nui.sa'} />
+          <div className="flex flex-wrap items-center gap-2">
+            <a href="/api/safesign/vendor-template" className={BUTTON_SECONDARY}>
+              <Download className="h-4 w-4" /> Download template
+            </a>
+            <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-500 hover:border-[#307c4c]/50 hover:text-[#307c4c]">
+              <FileSpreadsheet className="h-4 w-4" />
+              {fileName ? `${fileName}, choose another file` : 'Choose an Excel (.xlsx) or CSV file'}
+              <input
+                type="file"
+                accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+                className="hidden"
+                onChange={(e) => {
+                  void readFile(e.target.files?.[0]);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+          </div>
           {parsed.length > 0 && (
             <div className="overflow-x-auto rounded-lg border border-slate-200">
               <table className="min-w-full text-xs">
@@ -183,7 +222,7 @@ export default function VendorsClient({ vendors, canManage }: { vendors: Vendor[
                 <div key={i} className="flex gap-2">
                   <select
                     aria-label="TO or CC"
-                    className={`${INPUT} w-20`}
+                    className={`${INPUT.replace("w-full", "")} w-24 shrink-0`}
                     value={c.kind}
                     onChange={(e) => {
                       const contacts = [...editing.contacts];
@@ -304,7 +343,7 @@ export default function VendorsClient({ vendors, canManage }: { vendors: Vendor[
             {shown.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-500">
-                  No suppliers yet. Add one, or paste the list from Excel.
+                  No suppliers yet. Add one, or upload the list from Excel.
                 </td>
               </tr>
             )}

@@ -47,7 +47,7 @@ export default function SafeSignHelpPage() {
       <ul className="mt-2 list-disc space-y-1.5 pl-5">
         <li className={LI}>
           <b>Vendor library:</b> add suppliers with their category of work, the people who receive requests (TO) and
-          those copied (CC). Paste a list straight from Excel.
+          those copied (CC). Upload a list from Excel (a template is provided).
         </li>
         <li className={LI}>
           <b>New communication:</b> pick a topic, attach the documents, choose what you need back (acknowledge, sign the
