@@ -24,8 +24,12 @@ The script refuses a file without them.
 - Values are rounded to 2 decimals. `KSA` → Saudi Arabia, `Jordon` → Jordan.
 - **Global = the simple mean of the country values that month, per KPI.** The months up to July
   2026 hold the Global that was reported at the time.
-- A single extreme country moves this mean a lot. Extremes are loaded as they are (the owner's
-  standing rule) and listed in `reports/health-board/values-to-check.md`.
+- **Outliers are left out of Global** (owner ruling, 24 Nov 2026): a country more than **10× the
+  median of the other countries** that month is not counted in the mean. Its own value is still
+  loaded as it is, and the script prints what it left out. 10× was chosen so that only the clear
+  extremes are caught (Yemen Local September 2026 at 524 days is 28× the median; EOS DMCC Intl August
+  2026 at 881 is 21×). A 5× rule would also have caught ordinary high months, such as Yemen Local
+  October at 95 (5.3×).
 - Load only the missing months, and never the current, unfinished month.
 
 ## Steps
@@ -40,3 +44,5 @@ additions only.
 ## History
 
 - **24 Nov 2026**: August, September and October 2026 added for both KPIs (load 17, 94 values).
+  Then the outlier rule was applied (load 18): Local September Global 59.07 → 25.86 (without
+  Yemen), and Intl August Global 101.43 → 41.46 (without EOS DMCC).

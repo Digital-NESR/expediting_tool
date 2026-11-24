@@ -9,7 +9,8 @@
  *     --months=August,September,October --out=reports/health-board/tlt-2026-aug-oct.csv
  *
  * Purch_ORG_Flag LOCL → TLT (Local), FORN → TLT (Intl). Values rounded to 2 decimals. Global = the
- * simple mean of the country values that month, per KPI (owner ruling, 24 Nov 2026).
+ * simple mean of the country values that month, per KPI, leaving out any country more than 10x
+ * the median of the other countries (owner rulings, 24 Nov 2026).
  */
 import { writeFileSync } from 'node:fs';
 import { createJiti } from 'jiti';
@@ -71,6 +72,19 @@ for (const r of rows.slice(1)) {
   data.set(key, { kpi, year: Number(r[iy]), month: r[im], raw: r[ic], country, value });
 }
 
+/* A country is left out of Global when it is more than OUTLIER_FACTOR times the median of the
+   other countries that month (owner ruling, 24 Nov 2026). Its own value is still loaded. */
+const OUTLIER_FACTOR = 10;
+const median = (xs) => {
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+const isOutlier = (v, all) => {
+  const others = all.filter((o) => o !== v).map((o) => o.value);
+  return others.length >= 3 && v.value > OUTLIER_FACTOR * median(others);
+};
+
 const line = (kpi, country, value, month) => [
   country,
   value.toFixed(2),
@@ -89,10 +103,13 @@ for (const kpi of Object.values(KPI_BY_FLAG)) {
     );
     if (!here.length) throw new Error(`No ${kpi} rows for ${month} ${YEAR} in ${FILE}`);
     for (const v of here) lines.push(line(kpi, v.country, v.value, month));
-    const mean = round2(here.reduce((s, v) => s + v.value, 0) / here.length);
+    const outliers = here.filter((v) => isOutlier(v, here));
+    const kept = here.filter((v) => !outliers.includes(v));
+    const mean = round2(kept.reduce((s, v) => s + v.value, 0) / kept.length);
     lines.push(line(kpi, 'Global', mean, month));
+    const left = outliers.map((v) => `${v.country} ${v.value}`).join(', ');
     console.log(
-      `${kpi} ${month}: ${here.map((v) => `${v.country} ${v.value}`).join(', ')}\n  Global (mean of ${here.length}): ${mean}`,
+      `${kpi} ${month}: ${here.map((v) => `${v.country} ${v.value}`).join(', ')}\n  Global (mean of ${kept.length}): ${mean}${left ? `  (left out: ${left})` : ''}`,
     );
   }
 }

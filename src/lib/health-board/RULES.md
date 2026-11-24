@@ -167,7 +167,8 @@ written down per KPI in `procedures/` beside this file, so the next month is don
 - `procedures/otd.md`: On-Time Delivery from the "On Time Delivery" export (× 100, Global = mean
   of the countries), via `scripts/health-board-otd-from-export.mjs`.
 - `procedures/tlt.md`: Supplier Lead Time Local (LOCL) and International (FORN) from the "Average
-  of EXT_LTD" export (Global = mean of the countries), via `scripts/health-board-tlt-from-export.mjs`.
+  of EXT_LTD" export (Global = mean of the countries, leaving out any country more than 10× the median
+  of the others), via `scripts/health-board-tlt-from-export.mjs`.
 
 The Power BI "Export data" files (OTD, lead times, Slow Moving) are read by `scripts/lib/minimal-xlsx.mjs`.
 
