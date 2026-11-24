@@ -607,10 +607,10 @@ function BuyerTab() {
 
       <H>4 · Keep the register up to date</H>
       <P>
-        The <b>Service register</b> is the list every month is opened from, and keeping it right is
-        yours. <b>Add line</b> registers a new asset or service; clicking a line opens it to edit.
-        Suppliers are added from the same page, and need a contact email for the monthly invitation
-        to be sent to them.
+        The <b>Service Registry</b> (shared with the Catalog) is the list every month is opened
+        from, and keeping it right is yours. <b>Add line</b> registers a new asset or service;
+        clicking a line opens it to edit. Suppliers are added from the same page, and need a contact
+        email for the monthly invitation to be sent to them.
       </P>
       <Steps
         items={[

@@ -41,6 +41,7 @@ import {
   type PoValue,
 } from '@/lib/rrsm/po-history-read';
 import { readSapStatus } from '@/lib/rrsm/sap-status';
+import { syncRecurrentToRegistry } from '@/lib/rrsm/registry-sync';
 import { searchRrsmSuppliers, type RrsmSupplierOption } from '@/lib/rrsm/avl';
 import { checkDoc } from '@/lib/rrsm/submission';
 import { appBase } from '@/lib/rrsm/supplier-access';
@@ -101,6 +102,8 @@ export interface RecurrentRow {
   canDecide: boolean;
   /** Why the buyer should update the PO number (none, not in SAP, or old), or null. */
   poIssue: PoIssue | null;
+  /** Its Service Registry item (CAT-nnnn), shared with the Catalog; '' until it has one. */
+  registryCode: string;
 }
 
 export interface RecurrentBoard {
@@ -283,6 +286,7 @@ export async function getRecurrentBoard(requestedCountry?: string | null): Promi
             canBuy: roles.canBuy,
           }),
         poIssue: null, // set below, once SAP has been read
+        registryCode: txt(r.registry_code),
       };
     });
 
@@ -590,6 +594,8 @@ export async function saveRecurrentService(input: {
         );
       }
       await client.query('COMMIT');
+      /* Its Service Registry item (shared with the Catalog) follows. After the commit, best effort. */
+      await syncRecurrentToRegistry(id, { name: actor.email, email: actor.email });
       return { success: true, id };
     } catch (err) {
       await client.query('ROLLBACK').catch(() => {});
@@ -866,6 +872,8 @@ export async function completeRecurrentRenewal(input: {
     } finally {
       client.release();
     }
+    /* A renewal moves the registry item's value and expiry. After the commit, best effort. */
+    await syncRecurrentToRegistry(id, { name: actor.email, email: actor.email });
     return { success: true };
   } catch (err) {
     log.error('completeRecurrentRenewal.failed', err, { serviceId: input?.serviceId });

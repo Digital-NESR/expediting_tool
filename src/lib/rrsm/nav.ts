@@ -55,7 +55,7 @@ export const RRSM_NAV: readonly RrsmNavItem[] = [
   {
     id: 'register',
     path: '/rrsm/register',
-    label: 'Service register',
+    label: 'Service Registry',
     group: 'records',
     needs: 'any',
   },

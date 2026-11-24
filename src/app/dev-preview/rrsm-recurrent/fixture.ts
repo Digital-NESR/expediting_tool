@@ -44,6 +44,7 @@ function row(p: Partial<RecurrentRow> & Pick<RecurrentRow, 'id' | 'serviceName'>
     documents: [],
     canDecide: true,
     poIssue: null,
+    registryCode: '',
     ...p,
   } as RecurrentRow;
 }

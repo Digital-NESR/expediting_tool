@@ -490,6 +490,14 @@ function ServiceDrawer({
                     Expires {row.contractExpiry} ({daysText(row.daysLeft)})
                   </span>
                 )}
+                {row.registryCode && (
+                  <span
+                    className="font-mono text-[11.5px] text-slate-400"
+                    title="Its Service Registry item, shared with the Catalog"
+                  >
+                    {row.registryCode}
+                  </span>
+                )}
               </p>
             )}
           </div>

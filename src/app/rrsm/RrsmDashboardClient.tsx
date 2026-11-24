@@ -237,7 +237,7 @@ export default function RrsmDashboardClient({
           <Library className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-slate-900">Service register</p>
+          <p className="text-sm font-semibold text-slate-900">Service Registry</p>
           <p className="text-[13px] text-slate-500">
             {register.activeLines} lines on hire with {register.suppliers} suppliers ·{' '}
             {register.offHire} off hire

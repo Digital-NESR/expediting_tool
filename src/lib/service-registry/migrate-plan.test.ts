@@ -204,3 +204,12 @@ describe('category targets', () => {
       }
   });
 });
+
+describe('units of measure', () => {
+  it('round-trips between RRSM codes and registry names', async () => {
+    const { uomName, rrsmUom } = await import('./migrate-plan');
+    for (const code of ['month', 'day', 'hour', 'headcount', 'unit'])
+      expect(rrsmUom(uomName(code))).toBe(code);
+    expect(rrsmUom('Year')).toBe('unit');
+  });
+});
