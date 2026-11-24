@@ -184,6 +184,9 @@ written down per KPI in `procedures/` beside this file, so the next month is don
 - `procedures/pir-coverage.md`: PIR Coverage, with countries from the "…By Country" export and Global
   from the "…By Release Timeline" export, via `scripts/health-board-pir-from-export.mjs`.
 
+- `procedures/post-fact.md`: Post-Fact from the audit team's "PostFact Audit" workbook (FAIL ÷ all
+  audited POs; Global pooled), via `scripts/health-board-postfact-from-audit.mjs`.
+
 The Power BI "Export data" files (OTD, lead times, Slow Moving) are read by `scripts/lib/minimal-xlsx.mjs`.
 
 ## Uploading (UX phase 5)
