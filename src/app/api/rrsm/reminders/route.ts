@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 // Imported from a plain module, not from the `'use server'` actions file: an action export would
 // also be a public POST endpoint, letting any signed-in user trigger the mass send below without
 // the CRON_SECRET check. Same note, same reason, as /api/procure-guard/reminders.
-import { sendRrsmRenewalReminders } from '@/lib/rrsm/reminders';
 import { sendRecurrentReminders } from '@/lib/rrsm/recurrent-reminders';
 
 export const dynamic = 'force-dynamic';
@@ -19,7 +18,8 @@ function secretsMatch(provided: string, expected: string): boolean {
 }
 
 /*
- * RRSM's daily renewal reminders.
+ * RRSM's daily recurrent-service reminders. (The rental renewal reminders and their Renewals page
+ * were removed on 25 Nov 2026 at the user's request; this route now runs only the recurrent ones.)
  *
  * Secured with CRON_SECRET, supplied ONLY as `Authorization: Bearer <CRON_SECRET>` — exactly
  * what Vercel Cron sends. No `?secret=` form: Vercel and any intermediate proxy log full request
@@ -46,10 +46,8 @@ async function handle(req: Request) {
   }
 
   try {
-    const result = await sendRrsmRenewalReminders();
-    /* Recurrent services ride the same daily run: same secret, same webhook, one cron entry. */
     const recurrent = await sendRecurrentReminders();
-    return NextResponse.json({ ok: true, ...result, recurrent });
+    return NextResponse.json({ ok: true, recurrent });
   } catch (err) {
     console.error('[api/rrsm/reminders]', err);
     return NextResponse.json({ ok: false, error: 'Reminder run failed.' }, { status: 500 });

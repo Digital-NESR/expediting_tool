@@ -17,7 +17,7 @@ import Link from 'next/link';
 import { useMemo } from 'react';
 import {
   ArrowRight,
-  CalendarClock,
+  ChartColumn,
   ClipboardCheck,
   Database,
   Library,
@@ -69,7 +69,7 @@ export default function RrsmDashboardClient({
   const country = scope.country;
   const href = (path: string) => rrsmHref(path, country.code);
   const can = (need: RrsmNeed) => meetsNeed(need, scope);
-  const { cycle, suppliers, renewals, register } = overview;
+  const { cycle, suppliers, register } = overview;
 
   return (
     <RrsmShell
@@ -213,13 +213,14 @@ export default function RrsmDashboardClient({
           href={can('buy') ? href('/rrsm/purchasing') : null}
           tone="plain"
         />
+        {/* Where the Renewals tile was (removed 25 Nov 2026): what the country is getting. */}
         <Tile
-          icon={CalendarClock}
-          label="Renewals pending"
-          value={renewals.pending}
-          detail={`${renewals.overdue} past their end date · ${renewals.dueSoon} within 30 days`}
-          href={href('/rrsm/renewals')}
-          tone={renewals.overdue ? 'danger' : renewals.dueSoon ? 'warn' : 'plain'}
+          icon={ChartColumn}
+          label="Suppliers on hire"
+          value={register.suppliers}
+          detail="Reports: by supplier, category or cost center, and every past month"
+          href={can('buy') ? href('/rrsm/reports') : null}
+          tone="plain"
         />
       </div>
 

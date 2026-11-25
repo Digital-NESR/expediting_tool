@@ -52,13 +52,13 @@ describe('visibleNav', () => {
     ).toEqual(['recurrent', 'help']);
   });
 
-  it('keeps renewals, the register, history and help open to buyers, with or without Ops', () => {
+  it('keeps the register, reports and help open to buyers, with or without Ops', () => {
     for (const roles of [
       { canBuy: true, canValidate: false },
       { canBuy: true, canValidate: true },
     ]) {
       const seen = ids(roles);
-      for (const id of ['dashboard', 'renewals', 'register', 'history', 'help'] as const) {
+      for (const id of ['dashboard', 'register', 'reports', 'help'] as const) {
         expect(seen).toContain(id);
       }
     }
@@ -96,8 +96,7 @@ describe('activeNavId', () => {
   });
 
   it('matches a page and anything beneath it', () => {
-    expect(activeNavId('/rrsm/renewals')).toBe('renewals');
-    expect(activeNavId('/rrsm/history/3')).toBe('history');
+    expect(activeNavId('/rrsm/reports')).toBe('reports');
   });
 
   it('does not match a path that merely starts with the same letters', () => {
@@ -115,7 +114,8 @@ describe('legacyViewPath', () => {
     expect(legacyViewPath('ops')).toBe('/rrsm/validation');
     expect(legacyViewPath('buyer')).toBe('/rrsm/purchasing');
     expect(legacyViewPath('invite')).toBe('/rrsm/suppliers');
-    expect(legacyViewPath('renew')).toBe('/rrsm/renewals');
+    /* The rental Renewals page is gone; its old reminder links land on the dashboard. */
+    expect(legacyViewPath('renew')).toBe('/rrsm');
   });
 
   it('leaves the dashboard standing for anything else', () => {

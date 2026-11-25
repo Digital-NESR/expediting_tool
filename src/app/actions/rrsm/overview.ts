@@ -12,7 +12,6 @@ import {
   type RrsmCountryOption,
 } from '@/lib/rrsm/access';
 import type { CycleStage } from '@/lib/rrsm/cycle';
-import { WINDOW_DAYS } from '@/lib/rrsm/renewals';
 import { summarisePos } from '@/lib/rrsm/sap';
 import { readSapStatus } from '@/lib/rrsm/sap-status';
 
@@ -102,14 +101,6 @@ export interface RrsmOverview {
     waiting: number;
     submitted: number;
   };
-  renewals: {
-    /** Pending, and the contract has already ended. */
-    overdue: number;
-    /** Pending within the next 30 days. */
-    dueSoon: number;
-    /** Pending anywhere in the reminder window. */
-    pending: number;
-  };
   register: { activeLines: number; suppliers: number; offHire: number };
 }
 
@@ -124,25 +115,17 @@ const NO_STAGES: Record<CycleStage, number> = {
 const EMPTY_OVERVIEW: RrsmOverview = {
   cycle: null,
   suppliers: { inCycle: 0, notInvited: 0, waiting: 0, submitted: 0 },
-  renewals: { overdue: 0, dueSoon: 0, pending: 0 },
   register: { activeLines: 0, suppliers: 0, offHire: 0 },
 };
 
-/**
- * The dashboard's figures for one country, in four short queries.
- *
- * Renewals are counted from the register rather than from `rrsm_renewals`, because renewal rows
- * are opened when the renewals page is viewed: a contract that crossed into the window this
- * morning has no row yet, and a dashboard that waited for one would report "nothing due" about it.
- * A decision is honoured when one exists for the line's current end date.
- */
+/** The dashboard's figures for one country, in a few short queries run side by side. */
 export async function getRrsmOverview(countryCode: string): Promise<RrsmOverview> {
   try {
     const actor = await actorOrThrow();
     const code = String(countryCode ?? '').trim();
     if (!code || !canAccessCountry(actor, code, 'buyer')) return EMPTY_OVERVIEW;
 
-    const [cycleRes, registerRes, renewalRes] = await Promise.all([
+    const [cycleRes, registerRes] = await Promise.all([
       rrsmPool.query<QueryResultRow>(
         `SELECT id, period, opens_on, closes_on, status FROM rrsm_cycles
           WHERE country_code = $1 ORDER BY period DESC LIMIT 1`,
@@ -156,31 +139,11 @@ export async function getRrsmOverview(countryCode: string): Promise<RrsmOverview
            FROM rrsm_service_lines WHERE country_code = $1`,
         [code],
       ),
-      rrsmPool.query<QueryResultRow>(
-        `SELECT count(*) FILTER (WHERE s.contract_ends_on < CURRENT_DATE)::int AS overdue,
-                count(*) FILTER (WHERE s.contract_ends_on >= CURRENT_DATE
-                                   AND s.contract_ends_on <= CURRENT_DATE + 30)::int AS due_soon,
-                count(*)::int AS pending
-           FROM rrsm_service_lines s
-           LEFT JOIN rrsm_renewals r
-                  ON r.service_line_id = s.id AND r.due_on = s.contract_ends_on
-          WHERE s.country_code = $1 AND s.active AND s.off_hire_date IS NULL
-            AND s.contract_ends_on IS NOT NULL
-            AND s.contract_ends_on <= CURRENT_DATE + ($2 || ' days')::interval
-            AND COALESCE(r.status, 'pending') = 'pending'`,
-        [code, WINDOW_DAYS],
-      ),
     ]);
 
     const reg = registerRes.rows[0] ?? {};
-    const ren = renewalRes.rows[0] ?? {};
     const out: RrsmOverview = {
       ...EMPTY_OVERVIEW,
-      renewals: {
-        overdue: Number(ren.overdue ?? 0),
-        dueSoon: Number(ren.due_soon ?? 0),
-        pending: Number(ren.pending ?? 0),
-      },
       register: {
         activeLines: Number(reg.active_lines ?? 0),
         suppliers: Number(reg.suppliers ?? 0),

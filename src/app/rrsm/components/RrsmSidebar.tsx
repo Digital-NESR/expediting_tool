@@ -14,12 +14,10 @@
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import {
-  CalendarClock,
   CircleQuestionMark,
   ChartColumn,
   ClipboardCheck,
   Forklift,
-  History,
   LayoutDashboard,
   LayoutGrid,
   Repeat,
@@ -54,9 +52,7 @@ const ICONS: Record<RrsmNavId, typeof LayoutGrid> = {
   suppliers: Send,
   validation: ClipboardCheck,
   purchasing: Receipt,
-  renewals: CalendarClock,
   register: Library,
-  history: History,
   reports: ChartColumn,
   recurrent: Repeat,
   help: CircleQuestionMark,

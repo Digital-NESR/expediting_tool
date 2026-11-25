@@ -35,7 +35,8 @@ type TabKey = 'start' | 'rentals' | 'ops' | 'supplier' | 'buyer' | 'recurrent' |
 
 const TABS = [
   { key: 'start' as const, label: 'Getting started' },
-  { key: 'rentals' as const, label: 'Rental equipment' },
+  /* Short enough that all seven tabs fit the 900px column without scrolling. */
+  { key: 'rentals' as const, label: 'Rentals' },
   { key: 'supplier' as const, label: 'Supplier validation' },
   { key: 'ops' as const, label: 'Ops validation' },
   { key: 'buyer' as const, label: 'PR & PO' },
@@ -45,7 +46,7 @@ const TABS = [
 
 /** Every screenshot and its size in pixels, so each renders at its own width and no blurrier. */
 const SHOT = {
-  'menu-rentals': [280, 660],
+  'menu-rentals': [280, 580],
   'menu-recurrent': [280, 380],
   'request-access': [500, 572],
   dashboard: [1280, 810],
@@ -58,15 +59,16 @@ const SHOT = {
   'returned-to-buyer': [1232, 240],
   'pr-po': [1280, 1000],
   'send-to-ops': [1280, 360],
-  renewals: [1120, 440],
   registry: [1280, 600],
-  history: [1280, 380],
   reports: [1280, 620],
+  'reports-history': [1232, 230],
+  'open-month': [1280, 460],
+  'pr-matching': [1232, 160],
+  'pr-link': [1280, 760],
   'recurrent-dashboard': [1280, 1000],
   'recurrent-list': [1280, 580],
   'recurrent-requester': [1280, 640],
   'admin-countries': [1140, 1000],
-  'reminder-email': [760, 550],
 } as const;
 
 /* ─── small pieces ───────────────────────────────────────────────────────── */
@@ -284,7 +286,7 @@ function StartTab({ go }: { go: (t: TabKey) => void }) {
         rows={[
           [
             'Buyer',
-            'Opens the month, invites suppliers, sends lines to Ops, links PRs and POs, closes the month, keeps the Service Registry, handles renewals and recurrent services.',
+            'Opens the month, invites suppliers, sends lines to Ops, links PRs and POs, closes the month, keeps the Service Registry, runs Reports, and handles recurrent services.',
             'Appointed per country by an RRSM admin, or asks for access (below).',
           ],
           [
@@ -372,26 +374,14 @@ function StartTab({ go }: { go: (t: TabKey) => void }) {
           ],
           [
             'Records',
-            'Renewals',
-            'Rental contracts ending in the next 90 days, with a year of use beside each.',
-            'Buyers, admins',
-          ],
-          [
-            'Records',
             'Service Registry',
             'Every item on hire and its units, suppliers and rates. Shared with the Catalog.',
             'Buyers, admins',
           ],
           [
             'Records',
-            'Cycle history',
-            'Every month the country has run, its value and how far it got.',
-            'Buyers, admins',
-          ],
-          [
-            'Records',
             'Reports',
-            'What the country is getting in a month, by supplier, by category or by cost center.',
+            'What the country is getting in a month, by supplier, category or cost center, plus every month it has run (cycle history).',
             'Buyers, admins',
           ],
           [
@@ -515,7 +505,7 @@ function RentalsTab({ go }: { go: (t: TabKey) => void }) {
       <Shot
         name="dashboard"
         alt="The rentals dashboard"
-        caption="The bar shows where every line of the month is. Each tile opens the page that clears it: suppliers not yet in, lines to validate, lines waiting on a PO, renewals due. Below, the month's POs as SAP has them."
+        caption="The bar shows where every line of the month is. Each tile opens the page that clears it: suppliers not yet in, lines to validate, lines waiting on a PO, and Reports. Below, the month's POs as SAP has them."
       />
 
       <H id="registry">Service Registry</H>
@@ -548,48 +538,21 @@ function RentalsTab({ go }: { go: (t: TabKey) => void }) {
         ]}
       />
 
-      <H id="renewals">Renewals</H>
-      <Shot
-        name="renewals"
-        alt="The renewals page"
-        caption="Rental contracts ending in the next 90 days, soonest first, with how many of the last twelve months each was actually used. A unit unused all year is called out."
-      />
-      <Steps
-        items={[
-          <>
-            <b>Extend 12 months</b>: the end date moves twelve months from the date it was due, not
-            from today.
-          </>,
-          <>
-            <b>Extend with scope change</b>: the same, and you change the unit in the registry.
-          </>,
-          <>
-            <b>Do not extend</b>: recorded; somebody still off-hires the unit when the date comes.
-          </>,
-        ]}
-      />
-      <P>
-        Buyers are emailed at 90, 60, 30, 14 and 7 days before an end date and on the day itself:
-        one email listing everything of theirs, never one per contract.
-      </P>
-      <Shot
-        name="reminder-email"
-        alt="The renewal reminder email"
-        caption="The renewal reminder. Soonest first, with twelve months of actual use beside each unit."
-      />
-
-      <H id="history">Cycle history</H>
-      <Shot
-        name="history"
-        alt="Cycle history"
-        caption="Every month the country has run: suppliers, lines, how many reached a PO, the value and how far it got."
-      />
-
       <H id="reports">Reports</H>
       <Shot
         name="reports"
         alt="RRSM reports"
         caption="Pick a month (or what is on hire now), then group by supplier, category or cost center. Each group opens to its units; the bar shows its share of the month. Download CSV gives the same rows for Excel."
+      />
+      <P>
+        Below the breakdown, <b>Cycle history</b> lists every month the country has run: suppliers,
+        lines, how many reached a PO, the value and how far it got. Click a month to see it in the
+        breakdown above.
+      </P>
+      <Shot
+        name="reports-history"
+        alt="Cycle history inside Reports"
+        caption="Cycle history, at the bottom of Reports. The month shown above is highlighted."
       />
     </div>
   );
@@ -798,6 +761,38 @@ function BuyerTab() {
         caption="Top to bottom: sending to Ops, PR matching, live SAP status with filters, then the lines by supplier. Download all documents and Close all ready are in the banner."
       />
 
+      <H id="open">Open the month</H>
+      <P>
+        A month starts on <b>PR &amp; PO</b>. When nothing is open for the country, the page says so
+        and offers <b>Open [month]</b>. Click it once.
+      </P>
+      <Shot
+        name="open-month"
+        alt="PR & PO before the month is opened"
+        caption="Before the month is opened. The button names the month it will open: the one ending on the 25th."
+      />
+      <Steps
+        items={[
+          <>
+            Every unit still on hire in the Service Registry is copied into the month, at
+            today&apos;s registry rate and with last month&apos;s quantity (1 for a new unit).
+          </>,
+          <>
+            Each unit&apos;s usual Ops validator comes along, filled in but not sent; you send them
+            when the lines are ready.
+          </>,
+          <>
+            Lines start at the first step the country runs: with supplier validation, at{' '}
+            <i>Awaiting supplier</i>; with only Ops validation, at <i>Submitted</i>; with neither,
+            ready for the PO.
+          </>,
+          <>
+            RRSM then starts matching PRs from SAP on its own (next section). Opening twice is
+            refused: one month per country at a time.
+          </>,
+        ]}
+      />
+
       <H id="send">Send lines to Ops</H>
       <Shot
         name="send-to-ops"
@@ -846,11 +841,18 @@ function BuyerTab() {
         the line until you decide.
       </P>
 
-      <H>PR matching and SAP status</H>
+      <H id="linking">Linking each line to its PR</H>
       <P>
-        RRSM reads SAP (through Materials DB) several times a day. Once SAP has a PO from that
-        supplier, RRSM links each line to its PR on its own where it can:
+        Each line needs its PR. That is the one link a person makes: once a line has its PR, the PO,
+        its approval and the service entry all fill in from SAP. RRSM reads SAP (through Materials
+        DB) several times a day and, once SAP has a PO from that supplier, links what it can on its
+        own. The <b>PR matching this month</b> box says how that went:
       </P>
+      <Shot
+        name="pr-matching"
+        alt="PR matching this month"
+        caption="Click a tile to show only those lines. Confirm all accepts every uncertain link in one go, once you have looked at them."
+      />
       <Table
         head={['Tile', 'Means', 'What to do']}
         rows={[
@@ -862,6 +864,33 @@ function BuyerTab() {
           ],
           ['No PR found', 'Nothing in SAP to match yet.', 'Link PR by hand once it is raised.'],
           ['Linked by a buyer', 'Linked or confirmed by a person.', 'Nothing.'],
+        ]}
+      />
+      <P>
+        On a line, <b>Link PR</b> (or <b>Change</b>, where one is already linked) opens the PR
+        picker:
+      </P>
+      <Shot
+        name="pr-link"
+        alt="Linking a line to its PR"
+        caption="The PRs SAP has put on a service PO for this supplier this month, closest to the line's value first. 'Same amount' marks an exact match; 'on 1 other line' means another line already uses that PR."
+      />
+      <Steps
+        items={[
+          <>Click the right PR in the list to link it.</>,
+          <>
+            Not in the list? A PR that is not on a PO yet has no supplier in SAP, so it cannot be
+            suggested: type its number under <b>Or type a PR number</b> and click <b>Link</b>.
+          </>,
+          <>
+            One PR often covers several lines from the same supplier: tick{' '}
+            <i>Also link it to this supplier&apos;s other lines with no PR</i> to link them all at
+            once.
+          </>,
+          <>
+            A line RRSM linked on its own shows <b>Auto</b> (certain) or <b>Check</b> (not certain).
+            For a Check, click <b>Confirm</b> if it is right, or <b>Change</b> to pick another.
+          </>,
         ]}
       />
       <P>
@@ -1050,9 +1079,9 @@ function AdminTab() {
         <Mail className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
         <div className="text-[13px] leading-relaxed text-slate-600">
           Supplier invitation, reminder and verification code · supplier submitted · lines sent to
-          an Ops validator · line returned (to the buyers or the validator) · renewal reminders ·
-          recurrent reminders and decisions · access decisions. The app writes each message and the
-          n8n mail workflow sends it from the Digital SupplyChain mailbox.
+          an Ops validator · line returned (to the buyers or the validator) · recurrent reminders
+          and decisions · access decisions. The app writes each message and the n8n mail workflow
+          sends it from the Digital SupplyChain mailbox.
         </div>
       </div>
     </div>

@@ -622,10 +622,7 @@ export function LineDrawer({
         </Field>
       </Section>
 
-      <Section
-        title="Contract"
-        hint="An end date puts the line on the Renewals page 90 days ahead, and the owner and requester are the ones reminded."
-      >
+      <Section title="Contract" hint="When the contract for this unit ends, for the record.">
         <Field label="Starts" error={errors.startsOn}>
           <input
             type="date"

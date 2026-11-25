@@ -14,7 +14,6 @@ import type { HistoryRow, RegisterRow, RrsmOverview, RrsmScope } from '@/app/act
 import type { RegisterEditorData } from '@/app/actions/rrsm/register';
 import RrsmDashboardClient from '@/app/rrsm/RrsmDashboardClient';
 import RrsmReportsClient from '@/app/rrsm/RrsmReportsClient';
-import RrsmHistoryClient from '@/app/rrsm/RrsmHistoryClient';
 import RrsmRegisterClient from '@/app/rrsm/RrsmRegisterClient';
 import { PREVIEW_REFS, PREVIEW_REGISTRY, PREVIEW_UNIT_LINKS } from './registry-fixture';
 
@@ -86,14 +85,12 @@ const OVERVIEW: RrsmOverview = {
     },
   },
   suppliers: { inCycle: 6, notInvited: 1, waiting: 2, submitted: 3 },
-  renewals: { overdue: 1, dueSoon: 3, pending: 5 },
   register: { activeLines: 51, suppliers: 7, offHire: 4 },
 };
 
 const NO_CYCLE: RrsmOverview = {
   cycle: null,
   suppliers: { inCycle: 0, notInvited: 0, waiting: 0, submitted: 0 },
-  renewals: { overdue: 0, dueSoon: 1, pending: 1 },
   register: { activeLines: 51, suppliers: 7, offHire: 4 },
 };
 
@@ -330,13 +327,12 @@ export default async function RrsmPagesPreview({
           preview
         />
       );
-    case 'history':
-      return <RrsmHistoryClient scope={scope} rows={HISTORY} />;
     case 'reports':
       /* The sample register as a month's lines: same units, so both groupings have content. */
       return (
         <RrsmReportsClient
           scope={scope}
+          history={HISTORY}
           report={{
             sources: [
               { key: '3', label: 'November 2026' },

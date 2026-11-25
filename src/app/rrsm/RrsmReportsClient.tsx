@@ -15,9 +15,9 @@
 import { useMemo, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { ChevronRight, Download, Search } from 'lucide-react';
-import type { RrsmScope } from '@/app/actions/rrsm/overview';
+import type { HistoryRow, RrsmScope } from '@/app/actions/rrsm/overview';
 import type { ReportUnit, RrsmReport } from '@/app/actions/rrsm/reports';
-import { STAGE_LABEL } from '@/lib/rrsm/cycle';
+import { STAGE_LABEL, periodLabel } from '@/lib/rrsm/cycle';
 import RrsmShell, { RrsmEmpty, RrsmNoCountry, RrsmNotYourRole } from './components/RrsmShell';
 
 type By = 'supplier' | 'category' | 'costCenter';
@@ -132,9 +132,12 @@ function toCsv(groups: Group[], by: By): string {
 export default function RrsmReportsClient({
   scope,
   report,
+  history = [],
 }: {
   scope: RrsmScope;
   report: RrsmReport | null;
+  /** Every month the country has run, newest first (Cycle history, part of Reports). */
+  history?: HistoryRow[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -417,6 +420,81 @@ export default function RrsmReportsClient({
             );
           })}
         </div>
+      )}
+
+      {/* ── cycle history: every month the country has run ─────── */}
+      {history.length > 0 && (
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-slate-100 bg-slate-50/70 px-4 py-2.5">
+            <h2 className="text-[13.5px] font-semibold text-slate-800">Cycle history</h2>
+            <span className="text-[11.5px] text-slate-500">
+              Every month {scope.country.name} has run. Click one to see it above.
+            </span>
+          </header>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[48rem] text-[13px]">
+              <thead>
+                <tr className="text-[10.5px] uppercase tracking-wider text-slate-400">
+                  <th className="px-4 py-2 text-left font-semibold">Month</th>
+                  <th className="px-2 py-2 text-left font-semibold">Window</th>
+                  <th className="px-2 py-2 text-right font-semibold">Suppliers</th>
+                  <th className="px-2 py-2 text-right font-semibold">Lines</th>
+                  <th className="px-2 py-2 text-right font-semibold">With PO</th>
+                  <th className="px-2 py-2 text-right font-semibold">Value ({currency})</th>
+                  <th className="px-4 py-2 text-left font-semibold">Progress</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((h, i) => {
+                  const shown = report?.source === String(h.id);
+                  const done = h.lines ? h.closedLines / h.lines : 0;
+                  return (
+                    <tr
+                      key={h.id}
+                      onClick={() => pickMonth(String(h.id))}
+                      className={`cursor-pointer border-t border-slate-100 transition-colors hover:bg-[#307c4c]/[0.04] ${
+                        shown ? 'bg-[#307c4c]/[0.06]' : ''
+                      }`}
+                    >
+                      <td className="px-4 py-2.5 font-semibold text-slate-800">
+                        {periodLabel(new Date(h.period + 'T00:00:00Z'))}
+                        {i === 0 && (
+                          <span className="ml-2 text-[10.5px] font-semibold text-[#307c4c]">
+                            Current
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-2 py-2.5 text-slate-500">
+                        {h.opensOn} to {h.closesOn}
+                      </td>
+                      <td className="px-2 py-2.5 text-right text-slate-700">{h.suppliers}</td>
+                      <td className="px-2 py-2.5 text-right text-slate-700">{h.lines}</td>
+                      <td className="px-2 py-2.5 text-right text-slate-700">{h.withPo}</td>
+                      <td className="px-2 py-2.5 text-right font-mono font-semibold text-slate-800">
+                        {money.format(h.value)}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <span className="block h-1.5 w-28 overflow-hidden rounded-full bg-slate-100">
+                            <span
+                              className="block h-full rounded-full bg-[#307c4c]"
+                              style={{ width: `${Math.round(done * 100)}%` }}
+                            />
+                          </span>
+                          <span className="text-[11.5px] text-slate-500">
+                            {h.closedLines === h.lines && h.lines
+                              ? 'Closed'
+                              : `${h.closedLines} of ${h.lines} closed`}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
     </RrsmShell>
   );

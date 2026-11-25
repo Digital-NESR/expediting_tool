@@ -11,9 +11,7 @@ export type RrsmNavId =
   | 'validation'
   | 'purchasing'
   | 'suppliers'
-  | 'renewals'
   | 'register'
-  | 'history'
   | 'reports'
   | 'recurrent'
   | 'help';
@@ -50,9 +48,6 @@ export const RRSM_NAV: readonly RrsmNavItem[] = [
     needs: 'validate',
   },
   { id: 'purchasing', path: '/rrsm/purchasing', label: 'PR & PO', group: 'cycle', needs: 'buy' },
-  /* Visible to both roles: a validator should see what is running out even though only a buyer
-     may commit to another year of it. */
-  { id: 'renewals', path: '/rrsm/renewals', label: 'Renewals', group: 'records', needs: 'any' },
   {
     id: 'register',
     path: '/rrsm/register',
@@ -60,7 +55,6 @@ export const RRSM_NAV: readonly RrsmNavItem[] = [
     group: 'records',
     needs: 'any',
   },
-  { id: 'history', path: '/rrsm/history', label: 'Cycle history', group: 'records', needs: 'any' },
   /* What the country is getting, by supplier and by category, for a month or on hire now. */
   { id: 'reports', path: '/rrsm/reports', label: 'Reports', group: 'records', needs: 'buy' },
   /* Annual contracts, subscriptions and AMCs: renewed, not billed monthly. Its own module. */
@@ -98,15 +92,7 @@ export interface RrsmCountrySteps {
 }
 
 /** The pages that belong to the monthly rentals module. */
-const RENTAL_PAGES: RrsmNavId[] = [
-  'suppliers',
-  'validation',
-  'purchasing',
-  'renewals',
-  'register',
-  'history',
-  'reports',
-];
+const RENTAL_PAGES: RrsmNavId[] = ['suppliers', 'validation', 'purchasing', 'register', 'reports'];
 
 /** True when this reader may open a page that asks `need` of them. */
 export function meetsNeed(need: RrsmNeed, roles: RrsmRoles): boolean {
@@ -183,7 +169,9 @@ export function legacyViewPath(view?: string | null): string | null {
     case 'invite':
       return '/rrsm/suppliers';
     case 'renew':
-      return '/rrsm/renewals';
+      /* The rental Renewals page was removed (25 Nov 2026); old reminder links land on the
+         dashboard. */
+      return '/rrsm';
     default:
       return null;
   }

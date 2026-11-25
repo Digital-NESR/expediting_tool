@@ -30,6 +30,7 @@ export default function PrLinkDialog({
   money,
   onClose,
   onDone,
+  preview,
 }: {
   line: BoardLine;
   supplierName: string;
@@ -37,12 +38,15 @@ export default function PrLinkDialog({
   money: Intl.NumberFormat;
   onClose: () => void;
   onDone: (fn: Run) => void;
+  /** Suggestions supplied instead of fetched, for /dev-preview (the help screenshots) only. */
+  preview?: PrSuggestions;
 }) {
-  const [data, setData] = useState<PrSuggestions | null>(null);
+  const [data, setData] = useState<PrSuggestions | null>(preview ?? null);
   const [typed, setTyped] = useState(line.prNumber);
   const [alsoOthers, setAlsoOthers] = useState(false);
 
   useEffect(() => {
+    if (preview) return;
     let live = true;
     void getPrSuggestions(line.id).then((d) => {
       if (live) setData(d);
@@ -50,7 +54,7 @@ export default function PrLinkDialog({
     return () => {
       live = false;
     };
-  }, [line.id]);
+  }, [line.id, preview]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();

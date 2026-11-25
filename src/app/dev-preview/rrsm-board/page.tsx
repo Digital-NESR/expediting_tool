@@ -15,6 +15,7 @@
 import { notFound } from 'next/navigation';
 import type { BoardLine, RrsmBoard } from '@/app/actions/rrsm/cycle';
 import RrsmBoardClient from '@/app/rrsm/RrsmBoardClient';
+import PreviewPrLink from './PreviewPrLink';
 
 export const dynamic = 'force-dynamic';
 
@@ -291,11 +292,69 @@ export default async function RrsmBoardPreviewPage({
   searchParams,
 }: {
   /* `?view=buyer` renders /rrsm/purchasing; anything else renders /rrsm/validation.
-     `?as=validator` shows Ops validation as Sara sees it: only the lines sent to her. */
-  searchParams?: Promise<{ view?: string; as?: string }>;
+     `?as=validator` shows Ops validation as Sara sees it: only the lines sent to her.
+     `?empty=1` is PR & PO before the month is opened; `?link=1` has the PR link dialog open. */
+  searchParams?: Promise<{ view?: string; as?: string; empty?: string; link?: string }>;
 }) {
   if (process.env.NODE_ENV === 'production') notFound();
   const sp = searchParams ? await searchParams : {};
+
+  if (sp.empty) {
+    return (
+      <RrsmBoardClient
+        board={{
+          ...BOARD,
+          available: [BOARD.available[0]],
+          cycle: null,
+          suppliers: [],
+          suggestedPeriod: '2026-11-01',
+        }}
+        view="buyer"
+      />
+    );
+  }
+
+  if (sp.link) {
+    const line = BOARD.suppliers[1].lines[0];
+    return (
+      <>
+        <RrsmBoardClient board={BOARD} view="buyer" />
+        <PreviewPrLink
+          line={line}
+          supplierName={BOARD.suppliers[1].name}
+          suggestions={{
+            candidates: [
+              {
+                pr: '1038004391',
+                pos: ['5200008611'],
+                value: 820,
+                currency: 'KWD',
+                createdOn: '2026-11-03',
+                description: 'SECURITY GUARD SERVICES NOV-26',
+              },
+              {
+                pr: '1038004372',
+                pos: ['5200008590'],
+                value: 410,
+                currency: 'KWD',
+                createdOn: '2026-10-29',
+                description: 'SECURITY GUARD - 1 NOS',
+              },
+              {
+                pr: '1038004342',
+                pos: ['5200008499'],
+                value: 390,
+                currency: 'KWD',
+                createdOn: '2026-10-28',
+                description: 'STAFF HOUSE RENTAL NOV-26',
+              },
+            ],
+            usedOnLines: { '1038004342': 1 },
+          }}
+        />
+      </>
+    );
+  }
 
   if (sp.as === 'validator') {
     const mine: RrsmBoard = {

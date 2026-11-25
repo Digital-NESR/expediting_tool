@@ -44,8 +44,9 @@ export default function HelpTabBar<K extends string>({
     /* Scrolls sideways rather than wrapping: at phone width five tabs do not fit, and a wrapped
        strip both breaks "How it works" over three lines and pushes the page into a horizontal
        scroll of its own. `scrollbar-none` is not used -- an invisible scroller gives no hint
-       there is more to the right. */
-    <div className="mb-6 flex gap-0.5 overflow-x-auto border-b border-slate-200">
+       there is more to the right. `overflow-y-hidden`: with only overflow-x set the strip also
+       scrolled vertically by the tabs' -1px overlap, which drew stray up/down arrows. */
+    <div className="mb-6 flex gap-0.5 overflow-x-auto overflow-y-hidden border-b border-slate-200">
       {tabs.map(({ key, label }) => {
         const isActive = key === active;
         const dim = inactive === 'dim';
