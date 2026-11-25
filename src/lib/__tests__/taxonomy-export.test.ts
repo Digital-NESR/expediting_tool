@@ -1,5 +1,9 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 import {
+  buildTaxonomyWorkbook,
   tallyBy,
   taxonomyTotals,
   taxonomyExportFileName,
@@ -117,5 +121,30 @@ describe('taxonomyExportFileName', () => {
     expect(taxonomyExportFileName(new Date('2026-10-04T09:30:00Z'))).toBe(
       'NESR Spend Taxonomy 2026-10-04.xlsx',
     );
+  });
+});
+
+/*
+ * The masthead logo showed as a black box for weeks: assets/brand/nesr-logo-white.png was a JPEG
+ * (white wordmark flattened onto black) with a .png name, so the transparency the green band
+ * depends on was gone. Checked from the bytes, because the file name proved nothing.
+ */
+describe('the masthead logo', () => {
+  const logo = readFileSync(join(process.cwd(), 'assets', 'brand', 'nesr-logo-white.png'));
+
+  it('is a real PNG with an alpha channel', () => {
+    expect([...logo.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    /* IHDR colour type 6 = truecolour with alpha. */
+    expect(logo[25]).toBe(6);
+  });
+
+  it('goes into the workbook as that PNG', async () => {
+    const file = await buildTaxonomyWorkbook(ROWS, { logo, exportedAt: new Date('2026-11-25') });
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(file as unknown as ExcelJS.Buffer);
+    const media = (wb.model as unknown as { media: { extension: string; buffer: Buffer }[] }).media;
+    expect(media).toHaveLength(1);
+    expect(media[0].extension).toBe('png');
+    expect([...Buffer.from(media[0].buffer).subarray(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]);
   });
 });

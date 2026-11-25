@@ -164,8 +164,11 @@ function masthead(
 
   if (opts.logoId != null) {
     /* Floated over the band's left end rather than placed in a cell, because the title is
-       centred across the same merge and the two would otherwise fight for column A. */
-    ws.addImage(opts.logoId, { tl: { col: 0.25, row: 0.3 }, ext: { width: 86, height: 26 } });
+       centred across the same merge and the two would otherwise fight for column A. The logo is
+       the stacked wordmark (154 x 120), so it is drawn at its own proportions: 40 px high in the
+       48 px band. It must be a real PNG with transparency; a white-on-black JPEG renamed .png is
+       what showed as a black box (fixed 25 Nov 2026). */
+    ws.addImage(opts.logoId, { tl: { col: 0.15, row: 0.08 }, ext: { width: 51, height: 40 } });
   }
 
   ws.mergeCells(`A2:${last}2`);
