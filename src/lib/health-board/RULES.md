@@ -67,6 +67,10 @@ rejected, not guessed.
 - KPI detail pages use the same margins and width cap, with tighter tiles, a 280px chart (was 340)
   and up to 6 country cards a row on a laptop (7 on wide screens), so the page needs about one
   screen less scrolling. They keep whole dollars.
+- The country comparison gets the overview's treatment too: the same margins and width cap,
+  shortened dollars (months, Baseline, Target, YTD, "vs target" and the YTD bars) with the exact
+  figure on hover, one-line rows (29px, was 42px), click-to-highlight rows, and compact YTD bars.
+  January–December fit at 1366px for every KPI checked, including DSOH's thousand-day values.
 
 ## YTD (per KPI)
 

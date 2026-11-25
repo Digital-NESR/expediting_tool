@@ -13,11 +13,19 @@ import Link from 'next/link';
 import { ArrowLeft, ChevronDown } from 'lucide-react';
 import { status, type Comparison, type ComparisonRow, type Status } from '@/lib/health-board/calc';
 import { KPIS, activeIn, type Country, type KpiDefinition } from '@/lib/health-board/definitions';
-import { formatKpiValue, formatWithUnit } from '@/lib/health-board/format';
+import {
+  compactTargetWords,
+  exactTitle,
+  formatCompact,
+  formatCompactWithUnit,
+  formatKpiValue,
+  formatWithUnit,
+} from '@/lib/health-board/format';
 import { KPI_PAGES } from '@/lib/health-board/pages';
 import { scaleFor } from '@/lib/health-board/scale';
 import { SORTS, betterBy, sortRows, type ComparisonSort } from '@/lib/health-board/compare';
 import BoardActions from './BoardActions';
+import RowHighlight from './RowHighlight';
 import { KpiInfo, StatusDot, TrendIcon, YearNav } from './HealthBoardOverview';
 import {
   describeProvenance,
@@ -46,7 +54,7 @@ const CELL_WASH: Record<Status, string> = {
 
 /** "2.99 pts" for percentages, otherwise the value with its unit. */
 function amount(unit: KpiDefinition['unit'], v: number): string {
-  return unit === '%' ? `${formatKpiValue('%', v)} pts` : formatWithUnit(unit, v);
+  return unit === '%' ? `${formatKpiValue('%', v)} pts` : formatCompactWithUnit(unit, v);
 }
 
 function VsTarget({ kpi, row }: { kpi: KpiDefinition; row: ComparisonRow }) {
@@ -81,8 +89,8 @@ function YtdBars({
   const pos = (v: number) => ((v - lo) / (hi - lo)) * 100;
   const zero = pos(0);
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5">
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+    <section className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold text-slate-800">YTD by country</h3>
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-slate-500">
           <span className="inline-flex items-center gap-1.5">
@@ -93,7 +101,7 @@ function YtdBars({
           </span>
         </p>
       </div>
-      <ul className="space-y-1.5">
+      <ul className="space-y-0.5">
         {rows.map((r) => {
           const link = href(r.country);
           const label = `${r.country}: YTD ${r.ytd === null ? 'none' : formatWithUnit(kpi.unit, r.ytd)}${
@@ -112,14 +120,14 @@ function YtdBars({
               >
                 {r.country}
               </span>
-              <span className="relative h-5 flex-1">
+              <span className="relative h-4 flex-1">
                 <span
                   className="absolute inset-y-0 w-px bg-slate-300"
                   style={{ left: `${zero}%` }}
                 />
                 {r.ytd !== null && (
                   <span
-                    className={`absolute top-0.5 h-4 ${r.ytd >= 0 ? 'rounded-r' : 'rounded-l'} transition-opacity group-hover:opacity-80`}
+                    className={`absolute top-0.5 h-3 ${r.ytd >= 0 ? 'rounded-r' : 'rounded-l'} transition-opacity group-hover:opacity-80`}
                     style={{
                       left: `${Math.min(zero, pos(r.ytd))}%`,
                       width: `${Math.max(Math.abs(pos(r.ytd) - zero), 0.4)}%`,
@@ -129,7 +137,7 @@ function YtdBars({
                 )}
                 {r.target !== null && (
                   <span
-                    className="absolute -top-0.5 h-6 w-1 rounded bg-slate-900"
+                    className="absolute -top-0.5 h-5 w-1 rounded bg-slate-900"
                     style={{ left: `calc(${pos(r.target)}% - 2px)` }}
                   />
                 )}
@@ -138,7 +146,7 @@ function YtdBars({
                 {r.ytd === null ? (
                   <span className="text-slate-400">no YTD</span>
                 ) : (
-                  formatWithUnit(kpi.unit, r.ytd)
+                  formatCompactWithUnit(kpi.unit, r.ytd)
                 )}
               </span>
             </>
@@ -150,12 +158,12 @@ function YtdBars({
                   href={link}
                   title={label}
                   aria-label={label}
-                  className="group flex items-center gap-2 rounded-md px-1 py-0.5 hover:bg-slate-50 sm:gap-3"
+                  className="group flex items-center gap-2 rounded-md px-1 hover:bg-slate-50 sm:gap-3"
                 >
                   {body}
                 </Link>
               ) : (
-                <div title={label} className="flex items-center gap-3 px-1 py-0.5">
+                <div title={label} className="flex items-center gap-3 px-1">
                   {body}
                 </div>
               )}
@@ -213,7 +221,8 @@ export default function HealthBoardComparison({
     .map(([cat, ks]) => [cat, [...ks].sort((a, b) => byNameDescending(a.name, b.name))] as const);
 
   return (
-    <div className="flex flex-col gap-4">
+    /* The same side margins and width cap as the overview (owner, 24 Nov 2026). */
+    <div className="mx-auto flex w-full max-w-[1560px] flex-col gap-3 lg:px-4 xl:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#307c4c] px-5 py-3 text-white">
         <div>
           <Link
@@ -314,20 +323,26 @@ export default function HealthBoardComparison({
         <>
           <YtdBars kpi={kpi} rows={rows} href={(c) => detailHref(kpi.code, year, c)} />
 
-          <div className="hb-print-unclip overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+          <RowHighlight className="hb-print-unclip overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-[12px] font-semibold text-slate-600">
-                  <th className="sticky left-0 z-20 bg-slate-50 px-4 py-2.5 text-left">Country</th>
-                  <th className="whitespace-nowrap px-3 py-2.5 text-right">Baseline {year - 1}</th>
-                  <th className="px-3 py-2.5 text-center">Target</th>
+                  <th className="sticky left-0 z-20 bg-slate-50 py-2 pl-3 pr-2 text-left">
+                    Country
+                  </th>
+                  <th className="px-2 py-2 text-right leading-tight">
+                    Baseline
+                    <br />
+                    {year - 1}
+                  </th>
+                  <th className="px-1 py-2 text-center">Target</th>
                   {months.map((m) => (
-                    <th key={m} className="px-3 py-2.5 text-right">
+                    <th key={m} className="px-[2px] py-2 text-right">
                       {m.slice(0, 3)}
                     </th>
                   ))}
-                  <th className="px-3 py-2.5 text-right">YTD</th>
-                  <th className="whitespace-nowrap px-4 py-2.5 text-right">vs target</th>
+                  <th className="px-2 py-2 text-right">YTD</th>
+                  <th className="whitespace-nowrap py-2 pl-1.5 pr-2 text-right">vs target</th>
                 </tr>
               </thead>
               <tbody>
@@ -341,14 +356,22 @@ export default function HealthBoardComparison({
                   const monthly: Partial<Record<Month, number | null>> = {};
                   for (const m of months) monthly[m] = r.months[m]?.value ?? null;
                   const ytdSource = kpi.ytd === 'entered' ? src('YTD') : undefined;
-                  const ytdTitle = explainYtd(kpi, monthly) + (ytdSource ? ` ${ytdSource}` : '');
+                  const ytdTitle = [
+                    exactTitle(kpi.unit, r.ytd),
+                    explainYtd(kpi, monthly),
+                    ytdSource,
+                  ]
+                    .filter(Boolean)
+                    .join(' ');
                   return (
+                    /* Click a row to keep it highlighted (RowHighlight); the country name opens its page. */
                     <tr
                       key={r.country}
-                      className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70"
+                      data-row
+                      className="group cursor-pointer border-b border-slate-100 last:border-0 hover:bg-slate-50/70 data-[selected]:bg-[#307c4c]/[0.14]"
                     >
                       <td
-                        className={`sticky left-0 z-10 min-w-[140px] px-4 py-2 text-left text-[13px] text-slate-800 ${
+                        className={`sticky left-0 z-10 min-w-[96px] whitespace-nowrap py-1 pl-3 pr-2 text-left text-[12.5px] text-slate-800 group-data-[selected]:bg-[#dbeae0] group-data-[selected]:shadow-[inset_4px_0_0_#307c4c] ${
                           global ? 'bg-[#f4f9f6] font-semibold' : 'bg-white'
                         }`}
                       >
@@ -361,16 +384,37 @@ export default function HealthBoardComparison({
                         )}
                       </td>
                       <td
-                        title={r.baseline === null ? undefined : src('Baseline')}
-                        className="whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-600"
+                        title={
+                          r.baseline === null
+                            ? undefined
+                            : [exactTitle(kpi.unit, r.baseline), src('Baseline')]
+                                .filter(Boolean)
+                                .join(' ')
+                        }
+                        className="whitespace-nowrap px-2 py-1 text-right text-[12.5px] tabular-nums text-slate-600"
                       >
-                        {r.baseline === null ? '–' : formatWithUnit(kpi.unit, r.baseline)}
+                        {r.baseline === null ? '–' : formatCompact(kpi.unit, r.baseline)}
                       </td>
                       <td
-                        title={r.targetWords ? src('Target') : undefined}
-                        className="whitespace-nowrap px-3 py-2 text-center text-slate-600"
+                        title={
+                          r.targetWords
+                            ? [
+                                compactTargetWords(kpi.unit, r.targetWords) === r.targetWords
+                                  ? ''
+                                  : `Target ${r.targetWords}.`,
+                                src('Target') ?? '',
+                              ]
+                                .filter(Boolean)
+                                .join(' ')
+                            : undefined
+                        }
+                        className="whitespace-nowrap px-1 py-1 text-center text-[11.5px] text-slate-600"
                       >
-                        {r.targetWords ?? <span className="text-slate-300">–</span>}
+                        {r.targetWords ? (
+                          compactTargetWords(kpi.unit, r.targetWords)
+                        ) : (
+                          <span className="text-slate-300">–</span>
+                        )}
                       </td>
                       {months.map((m) => {
                         const cell = r.months[m];
@@ -383,19 +427,23 @@ export default function HealthBoardComparison({
                             key={m}
                             title={
                               cell && cell.value !== null
-                                ? [s ? `${m}: ${STATUS_LABEL[s]}.` : '', src(m) ?? '']
+                                ? [
+                                    exactTitle(kpi.unit, cell.value) ?? '',
+                                    s ? `${m}: ${STATUS_LABEL[s]}.` : '',
+                                    src(m) ?? '',
+                                  ]
                                     .filter(Boolean)
                                     .join(' ')
                                 : isGap(kpi, m, frontiers[kpi.code])
                                   ? `No value uploaded for ${r.country}, ${m} ${year}; other countries have one.`
                                   : undefined
                             }
-                            className={`whitespace-nowrap px-3 py-2 text-right tabular-nums text-slate-800 ${s ? CELL_WASH[s] : ''}`}
+                            className={`whitespace-nowrap px-[2px] py-1 text-right text-[11.5px] tabular-nums text-slate-800 ${s ? CELL_WASH[s] : ''}`}
                           >
                             {cell && cell.value !== null ? (
-                              <span className="inline-flex items-center justify-end gap-1.5">
+                              <span className="inline-flex items-center justify-end gap-0.5">
                                 <TrendIcon trend={cell.trend} />
-                                {formatKpiValue(kpi.unit, cell.value)}
+                                {formatCompact(kpi.unit, cell.value)}
                               </span>
                             ) : isGap(kpi, m, frontiers[kpi.code]) ? (
                               <span className="text-slate-300">—</span>
@@ -405,18 +453,18 @@ export default function HealthBoardComparison({
                       })}
                       <td
                         title={r.ytd !== null ? ytdTitle : undefined}
-                        className="whitespace-nowrap px-3 py-2 text-right font-semibold tabular-nums text-slate-900"
+                        className="whitespace-nowrap px-2 py-1 text-right text-[12.5px] font-semibold tabular-nums text-slate-900"
                       >
                         {r.ytd !== null ? (
                           <span className="inline-flex items-center justify-end gap-1.5">
                             <StatusDot status={r.status} />
-                            {formatWithUnit(kpi.unit, r.ytd)}
+                            {formatCompactWithUnit(kpi.unit, r.ytd)}
                           </span>
                         ) : (
                           <span className="font-normal text-slate-300">–</span>
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-2 text-right text-[12.5px] tabular-nums">
+                      <td className="whitespace-nowrap py-1 pl-1.5 pr-2 text-right text-[11.5px] tabular-nums">
                         <VsTarget kpi={kpi} row={r} />
                       </td>
                     </tr>
@@ -424,7 +472,7 @@ export default function HealthBoardComparison({
                 })}
               </tbody>
             </table>
-          </div>
+          </RowHighlight>
 
           <p className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[12px] text-slate-500">
             <span>Month shading, against that country&apos;s target:</span>
@@ -439,7 +487,9 @@ export default function HealthBoardComparison({
             <span>· unshaded: no target</span>
             <span>· — not uploaded for that country</span>
             <span>· hover a number for where it came from</span>
-            <span>· click a country for its page</span>
+            <span>
+              · click a row to highlight it (Esc clears); click a country&apos;s name for its page
+            </span>
           </p>
         </>
       )}
