@@ -56,4 +56,5 @@ scripts/data/
 backups/
 
 # Generated reports. Carry traveller names and spend; regenerate rather than commit.
-reports/
+# Root only: a bare `reports/` also hid the RRSM Reports page (src/app/rrsm/(portal)/reports).
+/reports/
