@@ -13,6 +13,7 @@ import { notFound } from 'next/navigation';
 import type { HistoryRow, RegisterRow, RrsmOverview, RrsmScope } from '@/app/actions/rrsm/overview';
 import type { RegisterEditorData } from '@/app/actions/rrsm/register';
 import RrsmDashboardClient from '@/app/rrsm/RrsmDashboardClient';
+import RrsmReportsClient from '@/app/rrsm/RrsmReportsClient';
 import RrsmHistoryClient from '@/app/rrsm/RrsmHistoryClient';
 import RrsmRegisterClient from '@/app/rrsm/RrsmRegisterClient';
 import { PREVIEW_REFS, PREVIEW_REGISTRY, PREVIEW_UNIT_LINKS } from './registry-fixture';
@@ -331,6 +332,36 @@ export default async function RrsmPagesPreview({
       );
     case 'history':
       return <RrsmHistoryClient scope={scope} rows={HISTORY} />;
+    case 'reports':
+      /* The sample register as a month's lines: same units, so both groupings have content. */
+      return (
+        <RrsmReportsClient
+          scope={scope}
+          report={{
+            sources: [
+              { key: '3', label: 'November 2026' },
+              { key: '2', label: 'October 2026' },
+              { key: 'register', label: 'On hire now (register)' },
+            ],
+            source: '3',
+            units: REGISTER.map((r, i) => ({
+              supplierCode: r.supplierCode,
+              supplierName: r.supplierName,
+              category: r.category || 'Uncategorised',
+              description: r.description,
+              assetRef: r.assetRef,
+              segment: r.segment,
+              costCenter: r.costCenter,
+              uom: r.uom,
+              qty: 1,
+              rate: r.rate,
+              value: r.rate ?? 0,
+              stage: (['submitted', 'validated', 'closed'] as const)[i % 3],
+              onHire: !r.offHireDate,
+            })),
+          }}
+        />
+      );
     case 'empty':
       return <RrsmDashboardClient scope={scope} overview={NO_CYCLE} />;
     default:

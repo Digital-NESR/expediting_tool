@@ -44,7 +44,7 @@ export default function RrsmHistoryClient({
       {!rows.length ? (
         <RrsmEmpty
           title="No cycles yet"
-          body="The first one appears here once Ops open a month from Ops validation."
+          body="The first one appears here once a buyer opens a month on PR & PO."
         />
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

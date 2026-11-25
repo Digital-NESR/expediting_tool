@@ -345,8 +345,8 @@ export default function RrsmRegisterClient({
           {unlinked.length > 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-900">
               {unlinked.length} unit{unlinked.length === 1 ? ' is' : 's are'} on hire but not under
-              a registry item yet (see Units). They still run every month; ask the RRSM team to
-              put them under an item.
+              a registry item yet (see Units). They still run every month; ask the RRSM team to put
+              them under an item.
             </div>
           )}
           {!items.length ? (
@@ -367,6 +367,7 @@ export default function RrsmRegisterClient({
                       <th className="px-4 py-2.5 text-left font-semibold">Item</th>
                       <th className="px-2 py-2.5 text-left font-semibold">Supplier</th>
                       <th className="px-2 py-2.5 text-left font-semibold">Category</th>
+                      <th className="px-2 py-2.5 text-left font-semibold">Cost center</th>
                       <th className="px-2 py-2.5 text-right font-semibold">Rate</th>
                       <th className="px-2 py-2.5 text-right font-semibold">On hire</th>
                       <th className="px-4 py-2.5 text-right font-semibold" />
@@ -740,6 +741,11 @@ function ItemRows({
             <div className="text-[11px] text-slate-400">{item.subcategory_name}</div>
           )}
         </td>
+        {/* The cost centers this item's units are charged to (user request, 25 Nov 2026): one
+            is shown as is; several show the first and how many more, all of them on hover. */}
+        <td className="px-2 py-2.5 font-mono text-[11.5px] text-slate-600">
+          <CostCenters units={units} />
+        </td>
         <td className="whitespace-nowrap px-2 py-2.5 text-right font-mono text-[12.5px] text-slate-700">
           {item.rate_to_confirm ? (
             <span className="text-amber-600">To confirm</span>
@@ -795,6 +801,7 @@ function ItemRows({
                 )}
               </td>
               <td className="px-2 py-1.5 text-slate-500">{u.segment}</td>
+              <td />
               <td className="px-2 py-1.5 font-mono text-[11.5px] text-slate-500">
                 {u.costCenter === 'TBC' ? (
                   <span className="text-amber-600">Cost center TBC</span>
@@ -807,7 +814,7 @@ function ItemRows({
               </td>
               <td className="px-2 py-1.5 text-right">
                 <span
-                  className={`rounded px-1.5 py-0.5 text-[10.5px] font-semibold ${
+                  className={`whitespace-nowrap rounded px-1.5 py-0.5 text-[10.5px] font-semibold ${
                     isOnHire(u) ? 'bg-[#e6f1ea] text-[#1d4f31]' : 'bg-slate-100 text-slate-500'
                   }`}
                 >
@@ -819,11 +826,26 @@ function ItemRows({
           ))
         ) : (
           <tr className="border-t border-slate-50 bg-slate-50/40">
-            <td colSpan={6} className="py-2 pl-11 text-[12.5px] text-slate-400">
+            <td colSpan={7} className="py-2 pl-11 text-[12.5px] text-slate-400">
               No units on hire under this item yet.
             </td>
           </tr>
         ))}
     </>
+  );
+}
+
+/** An item's cost centers, from its units: TBC in amber, several as "first +N" with all on hover. */
+function CostCenters({ units }: { units: RegisterRow[] }) {
+  const all = [...new Set(units.map((u) => u.costCenter).filter(Boolean))].sort();
+  if (!all.length) return <span className="text-slate-300">—</span>;
+  const tbc = (cc: string) =>
+    cc === 'TBC' ? <span className="text-amber-600">TBC</span> : <span>{cc}</span>;
+  if (all.length === 1) return tbc(all[0]);
+  return (
+    <span title={all.join(', ')}>
+      {tbc(all[0])}
+      <span className="ml-1 font-sans text-[11px] text-slate-400">+{all.length - 1} more</span>
+    </span>
   );
 }

@@ -16,6 +16,7 @@ import { useSession } from 'next-auth/react';
 import {
   CalendarClock,
   CircleQuestionMark,
+  ChartColumn,
   ClipboardCheck,
   Forklift,
   History,
@@ -56,6 +57,7 @@ const ICONS: Record<RrsmNavId, typeof LayoutGrid> = {
   renewals: CalendarClock,
   register: Library,
   history: History,
+  reports: ChartColumn,
   recurrent: Repeat,
   help: CircleQuestionMark,
 };

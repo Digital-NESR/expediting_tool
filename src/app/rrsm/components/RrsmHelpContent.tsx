@@ -45,7 +45,7 @@ const TABS = [
 
 /** Every screenshot and its size in pixels, so each renders at its own width and no blurrier. */
 const SHOT = {
-  'menu-rentals': [280, 620],
+  'menu-rentals': [280, 660],
   'menu-recurrent': [280, 380],
   'request-access': [500, 572],
   dashboard: [1280, 810],
@@ -61,6 +61,7 @@ const SHOT = {
   renewals: [1120, 440],
   registry: [1280, 600],
   history: [1280, 380],
+  reports: [1280, 620],
   'recurrent-dashboard': [1280, 1000],
   'recurrent-list': [1280, 580],
   'recurrent-requester': [1280, 640],
@@ -388,6 +389,12 @@ function StartTab({ go }: { go: (t: TabKey) => void }) {
             'Buyers, admins',
           ],
           [
+            'Records',
+            'Reports',
+            'What the country is getting in a month, by supplier, by category or by cost center.',
+            'Buyers, admins',
+          ],
+          [
             'Recurrent services',
             'Recurrent services',
             'Annual contracts and subscriptions, their expiry, requester decisions and POs.',
@@ -576,6 +583,13 @@ function RentalsTab({ go }: { go: (t: TabKey) => void }) {
         name="history"
         alt="Cycle history"
         caption="Every month the country has run: suppliers, lines, how many reached a PO, the value and how far it got."
+      />
+
+      <H id="reports">Reports</H>
+      <Shot
+        name="reports"
+        alt="RRSM reports"
+        caption="Pick a month (or what is on hire now), then group by supplier, category or cost center. Each group opens to its units; the bar shows its share of the month. Download CSV gives the same rows for Excel."
       />
     </div>
   );
@@ -859,12 +873,13 @@ function BuyerTab() {
         RRSM does not create anything in SAP. Raise PRs and POs in SAP as usual; RRSM follows them.
       </Note>
 
-      <H>Invoice and closing</H>
+      <H>GR number and closing</H>
       <Steps
         items={[
           <>
-            Type the supplier&apos;s <b>invoice</b> amount on the line: a tick means it matches the
-            validated value, a warning means it does not.
+            <b>GR no.</b> shows the goods receipt / service entry document SAP posted against the
+            line&apos;s PO. RRSM fills it in from SAP on its own and keeps it on the line; there is
+            nothing to type.
           </>,
           <>
             <b>Close all ready</b> closes every validated line that has a PO, in one click.

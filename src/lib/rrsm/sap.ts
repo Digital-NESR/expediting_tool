@@ -29,6 +29,8 @@ export interface SapPo {
   createdOn: string;
   releasedOn: string;
   lastReceiptOn: string;
+  /** GR document numbers posted against the PO (SAP document type WE), oldest first. */
+  grDocs?: string[];
 }
 
 export interface SapPr {

@@ -28,11 +28,51 @@ import {
  * unreleased PO is waiting with. So: PRs first, then the POs found from them, then every PO's
  * status in one pass.
  *
- * Read on every page load rather than copied into rrsm_db: a copy needs a sync job and goes stale
- * between runs, and these lookups for a whole month's cycle take well under a second.
+ * Read live rather than copied into rrsm_db: a copy needs a sync job and goes stale between runs.
+ *
+ * CACHED FOR A FEW MINUTES, per PR, per PO and per supplier (25 Nov 2026). Materials DB is loaded
+ * a few times a day, so a five-minute-old answer is as current as a fresh one, and reading it on
+ * every render was what made RRSM laggy: `track.po_line` has no index on `pr_number` or the
+ * supplier, so one lookup costs ~0.6 s, and every click on PR & PO re-rendered the page and paid it
+ * again (once per supplier for PR matching). The cache lives in the server instance's memory: a
+ * cold instance reads once and every render after that is free. Misses are cached too, so a PR SAP
+ * does not have yet is not looked up on every click.
  */
 
 const log = logger('rrsm-sap-status');
+
+const TTL_MS = 5 * 60 * 1000;
+/** Bounded so a long-lived instance cannot grow without limit; oldest entries go first. */
+const MAX_ENTRIES = 5000;
+
+class TtlCache<V> {
+  private map = new Map<string, { at: number; value: V }>();
+  get(key: string): V | undefined {
+    const hit = this.map.get(key);
+    if (!hit) return undefined;
+    if (Date.now() - hit.at > TTL_MS) {
+      this.map.delete(key);
+      return undefined;
+    }
+    return hit.value;
+  }
+  has(key: string): boolean {
+    return this.get(key) !== undefined;
+  }
+  set(key: string, value: V): void {
+    if (this.map.size >= MAX_ENTRIES) {
+      const oldest = this.map.keys().next().value;
+      if (oldest !== undefined) this.map.delete(oldest);
+    }
+    this.map.set(key, { at: Date.now(), value });
+  }
+}
+
+/* `null` marks "asked, and SAP has nothing": a miss is worth remembering as much as a hit. */
+const prCache = new TtlCache<SapPr | null>();
+const poCache = new TtlCache<SapPo | null>();
+const freshCache = new TtlCache<string>();
+const candidateCache = new TtlCache<PrCandidate[]>();
 
 function day(v: unknown): string {
   return v instanceof Date ? v.toISOString().slice(0, 10) : '';
@@ -43,9 +83,17 @@ function uniq(values: string[]): string[] {
 }
 
 export async function readSapStatus(poNumbers: string[], prNumbers: string[]): Promise<SapStatus> {
-  const prs = uniq(prNumbers);
+  const allPrs = uniq(prNumbers);
   const out: SapStatus = { ok: true, pos: {}, prs: {}, loadedAt: '' };
-  if (!uniq(poNumbers).length && !prs.length) return out;
+  if (!uniq(poNumbers).length && !allPrs.length) return out;
+
+  /* What the cache already knows is answered from it; only the rest goes to Materials DB. */
+  for (const pr of allPrs) {
+    const hit = prCache.get(pr);
+    if (hit) out.prs[pr] = hit;
+  }
+  const prs = allPrs.filter((pr) => !prCache.has(pr));
+  const cachedFresh = freshCache.get('supplychain');
 
   try {
     /* 1. The PRs: their approval, whether SAP has put them on a PO, and which POs name them. */
@@ -78,9 +126,11 @@ export async function readSapStatus(poNumbers: string[], prNumbers: string[]): P
             [prs],
           )
         : null,
-      materialsPool.query<QueryResultRow>(
-        `SELECT last_loaded_at FROM track.data_freshness WHERE source_table = 'supplychain'`,
-      ),
+      cachedFresh !== undefined
+        ? null
+        : materialsPool.query<QueryResultRow>(
+            `SELECT last_loaded_at FROM track.data_freshness WHERE source_table = 'supplychain'`,
+          ),
     ]);
 
     const posOfPr = new Map(
@@ -100,11 +150,24 @@ export async function readSapStatus(poNumbers: string[], prNumbers: string[]): P
         pos: posOfPr.get(pr) ?? [],
       };
       out.prs[pr] = entry;
+      prCache.set(pr, entry);
     }
+    /* Asked about and not in SAP: remembered as such. */
+    for (const pr of prs) if (!out.prs[pr]) prCache.set(pr, null);
 
-    /* 2. Every PO's status: the ones recorded on lines plus the ones just found from PRs. */
-    const pos = uniq([...poNumbers, ...[...posOfPr.values()].flat()]);
-    const [poLines, poWait] = await Promise.all([
+    /* 2. Every PO's status: the ones recorded on lines plus the ones found from PRs (cached or
+       fresh). Again only the ones the cache does not know. */
+    const allPos = uniq([
+      ...poNumbers,
+      ...[...posOfPr.values()].flat(),
+      ...Object.values(out.prs).flatMap((p) => p.pos),
+    ]);
+    for (const po of allPos) {
+      const hit = poCache.get(po);
+      if (hit) out.pos[po] = hit;
+    }
+    const pos = allPos.filter((po) => !poCache.has(po));
+    const [poLines, poWait, poGr] = await Promise.all([
       pos.length
         ? materialsPool.query<QueryResultRow>(
             `SELECT po_number,
@@ -131,7 +194,27 @@ export async function readSapStatus(poNumbers: string[], prNumbers: string[]): P
             [pos],
           )
         : null,
+      /* GR document numbers (type WE) from the GR/IR ledger: the only place Materials DB keeps
+         one; track.goods_receipt has none. Open items only, which is why RRSM saves them. */
+      pos.length
+        ? materialsPool
+            .query<QueryResultRow>(
+              `SELECT purchasing_doc AS po_number,
+                      array_agg(DISTINCT document_number ORDER BY document_number) AS docs
+                 FROM core.ub_grir
+                WHERE purchasing_doc = ANY($1) AND document_type = 'WE'
+                GROUP BY purchasing_doc`,
+              [pos],
+            )
+            .catch((err) => {
+              log.warn('readSapStatus.grDocs.failed', { error: (err as Error).message });
+              return null;
+            })
+        : null,
     ]);
+    const grOf = new Map(
+      (poGr?.rows ?? []).map((r) => [String(r.po_number), (r.docs ?? []).map(String) as string[]]),
+    );
 
     const poWaiting = new Map((poWait?.rows ?? []).map((r) => [String(r.po_number), r]));
     for (const r of poLines?.rows ?? []) {
@@ -156,12 +239,19 @@ export async function readSapStatus(poNumbers: string[], prNumbers: string[]): P
         createdOn: day(r.created_on),
         releasedOn: day(r.released_on),
         lastReceiptOn: day(r.last_receipt),
+        grDocs: grOf.get(po) ?? [],
       };
       out.pos[po] = entry;
+      poCache.set(po, entry);
     }
+    for (const po of pos) if (!out.pos[po]) poCache.set(po, null);
 
-    const loaded = fresh.rows[0]?.last_loaded_at;
-    out.loadedAt = loaded instanceof Date ? loaded.toISOString().slice(0, 16) : '';
+    if (cachedFresh !== undefined) out.loadedAt = cachedFresh;
+    else {
+      const loaded = fresh?.rows[0]?.last_loaded_at;
+      out.loadedAt = loaded instanceof Date ? loaded.toISOString().slice(0, 16) : '';
+      freshCache.set('supplychain', out.loadedAt);
+    }
     return out;
   } catch (err) {
     /* Somebody else's database. A buyer who cannot reach it gets the page with a note saying SAP
@@ -183,10 +273,10 @@ export async function readPrCandidates(
   from: string,
   to: string,
 ): Promise<PrCandidate[] | null> {
-  const code = String(supplierCode ?? '')
-    .trim()
-    .replace(/^0+(?=\d)/, '');
+  const code = vendorKey(supplierCode);
   if (!code) return [];
+  const cached = candidateCache.get(`${code}|${from}|${to}`);
+  if (cached) return cached;
   try {
     const { rows } = await materialsPool.query<QueryResultRow>(
       `SELECT pr_number,
@@ -205,16 +295,89 @@ export async function readPrCandidates(
         LIMIT 40`,
       [code, from, to],
     );
-    return rows.map((r) => ({
-      pr: String(r.pr_number),
-      pos: (r.pos ?? []).map(String),
-      value: r.value === null ? null : Number(r.value),
-      currency: String(r.currency ?? ''),
-      createdOn: day(r.created_on),
-      description: String(r.description ?? ''),
-    }));
+    const list = rows.map(toCandidate);
+    candidateCache.set(`${code}|${from}|${to}`, list);
+    return list;
   } catch (err) {
     log.error('readPrCandidates.failed', err, { supplierCode: code });
+    return null;
+  }
+}
+
+/** SAP vendor numbers come zero-padded on one side and not the other. */
+function vendorKey(code: string): string {
+  return String(code ?? '')
+    .trim()
+    .replace(/^0+(?=\d)/, '');
+}
+
+function toCandidate(r: QueryResultRow): PrCandidate {
+  return {
+    pr: String(r.pr_number),
+    pos: (r.pos ?? []).map(String),
+    value: r.value === null ? null : Number(r.value),
+    currency: String(r.currency ?? ''),
+    createdOn: day(r.created_on),
+    description: String(r.description ?? ''),
+  };
+}
+
+/**
+ * `readPrCandidates` for many suppliers in ONE query, keyed by the supplier code as given.
+ *
+ * The board matches PRs for every supplier with an unlinked line on each render. One query per
+ * supplier, one after another, was ~0.6 s each: 15-30 s for a country with 25-50 suppliers and no
+ * PRs yet. Same filters and the same 40-per-supplier cap, cached per supplier like the single one.
+ * Null when Materials DB could not be read.
+ */
+export async function readPrCandidatesMany(
+  supplierCodes: string[],
+  from: string,
+  to: string,
+): Promise<Map<string, PrCandidate[]> | null> {
+  const out = new Map<string, PrCandidate[]>();
+  const want = new Map<string, string[]>();
+  for (const given of uniq(supplierCodes)) {
+    const key = vendorKey(given);
+    if (!key) continue;
+    const hit = candidateCache.get(`${key}|${from}|${to}`);
+    if (hit) out.set(given, hit);
+    else want.set(key, [...(want.get(key) ?? []), given]);
+  }
+  if (!want.size) return out;
+  try {
+    const { rows } = await materialsPool.query<QueryResultRow>(
+      `SELECT supplier, pr_number, pos, value, currency, created_on, description
+         FROM (SELECT ltrim(supplier_num, '0') AS supplier, pr_number,
+                      array_agg(DISTINCT po_number ORDER BY po_number) AS pos,
+                      SUM(net_order_value) AS value,
+                      MIN(currency) AS currency,
+                      MAX(po_created_on) AS created_on,
+                      MIN(NULLIF(trim(description), '')) AS description,
+                      row_number() OVER (PARTITION BY ltrim(supplier_num, '0') ORDER BY pr_number) AS n
+                 FROM track.po_line
+                WHERE ltrim(supplier_num, '0') = ANY($1)
+                  AND COALESCE(is_service_line, false)
+                  AND NOT COALESCE(is_deleted, false)
+                  AND COALESCE(pr_number, '') <> ''
+                  AND po_created_on >= $2::date AND po_created_on < $3::date
+                GROUP BY ltrim(supplier_num, '0'), pr_number) x
+        WHERE n <= 40`,
+      [[...want.keys()], from, to],
+    );
+    const found = new Map<string, PrCandidate[]>();
+    for (const r of rows) {
+      const key = String(r.supplier);
+      found.set(key, [...(found.get(key) ?? []), toCandidate(r)]);
+    }
+    for (const [key, givens] of want) {
+      const list = found.get(key) ?? [];
+      candidateCache.set(`${key}|${from}|${to}`, list);
+      for (const g of givens) out.set(g, list);
+    }
+    return out;
+  } catch (err) {
+    log.error('readPrCandidatesMany.failed', err, { suppliers: want.size });
     return null;
   }
 }

@@ -14,6 +14,7 @@ export type RrsmNavId =
   | 'renewals'
   | 'register'
   | 'history'
+  | 'reports'
   | 'recurrent'
   | 'help';
 
@@ -60,6 +61,8 @@ export const RRSM_NAV: readonly RrsmNavItem[] = [
     needs: 'any',
   },
   { id: 'history', path: '/rrsm/history', label: 'Cycle history', group: 'records', needs: 'any' },
+  /* What the country is getting, by supplier and by category, for a month or on hire now. */
+  { id: 'reports', path: '/rrsm/reports', label: 'Reports', group: 'records', needs: 'buy' },
   /* Annual contracts, subscriptions and AMCs: renewed, not billed monthly. Its own module. */
   {
     id: 'recurrent',
@@ -102,6 +105,7 @@ const RENTAL_PAGES: RrsmNavId[] = [
   'renewals',
   'register',
   'history',
+  'reports',
 ];
 
 /** True when this reader may open a page that asks `need` of them. */

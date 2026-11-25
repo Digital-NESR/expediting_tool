@@ -123,8 +123,7 @@ export function validatesLine(
 ): boolean {
   if (actor.isAdmin) return true;
   return (
-    Boolean(line.opsSentAt) &&
-    normalizeEmail(String(line.opsValidatorEmail ?? '')) === actor.email
+    Boolean(line.opsSentAt) && normalizeEmail(String(line.opsValidatorEmail ?? '')) === actor.email
   );
 }
 
@@ -143,58 +142,40 @@ export const currentRrsmActor = cache(async (): Promise<RrsmActor | null> => {
   const email = normalizeEmail(actor.email);
   const isAdmin = actor.isPlatformAdmin || isToolAdminEmail(email, process.env.RRSM_ADMIN_EMAILS);
 
-  const { rows } = await rrsmPool.query<QueryResultRow>(
-    `SELECT role, country_code FROM rrsm_users WHERE active AND lower(email) = $1`,
-    [email],
-  );
+  /* Every grant in ONE round trip (25 Nov 2026): this runs on every RRSM request, and three
+     queries in a row were ~130 ms of each page's wait.
+     - `rrsm_users`: the appointed roles (buyer, admin).
+     - `requester`: anybody named on a recurrent service by a buyer (23 Nov 2026), who sees only
+       their own services; it ends by itself when they are no longer named.
+     - `validator`: anybody a buyer has sent a line to for Ops validation (24 Nov 2026), who sees
+       only those lines; lines of closed months do not count, so it ends with the month. */
+  const { rows } = await rrsmPool
+    .query<QueryResultRow>(
+      `SELECT role, country_code FROM rrsm_users WHERE active AND lower(email) = $1
+       UNION
+       SELECT 'requester', country_code FROM rrsm_recurrent_services s
+        WHERE lower(s.requester_email) = $1
+           OR EXISTS (SELECT 1 FROM jsonb_array_elements(s.requesters) p
+                       WHERE lower(p ->> 'email') = $1)
+       UNION
+       SELECT 'validator', c.country_code
+         FROM rrsm_cycle_lines l JOIN rrsm_cycles c ON c.id = l.cycle_id
+        WHERE lower(l.ops_validator_email) = $1 AND l.ops_sent_at IS NOT NULL
+          AND c.status <> 'closed'`,
+      [email],
+    )
+    /* A database mid-migration (no recurrent or validator columns yet): appointed roles only. */
+    .catch(() =>
+      rrsmPool.query<QueryResultRow>(
+        `SELECT role, country_code FROM rrsm_users WHERE active AND lower(email) = $1`,
+        [email],
+      ),
+    );
 
   const grants: RrsmGrant[] = rows.map((r) => ({
     role: String(r.role) as RrsmRole,
     countryCode: String(r.country_code),
   }));
-
-  /* A recurrent service's requester-validators (any of them) have access because a buyer named them on the
-     service, with no separate grant from an admin (user decision, 23 Nov 2026). Derived here, the
-     one place access is decided, so the layout, the pages and the actions all agree; and it ends
-     by itself when they are no longer named on any service. What it opens is narrow: the
-     `requester` role sees only their own services. */
-  try {
-    const { rows: named } = await rrsmPool.query<QueryResultRow>(
-      `SELECT DISTINCT country_code FROM rrsm_recurrent_services s
-        WHERE lower(s.requester_email) = $1
-           OR EXISTS (SELECT 1 FROM jsonb_array_elements(s.requesters) p
-                       WHERE lower(p ->> 'email') = $1)`,
-      [email],
-    );
-    for (const r of named) {
-      const countryCode = String(r.country_code);
-      if (!grants.some((g) => g.role === 'requester' && g.countryCode === countryCode)) {
-        grants.push({ role: 'requester', countryCode });
-      }
-    }
-  } catch {
-    /* Before the recurrent tables exist (a fresh database mid-migration) nobody is named yet. */
-  }
-
-  /* Ops validators likewise: a buyer sending a line to somebody is what gives them access, to
-     that line only. Lines of closed months do not count, so access ends with the month. */
-  try {
-    const { rows: sent } = await rrsmPool.query<QueryResultRow>(
-      `SELECT DISTINCT c.country_code
-         FROM rrsm_cycle_lines l JOIN rrsm_cycles c ON c.id = l.cycle_id
-        WHERE lower(l.ops_validator_email) = $1 AND l.ops_sent_at IS NOT NULL
-          AND c.status <> 'closed'`,
-      [email],
-    );
-    for (const r of sent) {
-      const countryCode = String(r.country_code);
-      if (!grants.some((g) => g.role === 'validator' && g.countryCode === countryCode)) {
-        grants.push({ role: 'validator', countryCode });
-      }
-    }
-  } catch {
-    /* Before migration 019 nobody has been sent anything. */
-  }
 
   return { email, isAdmin, grants };
 });

@@ -13,6 +13,9 @@ const rrsmPool = createPool(process.env.RRSM_DB_NAME || 'rrsm_db', {
   key: 'rrsm',
   label: 'rrsmPool',
   envStyle: 'sourceguide',
+  /* Above the platform default of 3: the board and the dashboard each issue their reads in
+     parallel (25 Nov 2026), and on three connections the later ones queued behind the first. */
+  max: 6,
 });
 
 export default rrsmPool;

@@ -23,7 +23,7 @@ import {
   type PrCandidate,
   type SapStatus,
 } from '@/lib/rrsm/sap';
-import { readPrCandidates, readSapStatus } from '@/lib/rrsm/sap-status';
+import { readPrCandidates, readPrCandidatesMany, readSapStatus } from '@/lib/rrsm/sap-status';
 import { pushRateToRegistry, syncRatesFromRegistry } from '@/lib/rrsm/registry-sync';
 import { NO_DOCS, type DocKind, type DocRequirements } from '@/lib/rrsm/submission';
 import { openingStage, stageAfterBuyerDecision, type CycleSteps } from '@/lib/rrsm/steps';
@@ -60,6 +60,8 @@ export interface BoardLine {
   prNumber: string;
   poNumber: string;
   supplierInvoice: number | null;
+  /** SAP GR (goods receipt / service entry) document numbers, comma-separated; '' when none yet. */
+  grNumber: string;
   opsNote: string;
   /** Last cycle's figures for this same service line, or null when it is new this month. */
   previous: { qty: number; rate: number | null } | null;
@@ -231,11 +233,13 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
 
     /* Last month's figures come back on the same row via a lateral join rather than as a second
        query keyed by service line: "vs last month" is wanted on every row, and N+1 of those is
-       the Ops grid's whole latency. */
-    const { rows } = await rrsmPool.query<QueryResultRow>(
+       the Ops grid's whole latency. The documents query runs alongside it: it needs only the
+       cycle id, and each sequential round trip to the database is ~45 ms. */
+    const linesQuery = rrsmPool.query<QueryResultRow>(
       `SELECT l.id, l.service_line_id, l.qty, l.rate, l.value, l.stage, l.erp_status,
               COALESCE(l.pr_number, '') AS pr_number, COALESCE(l.po_number, '') AS po_number,
               l.supplier_invoice, COALESCE(l.ops_note, '') AS ops_note,
+              COALESCE(l.gr_number, '') AS gr_number,
               l.on_hire, l.days,
               s.description, COALESCE(s.asset_ref, '') AS asset_ref, s.segment,
               s.cost_center, COALESCE(s.service_number, '') AS service_number,
@@ -266,6 +270,18 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
         ORDER BY sup.name, s.segment, s.description`,
       [Number(c.id), countryCode, c.period, onlyMine],
     );
+    /* Each supplier's invitation: what it asked for and what came back. One query for the cycle. */
+    const linksQuery = rrsmPool.query<QueryResultRow>(
+      `SELECT k.supplier_code, k.requires_delivery_note, k.requires_timesheet, k.requires_invoice,
+              COALESCE(json_agg(json_build_object('id', d.id, 'kind', d.kind, 'fileName', d.file_name)
+                                ORDER BY d.kind) FILTER (WHERE d.id IS NOT NULL), '[]'::json) AS documents
+         FROM rrsm_supplier_links k
+         LEFT JOIN rrsm_submission_documents d ON d.link_id = k.id
+        WHERE k.cycle_id = $1
+        GROUP BY k.id`,
+      [Number(c.id)],
+    );
+    const [{ rows }, { rows: linkRows }] = await Promise.all([linesQuery, linksQuery]);
 
     const suppliers = new Map<string, BoardSupplier>();
     for (const r of rows) {
@@ -285,17 +301,6 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
       group.lines.push(toBoardLine(r));
     }
 
-    /* Each supplier's invitation: what it asked for and what came back. One query for the cycle. */
-    const { rows: linkRows } = await rrsmPool.query<QueryResultRow>(
-      `SELECT k.supplier_code, k.requires_delivery_note, k.requires_timesheet, k.requires_invoice,
-              COALESCE(json_agg(json_build_object('id', d.id, 'kind', d.kind, 'fileName', d.file_name)
-                                ORDER BY d.kind) FILTER (WHERE d.id IS NOT NULL), '[]'::json) AS documents
-         FROM rrsm_supplier_links k
-         LEFT JOIN rrsm_submission_documents d ON d.link_id = k.id
-        WHERE k.cycle_id = $1
-        GROUP BY k.id`,
-      [Number(c.id)],
-    );
     for (const k of linkRows) {
       const group = suppliers.get(String(k.supplier_code));
       if (!group) continue;
@@ -350,6 +355,31 @@ export async function getRrsmBoard(requestedCountry?: string | null): Promise<Rr
           }
         }
       }
+
+      /* GR document numbers from SAP onto the line, kept once seen (the GR/IR list SAP has them
+         in drops a GR when its invoice clears). New GRs on the same PO are added, never removed.
+         Only lines whose numbers changed are written, so a settled month costs no writes. */
+      const grWrites: Promise<unknown>[] = [];
+      for (const group of suppliers.values()) {
+        for (const line of group.lines) {
+          const pos = new Set([line.poNumber, ...lineSap(line, sap).pos].filter(Boolean));
+          const seen = [...pos].flatMap((po) => sap.pos[po]?.grDocs ?? []);
+          if (!seen.length) continue;
+          const had = line.grNumber ? line.grNumber.split(/,\s*/) : [];
+          const merged = [...new Set([...had, ...seen])].sort();
+          if (merged.join(',') === [...had].sort().join(',')) continue;
+          line.grNumber = merged.join(', ');
+          grWrites.push(
+            rrsmPool
+              .query(`UPDATE rrsm_cycle_lines SET gr_number = $2 WHERE id = $1`, [
+                line.id,
+                line.grNumber,
+              ])
+              .catch((err) => log.error('getRrsmBoard.grNumber.failed', err, { lineId: line.id })),
+          );
+        }
+      }
+      await Promise.all(grWrites);
     }
 
     return {
@@ -391,10 +421,20 @@ async function autoLinkPrs(
 ): Promise<void> {
   const from = shiftDays(opensOn, -7);
   const to = shiftDays(closesOn, 8);
-  for (const group of suppliers.values()) {
+  const needing = [...suppliers.values()].filter((g) =>
+    g.lines.some((l) => !l.prNumber && l.stage !== 'closed'),
+  );
+  if (!needing.length) return;
+  /* Every supplier's candidates in one query (cached for a few minutes), not one per supplier. */
+  const all = await readPrCandidatesMany(
+    needing.map((g) => g.code),
+    from,
+    to,
+  );
+  if (!all) return;
+  for (const group of needing) {
     const open = group.lines.filter((l) => !l.prNumber && l.stage !== 'closed');
-    if (!open.length) continue;
-    const cands = await readPrCandidates(group.code, from, to);
+    const cands = all.get(group.code);
     if (!cands?.length) continue;
     for (const line of open) {
       const pick = autoPrFor(cands, line.value);
@@ -448,6 +488,7 @@ function toBoardLine(r: QueryResultRow): BoardLine {
     prNumber: String(r.pr_number ?? ''),
     poNumber: String(r.po_number ?? ''),
     supplierInvoice: r.supplier_invoice === null ? null : Number(r.supplier_invoice),
+    grNumber: String(r.gr_number ?? ''),
     opsNote: String(r.ops_note ?? ''),
     previous:
       r.prev_qty === null || r.prev_qty === undefined

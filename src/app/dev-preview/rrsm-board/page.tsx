@@ -36,6 +36,7 @@ function line(partial: Partial<BoardLine> & Pick<BoardLine, 'id' | 'description'
     prNumber: '',
     poNumber: '',
     supplierInvoice: null,
+    grNumber: '',
     opsNote: '',
     previous: { qty: 1, rate: 250 },
     supplierRate: null,
@@ -242,6 +243,7 @@ const BOARD: RrsmBoard = {
         createdOn: '2026-10-28',
         releasedOn: '2026-10-29',
         lastReceiptOn: '2026-11-14',
+        grDocs: ['5300008200'],
       },
     },
     prs: {

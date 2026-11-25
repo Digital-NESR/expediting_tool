@@ -70,7 +70,6 @@ import {
   ERP_STATUS_LABEL,
   STAGE_LABEL,
   compareToPrevious,
-  invoiceMatches,
   lineValue,
   movesFor,
   periodLabel,
@@ -593,7 +592,7 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
                             <th className="px-2 py-2 text-left font-semibold">PR</th>
                             <th className="px-2 py-2 text-left font-semibold">PO</th>
                             <th className="px-2 py-2 text-left font-semibold">SAP status</th>
-                            <th className="px-2 py-2 text-left font-semibold">Invoice</th>
+                            <th className="px-2 py-2 text-left font-semibold">GR no.</th>
                           </>
                         )}
                         <th className="px-4 py-2 text-right font-semibold">Stage</th>
@@ -607,7 +606,6 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
                           key={`${l.id}:${l.prNumber}:${l.poNumber}`}
                           line={l}
                           view={view}
-                          currency={board.country!.currency}
                           money={money}
                           /* Each page offers only its own side's edits and moves. Somebody who
                              holds both roles switches page to do the other half, which keeps
@@ -680,7 +678,6 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
 function Row({
   line,
   view,
-  currency,
   money,
   canValidate,
   canBuy,
@@ -694,7 +691,6 @@ function Row({
 }: {
   line: BoardLine;
   view: View;
-  currency: string;
   money: Intl.NumberFormat;
   canValidate: boolean;
   canBuy: boolean;
@@ -729,7 +725,14 @@ function Row({
 
   const delta = compareToPrevious({ qty: line.qty, rate: line.rate }, line.previous);
   const value = lineValue(line.qty, line.rate);
-  const match = invoiceMatches(value, line.supplierInvoice);
+  /* Saved on the line once SAP shows them; live from SAP for a GR posted since the last save. */
+  const grNumbers = [
+    ...new Set([
+      ...(line.grNumber ? line.grNumber.split(/,\s*/) : []),
+      ...ls.pos.flatMap((po) => sap.pos[po]?.grDocs ?? []),
+      ...(line.poNumber ? (sap.pos[line.poNumber]?.grDocs ?? []) : []),
+    ]),
+  ].sort();
 
   /* Ops may edit only before validation; the buyer only after it. The two windows do not
      overlap, which is what makes "who changed this" answerable. */
@@ -982,22 +985,18 @@ function Row({
               </>
             )}
           </td>
+          {/* The GR (goods receipt / service entry) number SAP posted against the PO, filled in
+              by RRSM, never typed (25 Nov 2026; it replaced the invoice column). */}
           <td className="px-2 py-2.5">
-            <div className="flex items-center gap-1.5">
-              <Num
-                value={draft.supplierInvoice}
-                disabled={!buyerEditable}
-                onChange={(v) => setDraft({ ...draft, supplierInvoice: v })}
-              />
-              {match === 'mismatch' && (
-                <span
-                  title={`Invoice does not match the validated ${money.format(value)} ${currency}`}
-                >
-                  <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
-                </span>
-              )}
-              {match === 'match' && <Check className="h-3.5 w-3.5 text-[#1d4f31]" />}
-            </div>
+            {grNumbers.length ? (
+              <div className="font-mono text-[12px] leading-snug text-slate-800">
+                {grNumbers.map((g) => (
+                  <div key={g}>{g}</div>
+                ))}
+              </div>
+            ) : (
+              <span className="text-[12px] text-slate-400">—</span>
+            )}
           </td>
         </>
       )}
