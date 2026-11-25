@@ -28,6 +28,8 @@ import {
   ShoppingCart,
 } from 'lucide-react';
 import HelpTabBar from '@/app/help/HelpTabBar';
+import type { ProcessCountry } from '@/lib/rrsm/process-countries';
+import RrsmProcessMap from './RrsmProcessMap';
 
 const BRAND = '#307c4c';
 
@@ -238,7 +240,7 @@ function StageCards({ items }: { items: { label: string; who: string; detail: st
 
 /* ─── tab 1 · getting started and the menus ──────────────────────────────── */
 
-function StartTab({ go }: { go: (t: TabKey) => void }) {
+function StartTab({ go, map }: { go: (t: TabKey) => void; map: React.ReactNode }) {
   const link = (t: TabKey, label: string) => (
     <button type="button" onClick={() => go(t)} className="font-semibold text-[#1d4f31] underline">
       {label}
@@ -279,6 +281,14 @@ function StartTab({ go }: { go: (t: TabKey) => void }) {
         and Kuwait run rental equipment; HQ Dubai runs recurrent services only. The country picker
         at the top right switches between the countries you have access to.
       </P>
+
+      <H id="process">Your country&apos;s process, start to finish</H>
+      <P>
+        Each country runs RRSM its own way: some have suppliers confirm their month, some have Ops
+        validate it, some do neither. Pick the country to see exactly what happens there, in order,
+        and who does each step.
+      </P>
+      {map}
 
       <H>Who does what</H>
       <Table
@@ -462,35 +472,10 @@ function RentalsTab({ go }: { go: (t: TabKey) => void }) {
       <StageCards items={RENTAL_STAGES} />
 
       <H>The month, start to finish</H>
-      <Steps
-        items={[
-          <>
-            <b>Buyer opens the month</b> on PR &amp; PO. Every unit still on hire is copied in at
-            today&apos;s registry rate, with last month&apos;s quantity and its usual Ops validator
-            already filled in.
-          </>,
-          <>
-            <b>Buyer invites the suppliers</b> on {link('supplier', 'Supplier validation')}, ticking
-            which documents each must upload.
-          </>,
-          <>
-            <b>Supplier confirms</b> through their link: quantities, days, and a new rate if it
-            changed, plus the documents.
-          </>,
-          <>
-            <b>Buyer sends the lines to Ops</b> on {link('buyer', 'PR & PO')}, picking the validator
-            from the company directory. A changed rate is accepted or rejected first.
-          </>,
-          <>
-            <b>Ops validator confirms and validates</b> on {link('ops', 'Ops validation')}, or
-            returns a line to the buyer with the reason.
-          </>,
-          <>
-            <b>Buyer links the PR</b>. The PO, its approval and the service entry then fill in from
-            SAP. When a validated line has its PO, <b>Close all ready</b> finishes it.
-          </>,
-        ]}
-      />
+      <P>
+        The steps depend on the country. The process map under {link('start', 'Getting started')}{' '}
+        shows them for each one, in order, with who does each step.
+      </P>
 
       <H>Not every country runs every step</H>
       <P>
@@ -760,6 +745,16 @@ function BuyerTab() {
         alt="The PR & PO page"
         caption="Top to bottom: sending to Ops, PR matching, live SAP status with filters, then the lines by supplier. Download all documents and Close all ready are in the banner."
       />
+
+      <H id="next">Start with the Next step box</H>
+      <P>
+        The box at the top of PR &amp; PO says the one thing that moves the month on right now (for
+        example <i>3 lines returned by Ops</i>, <i>12 lines ready for Ops</i> or{' '}
+        <i>8 lines ready to close</i>) with the button that does it. Everything else still open is
+        listed under <b>Also</b>, and what is waiting on suppliers or Ops comes last. It only
+        suggests: nothing happens until you click. <b>Show them</b> narrows the page to those lines;{' '}
+        <b>Show all lines</b> brings the rest back.
+      </P>
 
       <H id="open">Open the month</H>
       <P>
@@ -1090,7 +1085,15 @@ function AdminTab() {
 
 /* ─── the page ───────────────────────────────────────────────────────────── */
 
-export default function RrsmHelpContent() {
+export default function RrsmHelpContent({
+  countries = [],
+  initialCountry = null,
+}: {
+  /** Live countries and their steps, for the process map. */
+  countries?: ProcessCountry[];
+  /** Inside RRSM: the country being viewed, which the map starts on. */
+  initialCountry?: string | null;
+} = {}) {
   const [tab, setTab] = useState<TabKey>('start');
   const go = (t: TabKey) => {
     setTab(t);
@@ -1112,7 +1115,12 @@ export default function RrsmHelpContent() {
 
       <HelpTabBar tabs={TABS} active={tab} onSelect={setTab} brand={BRAND} boldActiveTab />
 
-      {tab === 'start' && <StartTab go={go} />}
+      {tab === 'start' && (
+        <StartTab
+          go={go}
+          map={<RrsmProcessMap countries={countries} initialCountry={initialCountry} />}
+        />
+      )}
       {tab === 'rentals' && <RentalsTab go={go} />}
       {tab === 'supplier' && <SupplierTab />}
       {tab === 'ops' && <OpsTab />}

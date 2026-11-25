@@ -11,6 +11,7 @@
 import type { Metadata } from 'next';
 import { getRrsmScope } from '@/app/actions/rrsm/overview';
 import RrsmHelpContent from '@/app/rrsm/components/RrsmHelpContent';
+import { readProcessCountries } from '@/lib/rrsm/process-countries';
 import RrsmShell from '@/app/rrsm/components/RrsmShell';
 
 export const metadata: Metadata = { title: 'NESR | Help & Training - RRSM' };
@@ -23,11 +24,14 @@ export default async function RrsmHelpPage({
 }) {
   const sp = searchParams ? await searchParams : {};
   /* 'validator': somebody who only validates lines sent to them reads Help too. */
-  const scope = await getRrsmScope(sp.country ?? null, 'validator');
+  const [scope, countries] = await Promise.all([
+    getRrsmScope(sp.country ?? null, 'validator'),
+    readProcessCountries(),
+  ]);
   return (
     <RrsmShell scope={scope} title="Help & Training" hero={false} width="narrow">
       <div className="pb-12 pt-2">
-        <RrsmHelpContent />
+        <RrsmHelpContent countries={countries} initialCountry={scope.country?.code ?? null} />
       </div>
     </RrsmShell>
   );

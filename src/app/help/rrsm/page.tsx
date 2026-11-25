@@ -9,10 +9,14 @@
 import type { Metadata } from 'next';
 import { Forklift } from 'lucide-react';
 import RrsmHelpContent from '@/app/rrsm/components/RrsmHelpContent';
+import { readProcessCountries } from '@/lib/rrsm/process-countries';
 
 export const metadata: Metadata = { title: 'NESR | Help & Training - RRSM' };
+/* The process map reads each country's current steps, so the page is rendered per request. */
+export const dynamic = 'force-dynamic';
 
-export default function RrsmHelpPublicPage() {
+export default async function RrsmHelpPublicPage() {
+  const countries = await readProcessCountries();
   return (
     <main className="mx-auto max-w-[900px] px-6 pb-16 pt-6">
       <div className="mb-6 flex items-center gap-2">
@@ -21,7 +25,7 @@ export default function RrsmHelpPublicPage() {
         </div>
         <p className="text-xs text-slate-400">RRSM / Help</p>
       </div>
-      <RrsmHelpContent />
+      <RrsmHelpContent countries={countries} />
     </main>
   );
 }

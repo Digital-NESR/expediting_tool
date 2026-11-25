@@ -66,6 +66,7 @@ import {
   type DocKind,
   type DocRequirements,
 } from '@/lib/rrsm/submission';
+import { nextActions, type NextAction } from '@/lib/rrsm/next-step';
 import {
   ERP_STATUS_LABEL,
   STAGE_LABEL,
@@ -101,7 +102,10 @@ type SapFilter =
   | 'pr_waiting'
   | 'under_release'
   | 'no_entry'
-  | 'not_in_sap';
+  | 'not_in_sap'
+  /* Reached from the next-step banner only, not drawn as chips. */
+  | 'returned'
+  | 'to_send';
 
 const SAP_FILTERS: [SapFilter, string][] = [
   ['all', 'All lines'],
@@ -200,6 +204,9 @@ function sapFilterMatches(filter: SapFilter, line: BoardLine, sap: SapStatus): b
   if (filter === 'all') return true;
   const ls = lineSap(line, sap);
   if (filter === 'supplier_change') return line.changeStatus === 'pending';
+  if (filter === 'returned') return line.stage === 'returned' && line.returnedTo === 'buyer';
+  if (filter === 'to_send')
+    return line.stage === 'submitted' && !line.opsSentAt && line.changeStatus !== 'pending';
   if (filter === 'pr_check') return prNeedsCheck(line.prAuto);
   if (filter === 'no_pr') return ls.stage === 'no_pr';
   if (filter === 'pr_waiting') return ls.stage !== 'no_pr' && ls.stage !== 'po';
@@ -257,6 +264,8 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
       under_release: 0,
       not_in_sap: 0,
       no_entry: 0,
+      returned: 0,
+      to_send: 0,
     };
     for (const l of lines)
       for (const [f] of SAP_FILTERS) if (f !== 'all' && sapFilterMatches(f, l, board.sap)) n[f]++;
@@ -457,6 +466,31 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
         />
       ) : (
         <>
+          {/* ── what to do next: the one action that moves the month on ── */}
+          {view === 'buyer' && board.canBuy && lines.length > 0 && (
+            <NextStepBanner
+              actions={nextActions(lines, {
+                supplier: board.country.supplierValidation,
+                ops: board.country.opsValidation,
+              })}
+              busy={busy}
+              filter={sapFilter}
+              onClearFilter={() => setSapFilter('all')}
+              suppliersHref={`/rrsm/suppliers?country=${encodeURIComponent(board.country.code)}`}
+              onDo={(a) => {
+                if (a.do.kind === 'sendUsual') void sendToOps({ usual: true });
+                else if (a.do.kind === 'close' && board.cycle)
+                  void run('close', () => closeValidatedLines(board.cycle!.id));
+                else if (a.do.kind === 'filter') {
+                  setSapFilter(a.do.filter);
+                  document
+                    .getElementById('rrsm-lines')
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }}
+            />
+          )}
+
           {sendsToOps && lines.length > 0 && (
             <OpsSendPanel
               lines={lines}
@@ -549,7 +583,7 @@ export default function RrsmBoardClient({ board, view }: { board: RrsmBoard; vie
           )}
 
           {/* ── the lines, grouped by supplier ──────────────── */}
-          <div className="space-y-5">
+          <div id="rrsm-lines" className="scroll-mt-24 space-y-5">
             {shownSuppliers.map((s) => (
               <section
                 key={s.code}
@@ -1567,6 +1601,124 @@ function OpsSendPanel({
             }}
             onClose={close}
           />
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* ─── the next-step banner ───────────────────────────────────────────────────────────────── */
+
+const FILTER_NAME: Partial<Record<SapFilter, string>> = {
+  returned: 'lines returned by Ops',
+  to_send: 'lines ready for Ops with no validator',
+  supplier_change: 'supplier rate changes',
+  pr_check: 'PRs to check',
+  no_pr: 'lines with no PR',
+};
+
+/**
+ * The one thing that moves the month on, as a banner with the button that does it, and the rest
+ * of what is open as smaller chips. Worked out by `nextActions` from the lines and the country's
+ * steps (25 Nov 2026), so a Kuwait buyer is never told to send anything to Ops.
+ */
+function NextStepBanner({
+  actions,
+  busy,
+  filter,
+  onClearFilter,
+  onDo,
+  suppliersHref,
+}: {
+  actions: NextAction[];
+  busy: string | null;
+  filter: SapFilter;
+  onClearFilter: () => void;
+  onDo: (a: NextAction) => void;
+  suppliersHref: string;
+}) {
+  if (!actions.length) return null;
+  const [first, ...rest] = actions;
+  const working = busy === 'send-ops' || busy === 'close';
+  const tone =
+    first.tone === 'done'
+      ? 'border-[#cfe3d6] bg-[#f1f8f4]'
+      : first.tone === 'wait'
+        ? 'border-slate-200 bg-white'
+        : 'border-[#307c4c]/40 bg-white ring-1 ring-[#307c4c]/15';
+
+  const button = (a: NextAction, primary: boolean) => {
+    if (!a.button) return null;
+    const cls = primary
+      ? 'inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[13px] font-semibold text-white disabled:opacity-50'
+      : 'rounded-md px-2 py-0.5 text-[11.5px] font-semibold text-[#1d4f31] hover:bg-[#e6f1ea]';
+    if (a.do.kind === 'page') {
+      return (
+        <a href={suppliersHref} className={cls} style={primary ? { background: BRAND } : undefined}>
+          {a.button}
+        </a>
+      );
+    }
+    return (
+      <button
+        type="button"
+        disabled={working}
+        onClick={() => onDo(a)}
+        className={cls}
+        style={primary ? { background: BRAND } : undefined}
+      >
+        {primary && working && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+        {a.button}
+      </button>
+    );
+  };
+
+  return (
+    <section className={`rounded-xl border px-4 py-3 shadow-sm ${tone}`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[10.5px] font-semibold uppercase tracking-wider text-[#307c4c]">
+            {first.tone === 'done'
+              ? 'All done'
+              : first.tone === 'wait'
+                ? 'Waiting on others'
+                : 'Next step'}
+          </div>
+          <div className="text-[15px] font-semibold text-slate-900">{first.title}</div>
+          <div className="text-[12.5px] text-slate-600">{first.detail}</div>
+        </div>
+        {button(first, true)}
+      </div>
+      {rest.length > 0 && (
+        <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-2.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            Also
+          </span>
+          {rest.map((a) => (
+            <span
+              key={a.key}
+              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[12px] ${
+                a.tone === 'wait'
+                  ? 'border-slate-200 bg-slate-50 text-slate-500'
+                  : 'border-[#cfe3d6] bg-white text-slate-700'
+              }`}
+            >
+              {a.title}
+              {button(a, false)}
+            </span>
+          ))}
+        </div>
+      )}
+      {FILTER_NAME[filter] && (
+        <div className="mt-2 text-[12px] text-slate-500">
+          Showing only {FILTER_NAME[filter]}.{' '}
+          <button
+            type="button"
+            onClick={onClearFilter}
+            className="font-semibold text-[#1d4f31] hover:underline"
+          >
+            Show all lines
+          </button>
         </div>
       )}
     </section>
