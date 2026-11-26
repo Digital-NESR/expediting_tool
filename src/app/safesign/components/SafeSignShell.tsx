@@ -1,7 +1,7 @@
 'use client';
 
 /*
- * The frame every SafeSign staff page sits in: sidebar, sticky top bar and the green banner.
+ * The frame every ComplyConnect staff page sits in: sidebar, sticky top bar and the green banner.
  * The same layout as RRSM and ProcureGuard, so the tools feel like one platform.
  */
 
@@ -15,7 +15,7 @@ import {
   LayoutDashboard,
   Menu,
   Send,
-  Shield,
+  ShieldCheck,
   Users,
   X,
   CircleQuestionMark,
@@ -32,17 +32,22 @@ export interface ShellUser {
   name: string;
   email: string;
   role: 'admin' | 'sender';
-  /** Countries this person may work in, and the one being shown. */
+  /** Countries this person may work in, and the one being shown (none for an approver only). */
   countries: { id: string; name: string }[];
-  country: { id: string; name: string };
-  /** May open /admin (country team and topics). */
-  platformAdmin?: boolean;
+  country: { id: string; name: string } | null;
+  /** Creates and sends communications (has a country). */
+  canSend: boolean;
+  /** Approves communications (a country SCM or a final approver). */
+  approver: boolean;
+  /** Waiting on this person's approval, for the badge. */
+  pendingApprovals: number;
 }
 
 const NAV = [
-  { href: '/safesign', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { href: '/safesign/communications', label: 'Communications', icon: Send },
-  { href: '/safesign/suppliers', label: 'Supplier library', icon: Users },
+  { href: '/safesign', label: 'Dashboard', icon: LayoutDashboard, exact: true, sender: true },
+  { href: '/safesign/communications', label: 'Communications', icon: Send, sender: true },
+  { href: '/safesign/suppliers', label: 'Supplier library', icon: Users, sender: true },
+  { href: '/safesign/approvals', label: 'Approvals', icon: ShieldCheck, approver: true },
   { href: '/help/safesign', label: 'Help', icon: CircleQuestionMark },
 ];
 
@@ -58,6 +63,7 @@ export function CountrySwitch({ user, tone = 'light' }: { user: ShellUser; tone?
     tone === 'light'
       ? 'inline-flex items-center gap-1.5 rounded-lg border border-[#307c4c]/25 bg-[#307c4c]/5 px-2.5 py-1.5 text-xs font-semibold text-[#1d4f31]'
       : 'flex items-center gap-1.5 text-sm font-semibold text-slate-800';
+  if (!user.country) return null;
   if (user.countries.length <= 1) {
     return (
       <span className={box} title="Country">
@@ -71,7 +77,7 @@ export function CountrySwitch({ user, tone = 'light' }: { user: ShellUser; tone?
       <Globe className="h-3.5 w-3.5" />
       <span className="sr-only">Country</span>
       <select
-        value={user.country.id}
+        value={user.country?.id}
         disabled={pending}
         onChange={(e) => {
           const id = e.target.value;
@@ -125,7 +131,7 @@ function SafeSignSidebar({ isOpen, onClose, user }: { isOpen: boolean; onClose: 
       backdrop={({ isOpen: open, pinned, onClose: close }) => (
         <button
           type="button"
-          aria-label="Close SafeSign menu"
+          aria-label="Close ComplyConnect menu"
           className={`fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-sm transition-opacity ${open ? 'opacity-100' : 'pointer-events-none opacity-0'} ${pinned ? 'lg:hidden' : ''}`}
           onClick={close}
         />
@@ -139,8 +145,8 @@ function SafeSignSidebar({ isOpen, onClose, user }: { isOpen: boolean; onClose: 
           <div className="flex h-16 shrink-0 items-center gap-3 bg-gradient-to-br from-[#307c4c] to-[#1d4f31] px-5 text-white">
             <SafeSignMark size="lg" />
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold leading-tight tracking-tight">SafeSign</p>
-              <p className="truncate text-[0.6875rem] text-white/70">Supplier QHSE acknowledgments</p>
+              <p className="truncate text-sm font-bold leading-tight tracking-tight">ComplyConnect</p>
+              <p className="truncate text-[0.6875rem] text-white/70">Supplier communications</p>
             </div>
             <div className="ml-auto flex items-center gap-1">
               <button
@@ -172,17 +178,19 @@ function SafeSignSidebar({ isOpen, onClose, user }: { isOpen: boolean; onClose: 
               <Home className="h-4 w-4" />
               Back to NESR Home
             </Link>
-            <div className="mb-3 rounded-lg border border-[#307c4c]/20 bg-[#307c4c]/5 px-3 py-2.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Country</p>
-              <div className="mt-1">
-                <CountrySwitch user={user} tone="plain" />
+            {user.country && (
+              <div className="mb-3 rounded-lg border border-[#307c4c]/20 bg-[#307c4c]/5 px-3 py-2.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Country</p>
+                <div className="mt-1">
+                  <CountrySwitch user={user} tone="plain" />
+                </div>
+                {user.role === 'sender' && user.countries.length === 1 && (
+                  <p className="mt-0.5 text-[11px] text-slate-500">You send for this country only.</p>
+                )}
               </div>
-              {user.role === 'sender' && user.countries.length === 1 && (
-                <p className="mt-0.5 text-[11px] text-slate-500">You send for this country only.</p>
-              )}
-            </div>
+            )}
             <div className="space-y-0.5">
-              {NAV.map((item) => {
+              {NAV.filter((item) => (!item.sender || user.canSend) && (!item.approver || user.approver)).map((item) => {
                 const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
                 const Icon = item.icon;
                 return (
@@ -198,26 +206,21 @@ function SafeSignSidebar({ isOpen, onClose, user }: { isOpen: boolean; onClose: 
                   >
                     <Icon className={`h-4 w-4 ${active ? 'text-[#307c4c]' : 'text-slate-400'}`} />
                     {item.label}
+                    {item.approver && user.pendingApprovals > 0 && (
+                      <span className="ml-auto rounded-full bg-amber-500 px-1.5 text-[11px] font-bold text-white">
+                        {user.pendingApprovals}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
-              {user.platformAdmin && (
-                <Link
-                  href="/admin/safesign"
-                  onClick={closeOnNav}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
-                >
-                  <Shield className="h-4 w-4 text-slate-400" />
-                  Admin panel
-                </Link>
-              )}
             </div>
           </nav>
 
           <div className="shrink-0 border-t border-slate-100 px-4 py-3">
             <p className="truncate text-sm font-semibold text-slate-800">{user.name}</p>
             <p className="truncate text-xs text-slate-500">
-              {ROLE_LABEL[user.role]} · {user.email}
+              {user.canSend ? ROLE_LABEL[user.role] : 'Approver'} · {user.email}
             </p>
           </div>
         </>
@@ -249,7 +252,7 @@ export default function SafeSignShell({
       <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-gray-100 bg-white/80 px-4 backdrop-blur-md md:h-16 md:px-8">
         <button
           type="button"
-          aria-label="Open SafeSign menu"
+          aria-label="Open ComplyConnect menu"
           onClick={() => setOpen(true)}
           className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100"
         >

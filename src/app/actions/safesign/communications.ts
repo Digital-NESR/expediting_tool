@@ -155,12 +155,16 @@ export async function sendCommunication(id: number): Promise<Result> {
     await ensureSafeSignSchema();
 
     const { rows: comms } = await safesignPool.query(
-      `SELECT id, title, message, response_type, deadline, status FROM ss_communications WHERE id = $1`,
+      `SELECT id, title, message, response_type, deadline, status, approval FROM ss_communications WHERE id = $1`,
       [id],
     );
     const c = comms[0];
     if (!c) return { success: false, error: 'That communication no longer exists.' };
     if (c.status === 'closed') return { success: false, error: 'This communication is closed.' };
+    /* Nothing reaches a supplier before the country SCM and a final approver have both approved. */
+    if (c.approval !== 'approved') {
+      return { success: false, error: 'This communication has not been approved yet. Submit it for approval first.' };
+    }
 
     const { rows: reqs } = await safesignPool.query(
       `SELECT r.id, r.token, r.vendor_id, v.name AS vendor_name

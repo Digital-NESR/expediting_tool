@@ -90,6 +90,8 @@ export interface CommunicationSummary {
   responseType: ResponseType;
   deadline: string;
   status: 'draft' | 'sent' | 'closed';
+  /** Where a draft is in the approval chain. */
+  approval: string;
   createdAt: string;
   sentAt: string | null;
   total: number;
@@ -103,7 +105,7 @@ export async function listCommunications(countryId: string, topicId?: number): P
   const today = todayRiyadh();
   const { rows } = await safesignPool.query<QueryResultRow>(
     `SELECT c.id, c.topic_id, t.name AS topic_name, c.title, c.response_type, c.deadline,
-            c.status, c.created_at, c.sent_at,
+            c.status, c.approval, c.created_at, c.sent_at,
             COUNT(r.id)::int AS total,
             COUNT(r.id) FILTER (WHERE r.status = 'completed')::int AS done,
             COUNT(r.id) FILTER (WHERE r.status = 'under_review')::int AS to_review,
@@ -125,6 +127,7 @@ export async function listCommunications(countryId: string, topicId?: number): P
     responseType: String(r.response_type) as ResponseType,
     deadline: dateOnly(r.deadline),
     status: String(r.status) as CommunicationSummary['status'],
+    approval: String(r.approval),
     createdAt: iso(r.created_at) ?? '',
     sentAt: iso(r.sent_at),
     total: Number(r.total),

@@ -1,7 +1,7 @@
 import { createPool } from './db/pool';
 
 /**
- * SafeSign: QHSE communications sent to suppliers, and what each supplier sent
+ * SafeSign (shown as ComplyConnect): communications sent to suppliers, and what each supplier sent
  * back (an acknowledgment, a signed letter, supporting documents or an action plan).
  *
  * The database (`SafeSign`) is provisioned for this tool alone; the schema is owned by

@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { safesignPage } from '@/lib/safesign/page';
 import { listCommunications } from '@/lib/safesign/read';
 import { formatDay, RESPONSE_TYPE_LABEL } from '@/lib/safesign/model';
+import { APPROVAL_LABEL, type ApprovalState } from '@/lib/safesign/approvals';
 import SafeSignShell from '../../components/SafeSignShell';
 import { BANNER_BUTTON, CARD } from '../../components/ui';
 
@@ -10,7 +11,18 @@ const STATE: Record<string, string> = {
   draft: 'bg-slate-100 text-slate-600',
   sent: 'bg-emerald-50 text-emerald-700',
   closed: 'bg-slate-800 text-white',
+  pending_scm: 'bg-amber-50 text-amber-700',
+  pending_final: 'bg-amber-50 text-amber-700',
+  approved: 'bg-sky-50 text-sky-700',
+  rejected: 'bg-rose-50 text-rose-700',
 };
+
+/** A draft shows where it is in approval; anything emailed shows sent or closed. */
+function stateOf(c: { status: string; approval: string }): { key: string; label: string } {
+  if (c.status !== 'draft' || c.approval === 'not_submitted') return { key: c.status, label: c.status };
+  const label = c.approval === 'approved' ? 'Approved, not sent' : APPROVAL_LABEL[c.approval as ApprovalState];
+  return { key: c.approval, label };
+}
 
 export default async function CommunicationsPage() {
   const { country, shell } = await safesignPage();
@@ -71,9 +83,9 @@ export default async function CommunicationsPage() {
                 <td className="px-3 py-3 text-slate-600">{formatDay(c.deadline)}</td>
                 <td className="px-3 py-3">
                   <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize ${STATE[c.status]}`}
+                    className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold first-letter:uppercase ${STATE[stateOf(c).key]}`}
                   >
-                    {c.status}
+                    {stateOf(c).label}
                   </span>
                 </td>
                 <td className="px-3 py-3 text-right font-semibold text-slate-700">

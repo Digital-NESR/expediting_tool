@@ -132,3 +132,78 @@ export async function setSafeSignTopicArchived(id: number, archived: boolean): P
     return fail(err, 'setSafeSignTopicArchived.failed');
   }
 }
+
+/* ── Approvers ───────────────────────────────────────────────────────────────── */
+
+export interface ApproverRow {
+  id: number;
+  step: 'scm' | 'final';
+  countryId: string | null;
+  email: string;
+  name: string;
+}
+
+/** The country SCMs and the final approvers (see src/lib/safesign/approvals.ts). */
+export async function getSafeSignApprovers(): Promise<{ countries: Country[]; approvers: ApproverRow[] }> {
+  await requireSafeSignAdmin();
+  await ensureSafeSignSchema();
+  const [countries, { rows }] = await Promise.all([
+    listCountries(),
+    safesignPool.query<QueryResultRow>(
+      `SELECT id, step, country_id, email, COALESCE(name, email) AS name
+         FROM ss_approvers ORDER BY step, country_id, name`,
+    ),
+  ]);
+  return {
+    countries,
+    approvers: rows.map((r) => ({
+      id: Number(r.id),
+      step: r.step === 'final' ? 'final' : 'scm',
+      countryId: r.country_id ? String(r.country_id) : null,
+      email: String(r.email),
+      name: String(r.name),
+    })),
+  };
+}
+
+export async function addSafeSignApprover(input: {
+  step: 'scm' | 'final';
+  countryId?: string;
+  email: string;
+  name?: string;
+}): Promise<Result> {
+  try {
+    const actor = await requireSafeSignAdmin();
+    await ensureSafeSignSchema();
+    const step = input?.step === 'final' ? 'final' : 'scm';
+    const email = normalizeEmail(input?.email);
+    if (!EMAIL.test(email)) return { success: false, error: 'Choose a person.' };
+    let countryId: string | null = null;
+    if (step === 'scm') {
+      const countries = await listCountries();
+      if (!countries.some((c) => c.id === input?.countryId)) return { success: false, error: 'Choose a country.' };
+      countryId = String(input.countryId);
+    }
+    await safesignPool.query(
+      `INSERT INTO ss_approvers (step, country_id, email, name, created_by)
+       VALUES ($1, $2, $3, NULLIF($4, ''), $5) ON CONFLICT DO NOTHING`,
+      [step, countryId, email, String(input?.name ?? '').trim(), actor.email],
+    );
+    revalidatePath('/admin/safesign');
+    return { success: true };
+  } catch (err) {
+    return fail(err, 'addSafeSignApprover.failed');
+  }
+}
+
+export async function removeSafeSignApprover(id: number): Promise<Result> {
+  try {
+    await requireSafeSignAdmin();
+    await ensureSafeSignSchema();
+    await safesignPool.query(`DELETE FROM ss_approvers WHERE id = $1`, [Number(id)]);
+    revalidatePath('/admin/safesign');
+    return { success: true };
+  } catch (err) {
+    return fail(err, 'removeSafeSignApprover.failed');
+  }
+}

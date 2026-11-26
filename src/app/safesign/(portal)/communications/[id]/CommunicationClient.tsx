@@ -2,7 +2,9 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, ChevronDown, ChevronRight, Download, FileText, Lock, Send, Trash2, Unlock } from 'lucide-react';
+import { Bell, ChevronDown, ChevronRight, Clock, Download, FileText, Lock, Send, ShieldCheck, Trash2, Unlock } from 'lucide-react';
+import { submitForApproval } from '@/app/actions/safesign/approvals';
+import type { ApprovalInfo } from '@/lib/safesign/approvals';
 import {
   changeDeadline,
   deleteDraft,
@@ -51,7 +53,7 @@ const FILTERS: { id: 'all' | DisplayStatus; label: string }[] = [
   { id: 'completed', label: 'Completed' },
 ];
 
-export default function CommunicationClient({ comm }: { comm: CommunicationDetail }) {
+export default function CommunicationClient({ comm, approval }: { comm: CommunicationDetail; approval: ApprovalInfo | null }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
@@ -139,15 +141,33 @@ export default function CommunicationClient({ comm }: { comm: CommunicationDetai
           <div className="mt-auto space-y-2 pt-4">
             {comm.status === 'draft' && (
               <>
-                <button
-                  className={`${BUTTON} w-full`}
-                  disabled={pending}
-                  onClick={() => {
-                    if (confirm(`Email ${comm.requests.length} supplier(s) now?`)) run(() => sendCommunication(comm.id));
-                  }}
-                >
-                  <Send className="h-4 w-4" /> Send to {comm.requests.length} supplier{comm.requests.length === 1 ? '' : 's'}
-                </button>
+                {(approval?.state === 'not_submitted' || approval?.state === 'rejected') && (
+                  <button
+                    className={`${BUTTON} w-full`}
+                    disabled={pending}
+                    onClick={() => {
+                      if (confirm('Submit this communication for approval?')) run(() => submitForApproval(comm.id));
+                    }}
+                  >
+                    <ShieldCheck className="h-4 w-4" /> {approval.state === 'rejected' ? 'Submit again' : 'Submit for approval'}
+                  </button>
+                )}
+                {(approval?.state === 'pending_scm' || approval?.state === 'pending_final') && (
+                  <p className="flex items-center justify-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+                    <Clock className="h-4 w-4" /> Waiting for approval
+                  </p>
+                )}
+                {approval?.state === 'approved' && (
+                  <button
+                    className={`${BUTTON} w-full`}
+                    disabled={pending}
+                    onClick={() => {
+                      if (confirm(`Email ${comm.requests.length} supplier(s) now?`)) run(() => sendCommunication(comm.id));
+                    }}
+                  >
+                    <Send className="h-4 w-4" /> Send to {comm.requests.length} supplier{comm.requests.length === 1 ? '' : 's'}
+                  </button>
+                )}
                 <button
                   className={`${BUTTON_SECONDARY} w-full`}
                   disabled={pending}
@@ -160,7 +180,7 @@ export default function CommunicationClient({ comm }: { comm: CommunicationDetai
                       });
                   }}
                 >
-                  <Trash2 className="h-4 w-4" /> Delete draft
+                  <Trash2 className="h-4 w-4" /> {approval?.state === 'pending_scm' || approval?.state === 'pending_final' ? 'Withdraw and delete' : 'Delete draft'}
                 </button>
               </>
             )}

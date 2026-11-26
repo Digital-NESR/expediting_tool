@@ -323,7 +323,7 @@ export async function submitSupplierResponse(form: FormData): Promise<SupplierRe
         signerEmail: email,
         signedAt: now,
         ip,
-        reference: `SafeSign request ${t.requestId}`,
+        reference: `ComplyConnect request ${t.requestId}`,
       });
       const base = letter ? String(letter.filename).replace(/\.[^.]+$/, '') : 'letter';
       files.push({ kind: 'signed_letter', filename: `${base} - signed by ${t.vendorName}.pdf`, mime: 'application/pdf', data: signed });

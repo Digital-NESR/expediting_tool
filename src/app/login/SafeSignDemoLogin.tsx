@@ -14,7 +14,7 @@ import { DEMO_PERSONAS } from '@/lib/safesign/demo';
 export default function SafeSignDemoLogin() {
   return (
     <div className="w-full border-t border-white/10 pt-6">
-      <p className="mb-1 text-xs font-bold uppercase tracking-wider text-amber-400">Local demo · SafeSign</p>
+      <p className="mb-1 text-xs font-bold uppercase tracking-wider text-amber-400">Local demo · ComplyConnect</p>
       <p className="mb-3 text-xs text-slate-400">Only on a local dev server; never on the live site. Pick a role.</p>
       <div className="grid gap-2">
         {DEMO_PERSONAS.map((p) => (

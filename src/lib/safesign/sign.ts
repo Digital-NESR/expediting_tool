@@ -85,7 +85,7 @@ export async function buildSignedCopy(input: {
   page.drawImage(png, { x: 66, y: y - 115 + (110 - h) / 2, width: w, height: h });
 
   page.drawText(
-    'Signed electronically through the NESR SafeSign portal after email verification.',
+    'Signed electronically through the NESR ComplyConnect portal after email verification.',
     { x: 56, y: 60, size: 8, font, color: grey },
   );
 

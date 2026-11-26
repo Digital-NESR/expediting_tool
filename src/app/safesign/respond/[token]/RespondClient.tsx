@@ -157,8 +157,8 @@ function Frame({ children }: { children: React.ReactNode }) {
             <FileSignature className="h-5 w-5" />
           </span>
           <div>
-            <p className="text-sm font-bold text-slate-900">NESR SafeSign</p>
-            <p className="text-xs text-slate-500">QHSE communications for suppliers</p>
+            <p className="text-sm font-bold text-slate-900">NESR ComplyConnect</p>
+            <p className="text-xs text-slate-500">Communications for suppliers</p>
           </div>
         </div>
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">{children}</div>

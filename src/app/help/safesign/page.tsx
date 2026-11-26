@@ -5,7 +5,7 @@
 import type { Metadata } from 'next';
 import { FileSignature } from 'lucide-react';
 
-export const metadata: Metadata = { title: 'NESR | Help - SafeSign' };
+export const metadata: Metadata = { title: 'NESR | Help - ComplyConnect' };
 
 const H2 = 'mt-8 text-base font-semibold text-slate-900';
 const P = 'mt-2 text-sm leading-relaxed text-slate-600';
@@ -18,12 +18,12 @@ export default function SafeSignHelpPage() {
         <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-[#307c4c]/15 bg-white">
           <FileSignature className="h-3.5 w-3.5 text-[#307c4c]" />
         </div>
-        <p className="text-xs text-slate-400">SafeSign / Help</p>
+        <p className="text-xs text-slate-400">ComplyConnect / Help</p>
       </div>
 
-      <h1 className="text-2xl font-bold tracking-tight text-slate-900">SafeSign</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-slate-900">ComplyConnect</h1>
       <p className={P}>
-        SafeSign sends QHSE letters, policies and requests to suppliers and tracks who has acknowledged, signed or
+        ComplyConnect sends letters, policies and requests to suppliers and tracks who has acknowledged, signed or
         responded, and when. Every response is recorded with the person&rsquo;s name, email address, time and IP address,
         so the record holds up in an audit.
       </p>
@@ -46,20 +46,26 @@ export default function SafeSignHelpPage() {
       <h2 className={H2}>For the NESR team</h2>
       <ul className="mt-2 list-disc space-y-1.5 pl-5">
         <li className={LI}>
-          <b>Countries:</b> SafeSign works per country. You see the dashboard, suppliers and communications only of the
-          countries you are given in the admin panel (SafeSign, Country Team). Administrators see every country and
+          <b>Countries:</b> ComplyConnect works per country. You see the dashboard, suppliers and communications only of the
+          countries you are given in the admin panel (ComplyConnect, Country Team). Administrators see every country and
           switch with the country dropdown at the top right.
         </li>
         <li className={LI}>
-          <b>Supplier library:</b> search the SAP vendor master by name or supplier code, filtered by whether you have
-          bought from them in your country, category of work, SAP status and email. The supplier&rsquo;s SAP emails are
-          the TO recipients (dark green). Add anyone extra (outlined) and they are remembered for that supplier next
-          time. You are always copied on what you send, and you can copy others too.
+          <b>Supplier library:</b> search the active suppliers in the SAP vendor master by name or supplier code and drag
+          them into your country&rsquo;s library. The supplier&rsquo;s SAP emails are the TO recipients (dark green). Add
+          anyone extra (outlined) and they are remembered for that supplier next time. You are always copied on what you
+          send, and you can copy others too.
         </li>
         <li className={LI}>
           <b>New communication:</b> pick a topic, attach the documents, choose what you need back (acknowledge, sign the
           letter, upload signed copy, submit documents, or action plan), set the deadline and reminders, and select
-          suppliers one by one or a whole category at once. It saves as a draft; nothing is emailed until you press Send.
+          suppliers one by one or a whole category at once. It saves as a draft.
+        </li>
+        <li className={LI}>
+          <b>Approval:</b> open the draft and press Submit for approval. Your country&rsquo;s supply chain manager approves
+          it first, then one final approver. Each gets an email with a link to review it. If either rejects it, you get an
+          email with the reason. Once both approve, you get an email and can press Send. Nothing reaches a supplier
+          before that. Approvers find everything waiting for them under Approvals.
         </li>
         <li className={LI}>
           <b>Tracking:</b> each communication shows every supplier&rsquo;s status, who responded and when, their files,

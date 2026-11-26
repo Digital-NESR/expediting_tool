@@ -1,7 +1,7 @@
 import { getSupplierView } from '@/app/actions/safesign/supplier';
 import RespondClient from './RespondClient';
 
-export const metadata = { title: 'NESR | SafeSign' };
+export const metadata = { title: 'NESR | ComplyConnect' };
 export const dynamic = 'force-dynamic';
 
 /*

@@ -298,7 +298,7 @@ Cc: ${v.cc.join(', ')}` : ''}` : 'No TO email. Add one in the supplier library.'
           {busy ? 'Saving…' : 'Save and review'}
         </button>
       </div>
-      <p className="text-right text-xs text-slate-500">Nothing is emailed until you press Send on the next page.</p>
+      <p className="text-right text-xs text-slate-500">On the next page you submit it for approval (country SCM, then final approval). Suppliers are emailed only after both approve and you press Send.</p>
     </form>
   );
 }

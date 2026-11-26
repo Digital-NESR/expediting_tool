@@ -30,7 +30,7 @@ export default async function SafeSignDashboard() {
     <SafeSignShell
       user={shell}
       title="Dashboard"
-      subtitle={`QHSE communications sent to suppliers in ${country.name}, and who has acknowledged, signed or responded.`}
+      subtitle={`Communications sent to suppliers in ${country.name}, and who has acknowledged, signed or responded.`}
       actions={
         <>
           <a href="/api/safesign/export" className={BANNER_BUTTON_GHOST}>

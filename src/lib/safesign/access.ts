@@ -34,6 +34,32 @@ export interface SafeSignActor {
   countries: Country[];
   /** ADMIN_EMAILS: may open /admin, where SafeSign's country team and topics are kept. */
   platformAdmin: boolean;
+  /** Where this person approves communications before they are sent (ss_approvers). */
+  approver: Approver;
+}
+
+export interface Approver {
+  /** Countries whose communications this person approves as supply chain manager. */
+  scm: string[];
+  /** Gives the final approval, for every country. */
+  final: boolean;
+}
+
+export const NO_APPROVER: Approver = { scm: [], final: false };
+
+export function isApprover(actor: SafeSignActor | null): boolean {
+  return Boolean(actor && (actor.approver.final || actor.approver.scm.length));
+}
+
+async function approverFor(email: string): Promise<Approver> {
+  const { rows } = await safesignPool.query<QueryResultRow>(
+    `SELECT step, country_id FROM ss_approvers WHERE LOWER(email) = $1`,
+    [email],
+  );
+  return {
+    scm: rows.filter((r) => r.step === 'scm').map((r) => String(r.country_id)),
+    final: rows.some((r) => r.step === 'final'),
+  };
 }
 
 export const COUNTRY_COOKIE = 'safesign_country';
@@ -55,12 +81,21 @@ export const currentSafeSignActor = cache(async (): Promise<SafeSignActor | null
   /* Local demo people (never in production; see ./demo.ts). */
   const demo = demoPersonaFor(email);
   if (demo) {
-    const countries = demo.role === 'admin' ? all : all.filter((c) => demo.countries?.includes(c.id));
-    return { email, name: demo.name, role: demo.role, countries, platformAdmin: false };
+    const countries =
+      demo.role === 'admin' ? all : all.filter((c) => demo.countries?.includes(c.id));
+    return {
+      email,
+      name: demo.name,
+      role: demo.role,
+      countries,
+      platformAdmin: false,
+      approver: demo.approver ?? NO_APPROVER,
+    };
   }
 
+  const approver = await approverFor(email);
   if (actor.isPlatformAdmin || isToolAdminEmail(email, process.env.SAFESIGN_ADMIN_EMAILS)) {
-    return { email, name: actor.name, role: 'admin', countries: all, platformAdmin: actor.isPlatformAdmin };
+    return { email, name: actor.name, role: 'admin', countries: all, platformAdmin: actor.isPlatformAdmin, approver };
   }
 
   const { rows } = await safesignPool.query<QueryResultRow>(
@@ -75,12 +110,24 @@ export const currentSafeSignActor = cache(async (): Promise<SafeSignActor | null
     role: countries.length ? 'sender' : null,
     countries,
     platformAdmin: actor.isPlatformAdmin,
+    approver,
   };
 });
 
-/** Anybody who may use SafeSign at all. */
-export function hasAccess(actor: SafeSignActor | null): boolean {
+/** May create and send communications: someone with at least one country. */
+export function canSend(actor: SafeSignActor | null): boolean {
   return Boolean(actor?.role && actor.countries.length);
+}
+
+/** Anybody who may open the app at all: a sender, or an approver (who may only approve). */
+export function hasAccess(actor: SafeSignActor | null): boolean {
+  return canSend(actor) || isApprover(actor);
+}
+
+/** May this person approve, at this step, a communication of this country? */
+export function approvesStep(actor: SafeSignActor | null, step: 'scm' | 'final', countryId: string): boolean {
+  if (!actor) return false;
+  return step === 'final' ? actor.approver.final : actor.approver.scm.includes(countryId);
 }
 
 export function canUseCountry(actor: SafeSignActor | null, countryId: string | null | undefined): boolean {
@@ -92,14 +139,23 @@ export async function activeCountry(actor: SafeSignActor): Promise<Country> {
   const wanted = (await cookies()).get(COUNTRY_COOKIE)?.value;
   const hit = actor.countries.find((c) => c.id === wanted);
   if (hit) return hit;
-  if (!actor.countries.length) throw new AccessError('SafeSign is not open to you.');
+  if (!actor.countries.length) throw new AccessError('ComplyConnect is not open to you.');
   return actor.countries[0];
 }
 
+/** A sender (or admin): someone who works in at least one country. */
 export async function requireSafeSignUser(): Promise<SafeSignActor> {
   const actor = await currentSafeSignActor();
   if (!actor) throw new AccessError('Sign in required.', 401);
-  if (!hasAccess(actor)) throw new AccessError('SafeSign is not open to you.');
+  if (!canSend(actor)) throw new AccessError('ComplyConnect is not open to you.');
+  return actor;
+}
+
+/** Anybody with access, approvers included. Approval actions check the step themselves. */
+export async function requireSafeSignAnyone(): Promise<SafeSignActor> {
+  const actor = await currentSafeSignActor();
+  if (!actor) throw new AccessError('Sign in required.', 401);
+  if (!hasAccess(actor)) throw new AccessError('ComplyConnect is not open to you.');
   return actor;
 }
 

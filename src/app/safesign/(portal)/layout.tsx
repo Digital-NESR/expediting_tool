@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { currentSafeSignActor, hasAccess } from '@/lib/safesign/access';
 
-export const metadata = { title: 'NESR | SafeSign' };
+export const metadata = { title: 'NESR | ComplyConnect' };
 export const dynamic = 'force-dynamic';
 
 /**
@@ -22,10 +22,10 @@ export default async function SafeSignLayout({ children }: { children: React.Rea
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-slate-50 px-5 font-sans">
         <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-          <h1 className="text-[17px] font-semibold text-slate-900">SafeSign is not open to you yet</h1>
+          <h1 className="text-[17px] font-semibold text-slate-900">ComplyConnect is not open to you yet</h1>
           <p className="mt-2 text-[13.5px] leading-relaxed text-slate-500">
-            SafeSign is used by the teams that send QHSE communications to suppliers. Ask a SafeSign
-            administrator to add you to your country.
+            ComplyConnect is used by the teams that send communications to suppliers. Ask a
+            ComplyConnect administrator to add you to your country.
           </p>
           <Link
             href="/home"

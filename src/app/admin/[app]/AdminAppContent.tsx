@@ -154,6 +154,7 @@ const SoaCountryTeamClient = dynamic(() => import('../SoaCountryTeamClient'), { 
 /* ── SafeSign ── */
 const SafeSignCountryTeamClient = dynamic(() => import('../SafeSignCountryTeamClient'), { loading });
 const SafeSignTopicsClient = dynamic(() => import('../SafeSignTopicsClient'), { loading });
+const SafeSignApproversClient = dynamic(() => import('../SafeSignApproversClient'), { loading });
 
 /* ── Learning Hub ── */
 const LearningHubAdminClient = dynamic(() => import('../../learning-hub/admin/AdminClient'), {
@@ -329,6 +330,8 @@ export default function AdminAppContent(props: AdminAppContentProps) {
     /* ── SafeSign ── */
     case 'safesign/country-team':
       return <SafeSignCountryTeamClient />;
+    case 'safesign/approvers':
+      return <SafeSignApproversClient />;
     case 'safesign/topics':
       return <SafeSignTopicsClient />;
 

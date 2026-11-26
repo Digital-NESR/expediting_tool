@@ -183,7 +183,7 @@ export const ADMIN_APPS: AdminApp[] = [
   },
   {
     id: 'safesign',
-    label: 'SafeSign',
+    label: 'ComplyConnect',
     color: '#307c4c',
     activeBg: '#eaf4ef',
     activeColor: '#1d4f31',
@@ -191,6 +191,7 @@ export const ADMIN_APPS: AdminApp[] = [
        Topics are shared by every country, so they are set here too rather than in the tool. */
     sections: [
       { id: 'country-team', label: 'Country Team' },
+      { id: 'approvers', label: 'Approvers' },
       { id: 'topics', label: 'Topics' },
     ],
   },

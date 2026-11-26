@@ -8,5 +8,5 @@ import safesignPool from '@/lib/db-safesign';
 export { safesignPool };
 
 export function ensureSafeSignSchema(): Promise<void> {
-  return requireSchema(safesignPool, 'safesign', '003_countries');
+  return requireSchema(safesignPool, 'safesign', '004_approvals');
 }

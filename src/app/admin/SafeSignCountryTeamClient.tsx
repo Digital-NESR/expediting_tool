@@ -83,9 +83,9 @@ export default function SafeSignCountryTeamClient() {
       <div>
         <h2 className="text-lg font-semibold text-slate-900">Country Team</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Senders send QHSE communications to suppliers. Each one sees only the countries they are
+          Senders send communications to suppliers. Each one sees only the countries they are
           on here: that country&rsquo;s dashboard, supplier library and communications. Someone in
-          two countries switches between them with the dropdown in SafeSign. Administrators see
+          two countries switches between them with the dropdown in ComplyConnect. Administrators see
           every country and are not listed.
         </p>
       </div>

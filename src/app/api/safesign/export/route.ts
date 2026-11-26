@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import type { QueryResultRow } from 'pg';
 import { attachmentContentDisposition } from '@/lib/contentDisposition';
-import { activeCountry, hasAccess, currentSafeSignActor } from '@/lib/safesign/access';
+import { activeCountry, canSend, currentSafeSignActor } from '@/lib/safesign/access';
 import { ensureSafeSignSchema, safesignPool } from '@/lib/safesign/db';
 import { todayRiyadh } from '@/lib/safesign/delivery';
 import {
@@ -27,7 +27,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   const actor = await currentSafeSignActor();
   if (!actor) return new NextResponse('Unauthorized', { status: 401 });
-  if (!hasAccess(actor)) return new NextResponse('Not found', { status: 404 });
+  if (!canSend(actor)) return new NextResponse('Not found', { status: 404 });
   await ensureSafeSignSchema();
   const country = await activeCountry(actor);
 
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
     v ? new Date(v as string).toLocaleString('en-GB', { timeZone: 'Asia/Riyadh' }) : '';
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = 'SafeSign';
+  wb.creator = 'ComplyConnect';
   const ws = wb.addWorksheet('Status');
   ws.columns = [
     { header: 'Topic', key: 'topic', width: 22 },
@@ -137,7 +137,7 @@ export async function GET(req: NextRequest) {
   return new Response(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': attachmentContentDisposition(`SafeSign status ${country.name} ${today}.xlsx`),
+      'Content-Disposition': attachmentContentDisposition(`ComplyConnect status ${country.name} ${today}.xlsx`),
       'Cache-Control': 'private, no-cache',
     },
   });

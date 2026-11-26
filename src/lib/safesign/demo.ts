@@ -21,6 +21,8 @@ export interface DemoPersona {
   blurb: string;
   /** Countries a demo sender works in (an admin has every country). */
   countries?: string[];
+  /** Approves communications: as SCM for these countries, and/or as final approver. */
+  approver?: { scm: string[]; final: boolean };
 }
 
 export const DEMO_PERSONAS: DemoPersona[] = [
@@ -38,6 +40,24 @@ export const DEMO_PERSONAS: DemoPersona[] = [
     role: 'sender',
     blurb: 'Saudi Arabia only: suppliers, sending, reminders, plans, reports',
     countries: ['SA'],
+  },
+  {
+    id: 'scm',
+    name: 'Demo SCM (Saudi Arabia)',
+    email: 'demo.scm@safesign.invalid',
+    role: 'sender',
+    blurb: 'Approves Saudi Arabia communications as supply chain manager',
+    countries: [],
+    approver: { scm: ['SA'], final: false },
+  },
+  {
+    id: 'final',
+    name: 'Demo Final Approver',
+    email: 'demo.final@safesign.invalid',
+    role: 'sender',
+    blurb: 'Gives the final approval, every country',
+    countries: [],
+    approver: { scm: [], final: true },
   },
 ];
 

@@ -578,11 +578,11 @@ export const TOOLS: ToolDef[] = [
     id: 'safesign',
     group: 'development',
     keywords:
-      'safesign safe sign qhse hse acknowledgment acknowledgement policy letter signature e-sign supplier compliance reminder audit',
-    name: 'SafeSign',
-    subtitle: 'Supplier QHSE acknowledgments',
+      'complyconnect comply connect safesign acknowledgment acknowledgement policy letter signature e-sign supplier compliance reminder audit',
+    name: 'ComplyConnect',
+    subtitle: 'Supplier communications and acknowledgments',
     description:
-      'Send QHSE letters and policies to suppliers in bulk, collect acknowledgments, signatures and action plans, chase with automatic reminders, and report compliance per supplier.',
+      'Send letters and policies to suppliers in bulk, collect acknowledgments, signatures and action plans, chase with automatic reminders, and report compliance per supplier.',
     icon: <FileSignature className="h-6 w-6 text-gray-400" />,
     logoClass: 'bg-gray-100',
     hoverClass: HOVER_GREEN,
