@@ -576,24 +576,24 @@ export const TOOLS: ToolDef[] = [
 
   {
     id: 'safesign',
-    group: 'development',
+    group: 'online',
     keywords:
       'complyconnect comply connect safesign acknowledgment acknowledgement policy letter signature e-sign supplier compliance reminder audit',
     name: 'ComplyConnect',
     subtitle: 'Supplier communications and acknowledgments',
     description:
       'Send letters and policies to suppliers in bulk, collect acknowledgments, signatures and action plans, chase with automatic reminders, and report compliance per supplier.',
-    icon: <FileSignature className="h-6 w-6 text-gray-400" />,
-    logoClass: 'bg-gray-100',
+    icon: <FileSignature className="h-6 w-6 text-[#307c4c]" />,
+    logoClass: 'bg-[#307c4c]/10',
     hoverClass: HOVER_GREEN,
-    accent: PREVIEW_GREY,
-    tone: 'preview',
+    accent: '#307c4c',
+    tone: 'live',
     route: '/safesign',
-    /* Pilot: greyed for everybody, clickable for administrators, like the Self-Assessment card.
-       The real gate is src/app/safesign/(portal)/layout.tsx. */
-    access: { kind: 'adminPreview' },
-    badge: { kind: 'preview' },
-    openLabel: 'Open preview →',
+    /* Open to everyone, like RRSM. The gate is src/app/safesign/(portal)/layout.tsx: senders
+       (Admin -> ComplyConnect -> Country Team) and approvers (-> Approvers) get in, an approver
+       only to Approvals; anybody else is told to ask an administrator. */
+    access: { kind: 'always' },
+    badge: { kind: 'lock', label: 'Granted per country' },
     helpHref: '/help/safesign',
   },
 
